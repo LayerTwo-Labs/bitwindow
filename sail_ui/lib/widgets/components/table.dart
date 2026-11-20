@@ -35,6 +35,7 @@ class SailTable extends StatefulWidget {
     this.sortAscending,
     this.onSort,
     required this.getRowId,
+    this.phoneColumns,
     this.rowBackgroundColor,
     this.headerBackgroundColor,
     this.emptyPlaceholder,
@@ -72,6 +73,9 @@ class SailTable extends StatefulWidget {
   /// If null and rowCount is 0, the table will show an empty area.
   final String? emptyPlaceholder;
 
+  /// The column indices that the phone layout shows. Null shows every column.
+  final List<int>? phoneColumns;
+
   @override
   State<SailTable> createState() => _SailTableState();
 }
@@ -91,6 +95,25 @@ class _SailTableState extends State<SailTable> {
   String? _lastFontFamily;
 
   double get _totalColumnWidths => _widths.fold(0, (prev, e) => prev + e);
+
+  List<int>? _visibleColumns(BuildContext context) =>
+      widget.phoneColumns != null && SailStyleValues.phoneLayout(context) ? widget.phoneColumns : null;
+
+  /// The index in the caller's columns of the shown column [i].
+  int _sourceColumn(int i) {
+    final visible = _visibleColumns(context);
+    return visible == null ? i : visible[i];
+  }
+
+  List<Widget> _pick(BuildContext context, List<Widget> all) {
+    final visible = _visibleColumns(context);
+    return visible == null ? all : [for (final i in visible) all[i]];
+  }
+
+  List<Widget> _headers(BuildContext context) => _pick(context, widget.headerBuilder(context));
+
+  List<Widget> _cells(BuildContext context, int row, bool selected) =>
+      _pick(context, widget.rowBuilder(context, row, selected));
 
   @override
   void initState() {
@@ -136,7 +159,7 @@ class _SailTableState extends State<SailTable> {
 
     // A caller can add or drop a column between builds. Every width reads by
     // column index, so the list must follow the header count.
-    final headers = widget.headerBuilder(context);
+    final headers = _headers(context);
     if (headers.length != _numColumns) {
       _numColumns = headers.length;
       _widths
@@ -181,7 +204,7 @@ class _SailTableState extends State<SailTable> {
     _sortAscending = widget.sortAscending ?? true;
 
     // Get column count from header builder
-    final headers = widget.headerBuilder(context);
+    final headers = _headers(context);
     _numColumns = headers.length;
 
     // Initialize with default widths immediately
@@ -228,7 +251,7 @@ class _SailTableState extends State<SailTable> {
 
         // Build header cells with resize handles
         final headerCells = <Widget>[];
-        final headers = widget.headerBuilder(context);
+        final headers = _headers(context);
         for (var i = 0; i < headers.length; i++) {
           final cell = headers[i];
           // Wrap header cell
@@ -242,9 +265,9 @@ class _SailTableState extends State<SailTable> {
                     alignment: cell.alignment,
                     padding: cell.padding,
                     sortable: cell.sortable,
-                    isSorted: cell.sortable && _sortColumnIndex == i,
+                    isSorted: cell.sortable && _sortColumnIndex == _sourceColumn(i),
                     isAscending: _sortAscending,
-                    onSort: cell.sortable ? () => _handleSort(i) : null,
+                    onSort: cell.sortable ? () => _handleSort(_sourceColumn(i)) : null,
                     filterWidget: cell.filterWidget,
                   ),
                 ),
@@ -367,7 +390,7 @@ class _SailTableState extends State<SailTable> {
     final isLastRow = index == widget.rowCount - 1;
     final bgColor = widget.rowBackgroundColor?.call(index) ?? (index % 2 == 1 ? widget.altBackgroundColor : null);
     return _TableRow(
-      cells: widget.rowBuilder(context, index, isSelected),
+      cells: _cells(context, index, isSelected),
       widths: _widths,
       height: widget.cellHeight,
       selected: isSelected,
@@ -397,7 +420,7 @@ class _SailTableState extends State<SailTable> {
     final columnWidths = List<double>.filled(_numColumns!, 0);
     final fixedColumns = List<bool>.filled(_numColumns!, false);
 
-    final headers = widget.headerBuilder(context);
+    final headers = _headers(context);
     for (int col = 0; col < headers.length; col++) {
       final header = headers[col];
       final sorted = header is SailTableHeaderCell && header.sortable && col == _sortColumnIndex;
@@ -415,7 +438,7 @@ class _SailTableState extends State<SailTable> {
 
     final hugging = List<bool>.filled(_numColumns!, false);
     for (int row in rowsToSample) {
-      final cells = widget.rowBuilder(context, row, false);
+      final cells = _cells(context, row, false);
       for (int col = 0; col < cells.length && col < _numColumns!; col++) {
         final cell = cells[col];
         if (cell is SailTableCell && (cell.width != null || cell.hugContent)) {
@@ -431,7 +454,7 @@ class _SailTableState extends State<SailTable> {
     // render in a column too narrow for it.
     if (hugging.contains(true) && rowsToSample.length < widget.rowCount) {
       for (int row = 0; row < widget.rowCount; row++) {
-        final cells = widget.rowBuilder(context, row, false);
+        final cells = _cells(context, row, false);
         for (int col = 0; col < cells.length && col < _numColumns!; col++) {
           if (!hugging[col]) {
             continue;
@@ -442,7 +465,7 @@ class _SailTableState extends State<SailTable> {
     }
 
     for (int i = 0; i < _numColumns!; i++) {
-      columnWidths[i] = max(columnWidths[i], widget.minColumnWidths[i] ?? 0);
+      columnWidths[i] = max(columnWidths[i], widget.minColumnWidths[_sourceColumn(i)] ?? 0);
       if (fixedColumns[i]) {
         continue;
       }
@@ -933,6 +956,7 @@ class _TableRowState extends State<_TableRow> {
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
     var isWindows = context.isWindows;
+    final phone = SailStyleValues.phoneLayout(context);
 
     var cellWidgets = <Widget>[];
     int i = 0;
@@ -949,6 +973,14 @@ class _TableRowState extends State<_TableRow> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onSecondaryTapDown: cellValue != null
+                  ? (details) => _showContextMenu(
+                      context,
+                      details.globalPosition,
+                      cellValue,
+                      widget.rowId,
+                    )
+                  : null,
+              onLongPressStart: cellValue != null && phone
                   ? (details) => _showContextMenu(
                       context,
                       details.globalPosition,

@@ -115,11 +115,15 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
         route: SidechainsRoute(),
         nav: TopNavRoute(label: 'Sidechains', onTap: _openSidechainsTab),
       ),
-    (id: TabIndices.mining, route: MiningRoute(), nav: TopNavRoute(label: 'Mining')),
+    if (hasMiningTab()) (id: TabIndices.mining, route: MiningRoute(), nav: TopNavRoute(label: 'Mining')),
     (id: TabIndices.learn, route: LearnRoute(), nav: TopNavRoute(label: 'Learn')),
     (id: TabIndices.console, route: ConsoleRoute(), nav: TopNavRoute(label: 'Console')),
     (id: TabIndices.chat, route: ChatRoute(), nav: TopNavRoute(label: 'Chat')),
-    (id: TabIndices.settings, route: SettingsRoute(), nav: TopNavRoute(icon: SailSVGAsset.settings)),
+    (
+      id: TabIndices.settings,
+      route: SettingsRoute(),
+      nav: const TopNavRoute(icon: SailSVGAsset.settings, drawerLabel: 'Settings'),
+    ),
   ];
 
   void _openSidechainsTab() {
@@ -342,17 +346,18 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
         category: 'Crypto Tools',
         onSelected: () => GetIt.I.get<WindowProvider>().open(SubWindowTypes.converter),
       ),
-      if (minesHere())
+      if (hasMiningTab() && minesHere())
         CommandItem(
           label: 'Mine',
           category: 'Work for Bitcoin',
           onSelected: () => _openMining(MiningPage.miningSubtabLabel),
         ),
-      CommandItem(
-        label: 'Mining Pools',
-        category: 'Work for Bitcoin',
-        onSelected: () => _openMining(MiningPage.poolsSubtabLabel),
-      ),
+      if (hasMiningTab())
+        CommandItem(
+          label: 'Mining Pools',
+          category: 'Work for Bitcoin',
+          onSelected: () => _openMining(MiningPage.poolsSubtabLabel),
+        ),
 
       // This Node
       CommandItem(
@@ -749,15 +754,22 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
               menus: [
                 PlatformMenuItemGroup(
                   members: [
-                    if (minesHere())
-                      PlatformMenuItem(label: 'Mine', onSelected: () => _openMining(MiningPage.miningSubtabLabel)),
+                    if (hasMiningTab() && minesHere())
+                      PlatformMenuItem(
+                        label: 'Mine',
+                        onSelected: () => _openMining(MiningPage.miningSubtabLabel),
+                      ),
                     PlatformMenuItem(
                       label: 'Network Statistics',
                       onSelected: () {
                         showThemedDialog(context: context, builder: (context) => const NetworkStatisticsPage());
                       },
                     ),
-                    PlatformMenuItem(label: 'Mining Pools', onSelected: () => _openMining(MiningPage.poolsSubtabLabel)),
+                    if (hasMiningTab())
+                      PlatformMenuItem(
+                        label: 'Mining Pools',
+                        onSelected: () => _openMining(MiningPage.poolsSubtabLabel),
+                      ),
                     PlatformMenuItem(
                       label: 'Sidechain Activation',
                       onSelected: () {
@@ -923,9 +935,11 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
               builder: (context, child, controller) {
                 final theme = SailTheme.of(context);
 
+                final phone = SailStyleValues.phoneLayout(context);
                 return SailSelectionArea(
                   child: SailScaffold(
                     backgroundColor: theme.colors.background,
+                    drawer: phone ? TopNavDrawer(routes: [for (final t in _navTabs) t.nav]) : null,
                     appBar: TopNav(
                       locked: _homepageProvider.editing,
                       leadingWidget: _isWalletSwitching
@@ -1054,14 +1068,15 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
                               );
                             },
                           ),
-                          SailButton(
-                            onPressed: () async {
-                              await openUrl(Uri.parse('https://t.me/DcInsiders'));
-                            },
-                            variant: ButtonVariant.icon,
-                            icon: SailSVGAsset.telegram,
-                            small: true,
-                          ),
+                          if (!phone)
+                            SailButton(
+                              onPressed: () async {
+                                await openUrl(Uri.parse('https://t.me/DcInsiders'));
+                              },
+                              variant: ButtonVariant.icon,
+                              icon: SailSVGAsset.telegram,
+                              small: true,
+                            ),
                         ],
                       ),
                     ),
@@ -1220,11 +1235,8 @@ class _StatusBarState extends State<StatusBar> {
         ResetButton(
           compact: compact,
           onTap: () async {
-            final confProvider = GetIt.I.get<BitcoinConfProvider>();
-            final settingsTabIndex = confProvider.networkSupportsSidechains ? 7 : 6;
             SettingsPage.setSection(5);
-            final tabsRouter = AutoTabsRouter.of(context);
-            tabsRouter.setActiveIndex(settingsTabIndex);
+            await AutoTabsRouter.of(context).navigate(SettingsRoute());
           },
         ),
       ],
