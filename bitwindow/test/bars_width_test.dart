@@ -217,7 +217,9 @@ void main() {
 
   Finder sailTooltip(String message) => find.byWidgetPredicate((w) => w is SailTooltip && w.message == message);
 
-  Future<void> pumpBars(WidgetTester tester, double width) async {
+  Future<void> pumpBars(WidgetTester tester, double width, {List<String> tabs = _tabs, bool phone = false}) async {
+    SailStyleValues.phoneLayoutOverride = phone;
+    addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
     tester.view.physicalSize = Size(width, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -235,7 +237,7 @@ void main() {
           initial: true,
           builder: (context, data) => AutoTabsRouter(
             routes: [
-              for (final tab in [..._tabs, 'Settings']) NamedRoute('${tab}Route'),
+              for (final tab in [...tabs, 'Settings']) NamedRoute('${tab}Route'),
             ],
             builder: (context, child) => Scaffold(
               appBar: TopNav(
@@ -246,7 +248,7 @@ void main() {
                   onCreateWallet: () {},
                 ),
                 routes: [
-                  for (final tab in _tabs) TopNavRoute(label: tab),
+                  for (final tab in tabs) TopNavRoute(label: tab),
                   TopNavRoute(icon: SailSVGAsset.settings),
                 ],
                 endWidget: SailRow(
@@ -256,12 +258,13 @@ void main() {
                       items: [SailDropdownItem<String>(value: 'signet', label: 'L2L Signet')],
                       onChanged: (_) {},
                     ),
-                    SailButton(
-                      onPressed: () async {},
-                      variant: ButtonVariant.icon,
-                      icon: SailSVGAsset.telegram,
-                      small: true,
-                    ),
+                    if (!phone)
+                      SailButton(
+                        onPressed: () async {},
+                        variant: ButtonVariant.icon,
+                        icon: SailSVGAsset.telegram,
+                        small: true,
+                      ),
                   ],
                 ),
               ),
@@ -274,7 +277,7 @@ void main() {
             ),
           ),
           children: [
-            for (final tab in [..._tabs, 'Settings'])
+            for (final tab in [...tabs, 'Settings'])
               NamedRouteDef(name: '${tab}Route', builder: (_, _) => const SizedBox()),
           ],
         ),
@@ -342,6 +345,24 @@ void main() {
     expect(find.textContaining('Last block:'), findsNothing);
     expect(find.text('Reset'), findsNothing);
     expect(tester.getTopRight(find.byType(ResetButton)).dx, lessThanOrEqualTo(1200));
+  });
+
+  testWidgets('the phone top bar fits a 360 px phone', (tester) async {
+    await pumpBars(tester, 360, phone: true);
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getTopRight(find.byType(NotificationBell)).dx, lessThanOrEqualTo(360));
+    expect(tester.getSize(find.byType(WalletDropdown)).width, lessThan(200));
+  });
+
+  testWidgets('Reset opens the Settings tab when a phone hides Mining', (tester) async {
+    final phoneTabs = _tabs.where((t) => t != 'Mining').toList();
+    await pumpBars(tester, 1280, tabs: phoneTabs);
+
+    await tester.tap(find.byType(ResetButton));
+    await tester.pump();
+
+    expect(AutoTabsRouter.of(tester.element(find.byType(StatusBar))).activeIndex, phoneTabs.length);
   });
 
   testWidgets('a 1280 px window shows the full last block label', (tester) async {

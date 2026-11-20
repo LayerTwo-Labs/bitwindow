@@ -6,6 +6,9 @@ import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+/// False on a phone. Mining and the pool list need a full node, and a phone runs light mode only.
+bool hasMiningTab({bool? mobile}) => !(mobile ?? isMobile);
+
 /// Mining runs on eCash only, so other networks show the Pools tab alone.
 bool minesHere() {
   return GetIt.I.get<BitcoinConfProvider>().network == BitcoinNetwork.BITCOIN_NETWORK_ECASH;
