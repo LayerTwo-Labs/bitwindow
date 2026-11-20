@@ -209,6 +209,9 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
   }
 
   Future<void> _initializeWindowManager() async {
+    if (!hasDesktopWindow) {
+      return;
+    }
     windowManager.addListener(this);
     await windowManager.setPreventClose(true);
   }
