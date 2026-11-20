@@ -27,6 +27,7 @@ class HomepageWidgetCatalog {
       name: 'Coin News',
       sizes: [WidgetSize.half, WidgetSize.full],
       group: 'News',
+      fullOnPhones: true,
       builder: (size) => size == WidgetSize.full
           ? ViewModelBuilder<FeeCoinNewsLargeViewModel>.reactive(
               viewModelBuilder: () => FeeCoinNewsLargeViewModel(),
@@ -42,6 +43,7 @@ class HomepageWidgetCatalog {
       name: 'Hacker Coin News',
       sizes: [WidgetSize.half, WidgetSize.full],
       group: 'News',
+      fullOnPhones: true,
       builder: (size) => size == WidgetSize.full
           ? ViewModelBuilder<CoinNewsLargeViewModel>.reactive(
               viewModelBuilder: () => CoinNewsLargeViewModel(),
@@ -75,9 +77,7 @@ class HomepageWidgetCatalog {
               height: 300,
               child: ListenableBuilder(
                 listenable: model.blockchainProvider.recentChanged,
-                builder: (context, _) => LatestTransactionTable(
-                  entries: model.recentTransactions,
-                ),
+                builder: (context, _) => LatestTransactionTable(entries: model.recentTransactions),
               ),
             ),
           );
@@ -95,12 +95,7 @@ class HomepageWidgetCatalog {
           return SailCard(
             title: 'Latest Blocks',
             bottomPadding: false,
-            child: SizedBox(
-              height: 300,
-              child: LatestBlocksTable(
-                blocks: model.recentBlocks,
-              ),
-            ),
+            child: SizedBox(height: 300, child: LatestBlocksTable(blocks: model.recentBlocks)),
           );
         },
       ),
@@ -117,26 +112,22 @@ class HomepageWidgetCatalog {
       name: 'Block Explorer',
       sizes: [WidgetSize.full],
       group: 'Chain',
-      builder: (_) => SizedBox(
-        height: 500,
-        child: const BlockExplorerDialog(),
-      ),
+      builder: (_) => SizedBox(height: 500, child: const BlockExplorerDialog()),
     ),
     'graffiti_explorer': HomepageWidgetInfo(
       id: 'graffiti_explorer',
       name: 'Graffiti Explorer',
       sizes: [WidgetSize.full],
       group: 'Chain',
-      builder: (_) => SizedBox(
-        height: 500,
-        child: const GraffitiExplorerView(),
-      ),
+      subtitle: 'Browse blockchain graffiti and OP_RETURN data',
+      builder: (_) => SizedBox(height: 500, child: const GraffitiExplorerView()),
     ),
     'network_traffic': HomepageWidgetInfo(
       id: 'network_traffic',
       name: 'Network Traffic',
       sizes: [WidgetSize.half, WidgetSize.full],
       group: 'Network',
+      subtitle: 'Bandwidth over time',
       builder: (_) => const TrafficGraphWidget(),
     ),
     'network_stats': HomepageWidgetInfo(
@@ -144,6 +135,7 @@ class HomepageWidgetCatalog {
       name: 'Network Stats',
       sizes: [WidgetSize.half, WidgetSize.full],
       group: 'Network',
+      subtitle: 'Connection summary',
       builder: (_) => const NetworkStatsWidget(),
     ),
     'peers_table': HomepageWidgetInfo(
@@ -151,10 +143,7 @@ class HomepageWidgetCatalog {
       name: 'Connected Peers',
       sizes: [WidgetSize.full],
       group: 'Network',
-      builder: (_) => SizedBox(
-        height: 400,
-        child: const PeersTableWidget(),
-      ),
+      builder: (_) => SizedBox(height: 400, child: const PeersTableWidget()),
     ),
     'sidechains_compact': HomepageWidgetInfo(
       id: 'sidechains_compact',
@@ -164,12 +153,7 @@ class HomepageWidgetCatalog {
       builder: (_) => ViewModelBuilder<SidechainsViewModel>.reactive(
         viewModelBuilder: () => SidechainsViewModel(),
         builder: (context, model, child) {
-          return SizedBox(
-            height: 300,
-            child: SidechainsList(
-              smallVersion: true,
-            ),
-          );
+          return SizedBox(height: 300, child: SidechainsList(smallVersion: true));
         },
       ),
     ),
@@ -181,11 +165,7 @@ class HomepageWidgetCatalog {
       builder: (_) => ViewModelBuilder<RecentActionsViewModel>.reactive(
         viewModelBuilder: () => RecentActionsViewModel(),
         builder: (context, viewModel, child) {
-          return RecentActionsCard(
-            title: 'Recent Actions',
-            subtitle: viewModel.subtitle,
-            actions: viewModel.actions,
-          );
+          return RecentActionsCard(title: 'Recent Actions', subtitle: viewModel.subtitle, actions: viewModel.actions);
         },
       ),
     ),
@@ -194,16 +174,14 @@ class HomepageWidgetCatalog {
       name: 'Deniability',
       sizes: [WidgetSize.full],
       group: 'Wallet and sidechains',
-      builder: (_) => SizedBox(
-        height: 300,
-        child: const DeniabilityTab(newWindowButton: null),
-      ),
+      builder: (_) => SizedBox(height: 300, child: const DeniabilityTab(newWindowButton: null)),
     ),
     'fast_withdrawal': HomepageWidgetInfo(
       id: 'fast_withdrawal',
       name: 'Fast Withdrawal',
       sizes: [WidgetSize.full],
       group: 'Wallet and sidechains',
+      subtitle: 'Quickly withdraw L2 coins to your L1-wallet',
       builder: (_) => const FastWithdrawalTab(),
     ),
   };
@@ -312,10 +290,7 @@ class SidechainActionAvatar extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) => Container(
         width: 40,
         height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: SailTheme.of(context).colors.backgroundSecondary,
-        ),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: SailTheme.of(context).colors.backgroundSecondary),
       ),
     );
   }

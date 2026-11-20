@@ -76,6 +76,19 @@ void main() {
     expect(remove.left, greaterThan(amount.right - 1));
   });
 
+  testWidgets('on a phone the address wraps and its tools sit under it, inside the field', (tester) async {
+    SailStyleValues.phoneLayoutOverride = true;
+    await _pumpRow(tester);
+
+    final field = find.byKey(const Key('recipient_address_0'));
+    final text = tester.getRect(find.descendant(of: field, matching: find.byType(EditableText)));
+    final paste = find.descendant(of: field, matching: find.byType(PasteButton));
+    expect(paste, findsOneWidget);
+    expect(tester.getRect(paste).top, greaterThanOrEqualTo(text.bottom));
+    expect(tester.getRect(paste).bottom, lessThan(tester.getRect(field).bottom));
+    expect(tester.widget<EditableText>(find.byType(EditableText).first).maxLines, isNull);
+  });
+
   testWidgets('on a phone the amount field shows the unit before MAX', (tester) async {
     SailStyleValues.phoneLayoutOverride = true;
     await _pumpRow(tester);
