@@ -755,10 +755,7 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
                 PlatformMenuItemGroup(
                   members: [
                     if (hasMiningTab() && minesHere())
-                      PlatformMenuItem(
-                        label: 'Mine',
-                        onSelected: () => _openMining(MiningPage.miningSubtabLabel),
-                      ),
+                      PlatformMenuItem(label: 'Mine', onSelected: () => _openMining(MiningPage.miningSubtabLabel)),
                     PlatformMenuItem(
                       label: 'Network Statistics',
                       onSelected: () {
@@ -939,7 +936,9 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
                 return SailSelectionArea(
                   child: SailScaffold(
                     backgroundColor: theme.colors.background,
-                    drawer: phone ? TopNavDrawer(routes: [for (final t in _navTabs) t.nav]) : null,
+                    drawer: phone
+                        ? TopNavDrawer(routes: [for (final t in _navTabs) t.nav], menus: phoneMenus(_cachedMenuList!))
+                        : null,
                     appBar: TopNav(
                       locked: _homepageProvider.editing,
                       leadingWidget: _isWalletSwitching
@@ -1379,6 +1378,21 @@ List<PlatformMenuItem> encryptionMenuGroups({
     return [];
   }
   return [PlatformMenuItemGroup(members: members)];
+}
+
+/// The menus without the items a phone has no use for: window controls, mining and the file manager.
+List<PlatformMenuItem> phoneMenus(List<PlatformMenuItem> menus) {
+  final hidden = {'Quit bitwindow', 'Minimize bitwindow', 'Mine', 'Mining Pools', openLogsLabel()};
+  List<PlatformMenuItem> keep(List<PlatformMenuItem> items) => [
+    for (final item in items)
+      if (item is PlatformMenuItemGroup)
+        PlatformMenuItemGroup(members: keep(item.members))
+      else if (item is PlatformMenu)
+        PlatformMenu(label: item.label, menus: keep(item.menus))
+      else if (!hidden.contains(item.label))
+        item,
+  ];
+  return keep(menus);
 }
 
 List<PlatformMenuItem> buildVisibilityMenuItems() {
