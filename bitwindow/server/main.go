@@ -880,3 +880,17 @@ func splitAddr(addr string) (string, int, error) {
 	}
 	return host, port, nil
 }
+
+// drivechaindFileName is the drivechaind file name beside bitwindowd. Android
+// only executes binaries from the app's native library folder, which holds
+// them as lib<name>.so.
+func drivechaindFileName(goos string) string {
+	switch goos {
+	case "windows":
+		return "drivechaind.exe"
+	case "android":
+		return "libdrivechaind.so"
+	default:
+		return "drivechaind"
+	}
+}

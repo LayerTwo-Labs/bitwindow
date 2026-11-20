@@ -96,11 +96,13 @@ void main(List<String> args) async {
           WidgetsFlutterBinding.ensureInitialized();
 
           // The main window gets no entrypoint arguments, so it needs no window controller.
-          final windowController = args.isEmpty ? null : await WindowController.fromCurrentEngine();
+          final windowController = hasDesktopWindow && args.isNotEmpty
+              ? await WindowController.fromCurrentEngine()
+              : null;
 
           final (applicationDir, logFile, log) = await init(windowController?.arguments ?? '');
-          if (subWindowTimers != null) {
-            return await runPooledSubWindow(windowController!, subWindowTimers, log, logFile);
+          if (windowController != null && subWindowTimers != null) {
+            return await runPooledSubWindow(windowController, subWindowTimers, log, logFile);
           }
 
           // If arguments are not empty, this is a sub-window
@@ -250,6 +252,19 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   GetIt.I.registerLazySingleton<Logger>(() => log);
   final windowProvider = await WindowProvider.newInstance(logFile, applicationDir, isMainWindow: !isSubWindow);
   GetIt.I.registerLazySingleton<WindowProvider>(() => windowProvider);
+  if (!hasDesktopWindow) {
+    final windowLogFile = logFile;
+    windowProvider.openInApp = (window, arguments) async {
+      final router = GetIt.I.get<AppRouter>();
+      await router.pushWidget(
+        SailWindowScaffold(
+          title: window.name,
+          onBack: () => router.maybePop(),
+          child: inAppWindowPage(window.identifier, arguments, windowLogFile),
+        ),
+      );
+    };
+  }
   GetIt.I.registerLazySingleton<AppRouter>(() => AppRouter());
   GetIt.I.registerLazySingleton<ClientSettings>(() => ClientSettings(store: storage, log: log));
   GetIt.I.registerLazySingleton<BitwindowClientSettings>(() => BitwindowClientSettings(store: storage, log: log));
@@ -312,9 +327,7 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   GetIt.I.registerSingleton<BinaryProvider>(binaryProvider);
   put<BitcoindConnection>(() => BitcoindConnection());
   // Enforcer services are bridged by bitwindowd — same endpoint as BitwindowRPC.
-  put<EnforcerRPC>(
-    () => EnforcerLive(host: Environment.bitwindowdHost.value, port: Environment.bitwindowdPort.value),
-  );
+  put<EnforcerRPC>(() => EnforcerLive(host: Environment.bitwindowdHost.value, port: Environment.bitwindowdPort.value));
   // Shared system boundary for runtime and wallet flows used across apps.
   final orchestrator = OrchestratorRPC(
     host: Environment.orchestratorHost.value,
@@ -539,11 +552,13 @@ Future<void> runMainWindow(Logger log, Directory applicationDir, File logFile) a
   );
 
   final look = SailAppLook.load();
-  await windowManager.ensureInitialized();
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
+  if (hasDesktopWindow) {
+    await windowManager.ensureInitialized();
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
 
   await setupSignalHandlers(log);
 
@@ -1426,4 +1441,37 @@ Future<void> initAutoUpdater(Logger log) async {
   } catch (e) {
     log.w('Failed to initialize auto updater: $e');
   }
+}
+
+/// The page that [windowType] shows inside the app, where no sub-window exists.
+Widget inAppWindowPage(String? windowType, Map<String, dynamic> arguments, File logFile) {
+  switch (windowType) {
+    case SubWindowTypes.debugId:
+      return DebugWindow();
+    case SubWindowTypes.logsId:
+      final logWindow = LogWindowArguments.fromWindowArguments(arguments, bitwindowLogPath: logFile.path);
+      return LogPage(logPath: logWindow.logPath, title: logWindow.title, binaryType: logWindow.binaryType);
+    case SubWindowTypes.deniabilityId:
+      return DeniabilityTab(newWindowButton: null);
+    case SubWindowTypes.blockExplorerId:
+      return const BlockExplorerDialog();
+    case SubWindowTypes.addressbookId:
+      return AddressBookTable();
+    case SubWindowTypes.messageSignerId:
+      return const MessageSigner();
+    case SubWindowTypes.hashCalculatorId:
+      return const HashCalculator();
+    case SubWindowTypes.converterId:
+      return const ConverterWindow();
+    case SubWindowTypes.hdWalletId:
+      return const HDWalletTab();
+    case SubWindowTypes.multisigLoungeId:
+      return const MultisigLoungeTab();
+    case SubWindowTypes.bitDriveId:
+      return const BitDriveTab();
+  }
+  return SailCard(
+    title: 'Unknown window type: $windowType',
+    child: SailText.primary15('Programmers messed up, and supplied an unknown window type: $windowType'),
+  );
 }

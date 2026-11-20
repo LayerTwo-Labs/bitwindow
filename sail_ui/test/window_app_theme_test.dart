@@ -55,4 +55,14 @@ void main() {
     );
     expect(titleStrip.color, colors.backgroundSecondary);
   });
+
+  testWidgets('a sub-window title strip spans the window', (tester) async {
+    await tester.pumpWidget(
+      buildSailWindowApp(GetIt.I.get<Logger>(), 'Message Signer', const SizedBox(), SailColorScheme.orange),
+    );
+    await tester.pumpAndSettle();
+
+    final titleStrip = find.ancestor(of: find.text('Message Signer'), matching: find.byType(Container)).first;
+    expect(tester.getSize(titleStrip).width, tester.getSize(find.byType(Scaffold)).width);
+  });
 }

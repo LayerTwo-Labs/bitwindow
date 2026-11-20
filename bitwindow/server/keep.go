@@ -21,11 +21,7 @@ import (
 
 // drivechaindBeside is the drivechaind file in the folder of the bitwindowd at path.
 func drivechaindBeside(path string) string {
-	name := "drivechaind"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-	return filepath.Join(filepath.Dir(path), name)
+	return filepath.Join(filepath.Dir(path), drivechaindFileName(runtime.GOOS))
 }
 
 // adoptOrchestrator makes ownerPID the owner of the drivechaind at addr when

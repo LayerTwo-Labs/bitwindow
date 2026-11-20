@@ -6,6 +6,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:path/path.dart' as path;
+import 'package:sail_ui/config/android_daemons.dart';
 import 'package:sail_ui/pages/router.dart';
 import 'package:sidechain_core/providers/price_provider.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -284,6 +285,12 @@ Future<void> stageEmbeddedBinaries(
   await fileDir.create(recursive: true);
   await removeAsideBinaries(fileDir);
   final useLink = link ?? Platform.isMacOS;
+
+  if (Platform.isAndroid) {
+    await linkAndroidDaemons(fileDir);
+    log.d('Linked the Android daemons into assets/bin');
+    return;
+  }
 
   for (final binary in allBinaries) {
     await _copyEmbeddedBinary(
