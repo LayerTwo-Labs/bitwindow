@@ -42,8 +42,24 @@ build:
         MINGW*|MSYS*|CYGWIN*)  flutter build windows;; # Windows
         *)        echo "Unknown operating system" && exit 1 ;;
     esac
-# Builds bitwindowd and drivechaind into the APK's arm64 jniLibs folder.
-android-daemons:
+# Builds bitwindowd and drivechaind into one static library per iOS SDK.
+ios-backend:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pair in iphonesimulator:arm64-apple-ios15.0-simulator iphoneos:arm64-apple-ios15.0; do
+        sdk="${pair%%:*}"
+        out="$PWD/ios/Backend/$sdk"
+        mkdir -p "$out"
+        export CGO_ENABLED=1 GOOS=ios GOARCH=arm64
+        export CC="$(xcrun --sdk "$sdk" -f clang) -isysroot $(xcrun --sdk "$sdk" --show-sdk-path) -target ${pair#*:}"
+        (cd server && go build -trimpath -buildmode=c-archive -ldflags="-s -w" -o "$out/libbitwindow_backend.a" ./mobile)
+    done
+
+ios: ios-backend
+    flutter build ios --simulator
+
+# Builds bitwindowd and drivechaind into one library in the APK's arm64 jniLibs folder.
+android-backend:
     #!/usr/bin/env bash
     set -euo pipefail
     sdk="${ANDROID_HOME:-$(flutter config --list | sed -n 's/^ *android-sdk: //p')}"
@@ -52,8 +68,8 @@ android-daemons:
     out="$PWD/android/app/src/main/jniLibs/arm64-v8a"
     mkdir -p "$out"
     export CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC="$cc"
-    (cd server && go build -trimpath -ldflags="-s -w" -o "$out/libbitwindowd.so" .)
-    (cd ../sidechain-orchestrator && go build -trimpath -ldflags="-s -w" -o "$out/libdrivechaind.so" ./cmd/drivechaind)
+    (cd server && go build -trimpath -buildmode=c-shared -ldflags="-s -w -extldflags=-Wl,-z,max-page-size=16384" -o "$out/libbitwindow_backend.so" ./mobile)
+    rm "$out/libbitwindow_backend.h"
 
-android: android-daemons
+android: android-backend
     flutter build apk --target-platform android-arm64

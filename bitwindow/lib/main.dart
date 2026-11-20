@@ -94,6 +94,9 @@ void main(List<String> args) async {
       await withWindowsFileRetry(() async {
         try {
           WidgetsFlutterBinding.ensureInitialized();
+          if (Platform.isIOS) {
+            await loadIosBitwindowHome();
+          }
 
           // The main window gets no entrypoint arguments, so it needs no window controller.
           final windowController = hasDesktopWindow && args.isNotEmpty
