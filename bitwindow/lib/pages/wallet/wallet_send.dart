@@ -521,6 +521,31 @@ class RecipientRow extends StatelessWidget {
     final bookLabel = addressBookEntries.firstWhereOrNull((e) => e.address == address)?.label ?? '';
 
     final phone = SailStyleValues.phoneLayout(context);
+    final addressTools = SailRow(
+      children: [
+        PasteButton(onPaste: (text) => recipient.addressController.text = text),
+        if (address.isNotEmpty && !addressBookEntries.any((e) => e.address == address))
+          SailButton(
+            label: 'Save',
+            variant: ButtonVariant.ghost,
+            onPressed: () async => onSaveToAddressBook(context, address),
+          ),
+        Flexible(
+          child: SailDropdownButton<AddressBookEntry>(
+            value: null,
+            hint: addressBookEntries.isEmpty
+                ? 'No Addresses Saved'
+                : (bookLabel.isNotEmpty ? bookLabel : 'Address Book'),
+            items: [
+              for (final entry in addressBookEntries)
+                SailDropdownItem<AddressBookEntry>(value: entry, label: entry.label),
+            ],
+            icon: SailSVG.fromAsset(SailSVGAsset.bookUser, width: 13, color: theme.colors.inactiveNavText),
+            onChanged: onAddressSelected,
+          ),
+        ),
+      ],
+    );
     final addressField = SailTextField(
       key: Key('recipient_address_$index'),
       controller: recipient.addressController,
@@ -528,31 +553,8 @@ class RecipientRow extends StatelessWidget {
       size: TextFieldSize.small,
       minLines: 1,
       maxLines: null,
-      suffixWidget: SailRow(
-        children: [
-          PasteButton(onPaste: (text) => recipient.addressController.text = text),
-          if (address.isNotEmpty && !addressBookEntries.any((e) => e.address == address))
-            SailButton(
-              label: 'Save',
-              variant: ButtonVariant.ghost,
-              onPressed: () async => onSaveToAddressBook(context, address),
-            ),
-          Flexible(
-            child: SailDropdownButton<AddressBookEntry>(
-              value: null,
-              hint: addressBookEntries.isEmpty
-                  ? 'No Addresses Saved'
-                  : (bookLabel.isNotEmpty ? bookLabel : 'Address Book'),
-              items: [
-                for (final entry in addressBookEntries)
-                  SailDropdownItem<AddressBookEntry>(value: entry, label: entry.label),
-              ],
-              icon: SailSVG.fromAsset(SailSVGAsset.bookUser, width: 13, color: theme.colors.inactiveNavText),
-              onChanged: onAddressSelected,
-            ),
-          ),
-        ],
-      ),
+      suffixWidget: phone ? null : addressTools,
+      bottomWidget: phone ? addressTools : null,
     );
     final maxButton = SailButton(
       label: 'MAX',

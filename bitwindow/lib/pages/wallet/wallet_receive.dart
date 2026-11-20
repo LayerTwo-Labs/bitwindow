@@ -101,6 +101,8 @@ class ReceiveTab extends StatelessWidget {
                                           controller: TextEditingController(text: model.address),
                                           hintText: 'A Drivechain address',
                                           readOnly: true,
+                                          minLines: SailStyleValues.phoneLayout(context) ? 1 : null,
+                                          maxLines: SailStyleValues.phoneLayout(context) ? null : 1,
                                           suffixWidget: CopyButton(text: model.address),
                                         ),
                                         if (model.addressDerivationPath.isNotEmpty)
@@ -194,6 +196,7 @@ class PaymentCodeField extends StatelessWidget {
       readOnly: true,
       minLines: phone ? 1 : null,
       maxLines: phone ? null : 1,
+      alignSuffixTop: phone,
       suffixWidget: CopyButton(text: code),
     );
   }
