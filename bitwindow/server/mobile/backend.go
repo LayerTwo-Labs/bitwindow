@@ -162,8 +162,12 @@ func orchestratorConfig(p daemon.OrchestratorParams, out io.Writer, getenv func(
 		},
 		OwnerPID: p.OwnerPID,
 		Log:      zerolog.New(out).Level(zerolog.InfoLevel).With().Timestamp().Logger(),
+		AppRuns:  appRuns,
 	}
 }
+
+// appRuns are the sidechains that the app runs in its own process, through the thunder_bridge library.
+var appRuns = []string{"thunder"}
 
 // localAuth reads the ORCHESTRATOR_LOCAL_AUTH kill switch as the app does.
 func localAuth(value string) bool {

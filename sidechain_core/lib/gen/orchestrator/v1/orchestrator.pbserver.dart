@@ -82,6 +82,9 @@ abstract class OrchestratorServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $0.WatchECashMigrationStatusRequest request);
   $async.Future<$0.GetDatadirNetworkResponse> getDatadirNetwork(
       $pb.ServerContext ctx, $0.GetDatadirNetworkRequest request);
+  $async.Future<$0.WatchAppRunsResponse> watchAppRuns($pb.ServerContext ctx, $0.WatchAppRunsRequest request);
+  $async.Future<$0.ReportAppRunExitResponse> reportAppRunExit(
+      $pb.ServerContext ctx, $0.ReportAppRunExitRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -169,6 +172,10 @@ abstract class OrchestratorServiceBase extends $pb.GeneratedService {
         return $0.WatchECashMigrationStatusRequest();
       case 'GetDatadirNetwork':
         return $0.GetDatadirNetworkRequest();
+      case 'WatchAppRuns':
+        return $0.WatchAppRunsRequest();
+      case 'ReportAppRunExit':
+        return $0.ReportAppRunExitRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -261,6 +268,10 @@ abstract class OrchestratorServiceBase extends $pb.GeneratedService {
         return watchECashMigrationStatus(ctx, request as $0.WatchECashMigrationStatusRequest);
       case 'GetDatadirNetwork':
         return getDatadirNetwork(ctx, request as $0.GetDatadirNetworkRequest);
+      case 'WatchAppRuns':
+        return watchAppRuns(ctx, request as $0.WatchAppRunsRequest);
+      case 'ReportAppRunExit':
+        return reportAppRunExit(ctx, request as $0.ReportAppRunExitRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

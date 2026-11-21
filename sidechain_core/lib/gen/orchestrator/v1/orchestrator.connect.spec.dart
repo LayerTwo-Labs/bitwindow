@@ -407,4 +407,22 @@ abstract final class OrchestratorService {
     orchestratorv1orchestrator.GetDatadirNetworkRequest.new,
     orchestratorv1orchestrator.GetDatadirNetworkResponse.new,
   );
+
+  /// Stream the binaries that the app must run in its own process. A phone
+  /// cannot start a child process. The first frame holds every run, later
+  /// frames only changed runs or a heartbeat.
+  static const watchAppRuns = connect.Spec(
+    '/$name/WatchAppRuns',
+    connect.StreamType.server,
+    orchestratorv1orchestrator.WatchAppRunsRequest.new,
+    orchestratorv1orchestrator.WatchAppRunsResponse.new,
+  );
+
+  /// Report that a run of WatchAppRuns ended.
+  static const reportAppRunExit = connect.Spec(
+    '/$name/ReportAppRunExit',
+    connect.StreamType.unary,
+    orchestratorv1orchestrator.ReportAppRunExitRequest.new,
+    orchestratorv1orchestrator.ReportAppRunExitResponse.new,
+  );
 }

@@ -1,3 +1,4 @@
-// bitwindowd and drivechaind, built by `just ios-backend`. force_load keeps the
-// exported functions that Dart looks up at run time.
-OTHER_LDFLAGS = $(inherited) -force_load $(PROJECT_DIR)/Backend/$(PLATFORM_NAME)/libbitwindow_backend.a -framework CoreFoundation -framework Security -lresolv
+// bitwindowd and drivechaind, built by `just ios-backend`, and the Thunder node,
+// built by `just ios-thunder`. force_load keeps the exported functions that Dart
+// looks up at run time.
+OTHER_LDFLAGS = $(inherited) -force_load $(PROJECT_DIR)/Backend/$(PLATFORM_NAME)/libbitwindow_backend.a -force_load $(PROJECT_DIR)/Backend/$(PLATFORM_NAME)/libthunder_bridge.a -framework CoreFoundation -framework Security -lresolv

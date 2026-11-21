@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -16,7 +19,9 @@ type mailbox struct {
 
 // registerControl adds the test routes. They mine blocks and pay from the Core
 // wallet, so they serve a test stack only.
-func registerControl(mux *http.ServeMux, core *coreRPC, x *index, wallet string) {
+// With an enforcerURL, the enforcer mines the blocks. Its coinbase then holds
+// the BIP300 votes, and its blocks pay out a withdrawal bundle.
+func registerControl(mux *http.ServeMux, core *coreRPC, x *index, wallet, enforcerURL string) {
 	mux.HandleFunc("POST /regtest/mine", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Blocks  int    `json:"blocks"`
@@ -37,7 +42,13 @@ func registerControl(mux *http.ServeMux, core *coreRPC, x *index, wallet string)
 			}
 		}
 		var hashes []string
-		if err := core.call(r.Context(), "", "generatetoaddress", []any{req.Blocks, req.Address}, &hashes); err != nil {
+		var err error
+		if enforcerURL != "" {
+			hashes, err = enforcerMine(r.Context(), enforcerURL, req.Blocks, req.Address)
+		} else {
+			err = core.call(r.Context(), "", "generatetoaddress", []any{req.Blocks, req.Address}, &hashes)
+		}
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
@@ -107,4 +118,47 @@ func registerControl(mux *http.ServeMux, core *coreRPC, x *index, wallet string)
 		}
 		writeJSON(w, out)
 	})
+}
+
+// enforcerMine calls MiningService/GenerateToAddress of the enforcer with the
+// Connect protocol, and returns the hashes of the new blocks.
+func enforcerMine(ctx context.Context, enforcerURL string, blocks int, address string) ([]string, error) {
+	body, err := json.Marshal(map[string]any{"blocks": blocks, "address": address})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		strings.TrimSuffix(enforcerURL, "/")+"/cusf.mainchain.v1.MiningService/GenerateToAddress", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("enforcer generate: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	text, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("enforcer generate: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("enforcer generate: %d %s", resp.StatusCode, text)
+	}
+	var out struct {
+		BlockHashes []struct {
+			Hex string `json:"hex"`
+		} `json:"blockHashes"`
+	}
+	if err := json.Unmarshal(text, &out); err != nil {
+		return nil, fmt.Errorf("enforcer generate: decode %s: %w", text, err)
+	}
+	if len(out.BlockHashes) != blocks {
+		return nil, fmt.Errorf("enforcer generate: asked for %d blocks, got %d", blocks, len(out.BlockHashes))
+	}
+	hashes := make([]string, 0, len(out.BlockHashes))
+	for _, hash := range out.BlockHashes {
+		hashes = append(hashes, hash.Hex)
+	}
+	return hashes, nil
 }

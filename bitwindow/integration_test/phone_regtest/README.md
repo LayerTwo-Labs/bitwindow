@@ -5,7 +5,9 @@ the hot paths: first start, new wallet, receive, send, confirm, UTXOs, side nav,
 bump fee and cancel. The phone runs light mode against a regtest stack on the Mac.
 
 1. Start the stack. It runs Bitcoin Core, the enforcer and an Esplora server
-   with test routes:
+   with test routes. Build the enforcer at the commit that thunder pins in its
+   `bip300301_enforcer` submodule: the Thunder test needs `ProposeWithdrawalBundle`.
+   The enforcer mines the blocks of the test routes:
 
    ```sh
    cd bitwindow
@@ -52,3 +54,20 @@ Run it the same way, with `--target integration_test/phone_menus_test.dart`.
 
 The tests fail on a layout overflow that is not in their list of known faults, and write one screenshot per step to
 `PHONE_QA_SHOTS`. Run one device at a time: the test counts the regtest mempool.
+
+`integration_test/phone_thunder_test.dart` runs Thunder in the app process: it starts Thunder from the row menu
+of the Sidechains page, deposits 0.5 BTC, starts BMM, pays 0.1 BTC on Thunder and withdraws 0.2 BTC to an L1
+address of the phone wallet. It mines until the bundle pays out. Build the Thunder library first, and give the
+RPC address of the Thunder node in the app, which is 6009 plus the port offset:
+
+```sh
+BITWINDOW_DEFAULT_NETWORK=regtest just ios-backend ios-thunder    # or android-backend android-thunder
+
+PHONE_QA_SHOTS=/tmp/phone-qa/thunder/ios flutter drive -d <simulator> \
+  --driver test_driver/phone_regtest_driver.dart \
+  --target integration_test/phone_thunder_test.dart \
+  --dart-define=BITWINDOW_PORT_OFFSET=5300 --dart-define=PHONE_THUNDER_RPC_URL=http://127.0.0.1:11309 \
+  $(scripts/phone-regtest.sh defines ios)
+```
+
+Run it on a stack that you reset: an old Thunder chain on the stack does not match the new node in the app.

@@ -825,4 +825,42 @@ extension type OrchestratorServiceClient(connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// Stream the binaries that the app must run in its own process. A phone
+  /// cannot start a child process. The first frame holds every run, later
+  /// frames only changed runs or a heartbeat.
+  Stream<orchestratorv1orchestrator.WatchAppRunsResponse> watchAppRuns(
+    orchestratorv1orchestrator.WatchAppRunsRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).server(
+      specs.OrchestratorService.watchAppRuns,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Report that a run of WatchAppRuns ended.
+  Future<orchestratorv1orchestrator.ReportAppRunExitResponse> reportAppRunExit(
+    orchestratorv1orchestrator.ReportAppRunExitRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.OrchestratorService.reportAppRunExit,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

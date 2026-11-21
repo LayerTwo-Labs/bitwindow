@@ -1,0 +1,31 @@
+[package]
+name = "thunder_bridge"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+anyhow = "1.0"
+flutter_rust_bridge = "=2.13.0"
+parking_lot = "0.12"
+thunder_app = { git = "https://github.com/octobocto/thunder-rust", rev = "a493c87a1e622518631e755319fa7ab34450be12" }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+# thunder_app needs the patches of its own workspace.
+[patch.crates-io.tracing-appender]
+git = "https://github.com/torkelrogstad/tokio-tracing.git"
+branch = "log-rotation-size"
+
+[profile.release]
+strip = "debuginfo"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

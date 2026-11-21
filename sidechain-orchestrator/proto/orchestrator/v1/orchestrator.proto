@@ -195,7 +195,44 @@ service OrchestratorService {
   // runs. The blocks name the chain, so a datadir from another network says so
   // before a rollback throws the balance away.
   rpc GetDatadirNetwork(GetDatadirNetworkRequest) returns (GetDatadirNetworkResponse);
+
+  // Stream the binaries that the app must run in its own process. A phone
+  // cannot start a child process. The first frame holds every run, later
+  // frames only changed runs or a heartbeat.
+  rpc WatchAppRuns(WatchAppRunsRequest) returns (stream WatchAppRunsResponse);
+
+  // Report that a run of WatchAppRuns ended.
+  rpc ReportAppRunExit(ReportAppRunExitRequest) returns (ReportAppRunExitResponse);
 }
+
+message WatchAppRunsRequest {}
+
+message WatchAppRunsResponse {
+  // Every run that did not exit.
+  repeated AppRun runs = 1;
+  bool heartbeat = 2;
+}
+
+// One run of a binary in the app process.
+message AppRun {
+  string id = 1;
+  string name = 2;
+  // The command line flags, with no program name.
+  repeated string args = 3;
+  map<string, string> env = 4;
+  // The file that the run writes its log lines to.
+  string log_path = 5;
+  // True when the orchestrator asks the app to stop the run.
+  bool stop = 6;
+}
+
+message ReportAppRunExitRequest {
+  string id = 1;
+  // Empty for a clean exit.
+  string error = 2;
+}
+
+message ReportAppRunExitResponse {}
 
 message GetDatadirNetworkRequest {}
 

@@ -288,6 +288,16 @@ class OrchestratorRPC {
     return _streamClient.watchBinaries(WatchBinariesRequest(forceBackend: forceBackend));
   }
 
+  /// The binaries that the app runs in its own process. The first frame holds every run.
+  Stream<WatchAppRunsResponse> watchAppRuns() {
+    return _streamClient.watchAppRuns(WatchAppRunsRequest());
+  }
+
+  /// Reports that the run [id] of [watchAppRuns] ended. An empty [error] is a clean exit.
+  Future<void> reportAppRunExit(String id, {String error = ''}) async {
+    await _unaryClient.reportAppRunExit(ReportAppRunExitRequest(id: id, error: error));
+  }
+
   Stream<StreamLogsResponse> streamLogs(String name, {int tail = 0, String runId = '', Int64? afterSequence}) {
     return _streamClient.streamLogs(
       StreamLogsRequest(name: name, tail: tail, runId: runId, afterSequence: afterSequence),

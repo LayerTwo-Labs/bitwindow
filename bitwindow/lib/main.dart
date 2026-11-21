@@ -8,6 +8,8 @@ import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wm
 import 'package:sail_ui/pages/router.gr.dart' as sail_routes;
 import 'package:sail_ui/shell/chain_events.dart';
 import 'package:bitwindow/sidechains/hosted_modules.dart';
+import 'package:bitwindow/sidechains/thunder_in_app.dart';
+import 'package:sidechain_core/providers/binaries/app_run_host.dart';
 import 'package:bitwindow/sidechains/truthcoin_links.dart';
 import 'package:bitwindow/sidechains/hosted_chains.dart';
 import 'package:bitwindow/pages/sidechain_host_page.dart';
@@ -337,6 +339,14 @@ Future<(Directory, File, Logger)> init(String arguments) async {
     port: Environment.orchestratorPort.value,
   );
   GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
+  if (isMobile && !isSubWindow) {
+    final appRuns = AppRunHost(
+      {binaryProvider.orchestratorName(Thunder())!: ThunderInApp()},
+      reportExit: (id, error) => orchestrator.reportAppRunExit(id, error: error),
+      log: log,
+    )..watch(orchestrator);
+    GetIt.I.registerSingleton<AppRunHost>(appRuns, dispose: (host) => host.dispose());
+  }
   // Eager, and after the orchestrator it polls: nothing ever resolves it.
   put<ECashUpgradeWatcher>(() => ECashUpgradeWatcher());
   put<BackendStateProvider>(() => BackendStateProvider(orchestrator));

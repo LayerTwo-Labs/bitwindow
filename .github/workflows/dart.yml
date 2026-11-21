@@ -14,6 +14,7 @@ on:
       - "zside/**"
       - "bitwindow/**"
       - "coinshift/**"
+      - "thunder_bridge/**"
       - "third_party/**"
       - "*/windows/packaging/exe/make_config.yaml"
       - "scripts/check-windows-app-ids.sh"
@@ -70,6 +71,7 @@ jobs:
           - zside
           - bitwindow
           - coinshift
+          - thunder_bridge
 
     defaults:
       run:
@@ -147,4 +149,4 @@ jobs:
 
       - name: Build
         run: flutter build linux
-        if: matrix.package != 'sail_ui' && matrix.package != 'sidechain_core'
+        if: matrix.package != 'sail_ui' && matrix.package != 'sidechain_core' && matrix.package != 'thunder_bridge'

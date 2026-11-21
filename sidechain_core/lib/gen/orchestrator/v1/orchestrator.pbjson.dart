@@ -162,6 +162,82 @@ final $typed_data.Uint8List resetPhaseDescriptor =
         'TkNfRk9SV0FSRBADEhgKFFJFU0VUX1BIQVNFX0VORk9SQ0VSEAQSFAoQUkVTRVRfUEhBU0VfRE'
         '9ORRAF');
 
+@$core.Deprecated('Use watchAppRunsRequestDescriptor instead')
+const WatchAppRunsRequest$json = {
+  '1': 'WatchAppRunsRequest',
+};
+
+/// Descriptor for `WatchAppRunsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List watchAppRunsRequestDescriptor = $convert.base64Decode('ChNXYXRjaEFwcFJ1bnNSZXF1ZXN0');
+
+@$core.Deprecated('Use watchAppRunsResponseDescriptor instead')
+const WatchAppRunsResponse$json = {
+  '1': 'WatchAppRunsResponse',
+  '2': [
+    {'1': 'runs', '3': 1, '4': 3, '5': 11, '6': '.orchestrator.v1.AppRun', '10': 'runs'},
+    {'1': 'heartbeat', '3': 2, '4': 1, '5': 8, '10': 'heartbeat'},
+  ],
+};
+
+/// Descriptor for `WatchAppRunsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List watchAppRunsResponseDescriptor =
+    $convert.base64Decode('ChRXYXRjaEFwcFJ1bnNSZXNwb25zZRIrCgRydW5zGAEgAygLMhcub3JjaGVzdHJhdG9yLnYxLk'
+        'FwcFJ1blIEcnVucxIcCgloZWFydGJlYXQYAiABKAhSCWhlYXJ0YmVhdA==');
+
+@$core.Deprecated('Use appRunDescriptor instead')
+const AppRun$json = {
+  '1': 'AppRun',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'args', '3': 3, '4': 3, '5': 9, '10': 'args'},
+    {'1': 'env', '3': 4, '4': 3, '5': 11, '6': '.orchestrator.v1.AppRun.EnvEntry', '10': 'env'},
+    {'1': 'log_path', '3': 5, '4': 1, '5': 9, '10': 'logPath'},
+    {'1': 'stop', '3': 6, '4': 1, '5': 8, '10': 'stop'},
+  ],
+  '3': [AppRun_EnvEntry$json],
+};
+
+@$core.Deprecated('Use appRunDescriptor instead')
+const AppRun_EnvEntry$json = {
+  '1': 'EnvEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `AppRun`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List appRunDescriptor =
+    $convert.base64Decode('CgZBcHBSdW4SDgoCaWQYASABKAlSAmlkEhIKBG5hbWUYAiABKAlSBG5hbWUSEgoEYXJncxgDIA'
+        'MoCVIEYXJncxIyCgNlbnYYBCADKAsyIC5vcmNoZXN0cmF0b3IudjEuQXBwUnVuLkVudkVudHJ5'
+        'UgNlbnYSGQoIbG9nX3BhdGgYBSABKAlSB2xvZ1BhdGgSEgoEc3RvcBgGIAEoCFIEc3RvcBo2Cg'
+        'hFbnZFbnRyeRIQCgNrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgB');
+
+@$core.Deprecated('Use reportAppRunExitRequestDescriptor instead')
+const ReportAppRunExitRequest$json = {
+  '1': 'ReportAppRunExitRequest',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'error', '3': 2, '4': 1, '5': 9, '10': 'error'},
+  ],
+};
+
+/// Descriptor for `ReportAppRunExitRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List reportAppRunExitRequestDescriptor =
+    $convert.base64Decode('ChdSZXBvcnRBcHBSdW5FeGl0UmVxdWVzdBIOCgJpZBgBIAEoCVICaWQSFAoFZXJyb3IYAiABKA'
+        'lSBWVycm9y');
+
+@$core.Deprecated('Use reportAppRunExitResponseDescriptor instead')
+const ReportAppRunExitResponse$json = {
+  '1': 'ReportAppRunExitResponse',
+};
+
+/// Descriptor for `ReportAppRunExitResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List reportAppRunExitResponseDescriptor =
+    $convert.base64Decode('ChhSZXBvcnRBcHBSdW5FeGl0UmVzcG9uc2U=');
+
 @$core.Deprecated('Use getDatadirNetworkRequestDescriptor instead')
 const GetDatadirNetworkRequest$json = {
   '1': 'GetDatadirNetworkRequest',
@@ -1840,6 +1916,17 @@ const $core.Map<$core.String, $core.dynamic> OrchestratorServiceBase$json = {
       '2': '.orchestrator.v1.GetDatadirNetworkRequest',
       '3': '.orchestrator.v1.GetDatadirNetworkResponse'
     },
+    {
+      '1': 'WatchAppRuns',
+      '2': '.orchestrator.v1.WatchAppRunsRequest',
+      '3': '.orchestrator.v1.WatchAppRunsResponse',
+      '6': true
+    },
+    {
+      '1': 'ReportAppRunExit',
+      '2': '.orchestrator.v1.ReportAppRunExitRequest',
+      '3': '.orchestrator.v1.ReportAppRunExitResponse'
+    },
   ],
 };
 
@@ -1942,6 +2029,12 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> Orchestrat
   '.orchestrator.v1.WatchECashMigrationStatusResponse': WatchECashMigrationStatusResponse$json,
   '.orchestrator.v1.GetDatadirNetworkRequest': GetDatadirNetworkRequest$json,
   '.orchestrator.v1.GetDatadirNetworkResponse': GetDatadirNetworkResponse$json,
+  '.orchestrator.v1.WatchAppRunsRequest': WatchAppRunsRequest$json,
+  '.orchestrator.v1.WatchAppRunsResponse': WatchAppRunsResponse$json,
+  '.orchestrator.v1.AppRun': AppRun$json,
+  '.orchestrator.v1.AppRun.EnvEntry': AppRun_EnvEntry$json,
+  '.orchestrator.v1.ReportAppRunExitRequest': ReportAppRunExitRequest$json,
+  '.orchestrator.v1.ReportAppRunExitResponse': ReportAppRunExitResponse$json,
 };
 
 /// Descriptor for `OrchestratorService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -2025,4 +2118,8 @@ final $typed_data.Uint8List orchestratorServiceDescriptor =
         'ci52MS5XYXRjaEVDYXNoTWlncmF0aW9uU3RhdHVzUmVxdWVzdBoyLm9yY2hlc3RyYXRvci52MS'
         '5XYXRjaEVDYXNoTWlncmF0aW9uU3RhdHVzUmVzcG9uc2UwARJqChFHZXREYXRhZGlyTmV0d29y'
         'axIpLm9yY2hlc3RyYXRvci52MS5HZXREYXRhZGlyTmV0d29ya1JlcXVlc3QaKi5vcmNoZXN0cm'
-        'F0b3IudjEuR2V0RGF0YWRpck5ldHdvcmtSZXNwb25zZQ==');
+        'F0b3IudjEuR2V0RGF0YWRpck5ldHdvcmtSZXNwb25zZRJdCgxXYXRjaEFwcFJ1bnMSJC5vcmNo'
+        'ZXN0cmF0b3IudjEuV2F0Y2hBcHBSdW5zUmVxdWVzdBolLm9yY2hlc3RyYXRvci52MS5XYXRjaE'
+        'FwcFJ1bnNSZXNwb25zZTABEmcKEFJlcG9ydEFwcFJ1bkV4aXQSKC5vcmNoZXN0cmF0b3IudjEu'
+        'UmVwb3J0QXBwUnVuRXhpdFJlcXVlc3QaKS5vcmNoZXN0cmF0b3IudjEuUmVwb3J0QXBwUnVuRX'
+        'hpdFJlc3BvbnNl');

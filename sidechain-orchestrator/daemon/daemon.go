@@ -95,6 +95,9 @@ type Config struct {
 	// Exit ends the process after a shutdown drain. With a nil Exit, Run
 	// returns instead, so the daemon can run inside another process.
 	Exit func(code int)
+	// AppRuns names the binaries that the app runs in its own process, through
+	// WatchAppRuns. Empty starts every binary as a child process.
+	AppRuns []string
 }
 
 // Run serves drivechaind until ctx ends or a shutdown drain completes.
@@ -155,6 +158,9 @@ func Run(ctx context.Context, cfg Config) error {
 	configPath := orchestrator.ConfigFilePath(bitwindowDir)
 	configs := orchestrator.LoadConfigFile(configPath, log)
 	orch := orchestrator.New(dataDir, network, bitwindowDir, configs, log)
+	if len(cfg.AppRuns) > 0 {
+		orch.SetAppRuns(orchestrator.NewAppRuns(cfg.AppRuns...))
+	}
 	orch.SetBackendOnly(cfg.ForceBackend)
 	exited := make(chan struct{})
 	var exitOnce sync.Once

@@ -22,6 +22,317 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 export 'orchestrator.pbenum.dart';
 
+class WatchAppRunsRequest extends $pb.GeneratedMessage {
+  factory WatchAppRunsRequest() => WatchAppRunsRequest._();
+
+  WatchAppRunsRequest._();
+
+  factory WatchAppRunsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      WatchAppRunsRequest()..mergeFromBuffer(data, registry);
+  factory WatchAppRunsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      WatchAppRunsRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'WatchAppRunsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'orchestrator.v1'),
+      createEmptyInstance: WatchAppRunsRequest.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchAppRunsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchAppRunsRequest copyWith(void Function(WatchAppRunsRequest) updates) =>
+      super.copyWith((message) => updates(message as WatchAppRunsRequest)) as WatchAppRunsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use WatchAppRunsRequest() / WatchAppRunsRequest.new instead')
+  static WatchAppRunsRequest create() => WatchAppRunsRequest._();
+  static $pb.GeneratedMessage $_createMessage() => WatchAppRunsRequest._();
+  @$core.override
+  WatchAppRunsRequest createEmptyInstance() => WatchAppRunsRequest._();
+  @$core.pragma('dart2js:noInline')
+  static WatchAppRunsRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<WatchAppRunsRequest>(WatchAppRunsRequest.$_createMessage);
+  static WatchAppRunsRequest? _defaultInstance;
+}
+
+class WatchAppRunsResponse extends $pb.GeneratedMessage {
+  factory WatchAppRunsResponse({
+    $core.Iterable<AppRun>? runs,
+    $core.bool? heartbeat,
+  }) {
+    final result = WatchAppRunsResponse._();
+    if (runs != null) result.runs.addAll(runs);
+    if (heartbeat != null) result.heartbeat = heartbeat;
+    return result;
+  }
+
+  WatchAppRunsResponse._();
+
+  factory WatchAppRunsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      WatchAppRunsResponse()..mergeFromBuffer(data, registry);
+  factory WatchAppRunsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      WatchAppRunsResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'WatchAppRunsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'orchestrator.v1'),
+      createEmptyInstance: WatchAppRunsResponse.$_createMessage)
+    ..pPM<AppRun>(1, _omitFieldNames ? '' : 'runs', subBuilder: AppRun.$_createMessage)
+    ..aOB(2, _omitFieldNames ? '' : 'heartbeat')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchAppRunsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchAppRunsResponse copyWith(void Function(WatchAppRunsResponse) updates) =>
+      super.copyWith((message) => updates(message as WatchAppRunsResponse)) as WatchAppRunsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use WatchAppRunsResponse() / WatchAppRunsResponse.new instead')
+  static WatchAppRunsResponse create() => WatchAppRunsResponse._();
+  static $pb.GeneratedMessage $_createMessage() => WatchAppRunsResponse._();
+  @$core.override
+  WatchAppRunsResponse createEmptyInstance() => WatchAppRunsResponse._();
+  @$core.pragma('dart2js:noInline')
+  static WatchAppRunsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<WatchAppRunsResponse>(WatchAppRunsResponse.$_createMessage);
+  static WatchAppRunsResponse? _defaultInstance;
+
+  /// Every run that did not exit.
+  @$pb.TagNumber(1)
+  $pb.PbList<AppRun> get runs => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.bool get heartbeat => $_getBF(1);
+  @$pb.TagNumber(2)
+  set heartbeat($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasHeartbeat() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearHeartbeat() => $_clearField(2);
+}
+
+/// One run of a binary in the app process.
+class AppRun extends $pb.GeneratedMessage {
+  factory AppRun({
+    $core.String? id,
+    $core.String? name,
+    $core.Iterable<$core.String>? args,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? env,
+    $core.String? logPath,
+    $core.bool? stop,
+  }) {
+    final result = AppRun._();
+    if (id != null) result.id = id;
+    if (name != null) result.name = name;
+    if (args != null) result.args.addAll(args);
+    if (env != null) result.env.addEntries(env);
+    if (logPath != null) result.logPath = logPath;
+    if (stop != null) result.stop = stop;
+    return result;
+  }
+
+  AppRun._();
+
+  factory AppRun.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      AppRun()..mergeFromBuffer(data, registry);
+  factory AppRun.fromJson($core.String json, [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      AppRun()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'AppRun',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'orchestrator.v1'),
+      createEmptyInstance: AppRun.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'name')
+    ..pPS(3, _omitFieldNames ? '' : 'args')
+    ..m<$core.String, $core.String>(4, _omitFieldNames ? '' : 'env',
+        entryClassName: 'AppRun.EnvEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('orchestrator.v1'))
+    ..aOS(5, _omitFieldNames ? '' : 'logPath')
+    ..aOB(6, _omitFieldNames ? '' : 'stop')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AppRun clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AppRun copyWith(void Function(AppRun) updates) => super.copyWith((message) => updates(message as AppRun)) as AppRun;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AppRun() / AppRun.new instead')
+  static AppRun create() => AppRun._();
+  static $pb.GeneratedMessage $_createMessage() => AppRun._();
+  @$core.override
+  AppRun createEmptyInstance() => AppRun._();
+  @$core.pragma('dart2js:noInline')
+  static AppRun getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AppRun>(AppRun.$_createMessage);
+  static AppRun? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get name => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set name($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearName() => $_clearField(2);
+
+  /// The command line flags, with no program name.
+  @$pb.TagNumber(3)
+  $pb.PbList<$core.String> get args => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $pb.PbMap<$core.String, $core.String> get env => $_getMap(3);
+
+  /// The file that the run writes its log lines to.
+  @$pb.TagNumber(5)
+  $core.String get logPath => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set logPath($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasLogPath() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearLogPath() => $_clearField(5);
+
+  /// True when the orchestrator asks the app to stop the run.
+  @$pb.TagNumber(6)
+  $core.bool get stop => $_getBF(5);
+  @$pb.TagNumber(6)
+  set stop($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasStop() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearStop() => $_clearField(6);
+}
+
+class ReportAppRunExitRequest extends $pb.GeneratedMessage {
+  factory ReportAppRunExitRequest({
+    $core.String? id,
+    $core.String? error,
+  }) {
+    final result = ReportAppRunExitRequest._();
+    if (id != null) result.id = id;
+    if (error != null) result.error = error;
+    return result;
+  }
+
+  ReportAppRunExitRequest._();
+
+  factory ReportAppRunExitRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ReportAppRunExitRequest()..mergeFromBuffer(data, registry);
+  factory ReportAppRunExitRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ReportAppRunExitRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ReportAppRunExitRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'orchestrator.v1'),
+      createEmptyInstance: ReportAppRunExitRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'error')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ReportAppRunExitRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ReportAppRunExitRequest copyWith(void Function(ReportAppRunExitRequest) updates) =>
+      super.copyWith((message) => updates(message as ReportAppRunExitRequest)) as ReportAppRunExitRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ReportAppRunExitRequest() / ReportAppRunExitRequest.new instead')
+  static ReportAppRunExitRequest create() => ReportAppRunExitRequest._();
+  static $pb.GeneratedMessage $_createMessage() => ReportAppRunExitRequest._();
+  @$core.override
+  ReportAppRunExitRequest createEmptyInstance() => ReportAppRunExitRequest._();
+  @$core.pragma('dart2js:noInline')
+  static ReportAppRunExitRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ReportAppRunExitRequest>(ReportAppRunExitRequest.$_createMessage);
+  static ReportAppRunExitRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  /// Empty for a clean exit.
+  @$pb.TagNumber(2)
+  $core.String get error => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set error($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasError() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearError() => $_clearField(2);
+}
+
+class ReportAppRunExitResponse extends $pb.GeneratedMessage {
+  factory ReportAppRunExitResponse() => ReportAppRunExitResponse._();
+
+  ReportAppRunExitResponse._();
+
+  factory ReportAppRunExitResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ReportAppRunExitResponse()..mergeFromBuffer(data, registry);
+  factory ReportAppRunExitResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ReportAppRunExitResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ReportAppRunExitResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'orchestrator.v1'),
+      createEmptyInstance: ReportAppRunExitResponse.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ReportAppRunExitResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ReportAppRunExitResponse copyWith(void Function(ReportAppRunExitResponse) updates) =>
+      super.copyWith((message) => updates(message as ReportAppRunExitResponse)) as ReportAppRunExitResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ReportAppRunExitResponse() / ReportAppRunExitResponse.new instead')
+  static ReportAppRunExitResponse create() => ReportAppRunExitResponse._();
+  static $pb.GeneratedMessage $_createMessage() => ReportAppRunExitResponse._();
+  @$core.override
+  ReportAppRunExitResponse createEmptyInstance() => ReportAppRunExitResponse._();
+  @$core.pragma('dart2js:noInline')
+  static ReportAppRunExitResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ReportAppRunExitResponse>(ReportAppRunExitResponse.$_createMessage);
+  static ReportAppRunExitResponse? _defaultInstance;
+}
+
 class GetDatadirNetworkRequest extends $pb.GeneratedMessage {
   factory GetDatadirNetworkRequest() => GetDatadirNetworkRequest._();
 
@@ -7781,6 +8092,17 @@ class OrchestratorServiceApi {
           $pb.ClientContext? ctx, GetDatadirNetworkRequest request) =>
       _client.invoke<GetDatadirNetworkResponse>(
           ctx, 'OrchestratorService', 'GetDatadirNetwork', request, GetDatadirNetworkResponse());
+
+  /// Stream the binaries that the app must run in its own process. A phone
+  /// cannot start a child process. The first frame holds every run, later
+  /// frames only changed runs or a heartbeat.
+  $async.Future<WatchAppRunsResponse> watchAppRuns($pb.ClientContext? ctx, WatchAppRunsRequest request) =>
+      _client.invoke<WatchAppRunsResponse>(ctx, 'OrchestratorService', 'WatchAppRuns', request, WatchAppRunsResponse());
+
+  /// Report that a run of WatchAppRuns ended.
+  $async.Future<ReportAppRunExitResponse> reportAppRunExit($pb.ClientContext? ctx, ReportAppRunExitRequest request) =>
+      _client.invoke<ReportAppRunExitResponse>(
+          ctx, 'OrchestratorService', 'ReportAppRunExit', request, ReportAppRunExitResponse());
 }
 
 const $core.bool _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');

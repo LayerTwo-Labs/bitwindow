@@ -16,6 +16,7 @@ import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/mocks/mocks.dart';
+import 'package:sidechain_core/providers/binaries/app_run_host.dart';
 
 import 'mocks/store_mock.dart';
 import 'test_utils.dart';
@@ -116,6 +117,11 @@ class _Downloads extends DownloadProvider {
 
   @override
   DownloadProgress? statusFor(BinaryType binary) => progress[binary];
+}
+
+class _NoRunner implements AppRunner {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _ThunderRPC extends MockThunderRPC {
@@ -370,6 +376,55 @@ void main() {
     expect(_buttonWidget(tester, 'Deposit').disabled, isFalse);
     expect(find.text(GetIt.I.get<FormatterProvider>().formatBTC(4.1)), findsOneWidget);
     expect(find.text('—'), findsNothing);
+  });
+
+  group('a chain that the app runs on a phone', () {
+    late _Orchestrator orchestrator;
+
+    setUp(() async {
+      SailStyleValues.phoneLayoutOverride = true;
+      orchestrator = _Orchestrator();
+      GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
+      await registerSettings();
+    });
+
+    tearDown(() => SailStyleValues.phoneLayoutOverride = null);
+
+    Future<void> openRowMenu(WidgetTester tester) async {
+      await tester.usePhoneSize();
+      await tester.pumpAndSettle();
+      await tester.longPress(find.text('Thunder'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the row menu starts the node and opens the chain', (tester) async {
+      GetIt.I.registerSingleton<AppRunHost>(
+        AppRunHost(
+          {'thunder': _NoRunner()},
+          reportExit: (_, _) async {},
+          log: Logger(level: Level.off),
+        ),
+      );
+      setUpChain(_thunder(downloaded: false));
+      await pumpTable(tester);
+      await openRowMenu(tester);
+
+      expect(find.text('Start Thunder'), findsOneWidget);
+      await tester.tap(find.text('Start Thunder'));
+      await tester.pumpAndSettle();
+
+      expect(orchestrator.starts, [('thunder', true)]);
+      expect(openedHere.map((chain) => chain.name), ['Thunder']);
+    });
+
+    testWidgets('the row menu has no start for a chain that the app does not run', (tester) async {
+      setUpChain(_thunder(downloaded: false));
+      await pumpTable(tester);
+      await openRowMenu(tester);
+
+      expect(find.text('Pin to top'), findsOneWidget, reason: 'the menu is open');
+      expect(find.text('Start Thunder'), findsNothing);
+    });
   });
 
   group('app window', () {

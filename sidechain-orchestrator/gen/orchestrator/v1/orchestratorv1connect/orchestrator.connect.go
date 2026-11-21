@@ -150,6 +150,12 @@ const (
 	// OrchestratorServiceGetDatadirNetworkProcedure is the procedure name of the OrchestratorService's
 	// GetDatadirNetwork RPC.
 	OrchestratorServiceGetDatadirNetworkProcedure = "/orchestrator.v1.OrchestratorService/GetDatadirNetwork"
+	// OrchestratorServiceWatchAppRunsProcedure is the procedure name of the OrchestratorService's
+	// WatchAppRuns RPC.
+	OrchestratorServiceWatchAppRunsProcedure = "/orchestrator.v1.OrchestratorService/WatchAppRuns"
+	// OrchestratorServiceReportAppRunExitProcedure is the procedure name of the OrchestratorService's
+	// ReportAppRunExit RPC.
+	OrchestratorServiceReportAppRunExitProcedure = "/orchestrator.v1.OrchestratorService/ReportAppRunExit"
 )
 
 var (
@@ -447,6 +453,20 @@ var (
 			Procedure:  OrchestratorServiceGetDatadirNetworkProcedure,
 		}
 	})
+	orchestratorServiceWatchAppRunsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeServer,
+			Schema:     v1.File_orchestrator_v1_orchestrator_proto.Services().ByName("OrchestratorService").Methods().ByName("WatchAppRuns"),
+			Procedure:  OrchestratorServiceWatchAppRunsProcedure,
+		}
+	})
+	orchestratorServiceReportAppRunExitSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_orchestrator_v1_orchestrator_proto.Services().ByName("OrchestratorService").Methods().ByName("ReportAppRunExit"),
+			Procedure:  OrchestratorServiceReportAppRunExitProcedure,
+		}
+	})
 )
 
 // OrchestratorServiceClient is a client for the orchestrator.v1.OrchestratorService service.
@@ -596,6 +616,12 @@ type OrchestratorServiceClient interface {
 	// runs. The blocks name the chain, so a datadir from another network says so
 	// before a rollback throws the balance away.
 	GetDatadirNetwork(context.Context, *v1.GetDatadirNetworkRequest) (*v1.GetDatadirNetworkResponse, error)
+	// Stream the binaries that the app must run in its own process. A phone
+	// cannot start a child process. The first frame holds every run, later
+	// frames only changed runs or a heartbeat.
+	WatchAppRuns(context.Context, *v1.WatchAppRunsRequest) (OrchestratorServiceWatchAppRunsClientStream, error)
+	// Report that a run of WatchAppRuns ended.
+	ReportAppRunExit(context.Context, *v1.ReportAppRunExitRequest) (*v1.ReportAppRunExitResponse, error)
 }
 
 // NewOrchestratorServiceClient constructs a client for the orchestrator.v1.OrchestratorService
@@ -814,6 +840,27 @@ func (s OrchestratorServiceWatchECashMigrationStatusClientStream) Close() error 
 	return s.stream.Close()
 }
 
+// OrchestratorServiceWatchAppRunsClientStream is the client stream for the OrchestratorService's
+// WatchAppRuns RPC.
+type OrchestratorServiceWatchAppRunsClientStream struct {
+	stream connect.ClientStream
+}
+
+// Receive returns the next response message from the server.
+func (s OrchestratorServiceWatchAppRunsClientStream) Receive() (*v1.WatchAppRunsResponse, error) {
+	var res v1.WatchAppRunsResponse
+	if err := s.stream.Receive(&res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+// Close releases the stream's resources. It is idempotent and is typically deferred to clean up a
+// stream abandoned before io.EOF.
+func (s OrchestratorServiceWatchAppRunsClientStream) Close() error {
+	return s.stream.Close()
+}
+
 // OrchestratorServiceHandler is an implementation of the orchestrator.v1.OrchestratorService
 // service.
 type OrchestratorServiceHandler interface {
@@ -962,6 +1009,12 @@ type OrchestratorServiceHandler interface {
 	// runs. The blocks name the chain, so a datadir from another network says so
 	// before a rollback throws the balance away.
 	GetDatadirNetwork(context.Context, *v1.GetDatadirNetworkRequest) (*v1.GetDatadirNetworkResponse, error)
+	// Stream the binaries that the app must run in its own process. A phone
+	// cannot start a child process. The first frame holds every run, later
+	// frames only changed runs or a heartbeat.
+	WatchAppRuns(context.Context, *v1.WatchAppRunsRequest, OrchestratorServiceWatchAppRunsServerStream) error
+	// Report that a run of WatchAppRuns ended.
+	ReportAppRunExit(context.Context, *v1.ReportAppRunExitRequest) (*v1.ReportAppRunExitResponse, error)
 }
 
 // RegisterOrchestratorServiceHandler registers svc as the orchestrator.v1.OrchestratorService
@@ -1011,6 +1064,8 @@ func RegisterOrchestratorServiceHandler(server *connect.Server, svc Orchestrator
 		connect.Method{Spec: orchestratorServiceGetECashMigrationStatusSpec(), Handler: adapter.getECashMigrationStatus},
 		connect.Method{Spec: orchestratorServiceWatchECashMigrationStatusSpec(), Handler: adapter.watchECashMigrationStatus},
 		connect.Method{Spec: orchestratorServiceGetDatadirNetworkSpec(), Handler: adapter.getDatadirNetwork},
+		connect.Method{Spec: orchestratorServiceWatchAppRunsSpec(), Handler: adapter.watchAppRuns},
+		connect.Method{Spec: orchestratorServiceReportAppRunExitSpec(), Handler: adapter.reportAppRunExit},
 	)
 }
 
@@ -1171,6 +1226,22 @@ func (s OrchestratorServiceWatchECashMigrationStatusServerStream) SendHeaders() 
 
 // Send sends a response message to the client.
 func (s OrchestratorServiceWatchECashMigrationStatusServerStream) Send(res *v1.WatchECashMigrationStatusResponse) error {
+	return s.stream.Send(res)
+}
+
+// OrchestratorServiceWatchAppRunsServerStream is the server stream for the OrchestratorService's
+// WatchAppRuns RPC.
+type OrchestratorServiceWatchAppRunsServerStream struct {
+	stream connect.ServerStream
+}
+
+// SendHeaders flushes the response headers without a message. The first Send does this implicitly.
+func (s OrchestratorServiceWatchAppRunsServerStream) SendHeaders() error {
+	return s.stream.SendHeaders()
+}
+
+// Send sends a response message to the client.
+func (s OrchestratorServiceWatchAppRunsServerStream) Send(res *v1.WatchAppRunsResponse) error {
 	return s.stream.Send(res)
 }
 
@@ -1343,6 +1414,14 @@ func (UnimplementedOrchestratorServiceHandler) WatchECashMigrationStatus(context
 
 func (UnimplementedOrchestratorServiceHandler) GetDatadirNetwork(context.Context, *v1.GetDatadirNetworkRequest) (*v1.GetDatadirNetworkResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "orchestrator.v1.OrchestratorService.GetDatadirNetwork is not implemented")
+}
+
+func (UnimplementedOrchestratorServiceHandler) WatchAppRuns(context.Context, *v1.WatchAppRunsRequest, OrchestratorServiceWatchAppRunsServerStream) error {
+	return connect.NewError(connect.CodeUnimplemented, "orchestrator.v1.OrchestratorService.WatchAppRuns is not implemented")
+}
+
+func (UnimplementedOrchestratorServiceHandler) ReportAppRunExit(context.Context, *v1.ReportAppRunExitRequest) (*v1.ReportAppRunExitResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "orchestrator.v1.OrchestratorService.ReportAppRunExit is not implemented")
 }
 
 type orchestratorServiceClient struct {
@@ -1680,6 +1759,22 @@ func (c *orchestratorServiceClient) WatchECashMigrationStatus(ctx context.Contex
 func (c *orchestratorServiceClient) GetDatadirNetwork(ctx context.Context, req *v1.GetDatadirNetworkRequest) (*v1.GetDatadirNetworkResponse, error) {
 	var res v1.GetDatadirNetworkResponse
 	if err := c.client.CallUnary(ctx, orchestratorServiceGetDatadirNetworkSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *orchestratorServiceClient) WatchAppRuns(ctx context.Context, req *v1.WatchAppRunsRequest) (OrchestratorServiceWatchAppRunsClientStream, error) {
+	stream, err := c.client.CallServerStream(ctx, orchestratorServiceWatchAppRunsSpec(), req)
+	if err != nil {
+		return OrchestratorServiceWatchAppRunsClientStream{}, err
+	}
+	return OrchestratorServiceWatchAppRunsClientStream{stream: stream}, nil
+}
+
+func (c *orchestratorServiceClient) ReportAppRunExit(ctx context.Context, req *v1.ReportAppRunExitRequest) (*v1.ReportAppRunExitResponse, error) {
+	var res v1.ReportAppRunExitResponse
+	if err := c.client.CallUnary(ctx, orchestratorServiceReportAppRunExitSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -2145,6 +2240,26 @@ func (h orchestratorServiceHandler) getDatadirNetwork(ctx context.Context, _ con
 		return err
 	}
 	res, err := h.svc.GetDatadirNetwork(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h orchestratorServiceHandler) watchAppRuns(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.WatchAppRunsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	return h.svc.WatchAppRuns(ctx, &req, OrchestratorServiceWatchAppRunsServerStream{stream: stream})
+}
+
+func (h orchestratorServiceHandler) reportAppRunExit(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ReportAppRunExitRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ReportAppRunExit(ctx, &req)
 	if err != nil {
 		return err
 	}

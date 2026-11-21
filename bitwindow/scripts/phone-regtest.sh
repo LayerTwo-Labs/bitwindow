@@ -67,7 +67,8 @@ cmd_start() {
     mkdir -p "$D/core" "$D/enforcer"
 
     if ! pid_alive bitcoind; then
-        "$bitcoind" -regtest -datadir="$D/core" -server -rest -txindex -fallbackfee=0.0002 \
+        # Stock Core refuses the OP_DRIVECHAIN output of a deposit as nonstandard.
+        "$bitcoind" -regtest -datadir="$D/core" -server -rest -txindex -fallbackfee=0.0002 -acceptnonstdtxn=1 \
             -rpcport="$rpc_port" -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -rpcuser="$rpc_user" -rpcpassword="$rpc_pass" \
             -port="$p2p_port" -bind=127.0.0.1:"$p2p_port" -listenonion=0 -zmqpubsequence=tcp://127.0.0.1:"$zmq_port" \
             >"$D/bitcoind.log" 2>&1 &
@@ -84,7 +85,8 @@ cmd_start() {
     if ! pid_alive esplora; then
         (cd "$bitwindow_dir/e2e" && go build -o "$D/regtest-esplora" ./cmd/regtest-esplora)
         "$D/regtest-esplora" --listen 127.0.0.1:"$esplora_port" --rpc-url http://127.0.0.1:"$rpc_port" \
-            --rpc-user "$rpc_user" --rpc-pass "$rpc_pass" --wallet "$wallet" --control >"$D/esplora.log" 2>&1 &
+            --rpc-user "$rpc_user" --rpc-pass "$rpc_pass" --wallet "$wallet" --control \
+            --enforcer-url http://127.0.0.1:"$grpc_port" >"$D/esplora.log" 2>&1 &
         echo $! >"$D/esplora.pid"
         wait_for esplora esplora_ready
     fi
@@ -132,7 +134,7 @@ cmd_activate() {
     [[ "$slot" =~ ^[0-9]+$ && -n "$title" ]] || die "give a slot number and a title"
     zero64=$(printf '0%.0s' $(seq 64))
     zero40=$(printf '0%.0s' $(seq 40))
-    enforcer_call BlockProducerService/SetAckAllProposals '{"ack_all":true}' >/dev/null
+    enforcer_call BlockProducerService/SetAckAllProposals '{"policy":"ACK_ALL_PROPOSALS_POLICY_NEW_SLOTS"}' >/dev/null
     enforcer_call BlockProducerService/SubmitSidechainProposal \
         "{\"sidechain_id\":$slot,\"declaration\":{\"v0\":{\"title\":\"$title\",\"description\":\"$title regtest\",\"hash_id_1\":{\"hex\":\"$zero64\"},\"hash_id_2\":{\"hex\":\"$zero40\"}}}}" >/dev/null
     enforcer_call MiningService/GenerateToAddress "{\"blocks\":12,\"address\":\"$(cli -rpcwallet="$wallet" getnewaddress)\"}" >/dev/null
