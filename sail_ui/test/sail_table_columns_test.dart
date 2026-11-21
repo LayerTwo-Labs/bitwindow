@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sail_ui/sail_ui.dart';
 
@@ -95,9 +96,43 @@ Widget _wideRowInTheMiddle({double textScale = 1.0}) {
 
 const _wideAmount = '115.0255,5423 ECX';
 
+Widget _history(List<String> amounts) {
+  return MaterialApp(
+    home: SailTheme(
+      data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+      child: Scaffold(
+        body: SizedBox(
+          width: 393,
+          height: 400,
+          child: SailTable(
+            getRowId: (index) => 'tx${amounts.length - index}',
+            headerBuilder: (context) => const [
+              SailTableHeaderCell(name: 'Status'),
+              SailTableHeaderCell(name: 'Amount'),
+            ],
+            rowBuilder: (context, index, selected) => [
+              const SailTableCell(value: 'Confirmed', fill: true),
+              SailTableCell(
+                value: amounts[index],
+                hugContent: true,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ],
+            rowCount: amounts.length,
+            drawGrid: false,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 double _renderedWidth(String text, double scale) {
   final painter = TextPainter(
-    text: TextSpan(text: text, style: SailStyleValues.thirteen),
+    text: TextSpan(
+      text: text,
+      style: SailStyleValues.thirteen.copyWith(fontFamily: SailFonts.inter),
+    ),
     textDirection: TextDirection.ltr,
     textScaler: TextScaler.linear(scale),
   )..layout();
@@ -107,6 +142,14 @@ double _renderedWidth(String text, double scale) {
 Finder _cell(String value) => find.byWidgetPredicate((widget) => widget is SailTableCell && widget.value == value);
 
 void main() {
+  setUpAll(() async {
+    final loader = FontLoader(SailFonts.inter);
+    for (final weight in ['Regular', 'Medium', 'Bold']) {
+      loader.addFont(rootBundle.load('packages/sail_ui/assets/fonts/Inter-$weight.ttf'));
+    }
+    await loader.load();
+  });
+
   // A source that names no address drops that column. A refresh can add it
   // back, and the table reads every width by column index.
   testWidgets('a changed column count keeps the table alive', (tester) async {
@@ -164,5 +207,46 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.getSize(_cell('1 ECX').first).width, greaterThanOrEqualTo(_renderedWidth(_wideAmount, 1.5) + 24));
+  });
+  testWidgets('a hugging column grows for a new wider row', (tester) async {
+    await tester.pumpWidget(_history(['-0.0000,0000', '-0.0000,0000']));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(_history(['+0.2000,0000', '-0.0000,0000', '-0.0000,0000']));
+    await tester.pumpAndSettle();
+
+    final text = find.descendant(of: _cell('+0.2000,0000'), matching: find.byType(RichText));
+    expect(tester.getSize(text).height, lessThan(20));
+    expect(tester.getSize(_cell('+0.2000,0000')).width, greaterThanOrEqualTo(_renderedWidth('+0.2000,0000', 1) + 8));
+  });
+
+  testWidgets('a hugging column grows for a wider value at the same row count', (tester) async {
+    await tester.pumpWidget(_history(['-0.0000,0000', '-0.0000,0000']));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(_history(['+0.2000,0000', '-0.0000,0000']));
+    await tester.pumpAndSettle();
+
+    final text = find.descendant(of: _cell('+0.2000,0000'), matching: find.byType(RichText));
+    expect(tester.getSize(text).height, lessThan(20));
+    expect(tester.getSize(_cell('+0.2000,0000')).width, greaterThanOrEqualTo(_renderedWidth('+0.2000,0000', 1) + 8));
+  });
+
+  testWidgets('a hugging column that grows keeps a width the user dragged', (tester) async {
+    await tester.pumpWidget(_history(['-0.0000,0000', '-0.0000,0000']));
+    await tester.pumpAndSettle();
+
+    double statusWidth() =>
+        tester.getSize(find.ancestor(of: find.text('Status'), matching: find.byType(SailTableHeaderCell))).width;
+    final handle = find.byWidgetPredicate((w) => w.runtimeType.toString() == '_ResizeHandle').first;
+    await tester.drag(handle, const Offset(-40, 0));
+    await tester.pumpAndSettle();
+    final dragged = statusWidth();
+
+    await tester.pumpWidget(_history(['+0.2000,0000', '-0.0000,0000']));
+    await tester.pumpAndSettle();
+
+    expect(statusWidth(), dragged);
+    expect(tester.getSize(_cell('+0.2000,0000')).width, greaterThanOrEqualTo(_renderedWidth('+0.2000,0000', 1) + 8));
   });
 }
