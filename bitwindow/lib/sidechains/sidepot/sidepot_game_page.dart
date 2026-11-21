@@ -17,10 +17,6 @@ class SidepotGamePage extends StatefulWidget {
 }
 
 const _coin = 100000000;
-const _slot = 88;
-
-/// What a deposit or a move pays the eCash network, in sats.
-const _depositFeeSats = 1000;
 
 String _ecx(num sats) {
   final negative = sats < 0;
@@ -51,7 +47,6 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
   String? _readError;
 
   final _keys = TextEditingController(text: '1');
-  final _deposit = TextEditingController();
   final _move = TextEditingController();
   final _cashout = TextEditingController();
 
@@ -71,7 +66,6 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
   void dispose() {
     _timer?.cancel();
     _keys.dispose();
-    _deposit.dispose();
     _move.dispose();
     _cashout.dispose();
     super.dispose();
@@ -101,7 +95,11 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
       });
     } catch (error) {
       if (mounted) {
-        setState(() => _readError = 'The Sidepot node is not answering. Start it from the Sidechains tab. ($error)');
+        setState(() {
+          _readError = '$error';
+          _game = null;
+          _account = null;
+        });
       }
     } finally {
       _reading = false;
@@ -196,29 +194,6 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     return 'Cash-out sent in eCash transaction $txid. The coins arrive in the Sidepot balance of this wallet.';
   });
 
-  Future<void> _depositToGame() => _run('deposit', () async {
-    final amount = _sats(_deposit.text);
-    final address = _account?['address'];
-    final walletId = _walletId;
-    if (amount == null || amount <= 0) {
-      throw Exception('Give the amount in ECX.');
-    }
-    if (address is! String || !address.startsWith('spot:')) {
-      throw Exception('The node has not given its game account yet.');
-    }
-    if (walletId == null) {
-      throw Exception('No BitWindow wallet is open to deposit from.');
-    }
-    final txid = await GetIt.I.get<BitwindowRPC>().wallet.createSidechainDeposit(
-      walletId,
-      _slot,
-      address,
-      amount / _coin,
-      _depositFeeSats / _coin,
-    );
-    return 'Deposit sent in eCash transaction $txid. The game account is credited once it is in a block.';
-  });
-
   Future<void> _moveToGame() => _run('move', () async {
     final amount = _sats(_move.text);
     if (amount == null || amount <= 0) {
@@ -242,15 +217,33 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     final balance = _int(mine, 'balance_sats');
     final beforeFork = fork > 0 && height < fork;
 
+    if (game == null) {
+      final error = _readError;
+      return QtPage(
+        child: SailCard(
+          title: error == null ? 'Waiting for the Sidepot node' : 'The Sidepot node is not answering',
+          child: SailColumn(
+            spacing: SailStyleValues.padding08,
+            children: [
+              SailText.secondary13(
+                error == null
+                    ? 'The first start takes about 15 minutes while it reads the eCash headers.'
+                    : 'Stop Sidepot and start it again. If Stop does nothing, close BitWindow, end sidepot-node in the '
+                          'task manager, and open BitWindow again.',
+              ),
+              if (error != null) SailText.secondary12(error),
+            ],
+          ),
+        ),
+      );
+    }
+
     return QtPage(
       child: SingleChildScrollView(
         child: SailColumn(
           spacing: SailStyleValues.padding16,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_readError != null) SailText.secondary13(_readError!),
-            if (game == null && _readError == null)
-              SailText.secondary13('Waiting for the Sidepot node. The first start takes about 15 minutes.'),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -326,10 +319,10 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
                         SailButton(
                           label: 'Buy',
                           loading: _busy == 'buy',
-                          disabled: _busy != null || game == null || count < 1 || balance < price * count,
+                          disabled: _busy != null || count < 1 || balance < price * count,
                           onPressed: _buy,
                         ),
-                        if (game != null && count > 0 && balance < price * count)
+                        if (count > 0 && balance < price * count)
                           SailText.secondary13('The game account holds ${_ecx(balance)} ECX. Put ECX in it first.'),
                       ],
                     ),
@@ -376,28 +369,6 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
               children: [
                 Expanded(
                   child: SailCard(
-                    title: 'Deposit eCash into the game',
-                    subtitle: 'From the BitWindow wallet, straight to the game account',
-                    child: SailColumn(
-                      spacing: SailStyleValues.padding12,
-                      children: [
-                        SailTextField(controller: _deposit, label: 'Amount (ECX)', hintText: '0.1'),
-                        SailText.secondary13(
-                          'Credited once the deposit is in an eCash block. The network fee is ${_ecx(_depositFeeSats)} ECX.',
-                        ),
-                        SailButton(
-                          label: 'Deposit',
-                          loading: _busy == 'deposit',
-                          disabled: _busy != null || _account == null,
-                          onPressed: _depositToGame,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: SailStyleValues.padding16),
-                Expanded(
-                  child: SailCard(
                     title: 'Move Sidepot coins into the game',
                     subtitle: 'From the Sidepot balance of this wallet',
                     child: SailColumn(
@@ -412,9 +383,25 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
                         SailButton(
                           label: 'Move to game',
                           loading: _busy == 'move',
-                          disabled: _busy != null || beforeFork || game == null,
+                          disabled: _busy != null || beforeFork,
                           onPressed: _moveToGame,
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: SailStyleValues.padding16),
+                Expanded(
+                  child: SailCard(
+                    title: 'Getting ECX into the game',
+                    child: SailColumn(
+                      spacing: SailStyleValues.padding08,
+                      children: [
+                        SailText.secondary13(
+                          '1. Deposit: the Deposit button above puts eCash into the Sidepot balance of this wallet.',
+                        ),
+                        SailText.secondary13('2. Move to game: moves it from that balance into the game account.'),
+                        SailText.secondary13('Cash out returns ECX from the game account to the Sidepot balance.'),
                       ],
                     ),
                   ),

@@ -94,29 +94,10 @@ func (h *WalletHandler) CreateDeposit(
 	return &wpb.CreateDepositResponse{Txid: send.Txid}, nil
 }
 
-// sidepotSlot is the slot of the Sidepot sidechain.
-const sidepotSlot = 88
-
-// isSidepotGameAccount reports whether destination is a Sidepot game account,
-// `spot:` and the 64 hex digits of its key. Sidepot credits a deposit that
-// names one to that account, not to a coin address. The colon is refused for
-// every other destination, where it most likely comes from a pasted URI.
-func isSidepotGameAccount(destination string) bool {
-	key, found := strings.CutPrefix(destination, "spot:")
-	if !found || len(key) != 64 {
-		return false
-	}
-	_, err := hex.DecodeString(key)
-	return err == nil && key == strings.ToLower(key)
-}
-
 // depositDestination unwraps the s<slot>_<address>_<checksum> deposit form to
 // the bare address. The OP_RETURN must carry the bare address: the sidechain
 // cannot parse the wrapped form and credits the coins to an unspendable address.
 func depositDestination(slot uint8, destination string) (string, error) {
-	if slot == sidepotSlot && isSidepotGameAccount(destination) {
-		return destination, nil
-	}
 	if err := orchestrator.CheckDepositDestination(destination); err != nil {
 		return "", err
 	}
