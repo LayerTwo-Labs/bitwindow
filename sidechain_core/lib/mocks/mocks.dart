@@ -1997,6 +1997,8 @@ String _binaryTypeName(BinaryType type) {
       return 'Truthcoin';
     case BinaryType.BINARY_TYPE_COINSHIFT:
       return 'CoinShift';
+    case BinaryType.BINARY_TYPE_SIDEPOT:
+      return 'Sidepot';
     case BinaryType.BINARY_TYPE_DRIVECHAIND:
       return 'Drivechaind';
     case BinaryType.BINARY_TYPE_ZSIDED:

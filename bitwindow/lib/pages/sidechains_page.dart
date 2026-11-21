@@ -1147,6 +1147,7 @@ class SidechainsViewModel extends BaseViewModel with ChangeTrackingMixin {
     Truthcoin() => SidechainType.SIDECHAIN_TYPE_TRUTHCOIN,
     Photon() => SidechainType.SIDECHAIN_TYPE_PHOTON,
     CoinShift() => SidechainType.SIDECHAIN_TYPE_COINSHIFT,
+    Sidepot() => SidechainType.SIDECHAIN_TYPE_SIDEPOT,
     _ => null,
   };
 
@@ -1344,6 +1345,7 @@ class SidechainsViewModel extends BaseViewModel with ChangeTrackingMixin {
       var b when b is Truthcoin => GetIt.I.isRegistered<TruthcoinRPC>() ? GetIt.I.get<TruthcoinRPC>() : null,
       var b when b is Photon => GetIt.I.isRegistered<PhotonRPC>() ? GetIt.I.get<PhotonRPC>() : null,
       var b when b is CoinShift => GetIt.I.isRegistered<CoinShiftRPC>() ? GetIt.I.get<CoinShiftRPC>() : null,
+      var b when b is Sidepot => GetIt.I.isRegistered<SidepotRPC>() ? GetIt.I.get<SidepotRPC>() : null,
       _ => null,
     };
 
@@ -1417,6 +1419,7 @@ class SidechainsViewModel extends BaseViewModel with ChangeTrackingMixin {
       var b when b is Truthcoin => (GetIt.I.isRegistered<TruthcoinRPC>() ? GetIt.I.get<TruthcoinRPC>() : null),
       var b when b is Photon => (GetIt.I.isRegistered<PhotonRPC>() ? GetIt.I.get<PhotonRPC>() : null),
       var b when b is CoinShift => (GetIt.I.isRegistered<CoinShiftRPC>() ? GetIt.I.get<CoinShiftRPC>() : null),
+      var b when b is Sidepot => (GetIt.I.isRegistered<SidepotRPC>() ? GetIt.I.get<SidepotRPC>() : null),
       _ => null,
     };
   }
@@ -2272,6 +2275,7 @@ class _DepositModalState extends State<DepositModal> {
       BitAssets() => GetIt.I.isRegistered<BitAssetsRPC>() ? GetIt.I.get<BitAssetsRPC>() : null,
       ZSide() => GetIt.I.isRegistered<ZSideRPC>() ? GetIt.I.get<ZSideRPC>() : null,
       CoinShift() => GetIt.I.isRegistered<CoinShiftRPC>() ? GetIt.I.get<CoinShiftRPC>() : null,
+      Sidepot() => GetIt.I.isRegistered<SidepotRPC>() ? GetIt.I.get<SidepotRPC>() : null,
       Thunder() => GetIt.I.isRegistered<ThunderRPC>() ? GetIt.I.get<ThunderRPC>() : null,
       _ => null,
     };

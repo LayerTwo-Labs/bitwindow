@@ -36,6 +36,7 @@ Binary defaultBinaryFor(BinaryType type) => switch (type) {
   BinaryType.BINARY_TYPE_DRIVECHAIND => Drivechaind(),
   BinaryType.BINARY_TYPE_ZSIDED => ZSided(),
   BinaryType.BINARY_TYPE_BBC => Bbc(),
+  BinaryType.BINARY_TYPE_SIDEPOT => Sidepot(),
   _ => _unsupportedBinaryType(type),
 };
 
@@ -938,7 +939,8 @@ extension BinaryPaths on Binary {
       BinaryType.BINARY_TYPE_ZSIDE ||
       BinaryType.BINARY_TYPE_TRUTHCOIN ||
       BinaryType.BINARY_TYPE_PHOTON ||
-      BinaryType.BINARY_TYPE_COINSHIFT => _findLatestDirVersionedLog(),
+      BinaryType.BINARY_TYPE_COINSHIFT ||
+      BinaryType.BINARY_TYPE_SIDEPOT => _findLatestDirVersionedLog(),
       // Core-derived, so the bitcoind layout: debug.log under the network dir,
       // not the versioned-directory logs the Rust sidechains write.
       BinaryType.BINARY_TYPE_BBC => filePath([datadirNetwork(), 'debug.log']),
@@ -1086,6 +1088,7 @@ extension BinaryPaths on Binary {
       case BinaryType.BINARY_TYPE_PHOTON:
       case BinaryType.BINARY_TYPE_COINSHIFT:
       case BinaryType.BINARY_TYPE_BBC:
+      case BinaryType.BINARY_TYPE_SIDEPOT:
         if (GetIt.I.isRegistered<GenericSidechainConfProvider>()) {
           final provider = GetIt.I<GenericSidechainConfProvider>();
           final customDir = provider.currentConfig?.getSetting('datadir');
@@ -1135,6 +1138,7 @@ extension BinaryPaths on Binary {
       case BinaryType.BINARY_TYPE_TRUTHCOIN:
       case BinaryType.BINARY_TYPE_PHOTON:
       case BinaryType.BINARY_TYPE_COINSHIFT:
+      case BinaryType.BINARY_TYPE_SIDEPOT:
       case BinaryType.BINARY_TYPE_GRPCURL:
       case BinaryType.BINARY_TYPE_DRIVECHAIND:
       case BinaryType.BINARY_TYPE_ZSIDED:
@@ -1754,6 +1758,7 @@ BinaryType _binaryTypeFromJsonKey(String key) {
     'photon' => BinaryType.BINARY_TYPE_PHOTON,
     'coinshift' => BinaryType.BINARY_TYPE_COINSHIFT,
     'bbc' => BinaryType.BINARY_TYPE_BBC,
+    'sidepot' => BinaryType.BINARY_TYPE_SIDEPOT,
     'zside' => BinaryType.BINARY_TYPE_ZSIDE,
     _ => throw ArgumentError('Unknown binary key: $key'),
   };
@@ -1774,6 +1779,7 @@ String binaryTypeToJsonKey(BinaryType type) {
     BinaryType.BINARY_TYPE_PHOTON => 'photon',
     BinaryType.BINARY_TYPE_COINSHIFT => 'coinshift',
     BinaryType.BINARY_TYPE_BBC => 'bbc',
+    BinaryType.BINARY_TYPE_SIDEPOT => 'sidepot',
     BinaryType.BINARY_TYPE_ZSIDE => 'zside',
     BinaryType.BINARY_TYPE_UNSPECIFIED => _unsupportedBinaryType(type),
     _ => _unsupportedBinaryType(type),
@@ -1937,6 +1943,16 @@ Binary binaryFromJson(String key, Map<String, dynamic> json) {
       chainLayer: chainLayer,
     ),
     BinaryType.BINARY_TYPE_BBC => Bbc(
+      name: name,
+      version: version,
+      description: description,
+      repoUrl: repoUrl,
+      directories: directories,
+      metadata: metadata,
+      port: port,
+      chainLayer: chainLayer,
+    ),
+    BinaryType.BINARY_TYPE_SIDEPOT => Sidepot(
       name: name,
       version: version,
       description: description,

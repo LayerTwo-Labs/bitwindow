@@ -57,6 +57,9 @@ abstract class Sidechain extends Binary {
 
       case 'bbc':
         return Bbc();
+
+      case 'sidepot':
+        return Sidepot();
     }
     return null;
   }
@@ -169,6 +172,18 @@ abstract class Sidechain extends Binary {
           port: binary.port,
           chainLayer: binary.chainLayer,
         );
+
+      case 'Sidepot':
+        return Sidepot(
+          name: binary.name,
+          version: binary.version,
+          description: binary.description,
+          repoUrl: binary.repoUrl,
+          directories: binary.directories,
+          metadata: binary.metadata,
+          port: binary.port,
+          chainLayer: binary.chainLayer,
+        );
       default:
         throw Exception('Unknown sidechain binary type: ${binary.runtimeType}');
     }
@@ -236,6 +251,78 @@ class Bbc extends Sidechain {
     int? chainLayer,
     DownloadInfo? downloadInfo,
   }) => Bbc(
+    name: name,
+    version: version ?? this.version,
+    description: description ?? this.description,
+    repoUrl: repoUrl ?? this.repoUrl,
+    directories: directories ?? this.directories,
+    metadata: metadata ?? this.metadata,
+    port: port ?? this.port,
+    chainLayer: chainLayer ?? this.chainLayer,
+    downloadInfo: downloadInfo ?? this.downloadInfo,
+    extraBootArgs: extraBootArgs,
+  );
+}
+
+/// A game sidechain on eCash mainnet. Its node is a Thunder fork.
+class Sidepot extends Sidechain {
+  Sidepot({
+    super.name = 'Sidepot',
+    super.version = '0.1.6',
+    super.description = 'Sidepot game sidechain',
+    super.repoUrl = 'https://github.com/Coinelius/sidepot-node',
+    DirectoryConfig? directories,
+    MetadataConfig? metadata,
+    super.port = 6088,
+    super.chainLayer = 2,
+    super.downloadInfo = const DownloadInfo(),
+    super.extraBootArgs = const [],
+  }) : super(
+         directories: directories ?? DirectoryConfig(binary: allPlatforms('sidepot'), flutterFrontend: const {}),
+         metadata:
+             metadata ??
+             MetadataConfig(
+               downloadConfig: DownloadConfig(
+                 binary: 'sidepot-node',
+                 baseUrls: allNetworksUrl(
+                   'https://github.com/Coinelius/sidepot-node/releases/download/sidepot-v0.1.6/',
+                 ),
+                 files: allNetworks({
+                   OS.linux: 'sidepot-node-v0.1.6-x86_64-unknown-linux-gnu.zip',
+                   OS.macos: 'sidepot-node-v0.1.6-x86_64-apple-darwin.zip',
+                   OS.windows: 'sidepot-node-v0.1.6-x86_64-pc-windows-gnu.zip',
+                 }),
+               ),
+               remoteTimestamp: null,
+               downloadedTimestamp: null,
+               binaryPath: null,
+               updateable: false,
+             ),
+       );
+
+  @override
+  int get slot => 88;
+
+  @override
+  BinaryType get type => BinaryType.BINARY_TYPE_SIDEPOT;
+
+  @override
+  Color get color => Colors.green;
+
+  @override
+  bool get developedByLayerTwoLabs => false;
+
+  @override
+  Sidepot copyWith({
+    String? version,
+    String? description,
+    String? repoUrl,
+    DirectoryConfig? directories,
+    MetadataConfig? metadata,
+    int? port,
+    int? chainLayer,
+    DownloadInfo? downloadInfo,
+  }) => Sidepot(
     name: name,
     version: version ?? this.version,
     description: description ?? this.description,
@@ -965,6 +1052,7 @@ List<Binary> get sidechainBinaries => [
   resolveFromConfig(BinaryType.BINARY_TYPE_COINSHIFT, () => CoinShift()),
   resolveFromConfig(BinaryType.BINARY_TYPE_ZSIDE, () => ZSide()),
   resolveFromConfig(BinaryType.BINARY_TYPE_BBC, () => Bbc()),
+  resolveFromConfig(BinaryType.BINARY_TYPE_SIDEPOT, () => Sidepot()),
 ];
 
 Binary resolveFromConfig(BinaryType type, Binary Function() fallback) {
