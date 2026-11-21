@@ -97,6 +97,7 @@ class _SailTableState extends State<SailTable> {
   int? _numColumns;
   TextScaler? _lastScaler;
   String? _lastFontFamily;
+  List<bool> _hugging = const [];
 
   double get _totalColumnWidths => _widths.fold(0, (prev, e) => prev + e);
 
@@ -197,6 +198,23 @@ class _SailTableState extends State<SailTable> {
               _resizeColumns(_currentConstraints!.maxWidth, force: true);
             }
           });
+        }
+      }
+    } else {
+      _widenHuggedColumns();
+    }
+  }
+
+  /// Widens only a hugging column whose value grew, so widths the user dragged stay.
+  void _widenHuggedColumns() {
+    if (!_hugging.contains(true) || _hugging.length != _widths.length) {
+      return;
+    }
+    for (int row = 0; row < widget.rowCount; row++) {
+      final cells = _cells(context, row, false);
+      for (int col = 0; col < cells.length && col < _hugging.length; col++) {
+        if (_hugging[col]) {
+          _widths[col] = max(_widths[col], _calculateColumnWidth(cells[col]));
         }
       }
     }
@@ -473,6 +491,7 @@ class _SailTableState extends State<SailTable> {
       }
     }
 
+    _hugging = hugging;
     for (int i = 0; i < _numColumns!; i++) {
       columnWidths[i] = max(columnWidths[i], widget.minColumnWidths[_sourceColumn(i)] ?? 0);
       if (fixedColumns[i]) {
