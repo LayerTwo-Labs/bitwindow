@@ -326,5 +326,6 @@ final sidepotRPCMethods = [
   'game_buy',
   'game_cashout',
   'game_deposit',
+  'game_fund',
   'get_block_ids',
 ];

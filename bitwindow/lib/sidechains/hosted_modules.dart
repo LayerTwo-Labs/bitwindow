@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:bitassets/bitassets_module.dart';
 import 'package:bitnames/bitnames_module.dart';
+import 'package:bitwindow/sidechains/sidepot/sidepot_module.dart';
 import 'package:coinshift/coinshift_module.dart';
 import 'package:photon/photon_module.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -18,6 +19,7 @@ final List<SidechainModule> hostedModules = [
   ZSideModule(),
   PhotonModule(),
   CoinShiftModule(),
+  SidepotModule(),
 ];
 
 SidechainModule? hostedModuleFor(Binary chain) {
