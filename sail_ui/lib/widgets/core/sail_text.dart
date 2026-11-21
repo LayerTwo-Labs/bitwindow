@@ -237,6 +237,7 @@ class SailText {
     bool italic = false,
     bool monospace = false,
     TextOverflow? overflow = TextOverflow.ellipsis,
+    int? maxLines,
   }) {
     return Builder(
       builder: (context) {
@@ -253,6 +254,7 @@ class SailText {
             overflow: overflow,
           ),
           textAlign: textAlign,
+          maxLines: maxLines,
         );
       },
     );

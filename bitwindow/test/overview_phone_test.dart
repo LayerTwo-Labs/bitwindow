@@ -2,6 +2,7 @@ import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart' as walletpb;
@@ -33,9 +34,6 @@ final _deposit = walletpb.WalletTransaction(
   sentSatoshi: Int64(1000000),
   depositRequest: walletpb.DepositRequest(slot: 9),
 );
-
-Rect _header(WidgetTester tester, String name) =>
-    tester.getRect(find.byWidgetPredicate((w) => w is SailTableHeaderCell && w.name == name));
 
 Future<void> _pumpTable(WidgetTester tester, _Overview model, {bool settle = true}) async {
   await tester.pumpSailPage(
@@ -70,19 +68,58 @@ void main() {
     await GetIt.I.reset();
   });
 
-  testWidgets('on a phone the date is 118 px, the amount 95 px and the status takes the rest', (tester) async {
+  testWidgets('on a phone each row is one line: date, status, and the amount with no unit', (tester) async {
     SailStyleValues.phoneLayoutOverride = true;
+    final at = DateTime(2026, 10, 31, 18, 42);
+    Timestamp stamp(DateTime t) => Timestamp.fromDateTime(t.toUtc());
+    final unconfirmed = walletpb.WalletTransaction(
+      txid: 'cd' * 32,
+      confirmationTime: walletpb.Confirmation(height: 0, timestamp: stamp(at)),
+      sentSatoshi: Int64(25000000),
+    );
+    final confirmed = walletpb.WalletTransaction(
+      txid: 'ef' * 32,
+      confirmationTime: walletpb.Confirmation(height: 120, timestamp: stamp(at.subtract(const Duration(days: 1)))),
+      receivedSatoshi: Int64(50000000),
+    );
+    await _pumpTable(tester, _Overview([unconfirmed, confirmed]));
+
+    final date = find.text('2026-10-31 18:42');
+    final status = find.text('Unconfirmed');
+    final amount = find.text('-0.2500,0000');
+    expect(date, findsOneWidget);
+    expect(amount, findsOneWidget);
+    expect(find.textContaining('BTC'), findsNothing);
+    final line = tester.getSize(find.text('Confirmed')).height;
+    for (final cell in [date, status, amount]) {
+      expect(tester.getSize(cell).height, line, reason: 'one line');
+    }
+    final statusText = tester.widget<Text>(status);
+    final painter = TextPainter(
+      text: TextSpan(text: 'Unconfirmed', style: statusText.style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    expect(tester.getSize(status).width, greaterThanOrEqualTo(painter.width - 0.5), reason: 'no ellipsis');
+    painter.dispose();
+    expect(tester.getRect(status).left, greaterThan(tester.getRect(date).right));
+    expect(tester.getRect(find.text('Date')).left, closeTo(tester.getRect(date).left, 1));
+    expect(tester.getRect(find.text('Amount')).left, closeTo(tester.getRect(amount).left, 1));
+    expect(tester.getRect(amount).left, greaterThan(tester.getRect(status).right));
+    expect(
+      tester.widget<Text>(amount).style!.fontFamily,
+      tester.widget<Text>(find.text('Confirmed')).style!.fontFamily,
+      reason: 'the amount uses the normal font',
+    );
+    expect(tester.widget<SailTable>(find.byType(SailTable)).drawGrid, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('on the desktop the history keeps the grid and the unit', (tester) async {
+    SailStyleValues.phoneLayoutOverride = false;
     await _pumpTable(tester, _Overview([_deposit]));
 
-    final date = _header(tester, 'Date');
-    final status = _header(tester, 'Status');
-    final amount = _header(tester, 'Amount');
-    expect(date.width, closeTo(phoneDateColumnWidth, 1));
-    expect(amount.width, closeTo(phoneAmountColumnWidth, 1));
-    expect(status.left, greaterThan(date.right));
-    expect(amount.left, greaterThan(status.right - 1));
-    expect(find.text(transactionStatus(_deposit)), findsOneWidget);
-    expect(tester.takeException(), isNull);
+    expect(tester.widget<SailTable>(find.byType(SailTable)).drawGrid, isTrue);
+    expect(find.textContaining('BTC'), findsWidgets);
   });
 
   testWidgets('on a phone the loading table shows bars in a panel and what it waits for', (tester) async {
