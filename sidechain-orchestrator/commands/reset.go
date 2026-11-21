@@ -263,6 +263,7 @@ func resetSpecs(cctx *cli.Context) []*pb.SingleDeletion {
 			pb.BinaryType_BINARY_TYPE_TRUTHCOIN,
 			pb.BinaryType_BINARY_TYPE_PHOTON,
 			pb.BinaryType_BINARY_TYPE_COINSHIFT,
+			pb.BinaryType_BINARY_TYPE_SIDEPOT,
 		)
 	}
 

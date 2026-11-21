@@ -11,6 +11,7 @@ The remote validator supplies mainchain data. The local daemon trusts that data.
 | BitAssets | 0.16.7 / `f66c1f1` | `--mainchain-grpc-host=HOST --mainchain-grpc-port=50051` |
 | Photon | 0.17.5 / `586cb24` | `--mainchain-grpc-url=http://HOST:50051` |
 | CoinShift | 0.14.1 / `a832212` | `--mainchain-grpc-url=http://HOST:50051` |
+| Sidepot | 0.1.6 | `--mainchain-grpc-url=http://HOST:50051 --l1-esplora-url=URL` |
 
 The validator and health services are necessary. The enforcer wallet service is optional.
 Sidechain transfers and withdrawal requests use local keys.
@@ -28,6 +29,10 @@ BitWindow provides its own L1 wallet through Electrum for those payments.
 CoinShift also uses parent-chain RPC for swaps.
 Its configuration accepts only predefined endpoints. Signet uses `localhost:38332`; a custom remote address returns `UnsupportedL1Config`.
 Sources: [BitNames block submission](https://github.com/octobocto/plain-bitnames/blob/3770fd1/lib/node/mod.rs#L680), [CoinShift configuration](https://github.com/octobocto/coinshift-rs/blob/a832212/lib/parent_chain_rpc.rs#L447).
+
+Sidepot also reads every mainchain block for its game.
+Full mode gives it the local Core RPC and the read-only mainchain cookie.
+Light mode gives it the network's Esplora URL.
 
 Both modes start local sidechain daemons and use their wallet RPCs.
 Full mode also starts local Core and enforcer.
