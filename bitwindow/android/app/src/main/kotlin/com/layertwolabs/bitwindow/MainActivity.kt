@@ -18,6 +18,8 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         Os.setenv("HOME", filesDir.absolutePath, true)
         Os.setenv("BITWINDOW_HOME", filesDir.absolutePath, true)
+        // An app cannot write /data/local/tmp, the temp folder Go picks with no TMPDIR.
+        Os.setenv("TMPDIR", cacheDir.absolutePath, true)
         super.onCreate(savedInstanceState)
     }
 
