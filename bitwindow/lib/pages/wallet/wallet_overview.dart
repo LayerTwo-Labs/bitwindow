@@ -131,9 +131,15 @@ const List<String> transactionColumns = ['date', 'txid', 'address', 'note', 'sta
 /// Width of the action column, so its button never widens the table.
 const double bumpFeeColumnWidth = 104;
 
-/// Widths of the date and amount columns on a phone. The status column takes the rest.
-const double phoneDateColumnWidth = 118;
-const double phoneAmountColumnWidth = 95;
+const _cellPadding = EdgeInsets.symmetric(horizontal: SailStyleValues.padding12);
+const _phoneCellPadding = EdgeInsets.symmetric(horizontal: SailStyleValues.padding04);
+
+/// The date of a history row on a phone, on one line.
+String phoneHistoryDate(DateTime time) => DateFormat('yyyy-MM-dd HH:mm').format(time);
+
+/// The amount of a history row on a phone, with no unit.
+String phoneHistoryAmount(int sats, BitcoinUnit unit) =>
+    unit == BitcoinUnit.btc ? formatBitcoin(satoshiToBTC(sats), symbol: '') : formatWithThousandSpacers(sats);
 
 const String _loadingDescription = 'Waiting for enforcer to boot and wallet to sync..';
 
@@ -325,6 +331,7 @@ class _TransactionTableState extends State<TransactionTable> {
                             headerBuilder: (context) => [
                               SailTableHeaderCell(
                                 name: 'Date',
+                                padding: phone ? _phoneCellPadding : _cellPadding,
                                 onSort: () => onSort('date'),
                                 filterWidget: SailTooltip(
                                   message: 'Filter by date range',
@@ -348,10 +355,12 @@ class _TransactionTableState extends State<TransactionTable> {
                               ),
                               SailTableHeaderCell(
                                 name: 'Status',
+                                padding: phone ? _phoneCellPadding : _cellPadding,
                                 onSort: () => onSort('status'),
                               ),
                               SailTableHeaderCell(
                                 name: 'Amount',
+                                padding: phone ? _phoneCellPadding : _cellPadding,
                                 onSort: () => onSort('amount'),
                               ),
                               const SailTableHeaderCell(
@@ -370,12 +379,16 @@ class _TransactionTableState extends State<TransactionTable> {
 
                               final net = walletNetSats(entry);
                               final sign = net > 0 ? '+' : '-';
-                              final formattedAmount = '$sign${formatter.formatSats(net.abs())}';
+                              final formattedAmount = phone
+                                  ? '$sign${phoneHistoryAmount(net.abs(), formatter.currentUnit)}'
+                                  : '$sign${formatter.formatSats(net.abs())}';
+                              final time = entry.confirmationTime.timestamp.toDateTime().toLocal();
 
                               return [
                                 SailTableCell(
-                                  value: formatDate(entry.confirmationTime.timestamp.toDateTime().toLocal()),
-                                  width: phone ? phoneDateColumnWidth : null,
+                                  value: phone ? phoneHistoryDate(time) : formatDate(time),
+                                  hugContent: phone,
+                                  padding: phone ? _phoneCellPadding : _cellPadding,
                                 ),
                                 SailTableCell(
                                   value: '${entry.txid.substring(0, 10)}..',
@@ -392,8 +405,16 @@ class _TransactionTableState extends State<TransactionTable> {
                                   value: transactionStatus(entry),
                                   textColor: statusColor,
                                   fill: phone,
+                                  padding: phone ? _phoneCellPadding : _cellPadding,
                                   child: entry.warningMessage.trim().isEmpty && !entry.immature
-                                      ? null
+                                      ? (phone
+                                            ? SailText.primary13(
+                                                transactionStatus(entry),
+                                                color: statusColor,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              )
+                                            : null)
                                       : Row(
                                           children: [
                                             if (entry.warningMessage.trim().isNotEmpty) ...[
@@ -423,6 +444,8 @@ class _TransactionTableState extends State<TransactionTable> {
                                               child: SailText.primary13(
                                                 transactionStatus(entry),
                                                 color: statusColor,
+                                                maxLines: phone ? 1 : null,
+                                                overflow: phone ? TextOverflow.ellipsis : null,
                                               ),
                                             ),
                                           ],
@@ -430,8 +453,9 @@ class _TransactionTableState extends State<TransactionTable> {
                                 ),
                                 SailTableCell(
                                   value: formattedAmount,
-                                  monospace: true,
-                                  width: phone ? phoneAmountColumnWidth : null,
+                                  monospace: !phone,
+                                  hugContent: phone,
+                                  padding: phone ? _phoneCellPadding : _cellPadding,
                                 ),
                                 SailTableCell(
                                   value: cancellable
@@ -527,7 +551,7 @@ class _TransactionTableState extends State<TransactionTable> {
                             },
                             rowCount: entries.length,
                             emptyPlaceholder: 'No transactions yet',
-                            drawGrid: true,
+                            drawGrid: !phone,
                             sortColumnIndex: transactionColumns.indexOf(sortColumn),
                             sortAscending: sortAscending,
                             onSort: (columnIndex, ascending) {

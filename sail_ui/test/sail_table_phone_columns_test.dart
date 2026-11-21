@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -110,4 +111,23 @@ void main() {
 
     expect(find.text('Copy value'), findsNothing);
   });
+
+  for (final phone in [false, true]) {
+    testWidgets('Copy value closes the row menu on a ${phone ? 'phone' : 'desktop'}', (tester) async {
+      SailStyleValues.phoneLayoutOverride = phone;
+      await tester.pumpWidget(_table());
+      await tester.pumpAndSettle();
+
+      if (phone) {
+        await tester.longPress(find.text('Unconfirmed'));
+      } else {
+        await tester.tap(find.text('Unconfirmed'), buttons: kSecondaryButton);
+      }
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Copy value'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copy value'), findsNothing);
+    });
+  }
 }
