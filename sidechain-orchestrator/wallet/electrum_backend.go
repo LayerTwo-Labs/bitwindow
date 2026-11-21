@@ -106,6 +106,7 @@ type ElectrumBackend struct {
 	warmScan    map[string]*electrumScan // walletID -> cached scan, served between blocks
 	tipAt       map[string]int           // walletID -> chain tip the cached scan reflects
 	scanAt      map[string]time.Time     // walletID -> when the cached scan was taken
+	spends      map[string]uint64        // walletID -> sends folded into the cache, so a walk can tell it is older
 	lastScan    map[string][]byte        // walletID -> last persisted scan bytes (skip rewrites)
 	firstSeen   map[string]int64         // txid -> unix time this process first listed it unconfirmed
 	// addrSpots holds walletID -> address -> where it sits on the derivation
@@ -158,6 +159,7 @@ func NewElectrumBackend(svc *Service, client ChainDataSource, params ParamsFunc,
 		warmScan:    make(map[string]*electrumScan),
 		tipAt:       make(map[string]int),
 		scanAt:      make(map[string]time.Time),
+		spends:      make(map[string]uint64),
 		lastScan:    make(map[string][]byte),
 		firstSeen:   make(map[string]int64),
 
@@ -990,6 +992,7 @@ func (p *ElectrumBackend) applySpend(walletID, txid string, effect *spendEffect,
 	finalizeScan(scan)
 	p.mu.Lock()
 	p.warmScan[walletID] = scan
+	p.spends[walletID]++
 	tip := p.tipAt[walletID]
 	p.mu.Unlock()
 	p.persistScan(p.svc.Network(), walletID, scan, tip)
@@ -2570,6 +2573,7 @@ func (p *ElectrumBackend) scan(ctx context.Context, walletID string, allowCache 
 		p.deepAt[walletID] = time.Now()
 	}
 	prior := p.warmScan[walletID]
+	spends := p.spends[walletID]
 	p.mu.Unlock()
 	// prior holds the wallet's last known chain data (warm cache, else the
 	// on-disk scan). Addresses whose stats are unchanged copy their UTXOs and
@@ -2630,11 +2634,17 @@ func (p *ElectrumBackend) scan(ctx context.Context, walletID string, allowCache 
 		return nil, fmt.Errorf("network changed during scan of wallet %s", walletID)
 	}
 	tip, tipErr := p.client.TipHeight(ctx)
-	p.persistScan(network, walletID, scan, tip)
 	p.mu.Lock()
+	// A send broadcast during the walk is in the cache but maybe not in this
+	// walk, so the walk must not replace the cache. The next read walks again.
+	if folded := p.warmScan[walletID]; folded != nil && p.spends[walletID] != spends {
+		p.mu.Unlock()
+		return folded, nil
+	}
 	p.warm[walletID] = true
 	p.liveScanned[walletID] = true
 	p.mu.Unlock()
+	p.persistScan(network, walletID, scan, tip)
 	p.cacheScanAt(gen, walletID, scan, tip, tipErr == nil)
 	go p.subscribeScan(walletID, scan)
 	return scan, nil
@@ -3105,10 +3115,12 @@ func (p *ElectrumBackend) hydrate(ctx context.Context, walletID string, a *scann
 	}
 	// Equal totals do not prove equal coins: an index that misses an M5 spend
 	// serves the totals from before it. The history behind those totals holds,
-	// and it costs a page walk, so only the coins are read again.
+	// and it costs a page walk, so only the coins are read again. A replacement
+	// keeps the totals of the transaction it pushes out, so mempool history is
+	// always read again.
 	var cachedTxs []EsploraTx
 	var haveTxs bool
-	if prior != nil {
+	if prior != nil && stats.MempoolStats.TxCount == 0 {
 		if prev, ok := prior.byAddr[a.address]; ok && prev.stats == stats {
 			cachedTxs, haveTxs = prev.txs, true
 		}
