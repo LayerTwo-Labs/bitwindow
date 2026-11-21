@@ -11,7 +11,7 @@ The remote validator supplies mainchain data. The local daemon trusts that data.
 | BitAssets | 0.16.7 / `f66c1f1` | `--mainchain-grpc-host=HOST --mainchain-grpc-port=50051` |
 | Photon | 0.17.5 / `586cb24` | `--mainchain-grpc-url=http://HOST:50051` |
 | CoinShift | 0.14.1 / `a832212` | `--mainchain-grpc-url=http://HOST:50051` |
-| Sidepot | 0.1.6 | `--mainchain-grpc-url=http://HOST:50051 --l1-esplora-url=URL` |
+| Sidepot | 0.2.0 | `--mainchain-grpc-url=http://HOST:50051 --l1-esplora-url=URL` |
 
 The validator and health services are necessary. The enforcer wallet service is optional.
 Sidechain transfers and withdrawal requests use local keys.
