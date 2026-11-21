@@ -15,7 +15,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -56,6 +55,8 @@ func main() {
 	// SIGTERM too, so `systemctl stop` / `docker stop` drain the server and
 	// relay Shutdown to drivechaind instead of orphaning it.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// The app that reads stdout can quit while a relaunched app keeps this daemon.
+	signal.Ignore(syscall.SIGPIPE)
 
 	if err := realMain(ctx, cancel); err != nil {
 
@@ -279,6 +280,7 @@ func realMain(ctx context.Context, cancelCtx context.CancelFunc) error {
 		EnforcerJSONRPCAddr: conf.EnforcerJSONRPCAddr,
 		BitwindowDir:        bitwindowDir,
 		Lease:               clients,
+		Keep:                keepHandler(conf.OrchestratorAddr, bitwindowDir, clients),
 	}
 
 	// api.New builds the long-lived service connectors, then constructs the
@@ -393,11 +395,18 @@ func startDrivechaind(ctx context.Context, conf config.Config) (*exec.Cmd, error
 	log := zerolog.Ctx(ctx)
 	bitwindowDir := conf.BitwindowDir()
 
-	// A running drivechaind keeps the build it started with, so an app start
-	// retires it and spawns a fresh one. bitcoind, the enforcer and the
-	// sidechains stay up, and the fresh daemon adopts them by their RPC
-	// ports. Verify the cookie first: without it the stop RPC sends the
-	// bearer token to any listener on the port.
+	// Find the drivechaind binary next to our own binary.
+	selfPath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("find self path: %w", err)
+	}
+	orchPath := drivechaindBeside(selfPath)
+
+	// A running drivechaind of another build answers a newer RPC with 404, so
+	// an app start retires it and spawns a fresh one. bitcoind, the enforcer
+	// and the sidechains stay up, and the fresh daemon adopts them by their RPC
+	// ports. A daemon that runs orchPath stays. Verify the cookie first:
+	// without it the stop RPC sends the bearer token to any listener on the port.
 	running, err := verifiedOrchestratorRunning(ctx, conf.OrchestratorAddr, bitwindowDir)
 	if err != nil {
 		return nil, err
@@ -405,6 +414,14 @@ func startDrivechaind(ctx context.Context, conf config.Config) (*exec.Cmd, error
 	if running {
 		if !retireRunningOrchestrator(conf.OwnerPID) {
 			log.Info().Str("addr", conf.OrchestratorAddr).Msg("drivechaind already running under no owner, adopting verified instance")
+			return nil, nil
+		}
+		adopted, err := adoptOrchestrator(ctx, conf.OrchestratorAddr, bitwindowDir, orchPath, conf.OwnerPID)
+		if err != nil {
+			return nil, err
+		}
+		if adopted {
+			log.Info().Str("addr", conf.OrchestratorAddr).Msg("the running drivechaind is this build, keeping it")
 			return nil, nil
 		}
 		log.Info().Str("addr", conf.OrchestratorAddr).Msg("retiring the running drivechaind, this start needs its own")
@@ -417,16 +434,6 @@ func startDrivechaind(ctx context.Context, conf config.Config) (*exec.Cmd, error
 	// token once it holds the listener. Deleting it from bitwindowd could yank
 	// the cookie out from under a still-live drivechaind we failed to adopt.
 
-	// Find the drivechaind binary next to our own binary.
-	selfPath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("find self path: %w", err)
-	}
-	orchName := "drivechaind"
-	if runtime.GOOS == "windows" {
-		orchName += ".exe"
-	}
-	orchPath := filepath.Join(filepath.Dir(selfPath), orchName)
 	if _, err := os.Stat(orchPath); err != nil {
 		return nil, fmt.Errorf("drivechaind not found at %s: %w", orchPath, err)
 	}
@@ -787,6 +794,16 @@ func retireRunningOrchestrator(ownerPID int) bool {
 // enforcer and every sidechain first.
 const retireDrainWait = 2 * time.Minute
 
+// retirePollWait is the time between two port probes. A daemon that knows
+// keep_l1 frees the port at once, so the first probes come fast. Each probe of
+// a held port leaves a TIME_WAIT socket, so a long drain gets slow probes.
+func retirePollWait(waited time.Duration) time.Duration {
+	if waited < 2*time.Second {
+		return 25 * time.Millisecond
+	}
+	return 500 * time.Millisecond
+}
+
 // retireOrchestrator stops the running drivechaind and returns once it lets
 // the port go. A fresh daemon then binds it. bitcoind, the enforcer and the
 // sidechains keep running, and the fresh daemon adopts them.
@@ -804,7 +821,8 @@ func retireOrchestrator(ctx context.Context, addr, bitwindowDir string, log *zer
 		log.Info().Err(err).Msg("asked the old drivechaind to exit, waiting for the port")
 	}
 
-	deadline := time.Now().Add(retireDrainWait)
+	start := time.Now()
+	deadline := start.Add(retireDrainWait)
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", hostPort, 200*time.Millisecond)
 		if err != nil {
@@ -815,7 +833,7 @@ func retireOrchestrator(ctx context.Context, addr, bitwindowDir string, log *zer
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(retirePollWait(time.Since(start))):
 		}
 	}
 	return fmt.Errorf("drivechaind still holds %s after %s", hostPort, retireDrainWait)
