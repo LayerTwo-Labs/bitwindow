@@ -33,6 +33,8 @@ class SidechainType extends $pb.ProtobufEnum {
   static const SidechainType SIDECHAIN_TYPE_PHOTON = SidechainType._(6, _omitEnumNames ? '' : 'SIDECHAIN_TYPE_PHOTON');
   static const SidechainType SIDECHAIN_TYPE_COINSHIFT =
       SidechainType._(7, _omitEnumNames ? '' : 'SIDECHAIN_TYPE_COINSHIFT');
+  static const SidechainType SIDECHAIN_TYPE_SIDEPOT =
+      SidechainType._(9, _omitEnumNames ? '' : 'SIDECHAIN_TYPE_SIDEPOT');
 
   static const $core.List<SidechainType> values = <SidechainType>[
     SIDECHAIN_TYPE_UNSPECIFIED,
@@ -43,9 +45,10 @@ class SidechainType extends $pb.ProtobufEnum {
     SIDECHAIN_TYPE_TRUTHCOIN,
     SIDECHAIN_TYPE_PHOTON,
     SIDECHAIN_TYPE_COINSHIFT,
+    SIDECHAIN_TYPE_SIDEPOT,
   ];
 
-  static final $core.List<SidechainType?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 7);
+  static final $core.List<SidechainType?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 9);
   static SidechainType? valueOf($core.int value) => value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const SidechainType._(super.value, super.name);
@@ -73,6 +76,7 @@ class BinaryType extends $pb.ProtobufEnum {
   static const BinaryType BINARY_TYPE_ZSIDED = BinaryType._(13, _omitEnumNames ? '' : 'BINARY_TYPE_ZSIDED');
   static const BinaryType BINARY_TYPE_BBC = BinaryType._(15, _omitEnumNames ? '' : 'BINARY_TYPE_BBC');
   static const BinaryType BINARY_TYPE_SOLANA = BinaryType._(17, _omitEnumNames ? '' : 'BINARY_TYPE_SOLANA');
+  static const BinaryType BINARY_TYPE_SIDEPOT = BinaryType._(18, _omitEnumNames ? '' : 'BINARY_TYPE_SIDEPOT');
 
   static const $core.List<BinaryType> values = <BinaryType>[
     BINARY_TYPE_UNSPECIFIED,
@@ -91,9 +95,10 @@ class BinaryType extends $pb.ProtobufEnum {
     BINARY_TYPE_ZSIDED,
     BINARY_TYPE_BBC,
     BINARY_TYPE_SOLANA,
+    BINARY_TYPE_SIDEPOT,
   ];
 
-  static final $core.List<BinaryType?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 17);
+  static final $core.List<BinaryType?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 18);
   static BinaryType? valueOf($core.int value) => value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const BinaryType._(super.value, super.name);
