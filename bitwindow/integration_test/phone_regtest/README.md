@@ -12,6 +12,12 @@ bump fee and cancel. The phone runs light mode against a regtest stack on the Ma
    ENFORCER_BIN=<path to bip300301_enforcer> scripts/phone-regtest.sh start
    ```
 
+   The deposit step needs an active sidechain in slot 9:
+
+   ```sh
+   scripts/phone-regtest.sh activate 9 Thunder
+   ```
+
 2. Build the backend library for regtest:
 
    ```sh
@@ -34,6 +40,12 @@ bump fee and cancel. The phone runs light mode against a regtest stack on the Ma
      --target integration_test/phone_regtest_test.dart \
      $(scripts/phone-regtest.sh defines android)
    ```
+
+`integration_test/phone_peer_test.dart` runs two phones on one stack: Android also uses
+`scripts/phone-regtest.sh defines android` of the iOS stack. Run it three times, in order, with
+`--dart-define=PHONE_QA_ROLE=first` (iOS, fresh install, `--keep-app-running`), `second` (Android,
+fresh install), then `back` (iOS, same install, `--keep-app-running`). It covers notes, UTXO labels,
+checks, encryption and unlock, and payments both ways.
 
 `integration_test/phone_menus_test.dart` opens and closes every side nav item.
 Run it the same way, with `--target integration_test/phone_menus_test.dart`.

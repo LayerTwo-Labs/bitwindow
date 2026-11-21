@@ -5,6 +5,19 @@ import 'package:get_it/get_it.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+/// Opens the paper wallet: a page on a phone, a dialog on the desktop.
+Future<void> showPaperWallet(BuildContext context) async {
+  if (SailStyleValues.phoneLayout(context)) {
+    await Navigator.of(context, rootNavigator: true).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (_, _, _) => const SailPhonePage(title: 'Paper Wallet', child: PaperWalletDialog()),
+      ),
+    );
+    return;
+  }
+  await showThemedDialog(context: context, builder: (context) => const PaperWalletDialog());
+}
+
 /// Paper Wallet Dialog - Generate offline Bitcoin addresses with QR codes
 ///
 /// Qt equivalent: paperwalletdialog.ui (very minimal in mainchain-deprecated)
@@ -83,9 +96,86 @@ class _PaperWalletDialogState extends State<PaperWalletDialog> {
     }
   }
 
+  Widget _phoneBody(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final keypair = _keypair;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            child: SailColumn(
+              spacing: SailStyleValues.padding12,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(SailStyleValues.padding12),
+                  decoration: BoxDecoration(
+                    color: theme.colors.orange.withValues(alpha: 0.12),
+                    borderRadius: context.sailTheme.chrome.radiusSmall,
+                  ),
+                  child: SailText.secondary12(
+                    'SECURITY: Generate paper wallets on an offline computer. '
+                    'Never share your private key. Store printed wallet securely.',
+                    color: theme.colors.text,
+                  ),
+                ),
+                if (_isGenerating || keypair == null)
+                  Padding(
+                    padding: const EdgeInsets.all(48),
+                    child: Center(child: SailCircularProgressIndicator(color: theme.colors.primary)),
+                  )
+                else ...[
+                  _AddressPanel(
+                    keypair: keypair,
+                    showPrivateKey: false,
+                    onCopy: () => _copyToClipboard(keypair.publicAddress, 'Address'),
+                    phone: true,
+                  ),
+                  _PrivateKeyPanel(
+                    keypair: keypair,
+                    showPrivateKey: _showPrivateKey,
+                    onToggleVisibility: () => setState(() => _showPrivateKey = !_showPrivateKey),
+                    onCopy: () => _copyToClipboard(keypair.privateKeyWif, 'Private key', secret: true),
+                    phone: true,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding12),
+          child: SailRow(
+            spacing: SailStyleValues.padding08,
+            children: [
+              SailButton(
+                label: 'Generate New',
+                variant: ButtonVariant.secondary,
+                onPressed: () async => _generateKeypair(),
+                loading: _isGenerating,
+              ),
+              const Spacer(),
+              SailButton(
+                label: 'Save PDF',
+                variant: ButtonVariant.outline,
+                onPressed: () async => _printPaperWallet(),
+                disabled: keypair == null || _isGenerating,
+              ),
+              SailButton(label: 'Close', onPressed: () async => Navigator.of(context).pop()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    if (SailStyleValues.phoneLayout(context)) {
+      return _phoneBody(context);
+    }
 
     // Qt dialog size: 1847x931, but we'll use something more reasonable
     return SailModal(
@@ -249,16 +339,39 @@ class _AddressPanel extends StatelessWidget {
   final GeneratePaperWalletResponse keypair;
   final bool showPrivateKey;
   final VoidCallback onCopy;
+  final bool phone;
 
   const _AddressPanel({
     required this.keypair,
     required this.showPrivateKey,
     required this.onCopy,
+    this.phone = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    if (phone) {
+      return _PhoneKeyCard(
+        title: SailText.primary15('LOAD & VERIFY', bold: true),
+        subtitle: 'Public Bitcoin Address',
+        children: [
+          _PaperQr(data: keypair.publicAddress),
+          SailSelectableText(
+            keypair.publicAddress,
+            style: TextStyle(fontSize: 12, color: theme.colors.text),
+            textAlign: TextAlign.center,
+          ),
+          SailButton(
+            label: 'Copy Address',
+            variant: ButtonVariant.secondary,
+            small: true,
+            onPressed: () async => onCopy(),
+          ),
+          SailText.secondary12('Share this address to receive Bitcoin', textAlign: TextAlign.center),
+        ],
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -345,17 +458,78 @@ class _PrivateKeyPanel extends StatelessWidget {
   final bool showPrivateKey;
   final VoidCallback onToggleVisibility;
   final VoidCallback onCopy;
+  final bool phone;
 
   const _PrivateKeyPanel({
     required this.keypair,
     required this.showPrivateKey,
     required this.onToggleVisibility,
     required this.onCopy,
+    this.phone = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    if (phone) {
+      return _PhoneKeyCard(
+        title: SailRow(
+          spacing: SailStyleValues.padding08,
+          children: [
+            SailText.primary15('SPEND', bold: true),
+            SailTooltip(
+              message: showPrivateKey ? 'Hide private key' : 'Show private key',
+              child: SailTappable(
+                onTap: () async => onToggleVisibility(),
+                borderRadius: context.sailTheme.chrome.radiusSmall,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: SailSVG.fromAsset(
+                    showPrivateKey ? SailSVGAsset.eyeOff : SailSVGAsset.eye,
+                    width: 14,
+                    color: theme.colors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        subtitle: 'Private Key (WIF)',
+        children: [
+          // The private QR waits for the reveal, like the key text.
+          if (showPrivateKey)
+            _PaperQr(data: keypair.privateKeyWif)
+          else
+            SizedBox.square(
+              dimension: _PaperQr.phoneSize,
+              child: Center(
+                child: SailSVG.fromAsset(SailSVGAsset.eyeOff, width: 64, color: theme.colors.textTertiary),
+              ),
+            ),
+          SailSelectableText(
+            showPrivateKey ? keypair.privateKeyWif : '\u2022' * keypair.privateKeyWif.length,
+            style: TextStyle(fontSize: 12, color: theme.colors.text),
+            textAlign: TextAlign.center,
+          ),
+          SailButton(
+            label: 'Copy Private Key',
+            variant: ButtonVariant.secondary,
+            small: true,
+            onPressed: () async => onCopy(),
+          ),
+          if (!showPrivateKey)
+            SailText.secondary12(
+              'Click the eye icon to reveal',
+              color: theme.colors.orange,
+              textAlign: TextAlign.center,
+            ),
+          SailAlert(
+            variant: SailAlertVariant.destructive,
+            description: 'KEEP SECRET: Anyone with this private key can spend your Bitcoin',
+          ),
+        ],
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -463,6 +637,58 @@ class _PrivateKeyPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A key panel on a phone: a plain card with a centred title.
+class _PhoneKeyCard extends StatelessWidget {
+  final Widget title;
+  final String subtitle;
+  final List<Widget> children;
+
+  const _PhoneKeyCard({required this.title, required this.subtitle, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(SailStyleValues.padding16),
+      decoration: BoxDecoration(
+        color: theme.chrome.panel(theme.colors).color,
+        borderRadius: context.sailTheme.chrome.radius,
+      ),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          title,
+          SailText.secondary12(subtitle, textAlign: TextAlign.center),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _PaperQr extends StatelessWidget {
+  static const phoneSize = 150.0;
+
+  final String data;
+
+  const _PaperQr({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return QrImageView(
+      data: data,
+      version: QrVersions.auto,
+      size: phoneSize,
+      padding: EdgeInsets.zero,
+      eyeStyle: QrEyeStyle(color: theme.colors.text, eyeShape: QrEyeShape.square),
+      dataModuleStyle: QrDataModuleStyle(color: theme.colors.text),
+      backgroundColor: theme.chrome.panel(theme.colors).color ?? theme.colors.background,
     );
   }
 }

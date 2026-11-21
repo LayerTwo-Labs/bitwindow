@@ -13,6 +13,8 @@ Usage: scripts/phone-regtest.sh <command> [args]
   reset            Stop, then delete the chain and the logs.
   cli <args>       Run bitcoin-cli against the regtest node.
   mine [n] [addr]  Mine n blocks (default 1) to addr (default: the Core wallet).
+  activate <slot> <title>
+                   Propose a sidechain in the slot and mine it to activation. Needs buf.
   defines <ios|android>
                    Print the --dart-define flags that point the phone app at this stack.
 
@@ -123,6 +125,21 @@ cmd_status() {
     echo "esplora: http://127.0.0.1:$esplora_port  enforcer: http://127.0.0.1:$grpc_port  data: $D"
 }
 
+enforcer_call() { buf curl --protocol grpc --http2-prior-knowledge -d "$2" "http://127.0.0.1:$grpc_port/cusf.mainchain.v1.$1"; }
+
+cmd_activate() {
+    local slot=$1 title=$2 zero64 zero40
+    [[ "$slot" =~ ^[0-9]+$ && -n "$title" ]] || die "give a slot number and a title"
+    zero64=$(printf '0%.0s' $(seq 64))
+    zero40=$(printf '0%.0s' $(seq 40))
+    enforcer_call BlockProducerService/SetAckAllProposals '{"ack_all":true}' >/dev/null
+    enforcer_call BlockProducerService/SubmitSidechainProposal \
+        "{\"sidechain_id\":$slot,\"declaration\":{\"v0\":{\"title\":\"$title\",\"description\":\"$title regtest\",\"hash_id_1\":{\"hex\":\"$zero64\"},\"hash_id_2\":{\"hex\":\"$zero40\"}}}}" >/dev/null
+    enforcer_call MiningService/GenerateToAddress "{\"blocks\":12,\"address\":\"$(cli -rpcwallet="$wallet" getnewaddress)\"}" >/dev/null
+    enforcer_call ValidatorService/GetSidechains '{}' | grep -q "\"sidechainNumber\": $slot," || die "slot $slot did not activate"
+    echo "phone-regtest: slot $slot ($title) is active"
+}
+
 cmd_defines() {
     local host
     case "${1:-}" in
@@ -143,6 +160,7 @@ case "${1:-}" in
     cli) shift; cli "$@" ;;
     mine) cli generatetoaddress "${2:-1}" "${3:-$(cli -rpcwallet="$wallet" getnewaddress)}" ;;
     defines) shift; cmd_defines "${1:-}" ;;
+    activate) shift; cmd_activate "${1:-}" "${2:-}" ;;
     -h|--help|help|"") usage ;;
     *) usage; exit 1 ;;
 esac

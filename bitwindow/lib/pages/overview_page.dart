@@ -1355,6 +1355,7 @@ class GraffitiExplorerView extends StatelessWidget {
       builder: (context, viewModel, child) {
         final hasFilters =
             viewModel.fromDate != null || viewModel.toDate != null || viewModel.searchController.text.isNotEmpty;
+        final phone = SailStyleValues.phoneLayout(context);
 
         return SailCard(
           title: 'Graffiti Explorer',
@@ -1366,55 +1367,63 @@ class GraffitiExplorerView extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               // Calculate available height for the table (total height minus filter row and spacing)
-              final tableHeight = constraints.maxHeight.isFinite ? constraints.maxHeight - 60 : 500.0;
+              final filterHeight = SailStyleValues.phoneLayout(context) ? 124 : 60;
+              final tableHeight = constraints.maxHeight.isFinite ? constraints.maxHeight - filterHeight : 500.0;
+
+              final search = SailTextField(
+                hintText: 'Search by message or txid...',
+                controller: viewModel.searchController,
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: SailSVG.fromAsset(SailSVGAsset.search, color: context.sailTheme.colors.textTertiary),
+                ),
+                prefixIconConstraints: const BoxConstraints(maxHeight: 20, maxWidth: 40),
+              );
+              final fromField = _DatePickerField(
+                label: 'From',
+                value: viewModel.fromDate,
+                onChanged: viewModel.setFromDate,
+                lastDate: viewModel.toDate ?? DateTime.now(),
+                compact: phone,
+              );
+              final toField = _DatePickerField(
+                label: 'To',
+                value: viewModel.toDate,
+                onChanged: viewModel.setToDate,
+                firstDate: viewModel.fromDate,
+                lastDate: DateTime.now(),
+                compact: phone,
+              );
+              final clear = hasFilters
+                  ? SailButton(
+                      label: 'Clear',
+                      variant: ButtonVariant.secondary,
+                      onPressed: () async => viewModel.clearFilters(),
+                    )
+                  : null;
 
               return SailColumn(
                 spacing: SailStyleValues.padding16,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SailRow(
-                    spacing: SailStyleValues.padding16,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: SailTextField(
-                          hintText: 'Search by message or txid...',
-                          controller: viewModel.searchController,
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.only(left: 12, right: 8),
-                            child: SailSVG.fromAsset(
-                              SailSVGAsset.search,
-                              color: context.sailTheme.colors.textTertiary,
-                            ),
-                          ),
-                          prefixIconConstraints: const BoxConstraints(maxHeight: 20, maxWidth: 40),
-                        ),
-                      ),
-                      Expanded(
-                        child: _DatePickerField(
-                          label: 'From',
-                          value: viewModel.fromDate,
-                          onChanged: viewModel.setFromDate,
-                          lastDate: viewModel.toDate ?? DateTime.now(),
-                        ),
-                      ),
-                      Expanded(
-                        child: _DatePickerField(
-                          label: 'To',
-                          value: viewModel.toDate,
-                          onChanged: viewModel.setToDate,
-                          firstDate: viewModel.fromDate,
-                          lastDate: DateTime.now(),
-                        ),
-                      ),
-                      if (hasFilters)
-                        SailButton(
-                          label: 'Clear',
-                          variant: ButtonVariant.secondary,
-                          onPressed: () async => viewModel.clearFilters(),
-                        ),
-                    ],
-                  ),
+                  if (phone) ...[
+                    search,
+                    Wrap(
+                      spacing: SailStyleValues.padding08,
+                      runSpacing: SailStyleValues.padding08,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [fromField, toField, ?clear],
+                    ),
+                  ] else
+                    SailRow(
+                      spacing: SailStyleValues.padding16,
+                      children: [
+                        Expanded(flex: 2, child: search),
+                        Expanded(child: fromField),
+                        Expanded(child: toField),
+                        ?clear,
+                      ],
+                    ),
                   SizedBox(
                     height: tableHeight,
                     child: GraffitiTable(
@@ -1448,12 +1457,16 @@ class _DatePickerField extends StatelessWidget {
   final DateTime? firstDate;
   final DateTime? lastDate;
 
+  /// True takes the width of the date, with the icon first.
+  final bool compact;
+
   const _DatePickerField({
     required this.label,
     required this.value,
     required this.onChanged,
     this.firstDate,
     this.lastDate,
+    this.compact = false,
   });
 
   @override
@@ -1478,20 +1491,31 @@ class _DatePickerField extends StatelessWidget {
           borderRadius: context.sailTheme.chrome.radius,
           border: Border.all(color: theme.colors.border),
         ),
-        child: SailRow(
-          spacing: SailStyleValues.padding08,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SailText.secondary12(
-              value != null ? formatDate(value!) : label,
-              color: value != null ? theme.colors.text : theme.colors.textTertiary,
-            ),
-            SailSVG.fromAsset(
-              SailSVGAsset.calendar,
-              color: theme.colors.textTertiary,
-            ),
-          ],
-        ),
+        child: compact
+            ? SailRow(
+                spacing: SailStyleValues.padding08,
+                children: [
+                  SailSVG.fromAsset(SailSVGAsset.calendar, color: theme.colors.textTertiary, width: 12),
+                  SailText.secondary12(
+                    value != null ? formatDate(value!) : label,
+                    color: value != null ? theme.colors.text : theme.colors.textTertiary,
+                  ),
+                ],
+              )
+            : SailRow(
+                spacing: SailStyleValues.padding08,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  SailText.secondary12(
+                    value != null ? formatDate(value!) : label,
+                    color: value != null ? theme.colors.text : theme.colors.textTertiary,
+                  ),
+                  SailSVG.fromAsset(
+                    SailSVGAsset.calendar,
+                    color: theme.colors.textTertiary,
+                  ),
+                ],
+              ),
       ),
     );
   }

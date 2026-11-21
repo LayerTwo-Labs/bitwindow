@@ -54,6 +54,21 @@ void main() {
   group('on a phone', () {
     setUp(() => SailStyleValues.phoneLayoutOverride = true);
 
+    testWidgets('a body with no Dialog around it can hold a text field', (tester) async {
+      await _open(
+        tester,
+        (context) => SailDialogFrame(
+          child: SailCard(
+            title: 'Deposit',
+            child: SailTextField(controller: TextEditingController(), hintText: 'x'),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(TextField), findsOneWidget);
+    });
+
     testWidgets('a dialog shows as a sheet at the bottom edge at full width', (tester) async {
       await _open(tester, _dialog);
 

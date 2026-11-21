@@ -8,9 +8,6 @@ import 'package:sail_ui/sail_ui.dart';
 
 import 'phone_regtest/ui.dart';
 
-// These pages keep desktop columns on a phone. Their phone layouts wait for a design.
-const _knownLayoutFaults = ['Paper Wallet:', 'OP_RETURN Graffiti:', 'BitDrive:'];
-
 const _menuItems = [
   'About bitwindow',
   'Change Theme',
@@ -96,11 +93,7 @@ void main() {
       FlutterError.onError = testHandler;
       ErrorWidget.builder = testErrorWidget;
     }
-    expect(
-      ui.layoutErrors.where((e) => !_knownLayoutFaults.any(e.startsWith)),
-      isEmpty,
-      reason: 'layout overflows on a phone',
-    );
+    expect(ui.layoutErrors, isEmpty, reason: 'layout overflows on a phone');
   }, timeout: const Timeout(Duration(minutes: 30)));
 }
 

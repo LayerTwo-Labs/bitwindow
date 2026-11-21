@@ -56,4 +56,23 @@ class RegtestControl {
       client.close();
     }
   }
+
+  /// Leaves [value] under [key] for the next phone test.
+  Future<void> put(String key, String value) async {
+    final client = HttpClient();
+    try {
+      final request = await client.putUrl(base.resolve('/regtest/mailbox/$key'));
+      request.write(value);
+      final response = await request.close();
+      await response.drain<void>();
+      if (response.statusCode != HttpStatus.ok) {
+        throw HttpException('PUT mailbox $key: ${response.statusCode}');
+      }
+    } finally {
+      client.close();
+    }
+  }
+
+  /// The value a phone test left under [key].
+  Future<String> take(String key) async => (await _call('GET', '/regtest/mailbox/$key'))['value'] as String;
 }

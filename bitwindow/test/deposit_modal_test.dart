@@ -92,6 +92,25 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets('on a phone each deposit field takes its own line', (tester) async {
+    await loadBundledFonts();
+    SailStyleValues.phoneLayoutOverride = true;
+    addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
+    await pumpModal(tester);
+    await tester.usePhoneSize();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final amount = tester.getRect(find.text('Deposit Amount'));
+    final from = tester.getRect(find.text('From Wallet'));
+    final fee = tester.getRect(find.text('Fee'));
+    final target = tester.getRect(find.text('Fee target'));
+    expect(from.top, greaterThan(amount.bottom));
+    expect(from.left, amount.left);
+    expect(target.top, greaterThan(fee.bottom));
+    expect(target.left, fee.left);
+  });
+
   testWidgets('a stopped sidechain leaves the address field open for a paste', (tester) async {
     await pumpModal(tester);
 

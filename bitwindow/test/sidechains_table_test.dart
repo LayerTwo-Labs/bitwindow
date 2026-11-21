@@ -1,3 +1,6 @@
+// ignore: drivechain_lints/avoid_material_import
+import 'package:flutter/material.dart' show TextField;
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -69,6 +72,9 @@ class _Wallet extends ChangeNotifier implements WalletReaderProvider {
 
   @override
   String? resolveFundingWalletId(String? walletId) => null;
+
+  @override
+  List<WalletData> fundingWallets() => const [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -286,6 +292,52 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('on a phone the table shows slot, name and balance, with the toggle under the title', (tester) async {
+    SailStyleValues.phoneLayoutOverride = true;
+    addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
+    setUpChain(_thunder());
+    addTearDown(() => tester.pumpWidget(const SizedBox()));
+    await tester.pumpSailPage(
+      ViewModelBuilder<SidechainsViewModel>.reactive(
+        viewModelBuilder: () => SidechainsViewModel(),
+        builder: (context, model, child) => const Column(
+          children: [
+            SidechainsList(smallVersion: false),
+            SizedBox(height: 280, child: DepositWithdrawView()),
+          ],
+        ),
+      ),
+    );
+    await tester.usePhoneSize();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    for (final header in ['Slot', 'Name', 'Sidechain Balance']) {
+      expect(find.text(header), findsOneWidget, reason: header);
+    }
+    expect(find.text('Your balance'), findsNothing);
+    expect(find.widgetWithText(SailButton, 'Deposit'), findsNothing);
+    expect(find.textContaining('BTC'), findsNothing, reason: 'the balance has no unit');
+    expect(tester.getRect(find.text('Slot')).left, closeTo(tester.getRect(find.text('9')).left, 1));
+    final title = tester.getRect(find.text('Sidechains').first);
+    final toggle = tester.getRect(find.text('Show only filled slots'));
+    expect(toggle.top, greaterThan(title.bottom));
+    for (final header in ['Txid', 'Fee', 'Confirmations']) {
+      expect(find.text(header), findsOneWidget, reason: header);
+    }
+    expect(find.text('Amount'), findsNothing);
+
+    await tester.tap(find.text('Thunder'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    expect(find.text('Deposit to Thunder'), findsOneWidget);
+    final address = find.descendant(
+      of: find.widgetWithText(SailTextField, 'Deposit Address'),
+      matching: find.byType(TextField),
+    );
+    expect(tester.widget<TextField>(address).maxLines, 3, reason: 'a phone shows the whole deposit address');
+  });
 
   testWidgets('a downloaded chain offers a primary Start and an outline Deposit', (tester) async {
     setUpChain(_thunder());

@@ -655,7 +655,7 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
                     PlatformMenuItem(
                       label: 'Paper Wallet',
                       onSelected: () {
-                        showThemedDialog(context: context, builder: (context) => const PaperWalletDialog());
+                        showPaperWallet(context);
                       },
                     ),
                     PlatformMenuItem(
