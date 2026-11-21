@@ -67,7 +67,12 @@ void main() {
 
     setUp(() {
       native = _FakeNative();
-      backend = InProcessBackend(native, pollEvery: _fast, stopTimeout: const Duration(milliseconds: 200));
+      backend = InProcessBackend(
+        native,
+        pollEvery: _fast,
+        stopTimeout: const Duration(milliseconds: 200),
+        processEnvironment: () => {},
+      );
       addTearDown(backend.dispose);
     });
 
@@ -79,6 +84,15 @@ void main() {
         'env': {'BITWINDOW_HOME': '/data'},
       });
       expect(backend.isRunning(BitWindow()), isTrue);
+    });
+
+    test('a start passes the TMPDIR of the app process, which the library cannot read', () async {
+      final android = InProcessBackend(native, pollEvery: _fast, processEnvironment: () => {'TMPDIR': '/cache/tmp'});
+      addTearDown(android.dispose);
+
+      await android.start(BitWindow(), [], {'BITWINDOW_HOME': '/data'});
+
+      expect(native.starts.single['env'], {'TMPDIR': '/cache/tmp', 'BITWINDOW_HOME': '/data'});
     });
 
     test('a start error reaches the caller', () async {

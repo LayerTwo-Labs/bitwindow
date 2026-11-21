@@ -46,11 +46,15 @@ class InProcessBackend extends ChangeNotifier {
   /// How long [stop] waits for the backend to go.
   final Duration stopTimeout;
 
+  /// The environment of the app process.
+  final Map<String, String> Function() _processEnvironment;
+
   InProcessBackend(
     this._native, {
     this.pollEvery = const Duration(seconds: 1),
     this.stopTimeout = const Duration(seconds: 60),
-  });
+    Map<String, String> Function()? processEnvironment,
+  }) : _processEnvironment = processEnvironment ?? (() => Platform.environment);
 
   /// The backend in the library that the app links.
   factory InProcessBackend.open() => InProcessBackend(FfiBackendNative(FfiBackendNative.openLibrary()));
@@ -69,7 +73,15 @@ class InProcessBackend extends ChangeNotifier {
     if (binary is! BitWindow) {
       throw UnsupportedError('${binary.name} does not run in the app process');
     }
-    final error = _native.start(jsonEncode({'args': args, 'env': env}));
+    // The Go runtime copies the environment when the library loads, and an Android app sets TMPDIR
+    // later. Without it Go writes temp files to /data/local/tmp, which the app cannot write.
+    final tmp = _processEnvironment()['TMPDIR'];
+    final error = _native.start(
+      jsonEncode({
+        'args': args,
+        'env': {if (tmp != null && tmp.isNotEmpty) 'TMPDIR': tmp, ...env},
+      }),
+    );
     if (error != null) {
       throw StateError('could not start ${binary.name}: $error');
     }
