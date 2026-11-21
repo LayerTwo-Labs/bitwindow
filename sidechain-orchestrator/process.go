@@ -40,6 +40,8 @@ type ManagedProcess struct {
 	Adopted      bool // true if this process was found from a previous session
 	Orphan       bool // true if a previous run of this install started it and left it behind
 	ForceBackend bool // true if this sidechain was launched with --force-backend (skips flutter_frontend variant)
+	// AppRunID names the run when the app runs the binary in its own process. Pid is then 0.
+	AppRunID string
 
 	mu       sync.Mutex
 	runID    string
@@ -231,9 +233,12 @@ var ErrAlreadyRunning = errors.New("already running")
 // ProcessManager handles spawning, monitoring, and killing processes.
 type ProcessManager struct {
 	BeforeStart func(context.Context, BinaryConfig) error
-	dataDir     string
-	pidManager  *PidFileManager
-	log         zerolog.Logger
+	// AppRuns holds the binaries that the app runs in its own process. Nil
+	// starts every binary as a child process.
+	AppRuns    *AppRuns
+	dataDir    string
+	pidManager *PidFileManager
+	log        zerolog.Logger
 
 	// SharedLogPath is the one log file a user sends. Every managed binary
 	// lands there under its own tag. An empty path keeps the lines in memory.
@@ -329,6 +334,28 @@ type ProcessStartOptions struct {
 	ExitWatched bool
 }
 
+// startupLogCapture returns a check of each log line against the startup
+// patterns of config. A match goes to OnStartupLog for the UI.
+func (pm *ProcessManager) startupLogCapture(config BinaryConfig, processName string) func(string) {
+	// Dart: ProcessManager._captureStartupLog (process_manager.dart L380-395)
+	startupLogPatterns := compileStartupPatterns(config.StartupLogPatterns, pm.log)
+	return func(line string) {
+		if len(startupLogPatterns) == 0 || pm.OnStartupLog == nil {
+			return
+		}
+		for _, re := range startupLogPatterns {
+			if re.MatchString(line) {
+				pm.OnStartupLog(StartupLogEntry{
+					Name:      processName,
+					Timestamp: extractLogTimestamp(line),
+					Message:   cleanLogMessage(line),
+				})
+				return
+			}
+		}
+	}
+}
+
 // Start launches a binary and returns its PID.
 func (pm *ProcessManager) Start(ctx context.Context, config BinaryConfig, args []string, env map[string]string) (int, error) {
 	return pm.StartWithOptions(ctx, config, args, env, ProcessStartOptions{})
@@ -363,6 +390,10 @@ func (pm *ProcessManager) StartWithOptions(ctx context.Context, config BinaryCon
 		delete(pm.starting, processName)
 		pm.mu.Unlock()
 	}()
+
+	if pm.AppRuns.Hosts(config.Name) {
+		return 0, pm.startInApp(ctx, config, processName, args, env, opts)
+	}
 
 	binPath, pidName := pm.resolvePaths(config, opts.ForceBackend)
 	if opts.PidName != "" {
@@ -462,31 +493,11 @@ func (pm *ProcessManager) StartWithOptions(ctx context.Context, config BinaryCon
 		Line:      fmt.Sprintf("=== %s started (pid %d) ===", processName, cmd.Process.Pid),
 	})
 
-	// Compile startup log patterns once for pattern-matching process output.
-	// Dart: ProcessManager._captureStartupLog (process_manager.dart L380-395)
-	startupLogPatterns := compileStartupPatterns(config.StartupLogPatterns, pm.log)
-
 	// Stderr buffer: keep last 100 lines for error extraction on crash
 	var stderrMu sync.Mutex
 	var stderrBuffer []string
 
-	// captureStartupLog checks if a line matches any startup pattern and
-	// forwards it to the OnStartupLog callback for UI display.
-	captureStartupLog := func(line string) {
-		if len(startupLogPatterns) == 0 || pm.OnStartupLog == nil {
-			return
-		}
-		for _, re := range startupLogPatterns {
-			if re.MatchString(line) {
-				pm.OnStartupLog(StartupLogEntry{
-					Name:      processName,
-					Timestamp: extractLogTimestamp(line),
-					Message:   cleanLogMessage(line),
-				})
-				return
-			}
-		}
-	}
+	captureStartupLog := pm.startupLogCapture(config, processName)
 
 	stopTail := make(chan struct{})
 	stdoutDone := pm.tailBinaryLog(proc, processName, "stdout", 0, stopTail, captureStartupLog, nil)
@@ -654,6 +665,10 @@ func (pm *ProcessManager) Stop(_ context.Context, name string, force bool) error
 
 	if !exists {
 		return fmt.Errorf("%s is not running", name)
+	}
+
+	if proc.AppRunID != "" {
+		return pm.stopInApp(name, proc)
 	}
 
 	// A signalled process reports exit code -1, so without this line the log

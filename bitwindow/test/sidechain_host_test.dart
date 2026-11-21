@@ -375,6 +375,29 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     });
 
+    testWidgets('a phone opens the chain with no sidebar, and the buttons under the title', (tester) async {
+      SailStyleValues.phoneLayoutOverride = true;
+      addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
+      final router = await pumpHost(tester);
+      await tester.binding.setSurfaceSize(const Size(402, 874));
+
+      await router.navigate(SidechainsRoute(children: [SidechainHostRoute(chain: 'thunder')]));
+      await tester.pump();
+      await settle(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('All slots'), findsNothing, reason: 'no sidebar on a phone');
+      expect(find.text('page ${SidechainHomepageRoute.name}'), findsOneWidget);
+      final title = tester.getRect(find.text('Thunder').first);
+      final deposit = tester.getRect(find.widgetWithText(SailButton, 'Deposit'));
+      expect(deposit.top, greaterThan(title.bottom));
+      expect(deposit.left, closeTo(title.left, 1));
+      final menu = tester.getRect(
+        find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.ellipsisVertical),
+      );
+      expect(menu.height, lessThan(deposit.height + 4), reason: 'the menu button is about as tall as the others');
+    });
+
     testWidgets('a chain opens with its tabs, and a switch swaps the chain scope', (tester) async {
       final router = await pumpHost(tester);
       expect(find.text('slot table'), findsOneWidget);

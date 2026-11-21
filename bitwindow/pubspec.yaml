@@ -26,6 +26,8 @@ dependencies:
     path: ../sidechain_core
   thunder:
     path: ../thunder
+  thunder_bridge:
+    path: ../thunder_bridge
   bitnames:
     path: ../bitnames
   bitassets:

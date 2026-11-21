@@ -93,6 +93,7 @@ func TestOrchestratorConfigMatchesTheChildProcessFlags(t *testing.T) {
 	require.Equal(t, 9, cfg.OwnerPID)
 	require.True(t, cfg.LocalAuth)
 	require.Nil(t, cfg.Exit, "an exit would end the app")
+	require.Equal(t, []string{"thunder"}, cfg.AppRuns, "a phone cannot start thunder as a child process")
 
 	require.Equal(t, orchconfig.RegtestEndpoints{}, cfg.Regtest)
 

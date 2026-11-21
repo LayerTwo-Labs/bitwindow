@@ -57,7 +57,21 @@ ios-backend:
         (cd server && go build -trimpath -buildmode=c-archive -ldflags="-s -w $(network_ldflag)" -o "$out/libbitwindow_backend.a" ./mobile)
     done
 
-ios: ios-backend
+# Builds the Thunder node into one static library per iOS SDK, next to the backend.
+ios-thunder:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export IPHONEOS_DEPLOYMENT_TARGET=15.0
+    target_dir="${CARGO_TARGET_DIR:-$PWD/../thunder_bridge/rust/target}"
+    for pair in iphonesimulator:aarch64-apple-ios-sim iphoneos:aarch64-apple-ios; do
+        sdk="${pair%%:*}"
+        triple="${pair#*:}"
+        (cd ../thunder_bridge/rust && cargo build --release --target "$triple")
+        mkdir -p "ios/Backend/$sdk"
+        cp "$target_dir/$triple/release/libthunder_bridge.a" "ios/Backend/$sdk/"
+    done
+
+ios: ios-backend ios-thunder
     flutter build ios --simulator
 
 # Builds bitwindowd and drivechaind into one library in the APK's arm64 jniLibs folder.
@@ -75,5 +89,23 @@ android-backend:
     (cd server && go build -trimpath -buildmode=c-shared -ldflags="-s -w $(network_ldflag) -extldflags=-Wl,-z,max-page-size=16384" -o "$out/libbitwindow_backend.so" ./mobile)
     rm "$out/libbitwindow_backend.h"
 
-android: android-backend
+# Builds the Thunder node into the APK's arm64 jniLibs folder.
+android-thunder:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sdk="${ANDROID_HOME:-$(flutter config --list | sed -n 's/^ *android-sdk: //p')}"
+    ndk="$(ls -d "$sdk"/ndk/* | sort -V | tail -1)"
+    bin="$(ls -d "$ndk"/toolchains/llvm/prebuilt/*/bin)"
+    # Only the target variables: a plain CC would build the host build scripts with the Android clang.
+    export CC_aarch64_linux_android="$bin/aarch64-linux-android29-clang"
+    export AR_aarch64_linux_android="$bin/llvm-ar"
+    export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$bin/aarch64-linux-android29-clang"
+    export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384"
+    target_dir="${CARGO_TARGET_DIR:-$PWD/../thunder_bridge/rust/target}"
+    (cd ../thunder_bridge/rust && cargo build --release --target aarch64-linux-android)
+    out="$PWD/android/app/src/main/jniLibs/arm64-v8a"
+    mkdir -p "$out"
+    cp "$target_dir/aarch64-linux-android/release/libthunder_bridge.so" "$out/"
+
+android: android-backend android-thunder
     flutter build apk --target-platform android-arm64

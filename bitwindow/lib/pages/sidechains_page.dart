@@ -20,6 +20,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
+import 'package:sidechain_core/providers/binaries/app_run_host.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 /// The Sidechains tab: the slot table, or one chain inside BitWindow.
@@ -613,6 +614,7 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
                     onSelected: () => showTransactionDetails(context, sidechain.info.chaintipTxid),
                     child: SailText.primary12('Show Chaintip Transaction'),
                   ),
+                if (SailStyleValues.phoneLayout(context)) ...viewModel.appRunMenuItems(slot),
               ];
             },
           ),
@@ -1637,6 +1639,42 @@ class SidechainsViewModel extends BaseViewModel with ChangeTrackingMixin {
       sidechain,
       _StartMenuButton(sidechain: sidechain, start: start, options: _startOptions(sidechain)),
     );
+  }
+
+  /// True when the app runs the node in its own process, which a phone does with no local build.
+  bool _runsInApp(Sidechain sidechain) {
+    final name = _binaryProvider.orchestratorName(sidechain);
+    return name != null && GetIt.I.isRegistered<AppRunHost>() && GetIt.I.get<AppRunHost>().hosts(name);
+  }
+
+  /// The start, open and stop items of a node that the app runs in its own process.
+  /// A phone table has no actions column, so the row menu holds them.
+  List<SailMenuItem> appRunMenuItems(int slot) {
+    final sidechain = sidechainForSlot(slot);
+    if (sidechain == null || !_runsInApp(sidechain) || _binaryProvider.isStopping(sidechain)) {
+      return const [];
+    }
+    if (_binaryProvider.isConnected(sidechain)) {
+      return [
+        SailMenuItem(
+          onSelected: () => unawaited(openHere(sidechain)),
+          child: SailText.primary12('Open ${sidechain.name}'),
+        ),
+        SailMenuItem(
+          onSelected: () => unawaited(_binaryProvider.stop(sidechain)),
+          child: SailText.primary12('Stop ${sidechain.name}'),
+        ),
+      ];
+    }
+    if (_binaryProvider.isSidechainUp(sidechain) || _binaryProvider.isInitializing(sidechain)) {
+      return const [];
+    }
+    return [
+      SailMenuItem(
+        onSelected: () => unawaited(startSidechain(sidechain)),
+        child: SailText.primary12('Start ${sidechain.name}'),
+      ),
+    ];
   }
 
   /// True when the sidechain opens inside BitWindow, not in a window of its own.

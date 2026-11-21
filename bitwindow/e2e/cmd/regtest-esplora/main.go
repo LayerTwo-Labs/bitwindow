@@ -23,15 +23,16 @@ func main() {
 	rpcPass := flag.String("rpc-pass", "password", "Bitcoin Core RPC password")
 	wallet := flag.String("wallet", "qa", "Core wallet that funds /regtest/send and takes the mined coins")
 	control := flag.Bool("control", false, "serve the /regtest test routes")
+	enforcerURL := flag.String("enforcer-url", "", "enforcer gRPC URL; when set, the enforcer mines the blocks of /regtest/mine")
 	flag.Parse()
 
-	if err := run(*listen, *rpcURL, *rpcUser, *rpcPass, *wallet, *control); err != nil {
+	if err := run(*listen, *rpcURL, *rpcUser, *rpcPass, *wallet, *control, *enforcerURL); err != nil {
 		fmt.Fprintf(os.Stderr, "regtest-esplora: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(listen, rpcURL, rpcUser, rpcPass, wallet string, control bool) error {
+func run(listen, rpcURL, rpcUser, rpcPass, wallet string, control bool, enforcerURL string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -40,7 +41,7 @@ func run(listen, rpcURL, rpcUser, rpcPass, wallet string, control bool) error {
 	mux := http.NewServeMux()
 	registerEsplora(mux, idx)
 	if control {
-		registerControl(mux, core, idx, wallet)
+		registerControl(mux, core, idx, wallet, enforcerURL)
 	}
 
 	server := &http.Server{Addr: listen, Handler: logRequests(mux), ReadHeaderTimeout: 10 * time.Second}

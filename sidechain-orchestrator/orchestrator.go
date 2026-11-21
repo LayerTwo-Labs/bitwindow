@@ -657,6 +657,9 @@ func (o *Orchestrator) Download(ctx context.Context, name string, force bool, op
 	if err := config.refuseExternal(); err != nil {
 		return nil, err
 	}
+	if o.process.AppRuns.Hosts(name) {
+		return nil, fmt.Errorf("%s runs in the app, which holds it: there is nothing to download", name)
+	}
 	return o.download.DownloadWithOptions(ctx, config, o.CurrentNetwork(), force, opts)
 }
 
@@ -822,19 +825,20 @@ func (o *Orchestrator) status(name string, opts DownloadOptions, dialPort bool) 
 		}
 	}
 	_, statErr := os.Stat(requestedPath)
-	downloaded := statErr == nil
+	inApp := o.process.AppRuns.Hosts(name)
+	downloaded := statErr == nil || inApp
 	status := BinaryStatus{
 		Name:         config.Name,
 		DisplayName:  config.DisplayName,
 		ChainLayer:   config.ChainLayer,
 		Port:         config.Port,
-		Downloadable: config.Downloadable(),
+		Downloadable: config.Downloadable() && !inApp,
 		Description:  config.Description,
 		Downloaded:   downloaded,
 		Version:      config.Version,
 		RepoURL:      config.RepoURL,
 	}
-	if downloaded {
+	if downloaded && !inApp {
 		status.BinaryPath = requestedPath
 		status.LocalTimestamp = localModTime(requestedPath)
 		sum, err := o.binaryHashes.Hash(requestedPath)
@@ -844,7 +848,7 @@ func (o *Orchestrator) status(name string, opts DownloadOptions, dialPort bool) 
 		status.SHA256 = sum
 	}
 
-	if o.releases != nil {
+	if o.releases != nil && !inApp {
 		if check, ok := o.releases.CheckDownloads(config, o.CurrentNetwork(), opts); ok {
 			status.UpdateAvailable = check.UpdateAvailable()
 			status.RemoteTimestamp = check.Remote
@@ -1120,7 +1124,7 @@ func (o *Orchestrator) StartWithL1(ctx context.Context, target string, opts Star
 			enforcerPrefetch = o.prefetchBinary(ctx, o.Configs()["enforcer"], false)
 		}
 		var targetPrefetch <-chan error
-		if config.Name != "enforcer" {
+		if config.Name != "enforcer" && !o.process.AppRuns.Hosts(config.Name) {
 			targetPrefetch = o.prefetchBinary(ctx, config, opts.ForceBackend)
 		}
 
@@ -2356,6 +2360,13 @@ func (o *Orchestrator) startOptsFor(opts StartOpts) StartOpts {
 	return opts
 }
 
+// SetAppRuns hands the binaries of runs to the app, which runs them in its own
+// process. The daemon calls it one time, before it serves.
+func (o *Orchestrator) SetAppRuns(runs *AppRuns) { o.process.AppRuns = runs }
+
+// AppRuns returns the binaries that the app runs, or nil.
+func (o *Orchestrator) AppRuns() *AppRuns { return o.process.AppRuns }
+
 // SetBackendOnly records that this daemon runs with --force-backend. The daemon
 // calls it one time, before it serves, so a later start reads the same answer as
 // the boot did.
@@ -2451,6 +2462,9 @@ func (o *Orchestrator) awaitBinaryOnDisk(
 	ch chan<- StartupProgress,
 	prefetched <-chan error,
 ) error {
+	if o.process.AppRuns.Hosts(config.Name) {
+		return nil
+	}
 	if prefetched != nil {
 		ch <- StartupProgress{Stage: "downloading-" + config.Name, Message: fmt.Sprintf("waiting for %s download...", config.DisplayName)}
 		return <-prefetched

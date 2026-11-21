@@ -65,6 +65,20 @@ class SidechainHostPage extends StatelessWidget {
     final module = hostedModuleByKey(chain);
     final colors = SailTheme.of(context).colors;
 
+    final chainView = module == null
+        ? Center(child: SailText.secondary13('BitWindow cannot open $chain here.'))
+        : KeyedSubtree(
+            key: ValueKey(module.chain.registryKey),
+            child: SidechainScopeHost(
+              module: module,
+              child: _ShownWithSidechainsTab(child: HostedChainView(module: module)),
+            ),
+          );
+    // A phone has no room for the sidebar. The sidechains page lists the chains.
+    if (SailStyleValues.phoneLayout(context)) {
+      return chainView;
+    }
+
     return ViewModelBuilder<SidechainSidebarViewModel>.reactive(
       viewModelBuilder: () => SidechainSidebarViewModel(),
       builder: (context, model, child) => Row(
@@ -81,17 +95,7 @@ class SidechainHostPage extends StatelessWidget {
                 : () => showSidechainActivationManagementModal(context),
           ),
           Container(width: 1, color: colors.divider),
-          Expanded(
-            child: module == null
-                ? Center(child: SailText.secondary13('BitWindow cannot open $chain here.'))
-                : KeyedSubtree(
-                    key: ValueKey(module.chain.registryKey),
-                    child: SidechainScopeHost(
-                      module: module,
-                      child: _ShownWithSidechainsTab(child: HostedChainView(module: module)),
-                    ),
-                  ),
-          ),
+          Expanded(child: chainView),
         ],
       ),
     );
@@ -253,40 +257,67 @@ class HostedChainHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = [
+      SailText.primary15(model.chain.name, bold: true),
+      const SizedBox(width: SailStyleValues.padding12),
+      SailBadge(model.stateLabel, tone: model.stateTone),
+      const SizedBox(width: SailStyleValues.padding12),
+      if (model.running) SailText.secondary13(model.balance),
+    ];
+    // A phone puts the buttons on a line of their own, under the title.
+    if (SailStyleValues.phoneLayout(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: title),
+          const SizedBox(height: SailStyleValues.padding08),
+          Wrap(
+            spacing: SailStyleValues.padding08,
+            runSpacing: SailStyleValues.padding08,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: _buttons(context),
+          ),
+        ],
+      );
+    }
     return Row(
       children: [
-        SailText.primary15(model.chain.name, bold: true),
-        const SizedBox(width: SailStyleValues.padding12),
-        SailBadge(model.stateLabel, tone: model.stateTone),
-        const SizedBox(width: SailStyleValues.padding12),
-        if (model.running) SailText.secondary13(model.balance),
+        ...title,
         const Spacer(),
-        SailRow(
-          spacing: SailStyleValues.padding08,
-          children: [
-            SailButton(
-              label: 'Deposit',
-              variant: ButtonVariant.outline,
-              onPressed: () => showDepositModal(context, model.chain.slot, model.chain.name),
-            ),
-            if (model.hasWindow)
-              SailButton(label: 'Open in separate window', variant: ButtonVariant.outline, onPressed: model.openWindow),
-            if (model.running || model.starting)
-              SailButton(label: 'Stop', variant: ButtonVariant.outline, onPressed: model.stop)
-            else
-              SailButton(label: 'Start', variant: ButtonVariant.primary, onPressed: model.start),
-            Builder(
-              builder: (context) => SailButton(
-                variant: ButtonVariant.icon,
-                icon: SailSVGAsset.ellipsisVertical,
-                iconHeight: 16,
-                onPressed: () => _showChainMenu(context),
-              ),
-            ),
-          ],
-        ),
+        SailRow(spacing: SailStyleValues.padding08, children: _buttons(context)),
       ],
     );
+  }
+
+  List<Widget> _buttons(BuildContext context) {
+    return [
+      SailButton(
+        label: 'Deposit',
+        variant: ButtonVariant.outline,
+        onPressed: () => showDepositModal(context, model.chain.slot, model.chain.name),
+      ),
+      if (model.hasWindow)
+        SailButton(
+          label: 'Open in separate window',
+          variant: ButtonVariant.outline,
+          onPressed: model.openWindow,
+        ),
+      if (model.running || model.starting)
+        SailButton(label: 'Stop', variant: ButtonVariant.outline, onPressed: model.stop)
+      else
+        SailButton(label: 'Start', variant: ButtonVariant.primary, onPressed: model.start),
+      Builder(
+        builder: (context) => SailButton(
+          variant: ButtonVariant.icon,
+          icon: SailSVGAsset.ellipsisVertical,
+          // The icon is tall and thin, so a width alone makes it taller than the buttons beside it.
+          iconHeight: SailStyleValues.phoneLayout(context) ? 14 : 16,
+          small: SailStyleValues.phoneLayout(context),
+          onPressed: () => _showChainMenu(context),
+        ),
+      ),
+    ];
   }
 
   Future<void> _showChainMenu(BuildContext context) async {
