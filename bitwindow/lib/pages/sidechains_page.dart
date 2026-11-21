@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:auto_route/auto_route.dart';
+import 'package:bitwindow/pages/wallet/wallet_overview.dart' show phoneHistoryAmount;
 import 'package:bitwindow/log_window.dart';
 import 'package:bitwindow/utils/deposit_fee.dart';
 import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
@@ -68,6 +69,17 @@ class SidechainsTab extends ViewModelWidget<SidechainsViewModel> {
 
     final Widget mainContent = gated
         ? const _L1RequiredCard()
+        : SailStyleValues.phoneLayout(context)
+        ? SingleChildScrollView(
+            child: SailColumn(
+              spacing: SailStyleValues.padding12,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SidechainsList(smallVersion: false),
+                const SizedBox(height: _phoneDepositsHeight, child: DepositWithdrawView()),
+              ],
+            ),
+          )
         : Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -315,6 +327,26 @@ class SidechainsList extends ViewModelWidget<SidechainsViewModel> {
     }
 
     final error = viewModel.error('sidechain');
+    final phone = SailStyleValues.phoneLayout(context);
+    final controls = [
+      SailToggle(
+        label: 'Show only filled slots',
+        value: viewModel.showOnlyFilled,
+        onChanged: (value) => viewModel.setShowOnlyFilled(value),
+      ),
+      SailButton(
+        label: 'Add / Remove',
+        variant: ButtonVariant.outline,
+        onPressed: viewModel.sidechainManagementUnavailable
+            ? null
+            : () => showSidechainActivationManagementModal(context),
+      ),
+    ];
+    final table = SailSkeletonizer(
+      description: 'Waiting for enforcer to become available..',
+      enabled: viewModel.loading,
+      child: viewModel.showOnlyFilled ? OnlyFilledTable() : FullTable(),
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) => SailCard(
@@ -326,7 +358,7 @@ class SidechainsList extends ViewModelWidget<SidechainsViewModel> {
             ? null
             : 'This platform has no sidechain build.',
         error: viewModel._enforcerRPC.initializingBinary ? null : error,
-        widgetHeaderEnd: smallVersion
+        widgetHeaderEnd: smallVersion || phone
             ? null
             : ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: max(0, constraints.maxWidth - 2 * SailStyleValues.padding16)),
@@ -335,27 +367,20 @@ class SidechainsList extends ViewModelWidget<SidechainsViewModel> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: SailStyleValues.padding12,
                   runSpacing: SailStyleValues.padding08,
-                  children: [
-                    SailToggle(
-                      label: 'Show only filled slots',
-                      value: viewModel.showOnlyFilled,
-                      onChanged: (value) => viewModel.setShowOnlyFilled(value),
-                    ),
-                    SailButton(
-                      label: 'Add / Remove',
-                      variant: ButtonVariant.outline,
-                      onPressed: viewModel.sidechainManagementUnavailable
-                          ? null
-                          : () => showSidechainActivationManagementModal(context),
-                    ),
-                  ],
+                  children: controls,
                 ),
               ),
-        child: SailSkeletonizer(
-          description: 'Waiting for enforcer to become available..',
-          enabled: viewModel.loading,
-          child: viewModel.showOnlyFilled ? OnlyFilledTable() : FullTable(),
-        ),
+        child: phone && !smallVersion
+            ? SailColumn(
+                spacing: SailStyleValues.padding12,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SailRow(spacing: SailStyleValues.padding12, children: controls),
+                  table,
+                ],
+              )
+            : table,
       ),
     );
   }
@@ -497,9 +522,14 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
             },
             cellHeight: 40 * controlScale,
             minColumnWidths: {1: nameWidth},
+            phoneColumns: const [0, 1, 2],
             headerBackgroundColor: colors.backgroundSecondary,
             headerBuilder: (context) => [
-              const SailTableHeaderCell(name: 'Slot', padding: _slotHeaderPadding, sortable: false),
+              SailTableHeaderCell(
+                name: 'Slot',
+                padding: SailStyleValues.phoneLayout(context) ? _tightCellPadding : _slotHeaderPadding,
+                sortable: false,
+              ),
               const SailTableHeaderCell(name: 'Name', padding: _tightCellPadding, sortable: false),
               const SailTableHeaderCell(
                 name: 'Sidechain Balance',
@@ -519,7 +549,7 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
                 nameWidth,
                 actionsWidth * controlScale,
               ),
-              final _GroupLabelRow label => _groupLabelRow(label, nameWidth, actionsWidth * controlScale),
+              final _GroupLabelRow label => _groupLabelRow(context, label, nameWidth, actionsWidth * controlScale),
             },
             rowCount: rows.length,
             emptyPlaceholder: emptyPlaceholder,
@@ -533,6 +563,15 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
               }
               viewModel.toggleSelection(slot);
             },
+            onRowTap: SailStyleValues.phoneLayout(context)
+                ? (rowId) {
+                    final slot = int.tryParse(rowId);
+                    final sidechain = slot == null ? null : viewModel.sidechains[slot];
+                    if (slot != null && sidechain != null) {
+                      unawaited(showDepositModal(context, slot, sidechain.info.title));
+                    }
+                  }
+                : null,
             onDoubleTap: (rowId) {
               final slot = int.tryParse(rowId);
               final sidechain = slot == null ? null : viewModel.sidechains[slot];
@@ -592,24 +631,28 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
   ) {
     final colors = context.sailTheme.colors;
     final sidechain = viewModel.sidechains[slot];
+    final phone = SailStyleValues.phoneLayout(context);
     final slotCell = SailTableCell(
       value: '$slot',
-      width: _slotColumnWidth,
+      width: phone ? _phoneSlotColumnWidth : _slotColumnWidth,
       padding: _tightCellPadding,
-      child: Row(
-        children: [
-          if (sidechain == null)
-            const SizedBox(width: _pinWidth)
-          else
-            SidechainPinButton(
-              slot: slot,
-              pinned: viewModel.isPinned(slot),
-              onPressed: () => _togglePin(context, viewModel, slot),
+      textColor: colors.textSecondary,
+      child: phone
+          ? null
+          : Row(
+              children: [
+                if (sidechain == null)
+                  const SizedBox(width: _pinWidth)
+                else
+                  SidechainPinButton(
+                    slot: slot,
+                    pinned: viewModel.isPinned(slot),
+                    onPressed: () => _togglePin(context, viewModel, slot),
+                  ),
+                const SizedBox(width: SailStyleValues.padding08),
+                SailText.primary13('$slot', color: colors.textSecondary, overflow: null),
+              ],
             ),
-          const SizedBox(width: SailStyleValues.padding08),
-          SailText.primary13('$slot', color: colors.textSecondary, overflow: null),
-        ],
-      ),
     );
 
     if (sidechain == null) {
@@ -633,8 +676,13 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
         padding: _tightCellPadding,
         child: Row(
           children: [
-            viewModel.sidechainStatusDot(context, slot) ?? const SizedBox(width: 8),
-            const SizedBox(width: SailStyleValues.padding08),
+            if (viewModel.sidechainStatusDot(context, slot) case final dot?) ...[
+              dot,
+              const SizedBox(width: SailStyleValues.padding08),
+            ] else if (!phone) ...[
+              const SizedBox(width: 8),
+              const SizedBox(width: SailStyleValues.padding08),
+            ],
             SailText.primary13(sidechain.info.title, color: colors.text, overflow: TextOverflow.clip),
             if (viewModel.hasExternalWallet(slot)) ...[
               const SizedBox(width: SailStyleValues.padding08),
@@ -644,8 +692,11 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
         ),
       ),
       SailTableCell(
-        value: formatter.formatSats(sidechain.info.balanceSatoshi.toInt()),
-        hugContent: true,
+        value: phone
+            ? phoneHistoryAmount(sidechain.info.balanceSatoshi.toInt(), formatter.currentUnit)
+            : formatter.formatSats(sidechain.info.balanceSatoshi.toInt()),
+        hugContent: !phone,
+        fill: phone,
         padding: _tightCellPadding,
         alignment: Alignment.centerRight,
         textColor: colors.text,
@@ -673,12 +724,12 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
     ];
   }
 
-  List<Widget> _groupLabelRow(_GroupLabelRow label, double nameWidth, double actionsWidth) {
+  List<Widget> _groupLabelRow(BuildContext context, _GroupLabelRow label, double nameWidth, double actionsWidth) {
     final subtitle = label.subtitle;
     return [
       SailTableCell(
         value: '',
-        width: _slotColumnWidth,
+        width: SailStyleValues.phoneLayout(context) ? _phoneSlotColumnWidth : _slotColumnWidth,
         padding: const EdgeInsets.only(left: SailStyleValues.padding12),
         // The label spans the row, past the narrow slot column.
         child: OverflowBox(
@@ -820,6 +871,12 @@ const double _pinWidth = 20;
 
 /// Slot holds the pin and 1 to 3 digits, so it never needs the table's default minimum.
 const double _slotColumnWidth = 48 + _pinWidth + SailStyleValues.padding08;
+
+/// A phone drops the pin from the slot column, and taps a row to deposit.
+const double _phoneSlotColumnWidth = 48;
+
+/// Height of the deposits and withdrawals tabs under the slot table on a phone.
+const double _phoneDepositsHeight = 280;
 
 /// Puts the Slot header above the slot number, past the pin.
 const EdgeInsets _slotHeaderPadding = EdgeInsets.only(
@@ -1931,17 +1988,18 @@ class DepositWithdrawView extends ViewModelWidget<SidechainsViewModel> {
 
   @override
   Widget build(BuildContext context, SidechainsViewModel viewModel) {
-    return const InlineTabBar(
+    final phone = SailStyleValues.phoneLayout(context);
+    return InlineTabBar(
       tabs: [
         TabItem(
           label: 'See Deposits',
-          icon: SailSVGAsset.iconDeposit,
-          child: SeeDepositsView(),
+          icon: phone ? null : SailSVGAsset.iconDeposit,
+          child: const SeeDepositsView(),
         ),
         TabItem(
           label: 'See Withdrawals',
-          icon: SailSVGAsset.iconWithdraw,
-          child: SeeWithdrawalsView(),
+          icon: phone ? null : SailSVGAsset.iconWithdraw,
+          child: const SeeWithdrawalsView(),
         ),
       ],
       initialIndex: 0,
@@ -1954,14 +2012,44 @@ class DepositFeeFields extends StatelessWidget {
   final DepositFeeEstimate estimate;
   final ValueChanged<int> onTargetChanged;
 
+  /// True puts each field on its own line, for a phone.
+  final bool stacked;
+
   const DepositFeeFields({
     super.key,
     required this.estimate,
     required this.onTargetChanged,
+    this.stacked = false,
   });
+
+  Widget _targetDropdown() => SailDropdownButton<int>(
+    value: estimate.confTarget,
+    items: depositFeeTargets
+        .map((target) => SailDropdownItem<int>(value: target, label: depositFeeTargetLabel(target)))
+        .toList(),
+    onChanged: (target) {
+      if (target != null) {
+        onTargetChanged(target);
+      }
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
+    if (stacked) {
+      return SailColumn(
+        spacing: SailStyleValues.padding08,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NumericField(label: 'Fee', controller: estimate.controller, hintText: '0.00000000'),
+          UnitDropdown(value: Unit.BTC, onChanged: (_) => {}, enabled: false),
+          const SailSpacing(SailStyleValues.padding08),
+          SailText.primary13('Fee target', bold: true),
+          _targetDropdown(),
+          SailText.secondary12(estimate.hint, color: context.sailTheme.colors.textTertiary),
+        ],
+      );
+    }
     return SailColumn(
       spacing: SailStyleValues.padding08,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2051,6 +2139,7 @@ class RecentDepositsTable extends ViewModelWidget<SidechainsViewModel> {
       listenable: formatter,
       builder: (context, child) => SailTable(
         getRowId: (index) => viewModel.sortedDeposits[index].txid,
+        phoneColumns: const [0, 2, 3],
         headerBuilder: (context) => [
           SailTableHeaderCell(name: 'Txid', onSort: () => viewModel.sortDeposits('txid')),
           SailTableHeaderCell(name: 'Amount', onSort: () => viewModel.sortDeposits('amount')),
@@ -2397,6 +2486,18 @@ class _DepositModalState extends State<DepositModal> {
   Widget _buildCard(BuildContext context) {
     final available = availableSats;
     final sheet = SailSheetScope.of(context);
+    final phone = SailStyleValues.phoneLayout(context);
+    final fromWallet = FromWalletField(
+      selectedWalletId: fromWalletId,
+      balances: fundingBalances,
+      onChanged: (walletId) {
+        setState(() {
+          selectedWalletId = walletId;
+          depositError = null;
+        });
+        _followMax();
+      },
+    );
     return SailDialogFrame(
       child: Padding(
         padding: sheet
@@ -2431,6 +2532,9 @@ class _DepositModalState extends State<DepositModal> {
                           ),
                           controller: addressController,
                           hintText: 's${widget.slot}_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_xxxxxx',
+                          minLines: phone ? 1 : null,
+                          maxLines: phone ? 3 : null,
+                          alignSuffixTop: phone,
                           suffixWidget: addressController.text.isEmpty
                               ? null
                               : CopyButton(text: addressController.text),
@@ -2447,44 +2551,63 @@ class _DepositModalState extends State<DepositModal> {
                     ],
                   ),
                   const SailSpacing(SailStyleValues.padding16),
-                  SailRow(
-                    spacing: SailStyleValues.padding08,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: NumericField(
-                          label: 'Deposit Amount',
-                          controller: amountController,
-                          hintText: '0.00',
-                          suffixWidget: available == null
-                              ? null
-                              : SailButton(
-                                  label: 'MAX',
-                                  variant: ButtonVariant.link,
-                                  disabled: maxAmountSats == null,
-                                  onPressed: () async => _useMaxAmount(),
-                                  padding: EdgeInsets.zero,
-                                ),
+                  if (phone) ...[
+                    NumericField(label: 'Deposit Amount', controller: amountController, hintText: '0.00'),
+                    if (available != null)
+                      Center(
+                        child: SailButton(
+                          label: 'MAX',
+                          variant: ButtonVariant.link,
+                          disabled: maxAmountSats == null,
+                          onPressed: () async => _useMaxAmount(),
                         ),
                       ),
-                      UnitDropdown(value: Unit.BTC, onChanged: (_) {}, enabled: false),
-                      Expanded(
-                        flex: 2,
-                        child: FromWalletField(
-                          selectedWalletId: fromWalletId,
-                          balances: fundingBalances,
-                          onChanged: (walletId) {
-                            setState(() {
-                              selectedWalletId = walletId;
-                              depositError = null;
-                            });
-                            _followMax();
-                          },
+                    const SailSpacing(SailStyleValues.padding08),
+                    SizedBox(
+                      width: double.infinity,
+                      child: UnitDropdown(value: Unit.BTC, onChanged: (_) {}, enabled: false),
+                    ),
+                    const SailSpacing(SailStyleValues.padding16),
+                    SizedBox(width: double.infinity, child: fromWallet),
+                  ] else
+                    SailRow(
+                      spacing: SailStyleValues.padding08,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: NumericField(
+                            label: 'Deposit Amount',
+                            controller: amountController,
+                            hintText: '0.00',
+                            suffixWidget: available == null
+                                ? null
+                                : SailButton(
+                                    label: 'MAX',
+                                    variant: ButtonVariant.link,
+                                    disabled: maxAmountSats == null,
+                                    onPressed: () async => _useMaxAmount(),
+                                    padding: EdgeInsets.zero,
+                                  ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                        UnitDropdown(value: Unit.BTC, onChanged: (_) {}, enabled: false),
+                        Expanded(
+                          flex: 2,
+                          child: FromWalletField(
+                            selectedWalletId: fromWalletId,
+                            balances: fundingBalances,
+                            onChanged: (walletId) {
+                              setState(() {
+                                selectedWalletId = walletId;
+                                depositError = null;
+                              });
+                              _followMax();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   if (available != null) ...[
                     const SailSpacing(SailStyleValues.padding08),
                     Row(
@@ -2499,7 +2622,7 @@ class _DepositModalState extends State<DepositModal> {
                     ),
                   ],
                   const SailSpacing(SailStyleValues.padding08),
-                  DepositFeeFields(estimate: depositFee, onTargetChanged: _setFeeTarget),
+                  DepositFeeFields(estimate: depositFee, onTargetChanged: _setFeeTarget, stacked: phone),
                   const SailSpacing(SailStyleValues.padding08),
                   _LeavesWalletRow(amount: amountController.text, fee: feeController.text),
                   const SailSpacing(SailStyleValues.padding08),

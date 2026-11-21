@@ -3,13 +3,11 @@
 import 'package:bitwindow/main.dart' as app;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sail_ui/sail_ui.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'phone_regtest/regtest.dart';
 import 'phone_regtest/ui.dart';
-
-// The Sidechains overview keeps its desktop columns on a phone. Its phone layout waits for a design.
-const _knownLayoutFaults = ['side-nav Sidechains'];
 
 final _bcrt = RegExp(r'^bcrt1[0-9a-z]{20,}$');
 
@@ -30,11 +28,7 @@ void main() {
       FlutterError.onError = testHandler;
       ErrorWidget.builder = testErrorWidget;
     }
-    expect(
-      ui.layoutErrors.where((e) => !_knownLayoutFaults.any(e.startsWith)),
-      isEmpty,
-      reason: 'layout overflows on a phone',
-    );
+    expect(ui.layoutErrors, isEmpty, reason: 'layout overflows on a phone');
   }, timeout: const Timeout(Duration(minutes: 30)));
 }
 
@@ -150,4 +144,22 @@ Future<void> _hotPaths(WidgetTester tester, PhoneUi ui, RegtestControl regtest) 
     timeout: const Duration(minutes: 2),
   );
   await ui.shot('bump-fee-confirmed');
+
+  // Light mode runs no Thunder node, so the test types a deposit address and stops before Deposit.
+  ui.step('sidechain-deposit');
+  await ui.navigate('Sidechains');
+  await ui.waitFor(find.text('Thunder'), timeout: const Duration(minutes: 2), reason: 'the active Thunder slot');
+  await ui.settle(const Duration(seconds: 2));
+  await ui.shot('sidechains');
+  await ui.tap(find.text('Thunder'));
+  await ui.settle();
+  await ui.waitFor(find.text('Deposit to Thunder'));
+  await ui.enter(find.textContaining('s9_xxx'), formatDepositAddress('4UdsG6GZrMc7rXtCsr6KSu8Du3r1', 9));
+  await ui.enter(find.text('0.00'), '0.1');
+  await ui.settle(const Duration(seconds: 3));
+  await ui.shot('sidechain-deposit');
+  final deposit = tester.widget<SailButton>(
+    find.byWidgetPredicate((w) => w is SailButton && w.label == 'Deposit').hitTestable().last,
+  );
+  expect(deposit.disabled, isFalse, reason: 'the deposit is ready to confirm');
 }

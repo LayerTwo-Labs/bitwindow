@@ -3,8 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"sync"
 )
+
+// mailbox holds short values that one phone test leaves for the next one.
+type mailbox struct {
+	mu     sync.Mutex
+	values map[string]string
+}
 
 // registerControl adds the test routes. They mine blocks and pay from the Core
 // wallet, so they serve a test stack only.
@@ -66,6 +74,29 @@ func registerControl(mux *http.ServeMux, core *coreRPC, x *index, wallet string)
 			return
 		}
 		writeJSON(w, map[string]any{"address": addr})
+	})
+
+	box := &mailbox{values: map[string]string{}}
+	mux.HandleFunc("PUT /regtest/mailbox/{key}", func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		box.mu.Lock()
+		box.values[r.PathValue("key")] = string(raw)
+		box.mu.Unlock()
+		writeJSON(w, map[string]any{})
+	})
+	mux.HandleFunc("GET /regtest/mailbox/{key}", func(w http.ResponseWriter, r *http.Request) {
+		box.mu.Lock()
+		value, ok := box.values[r.PathValue("key")]
+		box.mu.Unlock()
+		if !ok {
+			http.Error(w, "no value", http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]any{"value": value})
 	})
 
 	mux.HandleFunc("GET /regtest/tx/{txid}", func(w http.ResponseWriter, r *http.Request) {

@@ -1,8 +1,8 @@
 import 'dart:io';
 
 // ignore: drivechain_lints/avoid_material_import
-import 'package:flutter/material.dart' show TextField;
-import 'package:flutter/services.dart' show PlatformException;
+import 'package:flutter/material.dart' show TextField, ModalBarrier;
+import 'package:flutter/services.dart' show PlatformException, SystemChannels;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -90,7 +90,12 @@ class PhoneUi {
       }
       await settle(const Duration(seconds: 2));
     }
-    throw TestFailure('a long press on ${finder.describeMatch(Plurality.one)} did not open the menu');
+    final shown = find.byType(Text).hitTestable().evaluate().map((e) => (e.widget as Text).data).whereType<String>();
+    throw TestFailure(
+      'a long press on ${finder.describeMatch(Plurality.one)} did not open the menu; on screen: ${shown.join(' | ')}; '
+      'barriers ${find.byType(ModalBarrier).evaluate().length}, '
+      'routes ${find.byWidgetPredicate((w) => w.runtimeType.toString().startsWith('_ModalScope')).evaluate().map((e) => e.widget.toString()).join(', ')}',
+    );
   }
 
   /// The match of [finder] that sits highest on the screen.
@@ -113,12 +118,16 @@ class PhoneUi {
 
   /// Opens the side nav with the menu button of the top bar.
   Future<void> openSideNav() async {
-    await tap(find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.menu));
+    final menu = find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.menu);
+    // A toast covers the top bar for a few seconds.
+    await waitFor(menu.hitTestable(), timeout: const Duration(seconds: 15), reason: 'the menu button under a toast');
+    await tap(menu);
   }
 
   /// Opens [label] in the side nav.
   Future<void> navigate(String label) async {
     await openSideNav();
+    await settle(const Duration(seconds: 1));
     await tapText(label);
   }
 
@@ -158,12 +167,22 @@ class PhoneUi {
 
   /// Types [text] in the field whose hint [hint] finds.
   Future<void> enter(Finder hint, String text) async {
-    final field = find.ancestor(of: hint, matching: find.byType(TextField));
-    await waitFor(field);
-    await tester.ensureVisible(field.first);
+    final fields = find.ancestor(of: hint, matching: find.byType(TextField));
+    await waitFor(fields);
+    // Pages the app keeps in the tree hold fields with the same hint.
+    var field = fields.hitTestable();
+    if (field.evaluate().isEmpty) {
+      await tester.ensureVisible(fields.last);
+      await settle(const Duration(milliseconds: 400));
+      field = fields.hitTestable();
+    }
+    if (field.evaluate().isEmpty) {
+      throw TestFailure('no visible field for ${hint.describeMatch(Plurality.one)}');
+    }
     await tester.enterText(field.first, text);
     // A user closes the keyboard before the next tap; the test text input keeps it up.
     FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     await settle(const Duration(milliseconds: 600));
   }
 
@@ -187,4 +206,21 @@ class PhoneUi {
 
   /// The layout overflows seen so far.
   List<String> get layoutErrors => List.unmodifiable(_layoutErrors);
+
+  /// The first text on screen that matches [pattern], or the empty string.
+  String textMatching(RegExp pattern) {
+    for (final element in find.byType(Text).evaluate()) {
+      final data = (element.widget as Text).data ?? '';
+      if (pattern.hasMatch(data)) {
+        return data;
+      }
+    }
+    for (final element in find.byType(EditableText).evaluate()) {
+      final data = (element.widget as EditableText).controller.text;
+      if (pattern.hasMatch(data)) {
+        return data;
+      }
+    }
+    throw TestFailure('no text matches $pattern');
+  }
 }

@@ -58,159 +58,162 @@ class _StoreTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(SailStyleValues.padding20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final phone = SailStyleValues.phoneLayout(context);
+    final intro = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SailText.primary15('How It Works'),
+        const SailSpacing(SailStyleValues.padding08),
+        SailText.secondary13(
+          '1. Enter text or choose a file (max 1 MB)\n'
+          '2. Optionally encrypt with your wallet key\n'
+          '3. Click "Store on ${activeTicker.name}" to save forever\n'
+          '4. Data is embedded in ${activeTicker.name} transactions',
+        ),
+        const SailSpacing(SailStyleValues.padding20),
+        SailText.primary15('Why Use BitDrive?'),
+        const SailSpacing(SailStyleValues.padding08),
+        SailText.secondary13(
+          '• Permanent storage - data lives as long as ${activeTicker.name}\n'
+          '• Censorship resistant - no one can delete it\n'
+          '• Encryption option for private data\n'
+          '• Prove you knew something at a specific time',
+        ),
+      ],
+    );
+    final form = SailColumn(
+      spacing: SailStyleValues.padding16,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SailText.primary15('What do you want to store?', bold: true),
+        SailTextField(
+          controller: model.textController,
+          maxLines: 4,
+          hintText: 'Write anything here...',
+        ),
+        if (model.textError != null) SailInlineError(model.textError!),
+        Row(
           children: [
-            // Left side: Introduction
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailText.primary15('How It Works'),
-                  const SailSpacing(SailStyleValues.padding08),
-                  SailText.secondary13(
-                    '1. Enter text or choose a file (max 1 MB)\n'
-                    '2. Optionally encrypt with your wallet key\n'
-                    '3. Click "Store on ${activeTicker.name}" to save forever\n'
-                    '4. Data is embedded in ${activeTicker.name} transactions',
-                  ),
-                  const SailSpacing(SailStyleValues.padding20),
-                  SailText.primary15('Why Use BitDrive?'),
-                  const SailSpacing(SailStyleValues.padding08),
-                  SailText.secondary13(
-                    '• Permanent storage - data lives as long as ${activeTicker.name}\n'
-                    '• Censorship resistant - no one can delete it\n'
-                    '• Encryption option for private data\n'
-                    '• Prove you knew something at a specific time',
-                  ),
-                ],
+            Expanded(child: Container(height: 1, color: context.sailTheme.colors.divider)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding16),
+              child: SailText.secondary12('OR'),
+            ),
+            Expanded(child: Container(height: 1, color: context.sailTheme.colors.divider)),
+          ],
+        ),
+        SailRow(
+          spacing: SailStyleValues.padding08,
+          children: [
+            SailButton(
+              label: 'Choose File',
+              variant: ButtonVariant.secondary,
+              icon: SailSVGAsset.upload,
+              onPressed: () async => model.pickFile(context),
+            ),
+            if (model.selectedFileName != null) ...[
+              Expanded(child: SailText.primary13(model.selectedFileName!)),
+              SailButton(
+                variant: ButtonVariant.ghost,
+                icon: SailSVGAsset.iconClose,
+                onPressed: () async => model.clearSelectedFile(),
+              ),
+            ] else
+              Expanded(child: SailText.secondary12('No file selected')),
+          ],
+        ),
+        if (model.fileError != null) SailInlineError(model.fileError!),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            GestureDetector(
+              onTap: () => model.toggleAdvancedSettings(),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: SailRow(
+                  spacing: SailStyleValues.padding04,
+                  children: [
+                    SailSVG.fromAsset(
+                      model.showAdvancedSettings ? SailSVGAsset.chevronDown : SailSVGAsset.chevronRight,
+                      width: 16,
+                      color: context.sailTheme.colors.textSecondary,
+                    ),
+                    SailText.secondary12('Advanced settings'),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(width: SailStyleValues.padding32),
-            // Right side: Store form
-            Expanded(
-              child: SailColumn(
-                spacing: SailStyleValues.padding16,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SailText.primary15('What do you want to store?', bold: true),
-                  SailTextField(
-                    controller: model.textController,
-                    maxLines: 4,
-                    hintText: 'Write anything here...',
-                  ),
-                  if (model.textError != null) SailInlineError(model.textError!),
-                  Row(
-                    children: [
-                      Expanded(child: Container(height: 1, color: context.sailTheme.colors.divider)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding16),
-                        child: SailText.secondary12('OR'),
-                      ),
-                      Expanded(child: Container(height: 1, color: context.sailTheme.colors.divider)),
-                    ],
-                  ),
-                  SailRow(
-                    spacing: SailStyleValues.padding08,
-                    children: [
-                      SailButton(
-                        label: 'Choose File',
-                        variant: ButtonVariant.secondary,
-                        icon: SailSVGAsset.upload,
-                        onPressed: () async => model.pickFile(context),
-                      ),
-                      if (model.selectedFileName != null) ...[
-                        Expanded(child: SailText.primary13(model.selectedFileName!)),
-                        SailButton(
-                          variant: ButtonVariant.ghost,
-                          icon: SailSVGAsset.iconClose,
-                          onPressed: () async => model.clearSelectedFile(),
-                        ),
-                      ] else
-                        Expanded(child: SailText.secondary12('No file selected')),
-                    ],
-                  ),
-                  if (model.fileError != null) SailInlineError(model.fileError!),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(
-                        onTap: () => model.toggleAdvancedSettings(),
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: SailRow(
-                            spacing: SailStyleValues.padding04,
-                            children: [
-                              SailSVG.fromAsset(
-                                model.showAdvancedSettings ? SailSVGAsset.chevronDown : SailSVGAsset.chevronRight,
-                                width: 16,
-                                color: context.sailTheme.colors.textSecondary,
-                              ),
-                              SailText.secondary12('Advanced settings'),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SailButton(
-                        label: 'Store on ${activeTicker.name}',
-                        variant: model.canStore ? ButtonVariant.primary : ButtonVariant.secondary,
-                        disabled: !model.canStore,
-                        loading: model.isBusy,
-                        loadingLabel: 'Storing...',
-                        onPressed: () async => model.store(context),
-                      ),
-                    ],
-                  ),
-                  if (model.storeError != null) SailInlineError(model.storeError!),
-                  if (model.showAdvancedSettings)
-                    SailCard(
-                      padding: true,
-                      secondary: true,
-                      child: SailColumn(
-                        spacing: SailStyleValues.padding12,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SailCheckbox(
-                            value: model.shouldEncrypt,
-                            onChanged: model.onEncryptChanged,
-                            label: 'Encrypt content (uses your wallet key)',
-                          ),
-                          SailRow(
-                            spacing: SailStyleValues.padding08,
-                            children: [
-                              SizedBox(
-                                width: 150,
-                                child: NumericField(
-                                  label: 'Fee rate (sat/vB)',
-                                  controller: model.feeController,
-                                  hintText: '1',
-                                  textFieldType: TextFieldType.number,
-                                ),
-                              ),
-                              SailButton(
-                                variant: ButtonVariant.icon,
-                                icon: SailSVGAsset.arrowUp,
-                                onPressed: () async => model.adjustFeeRate(1),
-                              ),
-                              SailButton(
-                                variant: ButtonVariant.icon,
-                                icon: SailSVGAsset.arrowDown,
-                                onPressed: () async => model.adjustFeeRate(-1),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
+            SailButton(
+              label: 'Store on ${activeTicker.name}',
+              variant: model.canStore ? ButtonVariant.primary : ButtonVariant.secondary,
+              disabled: !model.canStore,
+              loading: model.isBusy,
+              loadingLabel: 'Storing...',
+              onPressed: () async => model.store(context),
             ),
           ],
         ),
+        if (model.storeError != null) SailInlineError(model.storeError!),
+        if (model.showAdvancedSettings)
+          SailCard(
+            padding: true,
+            secondary: true,
+            child: SailColumn(
+              spacing: SailStyleValues.padding12,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SailCheckbox(
+                  value: model.shouldEncrypt,
+                  onChanged: model.onEncryptChanged,
+                  label: 'Encrypt content (uses your wallet key)',
+                ),
+                SailRow(
+                  spacing: SailStyleValues.padding08,
+                  children: [
+                    SizedBox(
+                      width: 150,
+                      child: NumericField(
+                        label: 'Fee rate (sat/vB)',
+                        controller: model.feeController,
+                        hintText: '1',
+                        textFieldType: TextFieldType.number,
+                      ),
+                    ),
+                    SailButton(
+                      variant: ButtonVariant.icon,
+                      icon: SailSVGAsset.arrowUp,
+                      onPressed: () async => model.adjustFeeRate(1),
+                    ),
+                    SailButton(
+                      variant: ButtonVariant.icon,
+                      icon: SailSVGAsset.arrowDown,
+                      onPressed: () async => model.adjustFeeRate(-1),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(SailStyleValues.padding20),
+        child: phone
+            ? SailColumn(
+                spacing: SailStyleValues.padding20,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [intro, form],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: intro),
+                  const SizedBox(width: SailStyleValues.padding32),
+                  Expanded(child: form),
+                ],
+              ),
       ),
     );
   }

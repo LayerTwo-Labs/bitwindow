@@ -132,7 +132,11 @@ class _DialogSheetState extends State<_DialogSheet> {
         child: GestureDetector(
           onVerticalDragUpdate: widget.dismissible ? _update : null,
           onVerticalDragEnd: widget.dismissible ? _end : null,
-          child: Transform.translate(offset: Offset(0, _drag), child: widget.child),
+          child: Transform.translate(
+            offset: Offset(0, _drag),
+            // A body with no Dialog around it gives its text fields no Material.
+            child: Material(type: MaterialType.transparency, child: widget.child),
+          ),
         ),
       ),
     );

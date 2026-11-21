@@ -21,6 +21,7 @@ class SailTable extends StatefulWidget {
     this.selectedRowId,
     this.selectableRows = true,
     this.onSelectedRow,
+    this.onRowTap,
     this.onDoubleTap,
     this.contextMenuItems,
     this.cellHeight = 40.0,
@@ -50,6 +51,9 @@ class SailTable extends StatefulWidget {
   final String? selectedRowId;
   final bool selectableRows;
   final ValueChanged<String?>? onSelectedRow;
+
+  /// Called with the row id on each tap, also a tap that clears the selection.
+  final ValueChanged<String>? onRowTap;
   final void Function(String rowId)? onDoubleTap;
   final List<SailMenuEntity> Function(String rowId)? contextMenuItems;
   final double cellHeight;
@@ -396,6 +400,7 @@ class _SailTableState extends State<SailTable> {
       selected: isSelected,
       backgroundColor: bgColor,
       grid: widget.drawGrid,
+      handleSpacers: widget.resizableColumns,
       drawBorder: widget.drawLastRowsBorder || !isLastRow,
       onPressed: () => _handleRowSelection(rowId),
       onDoubleTap: widget.onDoubleTap == null ? null : () => widget.onDoubleTap!(rowId),
@@ -619,6 +624,7 @@ class _SailTableState extends State<SailTable> {
   }
 
   void _handleRowSelection(String rowId) {
+    widget.onRowTap?.call(rowId);
     if (!widget.selectableRows) {
       return;
     }
@@ -919,6 +925,7 @@ class _TableRow extends StatefulWidget {
     required this.widths,
     required this.height,
     required this.grid,
+    required this.handleSpacers,
     required this.drawBorder,
     this.backgroundColor,
     this.onDoubleTap,
@@ -933,6 +940,9 @@ class _TableRow extends StatefulWidget {
   final List<double> widths;
   final double height;
   final bool grid;
+
+  /// True leaves the gap of each header resize handle between the cells.
+  final bool handleSpacers;
   final bool drawBorder;
   final void Function()? onDoubleTap;
   final List<SailMenuEntity> Function(String rowId)? contextMenuItems;
@@ -1025,7 +1035,7 @@ class _TableRowState extends State<_TableRow> {
       );
 
       // Add a spacer for resize handle width (except for last cell)
-      if (i < widget.cells.length - 1) {
+      if (i < widget.cells.length - 1 && widget.handleSpacers) {
         cellWidgets.add(
           const SizedBox(width: 8), // Same width as resize handle
         );

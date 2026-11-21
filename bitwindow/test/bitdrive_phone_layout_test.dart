@@ -112,6 +112,22 @@ void main() {
     expect(find.text('84.2 KB'), findsOneWidget);
   });
 
+  testWidgets('on a phone the Store tab stacks the steps above the form', (tester) async {
+    SailStyleValues.phoneLayoutOverride = true;
+    addTearDown(() => tester.pumpWidget(const SizedBox()));
+    await tester.pumpSailPage(const BitDriveTab());
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final why = tester.getRect(find.text('Why Use BitDrive?'));
+    final form = tester.getRect(find.text('What do you want to store?'));
+    expect(form.top, greaterThan(why.bottom));
+    expect(form.left, closeTo(tester.getRect(find.text('How It Works')).left, 1));
+  });
+
   testWidgets('the desktop keeps the files table', (tester) async {
     await _pumpMyFiles(tester, phone: false);
 

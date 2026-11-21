@@ -1,6 +1,8 @@
 import 'package:bitwindow/dialogs/paper_check_dialog.dart';
 import 'package:bitwindow/dialogs/paper_wallet_dialog.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
@@ -113,5 +115,35 @@ void main() {
     expect(request.privateKeyQr.modules.length, request.privateKeyQr.size * request.privateKeyQr.size);
     expect(find.textContaining('bitwindowd is not running'), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));
+  });
+
+  testWidgets('on a phone the keys stack as cards, and the private QR waits for the reveal', (tester) async {
+    await loadBundledFonts();
+    SailStyleValues.phoneLayoutOverride = true;
+    addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
+    await tester.pumpSailPage(const SailPhonePage(title: 'Paper Wallet', child: PaperWalletDialog()));
+    await tester.usePhoneSize();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getRect(find.text('SPEND')).top, greaterThan(tester.getRect(find.text('LOAD & VERIFY')).bottom));
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text('KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn'), findsNothing);
+    final card = tester.widget<Container>(
+      find.ancestor(of: find.text('LOAD & VERIFY'), matching: find.byType(Container)).first,
+    );
+    final theme = SailTheme.of(tester.element(find.text('LOAD & VERIFY')));
+    expect((card.decoration! as BoxDecoration).color, isNot(theme.colors.background), reason: 'the card stands out');
+
+    await tester.tap(
+      find.descendant(
+        of: find.ancestor(of: find.text('SPEND'), matching: find.byType(Row)).first,
+        matching: find.byType(SailTappable),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(QrImageView), findsNWidgets(2));
+    expect(find.text('KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

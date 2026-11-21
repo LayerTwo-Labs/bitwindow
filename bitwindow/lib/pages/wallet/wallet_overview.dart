@@ -552,6 +552,7 @@ class _TransactionTableState extends State<TransactionTable> {
                             rowCount: entries.length,
                             emptyPlaceholder: 'No transactions yet',
                             drawGrid: !phone,
+                            resizableColumns: !phone,
                             sortColumnIndex: transactionColumns.indexOf(sortColumn),
                             sortAscending: sortAscending,
                             onSort: (columnIndex, ascending) {

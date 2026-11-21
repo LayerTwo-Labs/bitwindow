@@ -24,6 +24,22 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
   @override
   ({DateTime start, DateTime end})? get dateRange => null;
 
+  final saved = <String, String>{};
+
+  @override
+  Future<void> saveNote(BuildContext context, String txid, String note) async {
+    saved[txid] = note;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Conf extends ChangeNotifier implements BitcoinConfProvider {
+  @override
+  BitcoinNetwork get network => BitcoinNetwork.BITCOIN_NETWORK_REGTEST;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -111,6 +127,7 @@ void main() {
       reason: 'the amount uses the normal font',
     );
     expect(tester.widget<SailTable>(find.byType(SailTable)).drawGrid, isFalse);
+    expect(tester.widget<SailTable>(find.byType(SailTable)).resizableColumns, isFalse, reason: 'no header dividers');
     expect(tester.takeException(), isNull);
   });
 
@@ -141,5 +158,29 @@ void main() {
 
     expect(find.byType(OverviewLoadingSkeleton), findsNothing);
     expect(find.byType(SailSkeletonizer), findsWidgets);
+  });
+
+  testWidgets('on a phone the row menu opens again after a note', (tester) async {
+    SailStyleValues.phoneLayoutOverride = true;
+    final tx = walletpb.WalletTransaction(
+      txid: 'ef' * 32,
+      confirmationTime: walletpb.Confirmation(height: 120, timestamp: Timestamp.fromDateTime(DateTime.utc(2026))),
+      receivedSatoshi: Int64(50000000),
+    );
+    GetIt.I.registerSingleton<BitcoinConfProvider>(_Conf());
+    final model = _Overview([tx]);
+    await _pumpTable(tester, model);
+
+    for (var i = 1; i <= 2; i++) {
+      await tester.longPress(find.text('Confirmed'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add Note'), findsOneWidget, reason: 'press $i opens the menu');
+      await tester.tap(find.text('Add Note'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText).last, 'rent $i');
+      await tester.tap(find.text('Save changes').last);
+      await tester.pumpAndSettle();
+      expect(model.saved[tx.txid], 'rent $i');
+    }
   });
 }
