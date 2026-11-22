@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:bitwindow/providers/bitdrive_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -100,6 +102,7 @@ class _StoreTab extends StatelessWidget {
                     maxLines: 4,
                     hintText: 'Write anything here...',
                   ),
+                  if (model.textError != null) SailInlineError(model.textError!),
                   Row(
                     children: [
                       Expanded(child: Container(height: 1, color: context.sailTheme.colors.divider)),
@@ -337,9 +340,11 @@ class BitDriveViewModel extends BaseViewModel {
   String? selectedFileName;
   Uint8List? selectedFileContent;
   String? fileError;
+  String? textError;
   String? storeError;
   bool get shouldEncrypt => provider.shouldEncrypt;
-  bool get canStore => (textController.text.isNotEmpty || selectedFileContent != null) && feeRate != null;
+  bool get canStore =>
+      ((textController.text.isNotEmpty && textError == null) || selectedFileContent != null) && feeRate != null;
   int? get feeRate {
     final rate = int.tryParse(feeController.text);
     return rate != null && rate >= 1 ? rate : null;
@@ -455,6 +460,7 @@ class BitDriveViewModel extends BaseViewModel {
   void onTextChanged(String value) {
     fileError = null;
     storeError = null;
+    textError = utf8.encode(value).length > BitDriveProvider.maxContentBytes ? BitDriveProvider.textSizeError : null;
     provider.setTextContent(value);
     if (value.isNotEmpty) {
       selectedFileName = null;
