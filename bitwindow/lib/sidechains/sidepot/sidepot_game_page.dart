@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bitwindow/sidechains/sidepot/sidepot_pending.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -46,6 +47,14 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
   Map<String, dynamic>? _account;
   String? _readError;
 
+  /// The moves this install sent whose outcome is not final yet, for every game account it has used.
+  List<PendingMove> _pending = [];
+  bool _pendingLoaded = false;
+
+  /// This wallet's eCash transactions that are in a block, and the node's waiting Sidepot transactions.
+  Set<String> _mined = {};
+  Set<String>? _sidepotMempool;
+
   final _keys = TextEditingController(text: '1');
   final _move = TextEditingController();
   final _cashout = TextEditingController();
@@ -58,7 +67,7 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
   void initState() {
     super.initState();
     _keys.addListener(_redraw);
-    unawaited(_read());
+    unawaited(_loadPending().then((_) => _read()));
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => unawaited(_read()));
   }
 
@@ -85,14 +94,19 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     try {
       final game = await _rpc.callRAW('game_state');
       final account = await _rpc.callRAW('game_my_account');
+      final mined = await _minedTxids();
+      final mempool = await _waitingSidepotTxids();
       if (!mounted) {
         return;
       }
       setState(() {
         _game = game is Map ? Map<String, dynamic>.from(game) : null;
         _account = account is Map ? Map<String, dynamic>.from(account) : null;
+        _mined = mined ?? _mined;
+        _sidepotMempool = mempool;
         _readError = null;
       });
+      _settlePending();
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -126,6 +140,108 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
   }
 
   int _int(Map<String, dynamic>? from, String name) => (from?[name] as num?)?.toInt() ?? 0;
+
+  String get _address => '${_account?['address'] ?? ''}';
+
+  /// This game account's moves among the pending ones.
+  List<PendingMove> get _myPending => _pending.where((m) => m.account == _address).toList();
+
+  PendingFacts get _facts => PendingFacts(
+    confirmedNonce: _int(_account, 'nonce'),
+    previewNonce: _int(_mine, 'nonce'),
+    clock: _int(_now, 'clock'),
+    height: _int(_now, 'l1_height'),
+    minedTxids: _mined,
+    sidepotMempool: _sidepotMempool,
+  );
+
+  ClientSettings get _settings => GetIt.I.get<ClientSettings>();
+
+  Future<void> _loadPending() async {
+    try {
+      final saved = await _settings.getValue(SidepotPendingSetting());
+      _pending = [...SidepotPendingSetting.decode(saved.value), ..._pending];
+    } catch (_) {
+      // Without the saved list the moves sent from now on are still shown.
+    }
+    _pendingLoaded = true;
+  }
+
+  void _savePending() {
+    if (!_pendingLoaded) {
+      return;
+    }
+    unawaited(
+      _settings
+          .setValue(SidepotPendingSetting(newValue: SidepotPendingSetting.encode(_pending)))
+          .then<void>((_) {}, onError: (_) {}),
+    );
+  }
+
+  void _addPending(PendingMove move) {
+    setState(() => _pending = [..._pending, move]);
+    _savePending();
+  }
+
+  void _dismiss(PendingMove move) {
+    setState(() => _pending = _pending.where((m) => m.txid != move.txid).toList());
+    _savePending();
+  }
+
+  /// Drops this account's moves that are final, and notes the ones newly seen in an eCash block.
+  void _settlePending() {
+    if (_account == null || _address.isEmpty || _myPending.isEmpty) {
+      return;
+    }
+    final others = _pending.where((m) => m.account != _address).toList();
+    final mine = settled(_myPending, _facts);
+    final next = [...others, ...mine];
+    if (SidepotPendingSetting.encode(next) == SidepotPendingSetting.encode(_pending)) {
+      return;
+    }
+    setState(() => _pending = next);
+    _savePending();
+  }
+
+  /// This wallet's eCash transactions that are in a block, or null when there is nothing to look for or the
+  /// wallet could not be read.
+  Future<Set<String>?> _minedTxids() async {
+    final walletId = _walletId;
+    if (walletId == null || !_pending.any((m) => m.kind != PendingKind.fund && m.minedSeenAt == 0)) {
+      return null;
+    }
+    try {
+      final listed = await GetIt.I.get<OrchestratorRPC>().wallet.listTransactions(walletId: walletId);
+      return {
+        for (final tx in listed.transactions)
+          if (tx.confirmations > 0) tx.txid,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The Sidepot transactions the node holds for the next Sidepot block, or null when it could not say.
+  Future<Set<String>?> _waitingSidepotTxids() async {
+    if (!_pending.any((m) => m.kind == PendingKind.fund)) {
+      return null;
+    }
+    try {
+      final listed = await _rpc.callRAW('list_mempool');
+      if (listed is! List) {
+        return null;
+      }
+      return {
+        for (final tx in listed)
+          if (tx is Map && tx['txid'] is String) tx['txid'] as String,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// A signed move's field, as the node returned it.
+  int _field(dynamic signed, String name) => signed is Map ? (signed[name] as num?)?.toInt() ?? 0 : 0;
 
   String? get _walletId => GetIt.I.get<WalletReaderProvider>().activeWalletId;
 
@@ -180,7 +296,19 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     if (count == null || count < 1 || count > 1000) {
       throw Exception('Give a number of keys from 1 to 1000.');
     }
-    final txid = await _carry(await _rpc.callRAW('game_sign_buy', [count, null]));
+    final signed = await _rpc.callRAW('game_sign_buy', [count, null]);
+    final txid = await _carry(signed);
+    _addPending(
+      PendingMove(
+        kind: PendingKind.buy,
+        account: _address,
+        txid: txid,
+        nonce: _field(signed, 'nonce'),
+        expires: _field(signed, 'expires'),
+        keys: count,
+        maxPriceSats: _field(signed, 'max_price_sats'),
+      ),
+    );
     return 'Buy sent in eCash transaction $txid. It counts once that transaction is in a block.';
   });
 
@@ -190,7 +318,18 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     if (amount == null) {
       throw Exception('Give the amount in ECX, or leave it empty for everything.');
     }
-    final txid = await _carry(await _rpc.callRAW('game_sign_cashout', [amount, null]));
+    final signed = await _rpc.callRAW('game_sign_cashout', [amount, null]);
+    final txid = await _carry(signed);
+    _addPending(
+      PendingMove(
+        kind: PendingKind.cashout,
+        account: _address,
+        txid: txid,
+        nonce: _field(signed, 'nonce'),
+        expires: _field(signed, 'expires'),
+        amountSats: amount,
+      ),
+    );
     return 'Cash-out sent in eCash transaction $txid. The coins arrive in the Sidepot balance of this wallet.';
   });
 
@@ -200,8 +339,55 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
       throw Exception('Give the amount in ECX.');
     }
     final txid = await _rpc.callRAW('game_fund', [amount, null, null]);
+    if (txid is String && txid.isNotEmpty) {
+      _addPending(PendingMove(kind: PendingKind.fund, account: _address, txid: txid, amountSats: amount));
+    }
     return 'Moved in Sidepot transaction $txid. The game account is credited with the next Sidepot block.';
   });
+
+  /// What a pending move is, in words.
+  String _moveTitle(PendingMove move, int price) => switch (move.kind) {
+    PendingKind.buy =>
+      'Buy ${move.keys} ${move.keys == 1 ? 'key' : 'keys'}: about ${_ecx(move.keys * price)} ECX, at most ${_ecx(move.keys * move.maxPriceSats)}',
+    PendingKind.cashout => move.amountSats == 0 ? 'Cash out everything' : 'Cash out ${_ecx(move.amountSats)} ECX',
+    PendingKind.fund => 'Move ${_ecx(move.amountSats)} ECX into the game',
+  };
+
+  /// How far a pending move has got, in words.
+  String _stageText(PendingMove move, PendingStage stage) => switch (stage) {
+    PendingStage.waiting =>
+      move.kind == PendingKind.fund ? 'Waiting for the next Sidepot block.' : 'Waiting for an eCash block.',
+    PendingStage.mined => 'In an eCash block. Waiting for the node to count it.',
+    PendingStage.counted => 'Counted. The next Sidepot block makes it final.',
+    PendingStage.passed => 'Settled: a later move of yours has counted, so this one can no longer change anything.',
+    PendingStage.rejected => 'Did not count. It is in an eCash block, and the game refused it: the balance or the price limit did not cover it, or a later move counted first.',
+    PendingStage.expired => 'Did not count. Its time ran out before it reached a block the game takes it in.',
+    PendingStage.done => 'Final.',
+  };
+
+  Widget _pendingRow(PendingMove move, PendingStage stage, int price) {
+    final failed = stage == PendingStage.rejected || stage == PendingStage.expired;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: SailColumn(
+            spacing: SailStyleValues.padding04,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SailText.primary13(_moveTitle(move, price), bold: true),
+              SailText.secondary13(_stageText(move, stage)),
+              SailText.secondary12(
+                '${move.kind == PendingKind.fund ? 'Sidepot' : 'eCash'} transaction ${move.txid}',
+              ),
+            ],
+          ),
+        ),
+        if (failed || stage == PendingStage.passed)
+          SailButton(label: 'Dismiss', variant: ButtonVariant.secondary, onPressed: () async => _dismiss(move)),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +402,11 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     final count = int.tryParse(_keys.text.trim()) ?? 0;
     final balance = _int(mine, 'balance_sats');
     final beforeFork = fork > 0 && height < fork;
+    final facts = _facts;
+    final pending = _myPending;
+    final open = pending.where((m) => isOpen(stageOf(m, facts))).toList();
+    final after = balanceAfter(balance, price, pending, facts);
+    final finalBalance = _int(_account, 'balance_sats');
 
     if (game == null) {
       final error = _readError;
@@ -336,6 +527,14 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
                       spacing: SailStyleValues.padding12,
                       children: [
                         SailText.primary24('${_ecx(balance)} ECX', bold: true),
+                        if (open.isNotEmpty)
+                          SailText.secondary13(
+                            'About ${_ecx(after)} ECX once your ${open.length == 1 ? 'pending move has' : '${open.length} pending moves have'} counted.',
+                          ),
+                        if (finalBalance != balance)
+                          SailText.secondary13(
+                            '${_ecx(finalBalance)} ECX as of the last Sidepot block. The next one makes the newer figure final.',
+                          ),
                         SailText.secondary13(
                           '${_int(mine, 'keys')} keys this round. Dividends are paid into this balance.',
                         ),
@@ -408,6 +607,17 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
                 ),
               ],
             ),
+            if (pending.isNotEmpty)
+              SailCard(
+                title: 'Your pending moves',
+                subtitle: 'Sent from this BitWindow',
+                child: SailColumn(
+                  spacing: SailStyleValues.padding12,
+                  children: [
+                    for (final move in pending) _pendingRow(move, stageOf(move, facts), price),
+                  ],
+                ),
+              ),
             if (_said != null)
               SailCard(
                 title: _saidBad ? 'That did not go through' : 'Sent',
