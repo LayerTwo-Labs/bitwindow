@@ -8,6 +8,8 @@ import 'package:intl/intl.dart' as intl;
 import 'package:sail_ui/sail_ui.dart';
 
 const double defaultMinColumnWidth = 60;
+const double _sortArrowGap = 4;
+const double _sortArrowSize = 10;
 
 class SailTable extends StatefulWidget {
   const SailTable({
@@ -127,8 +129,8 @@ class _SailTableState extends State<SailTable> {
       });
     }
 
-    // Update internal state for selection/sort (no column resize needed)
     _selectedId = widget.selectedRowId;
+    final sortColumnChanged = _sortColumnIndex != widget.sortColumnIndex;
     _sortColumnIndex = widget.sortColumnIndex;
     _sortAscending = widget.sortAscending ?? true;
 
@@ -152,6 +154,8 @@ class _SailTableState extends State<SailTable> {
 
     if (!mapEquals(oldWidget.minColumnWidths, widget.minColumnWidths) && _currentConstraints != null) {
       _resizeColumns(_currentConstraints!.maxWidth, force: true);
+    } else if (sortColumnChanged) {
+      _fitSortedHeader();
     }
 
     // Recalculate column widths when row count changes
@@ -395,7 +399,9 @@ class _SailTableState extends State<SailTable> {
 
     final headers = widget.headerBuilder(context);
     for (int col = 0; col < headers.length; col++) {
-      final headerWidth = _calculateColumnWidth(headers[col]);
+      final header = headers[col];
+      final sorted = header is SailTableHeaderCell && header.sortable && col == _sortColumnIndex;
+      final headerWidth = _calculateColumnWidth(header) + (sorted ? _sortArrowGap + _sortArrowSize : 0);
       columnWidths[col] = max(columnWidths[col], headerWidth);
     }
 
@@ -529,14 +535,31 @@ class _SailTableState extends State<SailTable> {
     }
   }
 
+  /// Widens only the sorted column, so widths the user dragged stay.
+  void _fitSortedHeader() {
+    final index = _sortColumnIndex;
+    if (index == null || index >= _widths.length) {
+      return;
+    }
+    final header = widget.headerBuilder(context)[index];
+    if (header is! SailTableHeaderCell || !header.sortable) {
+      return;
+    }
+    _widths[index] = max(_widths[index], _calculateColumnWidth(header) + _sortArrowGap + _sortArrowSize);
+  }
+
   void _handleSort(int columnIndex) {
     if (!mounted) {
       return;
     }
     final ascending = _sortColumnIndex != columnIndex || !_sortAscending;
+    final columnChanged = _sortColumnIndex != columnIndex;
     setState(() {
       _sortColumnIndex = columnIndex;
       _sortAscending = ascending;
+      if (columnChanged) {
+        _fitSortedHeader();
+      }
     });
     widget.onSort?.call(columnIndex, ascending);
   }
@@ -1122,10 +1145,11 @@ class SailTableHeaderCell extends StatelessWidget {
                     ),
                   ),
                   if (isSorted) ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: _sortArrowGap),
                     SailSVG.fromAsset(
                       isAscending ? SailSVGAsset.arrowUp : SailSVGAsset.arrowDown,
-                      height: 10,
+                      width: _sortArrowSize,
+                      height: _sortArrowSize,
                       color: theme.colors.inactiveNavText,
                     ),
                   ],
