@@ -29,14 +29,14 @@ void main() {
     return recipient;
   }
 
-  Future<int> pumpRow(WidgetTester tester, {required bool canRemove}) async {
+  Future<int> pumpRow(WidgetTester tester, {required bool canRemove, double width = 1000, String address = ''}) async {
     var removed = 0;
     await tester.pumpSailPage(
       SizedBox(
-        width: 1000,
+        width: width,
         child: RecipientRow(
           index: 0,
-          recipient: RecipientModel(),
+          recipient: RecipientModel()..addressController.text = address,
           addressBookEntries: const [],
           onAddressSelected: (_) {},
           onUseAvailableBalance: (_) async {},
@@ -78,5 +78,19 @@ void main() {
     await pumpRow(tester, canRemove: true);
 
     expect(find.byKey(const Key('recipient_remove_0')), findsOneWidget);
+  });
+
+  testWidgets('a long address wraps instead of being cut off', (tester) async {
+    const taproot = 'bcrt1p98fuhl5agssycusxjg4ph9ktswhf67yd30fz6nzm7utyaz80pxqs6u95p0';
+    await pumpRow(tester, canRemove: true, width: 700, address: taproot);
+
+    final field = find.descendant(
+      of: find.byKey(const Key('recipient_address_0')),
+      matching: find.byType(EditableText),
+    );
+    final editable = tester.state<EditableTextState>(field).renderEditable;
+
+    expect(tester.widget<EditableText>(field).maxLines, isNull);
+    expect(editable.size.height, greaterThan(editable.preferredLineHeight * 1.5));
   });
 }
