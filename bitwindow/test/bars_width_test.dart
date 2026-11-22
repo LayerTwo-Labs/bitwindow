@@ -326,6 +326,24 @@ void main() {
     expect(tester.getTopRight(find.byType(ResetButton)).dx, lessThanOrEqualTo(1024));
   });
 
+  testWidgets('the status bar fits the default 1200 px window with a maturing balance', (tester) async {
+    final lastBlockAt = Timestamp.fromDateTime(DateTime.now().subtract(const Duration(minutes: 59, seconds: 58)));
+    sync.mainchainSyncInfo = SyncInfo(progressCurrent: 118, progressGoal: 118, lastBlockAt: lastBlockAt);
+    sync.enforcerSyncInfo = SyncInfo(progressCurrent: 118, progressGoal: 118, lastBlockAt: lastBlockAt);
+    sync.bitwindowdSyncInfo = SyncInfo(progressCurrent: 118, progressGoal: 118, lastBlockAt: lastBlockAt);
+    final balance = GetIt.I.get<BalanceProvider>() as _Balance;
+    balance.balance = 899.99998995;
+    balance.maturingBalance = 5000;
+
+    await pumpBars(tester, 1200);
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('maturing'), findsOneWidget);
+    expect(find.textContaining('Last block:'), findsNothing);
+    expect(find.text('Reset'), findsNothing);
+    expect(tester.getTopRight(find.byType(ResetButton)).dx, lessThanOrEqualTo(1200));
+  });
+
   testWidgets('a 1280 px window shows the full last block label', (tester) async {
     await pumpBars(tester, 1280);
 

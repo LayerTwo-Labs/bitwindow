@@ -1133,6 +1133,9 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
   }
 }
 
+/// Window width under which the block age and Reset show without their labels.
+const double statusBarFullWidth = 1280;
+
 class StatusBar extends StatefulWidget {
   const StatusBar({super.key});
 
@@ -1169,7 +1172,7 @@ class _StatusBarState extends State<StatusBar> {
 
   Widget _bottomNav(BuildContext context, ECashMigrationProvider migration) {
     final swap = migration.status;
-    final compact = SailStyleValues.compactBars(context);
+    final compact = MediaQuery.sizeOf(context).width < statusBarFullWidth;
     return BottomNav(
       statusOverride: migration.swapping && swap != null
           ? BottomNavStatusOverride(
