@@ -1,0 +1,70 @@
+{
+  "version": 34,
+  "migration": "patch",
+  "binaries": {
+    "sidepot": {
+      "type": "sidechain",
+      "slot": 88,
+      "name": "Sidepot",
+      "version": "0.2.2",
+      "description": "Sidepot game sidechain",
+      "repo_url": "https://github.com/Coinelius/sidepot-node",
+      "port": 6088,
+      "chain_layer": 2,
+      "color": "green",
+      "health_check": {
+        "type": "tcp"
+      },
+      "dependencies": [
+        "bitcoind",
+        "enforcer"
+      ],
+      "startup_log_patterns": [],
+      "directories": {
+        "binary": {
+          "default": {
+            "linux": "sidepot",
+            "macos": "sidepot",
+            "windows": "sidepot"
+          }
+        },
+        "flutter_frontend": {
+          "linux": "",
+          "macos": "",
+          "windows": ""
+        }
+      },
+      "download": {
+        "binary": "sidepot-node",
+        "files": {
+          "default": {
+            "base_url": "https://github.com/Coinelius/sidepot-node/releases/download/sidepot-v0.2.2/",
+            "linux-x86_64": "sidepot-node-v0.2.2-x86_64-unknown-linux-gnu.zip",
+            "macos-x86_64": "sidepot-node-v0.2.2-x86_64-apple-darwin.zip",
+            "macos-arm64": "sidepot-node-v0.2.2-aarch64-apple-darwin.zip",
+            "windows-x86_64": "sidepot-node-v0.2.2-x86_64-pc-windows-gnu.zip"
+          }
+        }
+      },
+      "artifact_pins": {
+        "linux-x86_64": {
+          "archive_sha256": "f28eb5a05feed300fa6d70de18065c3610217e2b35401ab0c189c35c89350449",
+          "executable_sha256": "a0ac1d9b52d8606084147ea8ab80fb430c0994f50b31800663ae7af4e104a721"
+        },
+        "macos-x86_64": {
+          "archive_sha256": "a3b20ace88f67572394b591ecb8284474bcd8d54affe00afeadd7e277101267e",
+          "executable_sha256": "02e849c7ba26ccf492e8f9974e42ef6637b2565f212649b50dd33567089bc959"
+        },
+        "macos-arm64": {
+          "archive_sha256": "775b817e1f3b8dbc0b7326f4174c3382d72e3f819078e202a1e48ac3c8b3d347",
+          "executable_sha256": "61c73dd678ad41a984a0babba024b71b815b03a9dcd72b08d8ee75f58354e5e2"
+        },
+        "windows-x86_64": {
+          "archive_sha256": "2aa340d6435036d7799447d7cbf4399e67e361479d7d4717ce198c3425d836c5",
+          "executable_sha256": "9419b30a3095b6a86ab0822f5116aa6d1f6c16c5b42613e75cbe642b89116b36"
+        }
+      },
+      "hashes": {}
+    }
+  }
+}

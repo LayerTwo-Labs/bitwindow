@@ -268,7 +268,7 @@ class Bbc extends Sidechain {
 class Sidepot extends Sidechain {
   Sidepot({
     super.name = 'Sidepot',
-    super.version = '0.2.1',
+    super.version = '0.2.2',
     super.description = 'Sidepot game sidechain',
     super.repoUrl = 'https://github.com/Coinelius/sidepot-node',
     DirectoryConfig? directories,
@@ -285,12 +285,12 @@ class Sidepot extends Sidechain {
                downloadConfig: DownloadConfig(
                  binary: 'sidepot-node',
                  baseUrls: allNetworksUrl(
-                   'https://github.com/Coinelius/sidepot-node/releases/download/sidepot-v0.2.1/',
+                   'https://github.com/Coinelius/sidepot-node/releases/download/sidepot-v0.2.2/',
                  ),
                  files: allNetworks({
-                   OS.linux: 'sidepot-node-v0.2.1-x86_64-unknown-linux-gnu.zip',
-                   OS.macos: 'sidepot-node-v0.2.1-x86_64-apple-darwin.zip',
-                   OS.windows: 'sidepot-node-v0.2.1-x86_64-pc-windows-gnu.zip',
+                   OS.linux: 'sidepot-node-v0.2.2-x86_64-unknown-linux-gnu.zip',
+                   OS.macos: 'sidepot-node-v0.2.2-x86_64-apple-darwin.zip',
+                   OS.windows: 'sidepot-node-v0.2.2-x86_64-pc-windows-gnu.zip',
                  }),
                ),
                remoteTimestamp: null,
