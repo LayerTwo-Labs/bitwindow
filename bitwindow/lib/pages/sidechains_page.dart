@@ -355,7 +355,7 @@ class SidechainsList extends ViewModelWidget<SidechainsViewModel> {
         titleTooltip: 'List of all active sidechains with accompanying balance, and all empty slots where future sidechains will be added',
         subtitle: viewModel._enforcerRPC.initializingBinary
             ? 'Enforcer is initializing...'
-            : viewModel.localBuildsAvailable
+            : viewModel.canStartSidechains
             ? null
             : 'This platform has no sidechain build.',
         error: viewModel._enforcerRPC.initializingBinary ? null : error,
@@ -702,6 +702,30 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
         padding: _tightCellPadding,
         alignment: Alignment.centerRight,
         textColor: colors.text,
+        child: switch (phone ? viewModel.appRunButton(slot) : null) {
+          final button? => Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Flexible(
+                child: SailText.primary13(
+                  phoneHistoryAmount(sidechain.info.balanceSatoshi.toInt(), formatter.currentUnit),
+                  color: colors.text,
+                  maxLines: 1,
+                ),
+              ),
+              const SizedBox(width: SailStyleValues.padding08),
+              SailButton(
+                label: button.label,
+                variant: ButtonVariant.secondary,
+                small: true,
+                insideTable: true,
+                loading: button.run == null,
+                onPressed: button.run,
+              ),
+            ],
+          ),
+          null => null,
+        },
       ),
       SailTableCell(
         value: yourBalanceText,
@@ -1250,6 +1274,10 @@ class SidechainsViewModel extends BaseViewModel with ChangeTrackingMixin {
 
   bool get localBuildsAvailable => _nodeMode?.localBuildsAvailable ?? true;
 
+  /// True when this device can start a sidechain, from a local build or in the app process.
+  bool get canStartSidechains =>
+      localBuildsAvailable || _binaryProvider.binaries.whereType<Sidechain>().any(_runsInApp);
+
   /// Networks that serve sidechains in light mode.
   List<String> get remoteEnforcerNetworks => _nodeMode?.remoteEnforcerNetworks ?? const [];
 
@@ -1675,6 +1703,26 @@ class SidechainsViewModel extends BaseViewModel with ChangeTrackingMixin {
         child: SailText.primary12('Start ${sidechain.name}'),
       ),
     ];
+  }
+
+  /// The row button of a node that the app runs in its own process: Open when it runs, else Start.
+  /// A null run means the node starts or stops, so the button waits.
+  ({String label, Future<void> Function()? run})? appRunButton(int slot) {
+    final sidechain = sidechainForSlot(slot);
+    if (sidechain == null || !_runsInApp(sidechain)) {
+      return null;
+    }
+    if (_binaryProvider.isConnected(sidechain)) {
+      return _binaryProvider.isStopping(sidechain)
+          ? (label: 'Open', run: null)
+          : (label: 'Open', run: () => openHere(sidechain));
+    }
+    if (_binaryProvider.isStopping(sidechain) ||
+        _binaryProvider.isSidechainUp(sidechain) ||
+        _binaryProvider.isInitializing(sidechain)) {
+      return (label: 'Start', run: null);
+    }
+    return (label: 'Start', run: () => startSidechain(sidechain));
   }
 
   /// True when the sidechain opens inside BitWindow, not in a window of its own.
