@@ -537,12 +537,16 @@ class SailCardEditValues extends StatefulWidget {
   /// Returns an error to show under the fields, or null.
   final FutureOr<String?> Function(List<EditField> updatedFields) onSave;
 
+  /// Label of the button that calls [onSave].
+  final String saveLabel;
+
   const SailCardEditValues({
     super.key,
     required this.title,
     required this.subtitle,
     required this.fields,
     required this.onSave,
+    this.saveLabel = 'Save changes',
   });
 
   @override
@@ -609,7 +613,7 @@ class _SailCardEditValuesState extends State<SailCardEditValues> {
           Align(
             alignment: Alignment.centerRight,
             child: SailButton(
-              label: 'Save changes',
+              label: widget.saveLabel,
               onPressed: () async {
                 final updatedFields = List<EditField>.generate(
                   widget.fields.length,

@@ -752,6 +752,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
           fields: [
             EditField(name: 'Target fee rate (${activeTicker.feeRate})', currentValue: ''),
           ],
+          saveLabel: 'Accelerate',
           onSave: (updatedFields) async {
             final raw = updatedFields
                 .firstWhere((f) => f.name == 'Target fee rate (${activeTicker.feeRate})')

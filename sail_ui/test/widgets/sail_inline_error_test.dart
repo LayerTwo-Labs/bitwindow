@@ -70,6 +70,23 @@ void main() {
       expect(find.byType(SailInlineError), findsNothing);
     });
 
+    testWidgets('the save button shows saveLabel', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          SailCardEditValues(
+            title: 'Accelerate (CPFP)',
+            subtitle: '',
+            fields: [EditField(name: 'Rate', currentValue: '')],
+            saveLabel: 'Accelerate',
+            onSave: (_) async => null,
+          ),
+        ),
+      );
+
+      expect(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Accelerate'), findsOneWidget);
+      expect(find.text('Save changes'), findsNothing);
+    });
+
     testWidgets('a save with no error shows nothing', (tester) async {
       await tester.pumpWidget(editCard((_) async => null));
 

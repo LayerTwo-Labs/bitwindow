@@ -81,7 +81,7 @@ void main() {
     await GetIt.I.reset();
   });
 
-  testWidgets('a broadcast child closes the CPFP dialog and refreshes the list', (tester) async {
+  testWidgets('the Accelerate button broadcasts a child, closes the dialog and refreshes the list', (tester) async {
     final model = OverviewViewModel();
     final tx = walletpb.WalletTransaction(txid: _parent);
     await tester.pumpSailPage(
@@ -99,7 +99,7 @@ void main() {
       find.descendant(of: find.byType(SailCardEditValues), matching: find.byType(EditableText)),
       '10',
     );
-    await tester.tap(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Save changes'));
+    await tester.tap(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Accelerate'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
