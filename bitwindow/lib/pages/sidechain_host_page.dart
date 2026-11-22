@@ -279,6 +279,7 @@ class HostedChainHeader extends StatelessWidget {
               builder: (context) => SailButton(
                 variant: ButtonVariant.icon,
                 icon: SailSVGAsset.ellipsisVertical,
+                iconHeight: 16,
                 onPressed: () => _showChainMenu(context),
               ),
             ),
