@@ -63,6 +63,17 @@ void _openMining(String subtab) {
   MiningPage.openSubtab(subtab);
 }
 
+/// The top tab router. Only the nav changes the tab, not a swipe.
+AutoTabsRouter rootTabsRouter({Key? key, required List<PageRouteInfo> routes, required AutoTabsTabBarBuilder builder}) {
+  return AutoTabsRouter.tabBar(
+    key: key,
+    duration: Duration.zero,
+    physics: const NeverScrollableScrollPhysics(),
+    routes: routes,
+    builder: builder,
+  );
+}
+
 @RoutePage()
 class RootPage extends StatefulWidget {
   const RootPage({super.key});
@@ -964,9 +975,8 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
           ],
           child: KeyedSubtree(
             key: ValueKey('router_${_confProvider.drivechainFeaturesAvailable}'),
-            child: AutoTabsRouter.tabBar(
+            child: rootTabsRouter(
               key: _routerKey,
-              duration: const Duration(milliseconds: 0),
               routes: [for (final t in _navTabs) t.route],
               builder: (context, child, controller) {
                 final theme = SailTheme.of(context);
