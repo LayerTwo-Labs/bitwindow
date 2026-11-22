@@ -532,8 +532,9 @@ void main() {
       GetIt.I.registerSingleton<BalanceProvider>(balance);
       GetIt.I.registerSingleton<PriceProvider>(_Price());
       GetIt.I.registerSingleton<UpdateProvider>(_Update());
-      await tester.binding.setSurfaceSize(const Size(1600, 400));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.view.physicalSize = const Size(1600, 400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
       await tester.pumpWidget(
         MaterialApp(

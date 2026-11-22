@@ -136,6 +136,7 @@ class BottomNav extends StatelessWidget {
               fireOnViewModelReadyOnce: true,
               builder: ((context, model, child) {
                 final compact = SailStyleValues.compactBars(context);
+                final allConnected = model.connectionStatus == 'All binaries connected';
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -188,27 +189,29 @@ class BottomNav extends StatelessWidget {
                                     : SailTheme.of(context).colors.primary,
                               ),
                             ),
-                            const SizedBox(width: SailStyleValues.padding08),
-                            ConstrainedBox(
-                              constraints: BoxConstraints(maxWidth: compact ? 140 : 200),
-                              child: statusOverride != null
-                                  ? SailText.primary12(
-                                      statusOverride!.label,
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    )
-                                  : model.connectionStatus == 'All binaries connected'
-                                  ? SailText.secondary12(
-                                      model.connectionStatus,
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    )
-                                  : SailText.primary12(
-                                      model.connectionStatus,
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                            ),
+                            if (statusOverride != null || !compact || !allConnected) ...[
+                              const SizedBox(width: SailStyleValues.padding08),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: compact ? 140 : 200),
+                                child: statusOverride != null
+                                    ? SailText.primary12(
+                                        statusOverride!.label,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      )
+                                    : allConnected
+                                    ? SailText.secondary12(
+                                        model.connectionStatus,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      )
+                                    : SailText.primary12(
+                                        model.connectionStatus,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -892,6 +895,8 @@ class BalanceDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = SailStyleValues.compactBars(context);
+    final usd = usdBalance == null ? null : formatUsd(usdBalance!);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
@@ -899,7 +904,7 @@ class BalanceDisplay extends StatelessWidget {
         child: SailRow(
           children: [
             Tooltip(
-              message: 'Confirmed balance',
+              message: compact && usd != null ? 'Confirmed balance ($usd)' : 'Confirmed balance',
               child: SailRow(
                 spacing: SailStyleValues.padding08,
                 children: [
@@ -913,7 +918,7 @@ class BalanceDisplay extends StatelessWidget {
                     description: 'Syncing wallet..',
                     enabled: balanceSyncing,
                     child: SailText.secondary12(
-                      '${formatBitcoin(balance)} ${usdBalance != null ? '(${formatUsd(usdBalance!)})' : ''}',
+                      compact || usd == null ? formatBitcoin(balance) : '${formatBitcoin(balance)} ($usd)',
                     ),
                   ),
                 ],
@@ -941,17 +946,23 @@ class BalanceDisplay extends StatelessWidget {
               ),
             if (maturingBalance > 0) ...[
               const DividerDot(),
-              SailRow(
-                spacing: SailStyleValues.padding08,
-                children: [
-                  SailSVG.icon(
-                    SailSVGAsset.hourglass,
-                    color: SailColorScheme.orange,
-                    width: SailStyleValues.iconSizeSecondary,
-                    height: SailStyleValues.iconSizeSecondary,
-                  ),
-                  SailText.secondary12('${formatBitcoin(maturingBalance)} maturing', color: SailColorScheme.orange),
-                ],
+              Tooltip(
+                message: 'Maturing balance',
+                child: SailRow(
+                  spacing: SailStyleValues.padding08,
+                  children: [
+                    SailSVG.icon(
+                      SailSVGAsset.hourglass,
+                      color: SailColorScheme.orange,
+                      width: SailStyleValues.iconSizeSecondary,
+                      height: SailStyleValues.iconSizeSecondary,
+                    ),
+                    SailText.secondary12(
+                      compact ? formatBitcoin(maturingBalance) : '${formatBitcoin(maturingBalance)} maturing',
+                      color: SailColorScheme.orange,
+                    ),
+                  ],
+                ),
               ),
             ],
           ],

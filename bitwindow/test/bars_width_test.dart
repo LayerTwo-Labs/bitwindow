@@ -305,6 +305,27 @@ void main() {
     expect(find.byTooltip('Syncing mainchain blocks'), findsOneWidget);
   });
 
+  testWidgets('the status bar fits a 1024 px window with a synced node and every balance', (tester) async {
+    final lastBlockAt = Timestamp.fromDateTime(DateTime.now().subtract(const Duration(minutes: 59)));
+    sync.mainchainSyncInfo = SyncInfo(progressCurrent: 102, progressGoal: 102, lastBlockAt: lastBlockAt);
+    sync.enforcerSyncInfo = SyncInfo(progressCurrent: 102, progressGoal: 102, lastBlockAt: lastBlockAt);
+    sync.bitwindowdSyncInfo = SyncInfo(progressCurrent: 102, progressGoal: 102, lastBlockAt: lastBlockAt);
+    final balance = GetIt.I.get<BalanceProvider>() as _Balance;
+    balance.balance = 100;
+    balance.maturingBalance = 4950;
+    balance.pendingBalance = 12.3456789;
+
+    await pumpBars(tester, 1024);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('102 blocks'), findsOneWidget);
+    expect(find.text('All binaries connected'), findsNothing);
+    expect(find.byTooltip('All binaries connected'), findsOneWidget);
+    expect(find.byTooltip('Maturing balance'), findsOneWidget);
+    expect(find.byTooltip('Confirmed balance (\$10 000 000)'), findsOneWidget);
+    expect(tester.getTopRight(find.byType(ResetButton)).dx, lessThanOrEqualTo(1024));
+  });
+
   testWidgets('a 1280 px window shows the full last block label', (tester) async {
     await pumpBars(tester, 1280);
 
