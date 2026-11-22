@@ -56,6 +56,7 @@ class _SidepotBmmNoteState extends State<SidepotBmmNote> {
   Timer? _timer;
   bool _reading = false;
   int? _poolSats;
+  int _feesSats = 0;
   String? _account;
 
   @override
@@ -79,6 +80,8 @@ class _SidepotBmmNoteState extends State<SidepotBmmNote> {
     try {
       final game = await _rpc.callRAW('game_state');
       final account = await _rpc.callRAW('game_my_account');
+      // What the transactions waiting on the sidechain pay the block's producer.
+      final template = await _rpc.callRAW('get_block_template');
       if (!mounted) {
         return;
       }
@@ -87,6 +90,7 @@ class _SidepotBmmNoteState extends State<SidepotBmmNote> {
       setState(() {
         _poolSats = now is Map ? (now['bonus_pool_sats'] as num?)?.toInt() : null;
         _account = account is Map ? account['key'] as String? : null;
+        _feesSats = template is Map ? (template['fees_sats'] as num?)?.toInt() ?? 0 : 0;
       });
     } catch (_) {
       if (mounted) {
@@ -103,7 +107,8 @@ class _SidepotBmmNoteState extends State<SidepotBmmNote> {
     final pool = _poolSats;
     final cap = bonusCapSats(pool ?? 0);
     final opening = bonusOpeningBidSats(cap);
-    final profit = cap - opening;
+    final worth = cap + _feesSats;
+    final profit = worth - opening;
     final account = _account;
 
     String sats(int value) => pool == null ? '—' : '${_grouped(value)} sats';
@@ -114,11 +119,13 @@ class _SidepotBmmNoteState extends State<SidepotBmmNote> {
     } else if (profit > 0) {
       advice =
           'Auto-bidding opens at ${_grouped(opening)} sats, the smallest bid that earns the whole bonus, and raises '
-          'against other bidders up to your max bid. Above ${_grouped(cap)} sats a won block costs more than it pays.';
+          'against other bidders up to your max bid. Above ${_grouped(worth)} sats a won block costs more than it '
+          'pays.';
     } else {
       advice =
-          'The bonus on offer does not cover the ${_grouped(opening)} sat bid it takes, so auto-bidding waits. '
-          'The bonus pool grows as keys are bought.';
+          'Auto-bidding is waiting and places no bid: the next block is worth ${_grouped(worth)} sats, under the '
+          '${_grouped(opening)} sat bid it takes. Current slot stays empty until that changes. The bonus pool grows '
+          'as keys are bought.';
     }
 
     return Container(
@@ -139,6 +146,7 @@ class _SidepotBmmNoteState extends State<SidepotBmmNote> {
             children: [
               _figure('Bonus pool', sats(pool ?? 0)),
               _figure('Bonus for the next block', sats(cap)),
+              _figure('Fees in the next block', sats(_feesSats)),
               _figure('Bid that earns it', sats(opening)),
               _figure('Profit if won', pool == null || profit <= 0 ? '—' : sats(profit)),
             ],
