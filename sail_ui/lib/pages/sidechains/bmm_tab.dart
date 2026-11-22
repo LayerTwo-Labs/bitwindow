@@ -169,7 +169,10 @@ class BMMTab extends StatelessWidget {
   /// The engine the tab drives. The engine of the open sidechain when null.
   final BMMProvider? provider;
 
-  const BMMTab({super.key, this.provider});
+  /// What the open chain says about bidding on it, shown above the controls.
+  final Widget? note;
+
+  const BMMTab({super.key, this.provider, this.note});
 
   @override
   Widget build(BuildContext context) {
@@ -186,6 +189,7 @@ class BMMTab extends StatelessWidget {
               spacing: SailStyleValues.padding16,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                ?note,
                 _Controls(viewModel: viewModel),
                 _CurrentSlot(viewModel: viewModel),
                 _BidsOnNextBlock(viewModel: viewModel),
@@ -290,7 +294,7 @@ class _Controls extends StatelessWidget {
                 SailTextField(controller: controller, hintText: 'Bid in sats'),
                 if (worth > 0)
                   SailText.secondary12(
-                    'This block collects $worth sats in fees. A bid above that loses money.',
+                    'This block is worth $worth sats. A bid above that loses money.',
                     color: theme.colors.orange,
                   ),
               ],

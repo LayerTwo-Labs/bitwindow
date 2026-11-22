@@ -4,6 +4,7 @@ package sidepot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -29,6 +30,65 @@ type Node struct {
 	*sidechain.JSONRPCProxy
 	seedPeer string
 	network  string
+}
+
+// The block bonus rules (spec section 6, sidepot-core's default parameters).
+// The L1 block that accepts a Sidepot block pays its producer a bonus out of
+// the bonus pool: bonusBidMultiple times the bid, at most bonusPoolBps of the
+// pool, and nothing for a bid under bonusMinBidSats.
+const (
+	bonusPoolBps     = 500
+	bonusBidMultiple = 2
+	bonusMinBidSats  = 10_000
+)
+
+// bonusCapSats is the most a block can earn from a bonus pool.
+func bonusCapSats(poolSats int64) int64 {
+	if poolSats <= 0 {
+		return 0
+	}
+	return poolSats * bonusPoolBps / 10_000
+}
+
+// openingBidSats is the smallest bid that earns the whole bonus cap: half the
+// cap, and never under the minimum a bid needs to earn anything.
+func openingBidSats(capSats int64) int64 {
+	return max(bonusMinBidSats, (capSats+bonusBidMultiple-1)/bonusBidMultiple)
+}
+
+// GetBlockTemplate adds the block bonus to what the block is worth, and names
+// the bid that earns it. The pool is read as of the latest mainchain block; the
+// bonus is paid when a later Sidepot block settles the block that took the bid.
+func (n *Node) GetBlockTemplate(ctx context.Context) (*sidechain.BlockTemplate, error) {
+	template, err := n.JSONRPCProxy.GetBlockTemplate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := n.CallRaw(ctx, "game_state", nil)
+	if err != nil {
+		return nil, fmt.Errorf("read the game: %w", err)
+	}
+	// The game is null until it starts.
+	var game *struct {
+		BonusPoolSats int64 `json:"bonus_pool_sats"`
+		Preview       *struct {
+			BonusPoolSats int64 `json:"bonus_pool_sats"`
+		} `json:"preview"`
+	}
+	if err := json.Unmarshal(raw, &game); err != nil {
+		return nil, fmt.Errorf("decode the game: %w", err)
+	}
+	pool := int64(0)
+	if game != nil {
+		pool = game.BonusPoolSats
+		if game.Preview != nil {
+			pool = game.Preview.BonusPoolSats
+		}
+	}
+	bonus := bonusCapSats(pool)
+	template.FeesSats += bonus
+	template.OpeningBidSats = openingBidSats(bonus)
+	return template, nil
 }
 
 // NewNode wraps the node's JSON-RPC proxy. network is the node's own name for

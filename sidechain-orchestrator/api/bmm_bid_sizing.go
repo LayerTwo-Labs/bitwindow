@@ -22,7 +22,9 @@ func checkBidInput(bidSats int64, rateSatVb float64) error {
 }
 
 type bidInput struct {
-	bidSats         int64
+	bidSats int64
+	// openingSats is what the chain asks an opening bid to pay, zero for none.
+	openingSats     int64
 	rateSatVb       float64
 	blockWorthSats  int64
 	maxBidSats      int64
@@ -35,6 +37,9 @@ func bidSizing(in bidInput) (sats int64, byRate bool) {
 	sats = in.bidSats
 	capped := in.capToBlockWorth && in.blockWorthSats > 0
 
+	if sats <= 0 && in.openingSats > 0 {
+		sats = in.openingSats
+	}
 	if sats <= 0 && (capped || in.maxBidSats > 0) {
 		sats = int64(math.Ceil(in.rateSatVb * nominalBidVsize))
 	}
@@ -45,6 +50,24 @@ func bidSizing(in bidInput) (sats int64, byRate bool) {
 		sats = in.maxBidSats
 	}
 	return sats, sats <= 0 && in.rateSatVb > 0
+}
+
+// openingRefusal says why an opening bid is not worth placing on a chain that
+// names its own, nil when it is. Such a chain pays its block reward by the bid,
+// so a bid under openingSats earns nothing: a block worth no more than that
+// bid, or a ceiling under it, leaves nothing to win.
+func openingRefusal(blockWorthSats, openingSats, maxBidSats int64) error {
+	if openingSats <= 0 {
+		return nil
+	}
+	if blockWorthSats <= openingSats {
+		return fmt.Errorf("nothing to win on this block: it is worth %d sats and takes a %d sat bid to earn that",
+			blockWorthSats, openingSats)
+	}
+	if maxBidSats > 0 && openingSats > maxBidSats {
+		return fmt.Errorf("this block takes a %d sat bid, over the %d sat max bid", openingSats, maxBidSats)
+	}
+	return nil
 }
 
 // bidCeiling is the most a bid may pay, zero for no limit.

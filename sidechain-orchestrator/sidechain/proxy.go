@@ -13,6 +13,11 @@ type BlockTemplate struct {
 	CriticalHash string          `json:"critical_hash"`
 	Block        json.RawMessage `json:"block"`
 	FeesSats     int64           `json:"fees_sats"`
+
+	// OpeningBidSats is what an opening bid has to pay for the block to earn
+	// what FeesSats says, on a chain whose block reward depends on the bid.
+	// Zero leaves the opening bid to the engine, which sizes it by fee rate.
+	OpeningBidSats int64 `json:"-"`
 }
 
 // ErrNotReady is what a node answers when it cannot build on the current
