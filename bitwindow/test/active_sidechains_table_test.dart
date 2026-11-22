@@ -109,4 +109,31 @@ void main() {
     final dialog = tester.widget<TransactionDetailsDialog>(find.byType(TransactionDetailsDialog));
     expect(dialog.txid, 'tx9');
   });
+
+  testWidgets('a double tap on a sidechain with no chaintip opens nothing', (tester) async {
+    await pumpTable(tester, [_sidechain(30, 'Chain D', chaintipTxid: '')]);
+
+    await tester.tap(find.text('Chain D'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Chain D'));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(TransactionDetailsDialog), findsNothing);
+  });
+
+  testWidgets('the menu of a sidechain with no chaintip has no chaintip item', (tester) async {
+    await pumpTable(tester, [_sidechain(30, 'Chain D', chaintipTxid: ''), _sidechain(9, 'Chain B')]);
+
+    await tester.tap(find.text('Chain D'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Copy value'), findsOneWidget);
+    expect(tester.getSize(find.byType(SailMenu)).width, greaterThan(100));
+    expect(find.text('Show Chaintip Transaction'), findsNothing);
+
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Chain B'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Show Chaintip Transaction'), findsOneWidget);
+  });
 }
