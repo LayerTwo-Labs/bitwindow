@@ -143,6 +143,8 @@ for port in 30301 30400 18443; do
 done
 [[ "$("$SCRIPT" env)" == *"export BITWINDOW_PORT_OFFSET=7000"* ]] ||
     fail "env does not export BITWINDOW_PORT_OFFSET"
+[[ "$("$SCRIPT" env)" == *"ORCHESTRATOR_NETWORK=regtest"* ]] ||
+    fail "env does not pin the network to regtest"
 [[ "$(env -u BITWINDOW_PORT_OFFSET "$SCRIPT" env)" == *BITWINDOW_PORT_OFFSET* ]] &&
     fail "env exports an offset that is not set"
 for bad in abc -1 7501 08; do

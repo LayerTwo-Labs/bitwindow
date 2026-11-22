@@ -16,7 +16,7 @@ Usage: scripts/regtest.sh <command> [args]
   snapshots          List the saved states.
   cli <args>         Run bitcoin-cli against the regtest node.
   mine [n] [addr]    Mine n blocks (default 1) to addr (default: an anyone-can-spend output).
-  env                Print the exports that point `flutter test` at this datadir.
+  env                Print the exports that point `flutter test` at this datadir on regtest.
   log                Follow the app log.
 
 Environment:
@@ -281,7 +281,7 @@ case "$command" in
     mine) cmd_mine "$@" ;;
     env)
         check_datadir
-        printf 'export BITWINDOWD_DATADIR=%q BITWINDOWD_LOG_CONSOLE=1\n' "$D"
+        printf 'export BITWINDOWD_DATADIR=%q BITWINDOWD_LOG_CONSOLE=1 ORCHESTRATOR_NETWORK=regtest\n' "$D"
         if [[ -n "${BITWINDOW_HOME:-}" ]]; then printf 'export BITWINDOW_HOME=%q\n' "$BITWINDOW_HOME"; fi
         if ((offset != 0)); then printf 'export BITWINDOW_PORT_OFFSET=%d\n' "$offset"; fi
         ;;
