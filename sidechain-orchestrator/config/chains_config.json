@@ -1,5 +1,5 @@
 {
-  "version": 32,
+  "version": 33,
   "binaries": {
     "bitcoincore": {
       "type": "core",
@@ -882,7 +882,7 @@
       "type": "sidechain",
       "slot": 88,
       "name": "Sidepot",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Sidepot game sidechain",
       "repo_url": "https://github.com/Coinelius/sidepot-node",
       "port": 6088,
@@ -911,30 +911,30 @@
         "binary": "sidepot-node",
         "files": {
           "default": {
-            "base_url": "https://github.com/Coinelius/sidepot-node/releases/download/sidepot-v0.2.0/",
-            "linux-x86_64": "sidepot-node-v0.2.0-x86_64-unknown-linux-gnu.zip",
-            "macos-x86_64": "sidepot-node-v0.2.0-x86_64-apple-darwin.zip",
-            "macos-arm64": "sidepot-node-v0.2.0-aarch64-apple-darwin.zip",
-            "windows-x86_64": "sidepot-node-v0.2.0-x86_64-pc-windows-gnu.zip"
+            "base_url": "https://github.com/Coinelius/sidepot-node/releases/download/sidepot-v0.2.1/",
+            "linux-x86_64": "sidepot-node-v0.2.1-x86_64-unknown-linux-gnu.zip",
+            "macos-x86_64": "sidepot-node-v0.2.1-x86_64-apple-darwin.zip",
+            "macos-arm64": "sidepot-node-v0.2.1-aarch64-apple-darwin.zip",
+            "windows-x86_64": "sidepot-node-v0.2.1-x86_64-pc-windows-gnu.zip"
           }
         }
       },
       "artifact_pins": {
         "linux-x86_64": {
-          "archive_sha256": "18d228c9f4e07aad226068267be3332d203942b4bed769593e86506de1d207a5",
-          "executable_sha256": "1e9dd8761bdbb0767695d1de7d9cbab6b0ff739fa0eeaba0f9de9f0042216d34"
+          "archive_sha256": "0a5c6353f44ae062ab481b5253f954b1f9759047ce8ba7406d91e6562e364195",
+          "executable_sha256": "61f5d1133910b1daea2c10415159781394b458911e49c976ee6f0e2e8a121f4c"
         },
         "macos-x86_64": {
-          "archive_sha256": "66bd2856623ba5bc83ae25f7a5a8a7d6b6c3c8692346de287a203f1c3cdbc131",
-          "executable_sha256": "1ea1d2410527bf1a670caef35149b0f61566443c368ebf0d4e8e5ec58f8c798d"
+          "archive_sha256": "cb07cf9376c2a97f6a5b95ab260201db7d26f25ff047d591d68a99b2e3ee7685",
+          "executable_sha256": "88997a7c47a37bbcd9df0c23d3bd072418de67bd76c022975a966de37b795482"
         },
         "macos-arm64": {
-          "archive_sha256": "43899f2b32fa5e36a28b2086aa937a4e34eb759baeff64f8a77ad721e74ba7de",
-          "executable_sha256": "e2d42ab9aa5d5c8a000b4f4fc98d0fefe321ee82fee97d2a83f6de5628d00238"
+          "archive_sha256": "70288bcd8c68c985870f854207845229a46aea65f4622ac4d2dbe71a02f89c3f",
+          "executable_sha256": "c731ce4f8d4366e3393cf29d22a76da8b44c1d24dd6dcd61bcc669436a2d3389"
         },
         "windows-x86_64": {
-          "archive_sha256": "42c8f41b560180f761c2dfa7e88cc763a52ad42316631bc1670eb79409c7d7bb",
-          "executable_sha256": "795973f7ccbdbb26883b5d30f828af4642772cea5d5b2c28a238309e8d6d9fcb"
+          "archive_sha256": "b0b277563075569c29193cd72caa6aa65cd56f67ff5cd577ea27a2f63c33fef8",
+          "executable_sha256": "66eb75ff5b56e21066b4626c2e5661aa805993b4bb29067b617de86b03545b6c"
         }
       },
       "hashes": {}
