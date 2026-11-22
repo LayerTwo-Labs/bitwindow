@@ -2,8 +2,11 @@ package deniability
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
@@ -25,6 +28,7 @@ type Denial struct {
 	TipTXID         string        `db:"tip_txid"`
 	TipVout         int32         `db:"tip_vout"`
 	DelayDuration   time.Duration `db:"delay_duration"`
+	DelaySeed       int64         `db:"delay_seed"`
 	NumHops         int32         `db:"num_hops"`
 	TargetUTXOSizes TargetSizes   `db:"target_utxo_sizes"`
 	CreatedAt       time.Time     `db:"created_at"`
@@ -95,18 +99,24 @@ func (t TargetSizes) Value() (driver.Value, error) {
 }
 
 func Create(ctx context.Context, db *sql.DB, walletID string, txid string, vout int32, delayDuration time.Duration, numHops int32, targetUTXOSizes []int64) (Denial, error) {
+	var seed [8]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return Denial{}, fmt.Errorf("read delay seed: %w", err)
+	}
+
 	id, err := database.Get[int64](ctx, db, `
 		INSERT INTO denials (
 			wallet_id,
 			initial_txid,
 			initial_vout,
 			delay_duration,
+			delay_seed,
 			num_hops,
 			target_utxo_sizes,
 			created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id
-	`, walletID, txid, vout, delayDuration, numHops, TargetSizes(targetUTXOSizes), time.Now())
+	`, walletID, txid, vout, delayDuration, int64(binary.BigEndian.Uint64(seed[:])), numHops, TargetSizes(targetUTXOSizes), time.Now())
 	if err != nil {
 		return Denial{}, err
 	}
@@ -140,6 +150,7 @@ var selectDenial = sq.
 		"d.id",
 		"d.wallet_id",
 		"d.delay_duration",
+		"d.delay_seed",
 		"d.num_hops",
 		"d.target_utxo_sizes",
 		"d.created_at",
@@ -268,51 +279,37 @@ func Resume(ctx context.Context, db *sql.DB, id int64) error {
 // nextExecution calculates when the next execution should occur for a deniability plan
 // Returns nil if all hops have been completed
 func nextExecution(denial Denial, executions []ExecutedDenial) *time.Time {
-	lastExecution := lastExecution(denial, executions)
-
-	if lastExecution == nil {
+	if denial.CancelledAt != nil || denial.PausedAt != nil {
 		return nil
 	}
 
-	// Calculate next execution time
-	next := lastExecution.Add(denial.DelayDuration)
+	hops := lo.UniqBy(executions, func(execution ExecutedDenial) string {
+		return execution.ToTxID
+	})
+	if int32(len(hops)) >= denial.NumHops {
+		return nil
+	}
+
+	last := denial.CreatedAt
+	if len(executions) > 0 {
+		last = lo.MaxBy(executions, func(a, b ExecutedDenial) bool {
+			return a.CreatedAt.After(b.CreatedAt)
+		}).CreatedAt
+	}
+
+	next := last.Add(hopDelay(denial, len(hops)))
 	return &next
 }
 
-// lastExecution returns the time that the next hop delay starts from, or nil
-// when the plan is cancelled, paused or done.
-func lastExecution(denial Denial, executions []ExecutedDenial) *time.Time {
-
-	if denial.CancelledAt != nil {
-		// If cancelled, next hop is never
-		return nil
-	}
-
-	if denial.PausedAt != nil {
-		// If paused, next hop is never
-		return nil
-	}
-
-	executionCount := lo.UniqBy(executions, func(execution ExecutedDenial) string {
-		return execution.ToTxID
-	})
-
-	// If we've done all hops, next hop is never
-	if int32(len(executionCount)) >= denial.NumHops {
-		return nil
-	}
-
-	if len(executionCount) == 0 {
-		// no executions whatsoever!
-		return &denial.CreatedAt
-	}
-
-	// Find the latest execution from the executions array
-	latestExecution := lo.MaxBy(executions, func(a, b ExecutedDenial) bool {
-		return a.CreatedAt.After(b.CreatedAt)
-	})
-
-	return &latestExecution.CreatedAt
+// hopDelay is the delay before a hop: a whole number of seconds in
+// (0, DelayDuration], the same on each call for one seed and hop.
+func hopDelay(denial Denial, hop int) time.Duration {
+	var buf [16]byte
+	binary.BigEndian.PutUint64(buf[:8], uint64(denial.DelaySeed))
+	binary.BigEndian.PutUint64(buf[8:], uint64(hop))
+	sum := sha256.Sum256(buf[:])
+	seconds := max(uint64(denial.DelayDuration/time.Second), 1)
+	return time.Duration(1+binary.BigEndian.Uint64(sum[:8])%seconds) * time.Second
 }
 
 func GetByTip(ctx context.Context, db *sql.DB, tipTxID string, tipVout *int32) (*Denial, error) {

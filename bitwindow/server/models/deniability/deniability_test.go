@@ -218,8 +218,14 @@ func TestDeniability(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, denial)
 
-		// Test next execution before any executions
-		require.Equal(t, denial.CreatedAt.Add(delayDuration), *denial.NextExecution)
+		delay := denial.NextExecution.Sub(denial.CreatedAt)
+		require.Greater(t, delay, time.Duration(0))
+		require.LessOrEqual(t, delay, delayDuration)
+		require.Zero(t, delay%time.Second)
+
+		again, err := Get(ctx, db, denial.ID)
+		require.NoError(t, err)
+		require.Equal(t, *denial.NextExecution, *again.NextExecution)
 
 		// Record an execution
 		err = RecordExecution(ctx, db, denial.ID, "from-txid", 0, "to-txid", uint32(0))
@@ -230,6 +236,19 @@ func TestDeniability(t *testing.T) {
 		require.NotNil(t, denial)
 		// Test next execution after one execution
 		require.True(t, denial.NextExecution.After(time.Now()))
+	})
+
+	t.Run("NextExecution has a random delay per denial", func(t *testing.T) {
+		t.Parallel()
+		db := database.Test(t)
+
+		delays := map[time.Duration]bool{}
+		for range 5 {
+			denial, err := Create(ctx, db, "test-wallet", gofakeit.UUID(), 0, time.Hour, 3, nil)
+			require.NoError(t, err)
+			delays[denial.NextExecution.Sub(denial.CreatedAt)] = true
+		}
+		require.Greater(t, len(delays), 1)
 	})
 
 	t.Run("GetByTip", func(t *testing.T) {

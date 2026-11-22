@@ -24,6 +24,9 @@ func runMigrations(ctx context.Context, db *sql.DB) error {
 	if err := addChequeKeyVersions(ctx, db); err != nil {
 		return err
 	}
+	if err := addDenialDelaySeed(ctx, db); err != nil {
+		return err
+	}
 
 	log := zerolog.Ctx(ctx)
 	if len(applied) == 0 {
