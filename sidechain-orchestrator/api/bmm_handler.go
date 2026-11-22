@@ -340,8 +340,36 @@ func (h *BMMHandler) state(ctx context.Context, sidechain pb.BinaryType) (*bmmpb
 	}
 	if current := h.engine.Current(sidechain); current != nil {
 		out.Current = roundToProto(*current)
+	} else if watched := h.watchedRound(ctx, sidechain); watched != nil {
+		out.Current = watched
 	}
 	return out, nil
+}
+
+// watchedRound is the round on the mainchain tip as an install sees it with no
+// bid of its own in play: the tip and the bids of everyone else. The engine
+// keeps a round only while it bids, and an operator deciding whether to bid
+// needs to see who already does. Nil when the tip or the bids cannot be read.
+func (h *BMMHandler) watchedRound(ctx context.Context, sidechain pb.BinaryType) *bmmpb.Round {
+	cfg, err := h.sidechainConfig(sidechain)
+	if err != nil || h.orch == nil {
+		return nil
+	}
+	tip, height, err := h.orch.ChainTip(ctx)
+	if err != nil || tip == "" {
+		return nil
+	}
+	rivals, err := h.bids().Rivals(ctx, cfg.Slot, tip)
+	if err != nil {
+		zerolog.Ctx(ctx).Debug().Err(err).Msg("read the bids on the mainchain tip")
+		return nil
+	}
+	return &bmmpb.Round{
+		PrevMainHash:   tip,
+		PrevMainHeight: height,
+		Result:         engines.ResultOpen,
+		OtherBids:      rivals,
+	}
 }
 
 func (h *BMMHandler) GetRoundBids(
