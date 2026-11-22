@@ -417,6 +417,68 @@ void main() {
       expect(openedHere.map((chain) => chain.name), ['Thunder']);
     });
 
+    void hostThunder() => GetIt.I.registerSingleton<AppRunHost>(
+      AppRunHost(
+        {'thunder': _NoRunner()},
+        reportExit: (_, _) async {},
+        log: Logger(level: Level.off),
+      ),
+    );
+
+    testWidgets('a Start button on the row starts the node and opens the chain', (tester) async {
+      hostThunder();
+      setUpChain(_thunder(downloaded: false));
+      await pumpTable(tester);
+      await tester.usePhoneSize();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(SailButton, 'Start'));
+      // The row waits for a double tap before the button gets the tap.
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(orchestrator.starts, [('thunder', true)]);
+      expect(openedHere.map((chain) => chain.name), ['Thunder']);
+    });
+
+    testWidgets('an Open button on the row of a running node opens the chain', (tester) async {
+      hostThunder();
+      setUpChain(_thunder(downloaded: false));
+      thunderRPC.setConnected(true);
+      await pumpTable(tester);
+      await tester.usePhoneSize();
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(SailButton, 'Start'), findsNothing);
+      await tester.tap(find.widgetWithText(SailButton, 'Open'));
+      // The row waits for a double tap before the button gets the tap.
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(orchestrator.starts, isEmpty);
+      expect(openedHere.map((chain) => chain.name), ['Thunder']);
+    });
+
+    testWidgets('a chain that the app runs hides the no-build line', (tester) async {
+      GetIt.I.registerSingleton<NodeModeProvider>(NodeModeProvider()..localBuildsAvailable = false);
+      addTearDown(() => GetIt.I.unregister<NodeModeProvider>());
+      hostThunder();
+      setUpChain(_thunder(downloaded: false));
+      await pumpTable(tester);
+
+      expect(find.text('This platform has no sidechain build.'), findsNothing);
+    });
+
+    testWidgets('a phone with no chain to start keeps the no-build line', (tester) async {
+      GetIt.I.registerSingleton<NodeModeProvider>(NodeModeProvider()..localBuildsAvailable = false);
+      addTearDown(() => GetIt.I.unregister<NodeModeProvider>());
+      setUpChain(_thunder(downloaded: false));
+      await pumpTable(tester);
+
+      expect(find.text('This platform has no sidechain build.'), findsOneWidget);
+      expect(find.widgetWithText(SailButton, 'Start'), findsNothing);
+    });
+
     testWidgets('the row menu has no start for a chain that the app does not run', (tester) async {
       setUpChain(_thunder(downloaded: false));
       await pumpTable(tester);
