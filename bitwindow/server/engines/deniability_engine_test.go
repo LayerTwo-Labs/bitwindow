@@ -312,8 +312,14 @@ func TestDeniabilityEngine(t *testing.T) {
 		assert.Equal(t, int32(2), execution.FromVout)
 		assert.Equal(t, "new-txid", execution.ToTxID)
 		require.NotNil(t, denial.NextExecution)
-		assert.Equal(t, execution.CreatedAt.Add(denial.DelayDuration), *denial.NextExecution)
-		require.True(t, denial.NextExecution.After(time.Now()))
+		assert.True(t, denial.NextExecution.After(execution.CreatedAt))
+		assert.False(t, denial.NextExecution.After(execution.CreatedAt.Add(denial.DelayDuration)))
+
+		_, err = db.ExecContext(ctx, `UPDATE executed_denials SET created_at = ? WHERE denial_id = ?`, time.Now().Add(time.Hour), denial.ID)
+		require.NoError(t, err)
+		denial, err = deniability.Get(ctx, db, denial.ID)
+		require.NoError(t, err)
+		require.True(t, denial.NextExecution.After(time.Now().Add(time.Hour)))
 
 		runCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 		defer cancel()
