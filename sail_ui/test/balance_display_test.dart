@@ -9,9 +9,11 @@ Future<void> pumpBalance(
   required bool showUnconfirmed,
   double maturingBalance = 0,
   double? usdBalance,
+  double width = 1400,
 }) async {
-  await tester.binding.setSurfaceSize(const Size(1400, 400));
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  tester.view.physicalSize = Size(width, 400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
   await tester.pumpWidget(
     MaterialApp(
       home: SailTheme(
@@ -89,5 +91,24 @@ void main() {
     await pumpBalance(tester, balance: 0.5, pendingBalance: 0, showUnconfirmed: false, usdBalance: 1.3);
 
     expect(find.text('${formatBitcoin(0.5)} (\$1.30)'), findsOneWidget);
+  });
+
+  testWidgets('a window below 1200 px shows the BTC amounts and puts the USD value in the tooltip', (tester) async {
+    await pumpBalance(
+      tester,
+      balance: 0.5,
+      pendingBalance: 0,
+      maturingBalance: 6.25,
+      showUnconfirmed: false,
+      usdBalance: 1.3,
+      width: 1024,
+    );
+
+    expect(find.text(formatBitcoin(0.5)), findsOneWidget);
+    expect(find.text(formatBitcoin(6.25)), findsOneWidget);
+    expect(find.textContaining('\$1.30'), findsNothing);
+    expect(find.textContaining('maturing'), findsNothing);
+    expect(find.byTooltip('Confirmed balance (\$1.30)'), findsOneWidget);
+    expect(find.byTooltip('Maturing balance'), findsOneWidget);
   });
 }
