@@ -188,7 +188,7 @@ class SendTab extends ViewModelWidget<SendPageViewModel> {
   }
 }
 
-const double sendWideLayoutMinWidth = 1000;
+const double sendWideLayoutMinWidth = 1200;
 const double sendSideColumnWidth = 400;
 
 /// The buttons under the send summary. While a transaction builds, the main
@@ -492,6 +492,7 @@ class RecipientRow extends StatelessWidget {
             controller: recipient.addressController,
             hintText: 'Enter a single L1 ${activeTicker.name} address (e.g. 1NS17iag...)',
             size: TextFieldSize.small,
+            minLines: 1,
             maxLines: null,
             suffixWidget: SailRow(
               children: [
