@@ -360,6 +360,21 @@ void main() {
       expect(find.byType(SidechainHostPage), findsNothing);
     });
 
+    testWidgets('the chain menu icon fits its button', (tester) async {
+      final router = await pumpHost(tester);
+      await router.navigate(SidechainsRoute(children: [SidechainHostRoute(chain: 'thunder')]));
+      await tester.pump();
+      await settle(tester);
+
+      final menu = find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.ellipsisVertical);
+      expect(menu, findsOneWidget);
+      expect(tester.getSize(menu).height, lessThanOrEqualTo(40));
+
+      await tester.tap(find.text('All slots'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    });
+
     testWidgets('a chain opens with its tabs, and a switch swaps the chain scope', (tester) async {
       final router = await pumpHost(tester);
       expect(find.text('slot table'), findsOneWidget);
