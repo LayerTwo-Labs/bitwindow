@@ -8,6 +8,8 @@ import 'package:intl/intl.dart' as intl;
 import 'package:sail_ui/sail_ui.dart';
 
 const double defaultMinColumnWidth = 60;
+const double _sortArrowGap = 4;
+const double _sortArrowSize = 10;
 
 class SailTable extends StatefulWidget {
   const SailTable({
@@ -497,7 +499,8 @@ class _SailTableState extends State<SailTable> {
         fontFamily: SailTheme.of(context).chrome.textFamily(),
         fontWeight: SailStyleValues.boldWeight,
       );
-      return _calculateTextWidth(text, textStyle, widget.padding.horizontal);
+      final arrowWidth = widget.sortable ? _sortArrowGap + _sortArrowSize : 0;
+      return _calculateTextWidth(text, textStyle, widget.padding.horizontal) + arrowWidth;
     }
 
     return _calculateTextWidth(text, SailStyleValues.thirteen, 24);
@@ -1122,10 +1125,11 @@ class SailTableHeaderCell extends StatelessWidget {
                     ),
                   ),
                   if (isSorted) ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: _sortArrowGap),
                     SailSVG.fromAsset(
                       isAscending ? SailSVGAsset.arrowUp : SailSVGAsset.arrowDown,
-                      height: 10,
+                      width: _sortArrowSize,
+                      height: _sortArrowSize,
                       color: theme.colors.inactiveNavText,
                     ),
                   ],
