@@ -2383,3 +2383,57 @@ func TestBmmEngineRetriesARefusedFeeRebuildOnlyWhenTheFeesRiseAgain(t *testing.T
 	assert.Equal(t, "txid-1", backend.lastReplace)
 	assert.Equal(t, int64(14_500), engine.Current(testSidechain).BlockWorthSats)
 }
+
+// A bid placed by hand is paid for like any other, so the engine connects the
+// block it wins although it was never started for the sidechain.
+func TestBmmEngineConnectsAManualBid(t *testing.T) {
+	engine, backend, tip, _ := newEngine(t)
+	ctx := context.Background()
+
+	resp, err := engine.ManualBid(ctx, &bmmpb.CreateBidRequest{Sidechain: testSidechain, BidSats: 10_001})
+	require.NoError(t, err)
+	assert.Equal(t, "critical", resp.CriticalHash)
+	assert.Equal(t, int64(10_001), resp.BidSats)
+	assert.Equal(t, "block-1", backend.lastExpectTip)
+
+	current := engine.Current(testSidechain)
+	require.NotNil(t, current, "the tab shows the bid as the round in play")
+	require.Len(t, current.OurBids, 1)
+
+	backend.commitment = "critical"
+	backend.connected = true
+	tip.set("block-2")
+	engine.tick(ctx)
+
+	assert.Equal(t, 1, backend.connects)
+	history, err := engine.History(testSidechain)
+	require.NoError(t, err)
+	won := history[len(history)-1]
+	assert.Equal(t, ResultWon, won.Result)
+	assert.Equal(t, int64(10_001), won.WinnerBidSats)
+}
+
+// A second bid by hand on the same tip raises the first rather than bidding
+// against it.
+func TestBmmEngineManualBidReplacesTheLiveBid(t *testing.T) {
+	engine, backend, _, _ := newEngine(t)
+	ctx := context.Background()
+
+	first, err := engine.ManualBid(ctx, &bmmpb.CreateBidRequest{Sidechain: testSidechain, BidSats: 10_001})
+	require.NoError(t, err)
+	_, err = engine.ManualBid(ctx, &bmmpb.CreateBidRequest{Sidechain: testSidechain, BidSats: 12_000})
+	require.NoError(t, err)
+
+	assert.Equal(t, first.BmmTxid, backend.lastReplace)
+	assert.Len(t, engine.Current(testSidechain).OurBids, 2)
+}
+
+// A refused bid by hand leaves no round behind for the loop to settle.
+func TestBmmEngineDropsARefusedManualBid(t *testing.T) {
+	engine, backend, _, _ := newEngine(t)
+	backend.bidErr = errors.New("no coin")
+
+	_, err := engine.ManualBid(context.Background(), &bmmpb.CreateBidRequest{Sidechain: testSidechain, BidSats: 10_001})
+	require.Error(t, err)
+	assert.Nil(t, engine.Current(testSidechain))
+}
