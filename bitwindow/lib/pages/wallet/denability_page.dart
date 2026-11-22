@@ -292,10 +292,11 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
                           ? formatDate(utxo.denialInfo.nextExecutionTime.toDateTime())
                           : null,
                     ),
-                    SailTooltip(
-                      message: utxo.denialInfo.cancelReason,
-                      child: SailTableCell(
-                        value: status,
+                    SailTableCell(
+                      value: status,
+                      child: SailTooltip(
+                        message: utxo.denialInfo.cancelReason,
+                        child: SailText.primary13(status),
                       ),
                     ),
                     SailTableCell(
