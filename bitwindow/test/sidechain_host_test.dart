@@ -99,12 +99,7 @@ class _TabsRouter extends AppRouter {
 class _HostRouter extends AppRouter {
   @override
   List<AutoRoute> get routes => [
-    AutoRoute(
-      path: '/',
-      page: SidechainsRoute.page,
-      initial: true,
-      children: _sidechainsChildren(),
-    ),
+    AutoRoute(path: '/', page: SidechainsRoute.page, initial: true, children: _sidechainsChildren()),
   ];
 }
 
@@ -166,9 +161,7 @@ void main() {
     for (final (name, labels) in [('Thunder', thunderTabs), ('BitAssets', bitAssetsTabs)]) {
       testWidgets('$name shows the module tabs in order and selects the tapped one', (tester) async {
         var selected = -1;
-        await tester.pumpSailPage(
-          ChainTabRow(labels: labels, activeIndex: 3, onSelect: (index) => selected = index),
-        );
+        await tester.pumpSailPage(ChainTabRow(labels: labels, activeIndex: 3, onSelect: (index) => selected = index));
 
         expect(_textsInOrder(tester, labels), labels);
         await tester.tap(find.text('BMM'));
@@ -346,6 +339,25 @@ void main() {
       await tester.pump();
       expect(find.text('other tab'), findsOneWidget);
       expect(shown(), isFalse);
+    });
+
+    testWidgets('a click on the active sidechains tab goes back to the slot list', (tester) async {
+      await pumpHost(tester, appRouter: _TabsRouter(), waitForChain: true);
+      final tabs = AutoTabsRouter.of(tester.element(find.byType(SidechainHostPage, skipOffstage: false)));
+
+      await openSidechainsTab(tabs, 1);
+      await tester.pumpAndSettle();
+      expect(find.text('other tab'), findsOneWidget);
+
+      await openSidechainsTab(tabs, 0);
+      await tester.pumpAndSettle();
+      expect(find.byType(HostedChainView), findsOneWidget);
+
+      await openSidechainsTab(tabs, 0);
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(find.text('slot table'), findsOneWidget);
+      expect(find.byType(SidechainHostPage), findsNothing);
     });
 
     testWidgets('a chain opens with its tabs, and a switch swaps the chain scope', (tester) async {
