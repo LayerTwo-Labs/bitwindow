@@ -434,7 +434,9 @@ class _AddressBookContentState extends State<AddressBookContent> {
               spacing: SailStyleValues.padding16,
               mainAxisSize: MainAxisSize.min,
               children: [
-                SailText.secondary13('Are you sure you want to delete "${entry.label}"?'),
+                SailText.secondary13(
+                  'Are you sure you want to delete "${entry.label.isEmpty ? entry.address : entry.label}"?',
+                ),
                 SailRow(
                   spacing: SailStyleValues.padding08,
                   children: [
