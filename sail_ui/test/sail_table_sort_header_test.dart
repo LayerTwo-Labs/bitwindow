@@ -60,4 +60,24 @@ void main() {
 
     expect(_headerIsCut(tester, 'SC #'), isFalse);
   });
+
+  testWidgets('a sort on another column keeps a width the user dragged', (tester) async {
+    await tester.pumpWidget(_narrowTable(3));
+    await tester.pumpAndSettle();
+
+    double voteWidth() =>
+        tester.getSize(find.ancestor(of: find.text('Vote'), matching: find.byType(SailTableHeaderCell))).width;
+    final before = voteWidth();
+    final handle = find.byWidgetPredicate((w) => w.runtimeType.toString() == '_ResizeHandle').first;
+    await tester.drag(handle, const Offset(80, 0));
+    await tester.pumpAndSettle();
+    final dragged = voteWidth();
+    expect(dragged, greaterThan(before + 40));
+
+    await tester.tap(find.text('SC #'));
+    await tester.pumpAndSettle();
+
+    expect(voteWidth(), dragged);
+    expect(_headerIsCut(tester, 'SC #'), isFalse);
+  });
 }

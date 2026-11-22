@@ -152,9 +152,10 @@ class _SailTableState extends State<SailTable> {
       return;
     }
 
-    if ((sortColumnChanged || !mapEquals(oldWidget.minColumnWidths, widget.minColumnWidths)) &&
-        _currentConstraints != null) {
+    if (!mapEquals(oldWidget.minColumnWidths, widget.minColumnWidths) && _currentConstraints != null) {
       _resizeColumns(_currentConstraints!.maxWidth, force: true);
+    } else if (sortColumnChanged) {
+      _fitSortedHeader();
     }
 
     // Recalculate column widths when row count changes
@@ -534,6 +535,19 @@ class _SailTableState extends State<SailTable> {
     }
   }
 
+  /// Widens only the sorted column, so widths the user dragged stay.
+  void _fitSortedHeader() {
+    final index = _sortColumnIndex;
+    if (index == null || index >= _widths.length) {
+      return;
+    }
+    final header = widget.headerBuilder(context)[index];
+    if (header is! SailTableHeaderCell || !header.sortable) {
+      return;
+    }
+    _widths[index] = max(_widths[index], _calculateColumnWidth(header) + _sortArrowGap + _sortArrowSize);
+  }
+
   void _handleSort(int columnIndex) {
     if (!mounted) {
       return;
@@ -543,8 +557,8 @@ class _SailTableState extends State<SailTable> {
     setState(() {
       _sortColumnIndex = columnIndex;
       _sortAscending = ascending;
-      if (columnChanged && _currentConstraints != null) {
-        _autoSizeColumns(_currentConstraints!.maxWidth);
+      if (columnChanged) {
+        _fitSortedHeader();
       }
     });
     widget.onSort?.call(columnIndex, ascending);
