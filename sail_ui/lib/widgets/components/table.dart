@@ -900,7 +900,6 @@ class _TableRowState extends State<_TableRow> {
           SailMenuItem(
             onSelected: () {
               Clipboard.setData(ClipboardData(text: value));
-              Navigator.of(context).pop();
             },
             child: SailText.primary12('Copy value'),
           ),
