@@ -6,6 +6,7 @@ import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
 import 'package:bitwindow/pages/wallet/bump_fee_dialog.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:bitwindow/utils/transaction_search.dart';
+import 'package:bitwindow/utils/wallet_amount.dart';
 import 'package:collection/collection.dart';
 import 'package:bitwindow/utils/csv.dart';
 import 'package:file_picker/file_picker.dart';
@@ -214,9 +215,8 @@ class _TransactionTableState extends State<TransactionTable> {
           bValue = b.confirmationTime.height;
           break;
         case 'amount':
-          // Calculate total amount for each transaction
-          aValue = (a.receivedSatoshi - a.sentSatoshi).abs();
-          bValue = (b.receivedSatoshi - b.sentSatoshi).abs();
+          aValue = walletNetSats(a).abs();
+          bValue = walletNetSats(b).abs();
           break;
         default:
           aValue = a.confirmationTime.timestamp.seconds;
@@ -320,10 +320,9 @@ class _TransactionTableState extends State<TransactionTable> {
                         final replaceable = canBumpFee(entry);
                         final cancellable = canCancelBid(entry);
 
-                        // Calculate amount and determine sign
-                        final amountDiff = entry.receivedSatoshi - entry.sentSatoshi;
-                        final sign = amountDiff > 0 ? '+' : '-';
-                        final formattedAmount = '$sign${formatter.formatSats(amountDiff.abs().toInt())}';
+                        final net = walletNetSats(entry);
+                        final sign = net > 0 ? '+' : '-';
+                        final formattedAmount = '$sign${formatter.formatSats(net.abs())}';
 
                         return [
                           SailTableCell(
@@ -830,9 +829,9 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
     final rows = <List<String>>[headers];
 
     for (final tx in transactions) {
-      final netAmount = tx.receivedSatoshi - tx.sentSatoshi;
+      final netAmount = walletNetSats(tx);
       final type = netAmount > 0 ? 'Received' : 'Sent';
-      final amountBTC = (netAmount.toInt() / 100000000).toStringAsFixed(8);
+      final amountBTC = (netAmount / 100000000).toStringAsFixed(8);
       final date = DateFormat('yyyy-MM-dd HH:mm:ss').format(tx.confirmationTime.timestamp.toDateTime().toLocal());
 
       rows.add([

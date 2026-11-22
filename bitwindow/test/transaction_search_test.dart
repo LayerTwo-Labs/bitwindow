@@ -8,12 +8,14 @@ WalletTransaction _tx({
   String address = 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
   int received = 0,
   int sent = 0,
+  int fee = 0,
 }) {
   return WalletTransaction(
     txid: txid,
     address: address,
     receivedSatoshi: Int64(received),
     sentSatoshi: Int64(sent),
+    feeSats: Int64(fee),
   );
 }
 
@@ -60,6 +62,16 @@ void main() {
       expect(transactionMatchesSearch(send, '-0.001'), isTrue);
       expect(transactionMatchesSearch(send, '-100000'), isTrue);
       expect(transactionMatchesSearch(send, '100000'), isTrue);
+    });
+
+    test('a send matches the payment and the amount with the fee', () {
+      final send = _tx(sent: 25000000, fee: 282);
+      expect(transactionMatchesSearch(send, '25000000'), isTrue);
+      expect(transactionMatchesSearch(send, '-0.25000282'), isTrue);
+    });
+
+    test('a self send matches the fee it cost', () {
+      expect(transactionMatchesSearch(_tx(received: 10000000, sent: 10000000, fee: 423), '-423'), isTrue);
     });
 
     test('a query does not match across two fields', () {
