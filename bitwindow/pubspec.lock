@@ -132,14 +132,14 @@ packages:
       path: "../bitassets"
       relative: true
     source: path
-    version: "1.0.386"
+    version: "1.0.387"
   bitnames:
     dependency: "direct main"
     description:
       path: "../bitnames"
       relative: true
     source: path
-    version: "1.0.387"
+    version: "1.0.388"
   boolean_selector:
     dependency: transitive
     description:
@@ -258,7 +258,7 @@ packages:
       path: "../coinshift"
       relative: true
     source: path
-    version: "1.0.39"
+    version: "1.0.40"
   collection:
     dependency: "direct main"
     description:
@@ -779,7 +779,7 @@ packages:
       path: "../photon"
       relative: true
     source: path
-    version: "1.0.257"
+    version: "1.0.258"
   platform:
     dependency: transitive
     description:
@@ -1001,14 +1001,14 @@ packages:
       path: "../thunder"
       relative: true
     source: path
-    version: "1.0.386"
+    version: "1.0.387"
   truthcoin:
     dependency: "direct main"
     description:
       path: "../truthcoin"
       relative: true
     source: path
-    version: "1.0.257"
+    version: "1.0.258"
   typed_data:
     dependency: transitive
     description:
@@ -1151,7 +1151,7 @@ packages:
       path: "../zside"
       relative: true
     source: path
-    version: "1.0.383"
+    version: "1.0.384"
 sdks:
   dart: "3.13.7"
   flutter: "3.47.9"

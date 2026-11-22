@@ -20,6 +20,15 @@ Future<void> openSidechainHere(Sidechain chain) {
   return GetIt.I.get<AppRouter>().navigate(SidechainsRoute(children: [SidechainHostRoute(chain: chain.registryKey)]));
 }
 
+/// Shows the sidechains tab. A click on the tab while it shows goes back to the slot list.
+Future<void> openSidechainsTab(TabsRouter tabs, int index) async {
+  if (tabs.activeIndex != index) {
+    tabs.setActiveIndex(index);
+    return;
+  }
+  await GetIt.I.get<AppRouter>().navigate(SidechainsRoute(children: [const SidechainSlotsRoute()]));
+}
+
 /// The navigator of a chain that BitWindow hosts, on the router of BitWindow.
 class HostChainNavigator implements ChainNavigator {
   final Sidechain chain;
@@ -261,11 +270,7 @@ class HostedChainHeader extends StatelessWidget {
               onPressed: () => showDepositModal(context, model.chain.slot, model.chain.name),
             ),
             if (model.hasWindow)
-              SailButton(
-                label: 'Open in separate window',
-                variant: ButtonVariant.outline,
-                onPressed: model.openWindow,
-              ),
+              SailButton(label: 'Open in separate window', variant: ButtonVariant.outline, onPressed: model.openWindow),
             if (model.running || model.starting)
               SailButton(label: 'Stop', variant: ButtonVariant.outline, onPressed: model.stop)
             else
@@ -455,10 +460,7 @@ class SidechainSidebar extends StatelessWidget {
                     for (final entry in running) _row(entry),
                     const SizedBox(height: SailStyleValues.padding12),
                   ],
-                  if (stopped.isNotEmpty) ...[
-                    _GroupTitle('Stopped'),
-                    for (final entry in stopped) _row(entry),
-                  ],
+                  if (stopped.isNotEmpty) ...[_GroupTitle('Stopped'), for (final entry in stopped) _row(entry)],
                 ],
               ),
             ),
@@ -487,11 +489,8 @@ class SidechainSidebar extends StatelessWidget {
     );
   }
 
-  Widget _row(SidechainSidebarEntry entry) => _SidebarRow(
-    entry: entry,
-    selected: entry.module.chain.registryKey == selected,
-    onTap: () => onSelect(entry),
-  );
+  Widget _row(SidechainSidebarEntry entry) =>
+      _SidebarRow(entry: entry, selected: entry.module.chain.registryKey == selected, onTap: () => onSelect(entry));
 }
 
 class _GroupTitle extends StatelessWidget {
@@ -613,9 +612,8 @@ class SidechainSidebarViewModel extends BaseViewModel {
         ),
   ];
 
-  String get total => _formatter.formatBTC(
-    hostedModules.where(_running).fold(0.0, (sum, module) => sum + _balance(module)),
-  );
+  String get total =>
+      _formatter.formatBTC(hostedModules.where(_running).fold(0.0, (sum, module) => sum + _balance(module)));
 
   @override
   void dispose() {
