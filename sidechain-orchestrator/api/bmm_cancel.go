@@ -205,24 +205,3 @@ func inputValueSats(ctx context.Context, own ownBids, walletID string, inputs []
 	}
 	return total, nil
 }
-
-// outputValuesSats reads what every output of one transaction holds.
-func outputValuesSats(ctx context.Context, call coreReader, txid string) ([]int64, error) {
-	raw, err := call(ctx, "getrawtransaction", fmt.Sprintf("[%q,true]", txid))
-	if err != nil {
-		return nil, fmt.Errorf("read transaction %s: %w", txid, err)
-	}
-	var tx struct {
-		Vout []struct {
-			Value float64 `json:"value"`
-		} `json:"vout"`
-	}
-	if err := json.Unmarshal(raw, &tx); err != nil {
-		return nil, fmt.Errorf("decode transaction %s: %w", txid, err)
-	}
-	values := make([]int64, len(tx.Vout))
-	for i, out := range tx.Vout {
-		values[i] = int64(math.Round(out.Value * 1e8))
-	}
-	return values, nil
-}
