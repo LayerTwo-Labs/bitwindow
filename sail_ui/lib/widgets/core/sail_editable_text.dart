@@ -181,10 +181,7 @@ class _SailEditableTextState extends State<SailEditableText> {
         width: 180,
         items: [
           SailMenuItem(
-            onSelected: () {
-              Navigator.of(context).pop();
-              _startEditing();
-            },
+            onSelected: _startEditing,
             child: SailText.primary12(widget.tooltip ?? 'Edit label'),
           ),
         ],

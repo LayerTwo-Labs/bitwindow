@@ -371,7 +371,6 @@ class _ReceiveAddressesTableState extends State<ReceiveAddressesTable> {
                     return [
                       SailMenuItem(
                         onSelected: () {
-                          Navigator.of(context).pop();
                           showThemedDialog(
                             context: context,
                             builder: (context) => SailModal(
@@ -392,10 +391,7 @@ class _ReceiveAddressesTableState extends State<ReceiveAddressesTable> {
                         child: SailText.primary12(entry.label.isEmpty ? 'Add Label' : 'Update Label'),
                       ),
                       SailMenuItem(
-                        onSelected: () {
-                          Navigator.of(context).pop();
-                          openUrl(Uri.parse(mempoolAddressUrl(entry.address, network)));
-                        },
+                        onSelected: () => openUrl(Uri.parse(mempoolAddressUrl(entry.address, network))),
                         child: SailText.primary12('View on mempool.space'),
                       ),
                     ];

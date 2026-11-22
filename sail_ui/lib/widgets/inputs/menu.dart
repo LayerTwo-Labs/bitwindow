@@ -42,7 +42,7 @@ Future showSailMenu({
     rootNavigator: useRootNavigator,
   );
   return navigator.push(
-    _PopupMenuRoute(
+    SailMenuRoute(
       preferredAnchorPoint: preferredAnchorPoint,
       alignment: alignment,
       semanticLabel: semanticLabel,
@@ -56,8 +56,9 @@ Future showSailMenu({
   );
 }
 
-class _PopupMenuRoute extends PopupRoute {
-  _PopupMenuRoute({
+/// The popup route that [showSailMenu] pushes.
+class SailMenuRoute extends PopupRoute {
+  SailMenuRoute({
     required this.preferredAnchorPoint,
     required this.alignment,
     required this.barrierLabel,
@@ -100,7 +101,7 @@ class _PopupMenuRoute extends PopupRoute {
       child: Builder(
         builder: (BuildContext context) {
           return CustomSingleChildLayout(
-            delegate: _PopupMenuRouteLayout(
+            delegate: SailMenuRouteLayout(
               preferredAnchorPoint,
               alignment,
               Directionality.of(context),
@@ -115,8 +116,8 @@ class _PopupMenuRoute extends PopupRoute {
 }
 
 // Positioning of the menu on the screen.
-class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
-  _PopupMenuRouteLayout(
+class SailMenuRouteLayout extends SingleChildLayoutDelegate {
+  SailMenuRouteLayout(
     this.preferredAnchorPoint,
     this.alignment,
     this.textDirection,
@@ -168,7 +169,7 @@ class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
   }
 
   @override
-  bool shouldRelayout(_PopupMenuRouteLayout oldDelegate) {
+  bool shouldRelayout(SailMenuRouteLayout oldDelegate) {
     // If called when the old and new itemSizes have been initialized then
     // we expect them to have the same length because there's no practical
     // way to change length of the items list once the menu has been shown.

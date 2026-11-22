@@ -418,7 +418,6 @@ class _TransactionTableState extends State<TransactionTable> {
                             child: SailText.primary12('Show Details'),
                           ),
                           SailMenuItem(
-                            closeOnSelect: false,
                             onSelected: () async {
                               await Future.microtask(() async {
                                 if (!context.mounted) {
@@ -449,7 +448,6 @@ class _TransactionTableState extends State<TransactionTable> {
                           ),
                           if (canCancelBid(entry))
                             SailMenuItem(
-                              closeOnSelect: false,
                               onSelected: () async {
                                 await widget.model.cancelBid(context, entry);
                               },
@@ -457,7 +455,6 @@ class _TransactionTableState extends State<TransactionTable> {
                             ),
                           if (canBumpFee(entry))
                             SailMenuItem(
-                              closeOnSelect: false,
                               onSelected: () async {
                                 await widget.model.openBumpFee(context, entry);
                               },
@@ -467,7 +464,6 @@ class _TransactionTableState extends State<TransactionTable> {
                           // output this wallet can spend (RBF can't bump it).
                           if (isUnconfirmed && entry.receivedSatoshi > entry.sentSatoshi)
                             SailMenuItem(
-                              closeOnSelect: false,
                               onSelected: () async {
                                 await widget.model.accelerateCpfp(context, entry);
                               },

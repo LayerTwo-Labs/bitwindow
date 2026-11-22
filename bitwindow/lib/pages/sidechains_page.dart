@@ -559,10 +559,7 @@ class _SidechainsTable extends ViewModelWidget<SidechainsViewModel> {
 
               return [
                 SailMenuItem(
-                  onSelected: () {
-                    Navigator.of(context).pop();
-                    unawaited(_togglePin(context, viewModel, slot));
-                  },
+                  onSelected: () => unawaited(_togglePin(context, viewModel, slot)),
                   child: Row(
                     children: [
                       SailSVG.fromAsset(
