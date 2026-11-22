@@ -8,6 +8,9 @@ import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 class BitDriveProvider extends ChangeNotifier {
+  static const maxContentBytes = 1024 * 1024;
+  static const textSizeError = 'Text size must be less than 1MB';
+
   BitwindowRPC get bitwindowd => GetIt.I.get<BitwindowRPC>();
   Logger get log => GetIt.I.get<Logger>();
   BlockchainProvider get blockchainProvider => GetIt.I.get<BlockchainProvider>();
@@ -140,7 +143,7 @@ class BitDriveProvider extends ChangeNotifier {
   }
 
   Future<void> setFileContent(Uint8List content, {String? name, String? type}) async {
-    if (content.length > 1024 * 1024) {
+    if (content.length > maxContentBytes) {
       error = 'File size must be less than 1MB';
       notifyListeners();
       return;
@@ -154,8 +157,10 @@ class BitDriveProvider extends ChangeNotifier {
   }
 
   Future<void> setTextContent(String content) async {
-    if (utf8.encode(content).length > 1024 * 1024) {
-      error = 'Text size must be less than 1MB';
+    if (utf8.encode(content).length > maxContentBytes) {
+      textContent = null;
+      fileContent = null;
+      error = textSizeError;
       notifyListeners();
       return;
     }
