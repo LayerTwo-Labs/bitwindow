@@ -1,6 +1,7 @@
 import 'package:bitwindow/pages/wallet/denability_page.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -40,7 +41,7 @@ void main() {
 
   tearDown(() => GetIt.I.reset());
 
-  Future<void> pumpTable(WidgetTester tester) async {
+  Future<void> pumpTable(WidgetTester tester, {double width = 2300, List<UnspentOutput>? utxos}) async {
     // The Actions cell overflows its column; this file tests the sort and the details only.
     final onError = FlutterError.onError;
     FlutterError.onError = (details) {
@@ -51,12 +52,12 @@ void main() {
     addTearDown(() => FlutterError.onError = onError);
     await tester.pumpSailPage(
       SizedBox(
-        width: 2300,
+        width: width,
         height: 600,
         child: DeniabilityTable(
           newWindowButton: null,
           error: null,
-          utxos: [..._utxos],
+          utxos: [...(utxos ?? _utxos)],
           model: DeniabilityViewModel(),
           onDeny: (_, _) {},
           onCancel: (_) {},
@@ -120,5 +121,17 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('UTXO Details'), findsOneWidget);
+  });
+  testWidgets('shows the status of a completed denial on one line at 1200 px', (tester) async {
+    final completed = UnspentOutput(
+      output: '${'d' * 64}:0',
+      valueSats: Int64(400),
+      receivedAt: _at(4),
+      denialInfo: DenialInfo(id: Int64(3), numHops: 2, hopsCompleted: 2),
+    );
+    await pumpTable(tester, width: 1144, utxos: [completed]);
+
+    final status = tester.renderObject<RenderParagraph>(find.text('Completed'));
+    expect(status.size.height, status.getMinIntrinsicHeight(double.infinity));
   });
 }
