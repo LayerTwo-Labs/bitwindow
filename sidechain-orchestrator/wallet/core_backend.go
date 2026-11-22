@@ -58,10 +58,11 @@ type CoreBackend struct {
 	staleMu      sync.Mutex
 	staleWallets map[string]bool // Core wallet name -> Core does not hold it
 
-	// spentMu guards spentTxs and receivedAt, and it is never held across an RPC.
+	// spentMu guards spentTxs, receivedAt and hdPaths, and it is never held across an RPC.
 	spentMu    sync.Mutex
 	spentTxs   map[string]coreSpend // Core wallet name:txid -> what the tx spends
 	receivedAt map[string]int64     // Core wallet name:txid -> Core's timereceived
+	hdPaths    map[string]string    // Core wallet name:address -> BIP32 path
 
 	// previewChange holds the change address a send preview reuses, so a
 	// preview does not reserve a new change key in Core each time.
@@ -113,6 +114,7 @@ func NewCoreBackend(svc *Service, rpc *CoreRPCClient, params ParamsFunc, log zer
 		staleWallets:    make(map[string]bool),
 		spentTxs:        make(map[string]coreSpend),
 		receivedAt:      make(map[string]int64),
+		hdPaths:         make(map[string]string),
 	}
 	rpc.OnWalletError = backend.markWalletStale
 	return backend
@@ -164,6 +166,7 @@ func (p *CoreBackend) ResetNetworkState() {
 	p.spentMu.Lock()
 	p.spentTxs = make(map[string]coreSpend)
 	p.receivedAt = make(map[string]int64)
+	p.hdPaths = make(map[string]string)
 	p.spentMu.Unlock()
 }
 
@@ -427,7 +430,33 @@ func (p *CoreBackend) ListReceivedByAddress(ctx context.Context, walletID string
 	for i := range out {
 		out[i].LastUsedAt = lastUsed[out[i].Address]
 	}
+	if err := p.fillHDPaths(ctx, name, out); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// fillHDPaths sets the BIP32 path of each row. listreceivedbyaddress does not
+// report it, and a path never changes, so each address costs one getaddressinfo.
+func (p *CoreBackend) fillHDPaths(ctx context.Context, name string, rows []ReceivedByAddress) error {
+	for i := range rows {
+		key := name + ":" + rows[i].Address
+		p.spentMu.Lock()
+		path, ok := p.hdPaths[key]
+		p.spentMu.Unlock()
+		if !ok {
+			info, err := p.rpc.GetAddressInfo(ctx, name, rows[i].Address)
+			if err != nil {
+				return fmt.Errorf("read path of %s: %w", rows[i].Address, err)
+			}
+			path = info.HDKeyPath
+			p.spentMu.Lock()
+			p.hdPaths[key] = path
+			p.spentMu.Unlock()
+		}
+		rows[i].HDPath = path
+	}
+	return nil
 }
 
 // ReceivedTxIDs implements AddressReceiver.
