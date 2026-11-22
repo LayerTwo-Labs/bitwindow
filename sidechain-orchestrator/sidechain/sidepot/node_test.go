@@ -90,8 +90,8 @@ func TestModeArgsCoverEveryBlockSourceFlag(t *testing.T) {
 	}
 }
 
-func TestNodeIsNoBmmNode(t *testing.T) {
+func TestNodeIsBmmNode(t *testing.T) {
 	var node sidechain.Node = mainnetNode("")
 	_, isBMM := node.(sidechain.BMMNode)
-	assert.False(t, isBMM)
+	assert.True(t, isBMM, "the BMM engine drives the node")
 }
