@@ -119,6 +119,20 @@ func (h *BMMHandler) SetEngine(engine *engines.BmmEngine) {
 	h.engine = engine
 }
 
+// BMMService is the BMM service as it is served. A bid placed by hand goes
+// through the engine, which records it and connects the block if a miner takes
+// it. The engine itself bids through the handler underneath.
+type BMMService struct{ *BMMHandler }
+
+func (s BMMService) CreateBid(
+	ctx context.Context, req *bmmpb.CreateBidRequest,
+) (*bmmpb.CreateBidResponse, error) {
+	if s.engine == nil {
+		return s.BMMHandler.CreateBid(ctx, req)
+	}
+	return s.engine.ManualBid(ctx, req)
+}
+
 // CanBid reports whether this install can spend a bid from walletID. Light mode
 // runs no local Bitcoin Core, so only an Electrum wallet can pay for a bid.
 func (h *BMMHandler) CanBid(walletID string) bool {

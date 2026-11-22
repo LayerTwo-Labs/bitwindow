@@ -601,7 +601,7 @@ func run(cctx *cli.Context) error {
 		}
 	}()
 
-	bmmrpc.RegisterBMMServiceHandler(rpcServer, bmmHandler)
+	bmmrpc.RegisterBMMServiceHandler(rpcServer, api.BMMService{BMMHandler: bmmHandler})
 
 	stratumHandler := api.NewStratumHandler(ctx, api.StratumDeps{
 		Network:  orch,

@@ -1023,6 +1023,100 @@ func (e *BmmEngine) placeBid(
 	return nil
 }
 
+// ManualBid places one bid on the tip in play for a caller outside the loop,
+// and records it in the round the loop settles. The fee is paid once a miner
+// takes the bid, so the block has to be connected whether or not the engine
+// bids for this sidechain: a bid placed past the engine has nobody to connect
+// it, and the block it paid for is lost.
+//
+// A second bid on the same tip replaces the first, because a slot accepts one
+// M8 and two bids from one wallet would only bid against each other.
+func (e *BmmEngine) ManualBid(
+	ctx context.Context, req *bmmpb.CreateBidRequest,
+) (*bmmpb.CreateBidResponse, error) {
+	e.passMu.Lock()
+	defer e.passMu.Unlock()
+
+	tip, height, err := e.tip.ChainTip(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("read mainchain tip: %w", err).Error())
+	}
+	if tip == "" {
+		return nil, connect.Errorf(connect.CodeFailedPrecondition, "the mainchain tip is not known yet")
+	}
+	if want := req.ExpectPrevMainHash; want != "" && want != tip {
+		return nil, connect.Errorf(connect.CodeFailedPrecondition, "the mainchain tip is %s, not %s", tip, want)
+	}
+	sidechain := req.Sidechain
+
+	// A round left on an earlier tip is decided by now. The loop settles it on
+	// its next pass, and this bid must not take its place first.
+	if round := e.Current(sidechain); round != nil && round.PrevMainHash != tip {
+		e.settleRound(ctx, sidechain, tip, height)
+	}
+
+	e.mu.Lock()
+	round, open := e.current[sidechain]
+	if !open || round == nil {
+		round = &bmmstate.Round{
+			Sidechain:      int32(sidechain),
+			PrevMainHash:   tip,
+			PrevMainHeight: height,
+			Result:         ResultOpen,
+			StartedAtUnix:  time.Now().Unix(),
+		}
+		e.current[sidechain] = round
+		open = false
+	}
+	// The loop reads a tip it has not marked as a new round, and would settle
+	// this one against the block it is still waiting for.
+	if target, bidding := e.targets[sidechain]; bidding {
+		target.lastTip = tip
+		e.targets[sidechain] = target
+	}
+	replaceTxid := req.ReplaceTxid
+	walletID := req.WalletId
+	if live := liveBid(round); live != nil && replaceTxid == "" {
+		replaceTxid = live.Txid
+		if live.WalletID != "" {
+			walletID = live.WalletID
+		}
+	}
+	e.mu.Unlock()
+
+	if !open {
+		others := e.snapshotOthers(ctx, sidechain, tip)
+		e.mu.Lock()
+		round.OtherBids = others
+		e.mu.Unlock()
+	}
+	if err := e.placeBid(ctx, sidechain, round, walletID, req.BidSats, req.FeeRateSatVb,
+		req.MaxBidSats, replaceTxid, req.CapToBlockWorth); err != nil {
+		e.mu.Lock()
+		// A round that holds nothing but this refusal has nothing to settle.
+		if !open && liveBid(round) == nil && e.current[sidechain] == round {
+			delete(e.current, sidechain)
+		}
+		e.mu.Unlock()
+		e.notify()
+		return nil, err
+	}
+	e.save(round)
+	e.notify()
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	placed := liveBid(round)
+	return &bmmpb.CreateBidResponse{
+		CriticalHash: placed.CriticalHash,
+		BmmTxid:      placed.Txid,
+		FeesSats:     placed.BlockWorthSats,
+		BlockJson:    placed.BlockJSON,
+		PrevMainHash: placed.PrevMainHash,
+		BidSats:      placed.BidSats,
+	}, nil
+}
+
 // openingRate is the fee rate an opening bid pays, in sats per vByte. It
 // clears the next block rate by a margin, because a bid that only matches that
 // rate sits with the transactions a miner cuts, and the engine raises a bid
