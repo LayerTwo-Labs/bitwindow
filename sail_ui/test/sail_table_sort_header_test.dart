@@ -50,4 +50,14 @@ void main() {
       expect(_headerIsCut(tester, name), isFalse);
     });
   }
+
+  testWidgets('a tap on a short header shows its full name next to the arrow', (tester) async {
+    await tester.pumpWidget(_narrowTable(3));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('SC #'));
+    await tester.pumpAndSettle();
+
+    expect(_headerIsCut(tester, 'SC #'), isFalse);
+  });
 }
