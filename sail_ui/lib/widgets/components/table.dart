@@ -898,13 +898,10 @@ class _TableRowState extends State<_TableRow> {
     String value,
     String rowId,
   ) {
-    final maxWidth = widget.contextMenuItems?.call(rowId).fold(0, (m, item) => max(m, item.width.toInt())) ?? 200;
-
     showSailMenu(
       context: context,
       preferredAnchorPoint: position,
       menu: SailMenu(
-        width: maxWidth.toDouble(),
         items: [
           SailMenuItem(
             onSelected: () {
@@ -912,7 +909,7 @@ class _TableRowState extends State<_TableRow> {
             },
             child: SailText.primary12('Copy value'),
           ),
-          if (widget.contextMenuItems != null) ...widget.contextMenuItems!(rowId).map((item) => item),
+          ...?widget.contextMenuItems?.call(rowId),
         ],
       ),
     );

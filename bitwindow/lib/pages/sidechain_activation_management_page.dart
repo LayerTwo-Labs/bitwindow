@@ -240,11 +240,21 @@ class _ActiveSidechainsTableState extends State<ActiveSidechainsTable> {
       sortColumnIndex: columns.indexOf(sortColumn),
       sortAscending: sortAscending,
       onSort: (columnIndex, ascending) => onSort(columns[columnIndex]),
-      onDoubleTap: (rowId) => showTransactionDetails(context, chaintipTxid(rowId)),
+      onDoubleTap: (rowId) {
+        final txid = chaintipTxid(rowId);
+        if (txid.isEmpty) {
+          return;
+        }
+        showTransactionDetails(context, txid);
+      },
       contextMenuItems: (rowId) {
+        final txid = chaintipTxid(rowId);
+        if (txid.isEmpty) {
+          return [];
+        }
         return [
           SailMenuItem(
-            onSelected: () => showTransactionDetails(context, chaintipTxid(rowId)),
+            onSelected: () => showTransactionDetails(context, txid),
             child: SailText.primary12('Show Chaintip Transaction'),
           ),
         ];
