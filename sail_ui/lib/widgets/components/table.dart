@@ -129,8 +129,8 @@ class _SailTableState extends State<SailTable> {
       });
     }
 
-    // Update internal state for selection/sort (no column resize needed)
     _selectedId = widget.selectedRowId;
+    final sortColumnChanged = _sortColumnIndex != widget.sortColumnIndex;
     _sortColumnIndex = widget.sortColumnIndex;
     _sortAscending = widget.sortAscending ?? true;
 
@@ -152,7 +152,8 @@ class _SailTableState extends State<SailTable> {
       return;
     }
 
-    if (!mapEquals(oldWidget.minColumnWidths, widget.minColumnWidths) && _currentConstraints != null) {
+    if ((sortColumnChanged || !mapEquals(oldWidget.minColumnWidths, widget.minColumnWidths)) &&
+        _currentConstraints != null) {
       _resizeColumns(_currentConstraints!.maxWidth, force: true);
     }
 
@@ -397,7 +398,9 @@ class _SailTableState extends State<SailTable> {
 
     final headers = widget.headerBuilder(context);
     for (int col = 0; col < headers.length; col++) {
-      final headerWidth = _calculateColumnWidth(headers[col]);
+      final header = headers[col];
+      final sorted = header is SailTableHeaderCell && header.sortable && col == _sortColumnIndex;
+      final headerWidth = _calculateColumnWidth(header) + (sorted ? _sortArrowGap + _sortArrowSize : 0);
       columnWidths[col] = max(columnWidths[col], headerWidth);
     }
 
@@ -499,8 +502,7 @@ class _SailTableState extends State<SailTable> {
         fontFamily: SailTheme.of(context).chrome.textFamily(),
         fontWeight: SailStyleValues.boldWeight,
       );
-      final arrowWidth = widget.sortable ? _sortArrowGap + _sortArrowSize : 0;
-      return _calculateTextWidth(text, textStyle, widget.padding.horizontal) + arrowWidth;
+      return _calculateTextWidth(text, textStyle, widget.padding.horizontal);
     }
 
     return _calculateTextWidth(text, SailStyleValues.thirteen, 24);
@@ -537,9 +539,13 @@ class _SailTableState extends State<SailTable> {
       return;
     }
     final ascending = _sortColumnIndex != columnIndex || !_sortAscending;
+    final columnChanged = _sortColumnIndex != columnIndex;
     setState(() {
       _sortColumnIndex = columnIndex;
       _sortAscending = ascending;
+      if (columnChanged && _currentConstraints != null) {
+        _autoSizeColumns(_currentConstraints!.maxWidth);
+      }
     });
     widget.onSort?.call(columnIndex, ascending);
   }
