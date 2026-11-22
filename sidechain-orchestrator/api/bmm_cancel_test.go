@@ -14,6 +14,7 @@ import (
 
 	orchestrator "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator"
 	bmmpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/bmm/v1"
+	wpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/walletmanager/v1"
 )
 
 const (
@@ -52,6 +53,9 @@ type cancelNode struct {
 	// late names bids the mempool gets over a transaction after its first
 	// descendant read.
 	late map[string][]string
+	// noTxindex refuses getrawtransaction for a confirmed transaction, as a
+	// node with no txindex does.
+	noTxindex bool
 }
 
 func (n *cancelNode) call(_ context.Context, method, paramsJSON, _ string) (json.RawMessage, error) {
@@ -90,7 +94,7 @@ func (n *cancelNode) call(_ context.Context, method, paramsJSON, _ string) (json
 		})
 	case "getrawtransaction":
 		tx, ok := n.txs[txid]
-		if !ok {
+		if !ok || (n.noTxindex && tx.confirmations > 0) {
 			return nil, fmt.Errorf("no transaction %s", txid)
 		}
 		return json.Marshal(n.rawTx(tx))
@@ -146,8 +150,30 @@ func strandedNode() *cancelNode {
 	}
 }
 
+// walletDetails lets the wallet read every transaction of the node, as the
+// wallet that funds the bids reads its own.
+func walletDetails(node *cancelNode, w *fakeBidWallet) {
+	if w.details == nil {
+		w.details = make(map[string]*wpb.GetTransactionDetailsResponse)
+	}
+	for txid, tx := range node.txs {
+		if _, ok := w.details[txid]; ok {
+			continue
+		}
+		outputs := make([]*wpb.TransactionOutput, len(tx.values))
+		for i, value := range tx.values {
+			outputs[i] = &wpb.TransactionOutput{Index: int32(i), ValueSats: value}
+		}
+		w.details[txid] = &wpb.GetTransactionDetailsResponse{
+			Confirmations: int32(tx.confirmations),
+			Outputs:       outputs,
+		}
+	}
+}
+
 func cancelHandler(t *testing.T, node *cancelNode, w *fakeBidWallet) *BMMHandler {
 	t.Helper()
+	walletDetails(node, w)
 	h, _ := newBMMModeHandler(t)
 	h.wallet = w
 	h.SetCoreCaller(node.call)
@@ -186,6 +212,17 @@ func TestCancelBidPaysTheCoinsBackToItsOwnWallet(t *testing.T) {
 	require.Empty(t, send.RawOutputs, "no M8, or the replacement bids again")
 	require.Len(t, send.RequiredInputs, 1)
 	require.Equal(t, "coin", send.RequiredInputs[0].Txid)
+}
+
+// A node with no txindex reads no confirmed transaction, so the coin under
+// the bid comes from the wallet.
+func TestCancelBidReadsTheCoinWithNoTxindex(t *testing.T) {
+	node := strandedNode()
+	node.noTxindex = true
+
+	got, err := cancel(t, node, &fakeBidWallet{sendTxid: "replacement"}, "lost")
+	require.NoError(t, err)
+	require.Equal(t, int64(100_000_000-10_189), got.RecoveredSats)
 }
 
 // The M8 reaches only the block after the one it names. A bid on the tip can

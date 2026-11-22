@@ -203,12 +203,10 @@ func (c coreBids) vsize(ctx context.Context, _, txid string) (int64, error) {
 	return tx.Vsize, nil
 }
 
-func (c coreBids) outputValues(ctx context.Context, _, txid string) ([]int64, error) {
-	values, err := outputValuesSats(ctx, c.h.coreCall, txid)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
-	}
-	return values, nil
+// outputValues reads the coin through the wallet, because a node with no
+// txindex holds no confirmed transaction for getrawtransaction.
+func (c coreBids) outputValues(ctx context.Context, walletID, txid string) ([]int64, error) {
+	return walletBids(c).outputValues(ctx, walletID, txid)
 }
 
 func (c coreBids) tip(ctx context.Context) (string, error) {
