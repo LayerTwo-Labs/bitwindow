@@ -2908,6 +2908,61 @@ func TestCoreReceiveListAddsEveryCoinOnAnAddress(t *testing.T) {
 	require.EqualValues(t, 3, out[0].BalanceSats)
 }
 
+func TestCoreBackendListReceivedReportsHDPath(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	net := &chaincfg.RegressionNetParams
+	usedAddr := p2wpkhAddr(t, fixedKey(0x61), net)
+	freshAddr := p2wpkhAddr(t, fixedKey(0x62), net)
+	paths := map[string]string{usedAddr: "m/84h/1h/0h/0/0", freshAddr: "m/84h/1h/0h/0/1"}
+
+	fake.handle("getaddressinfo", func(c bitcoindCall) (any, string) {
+		var address string
+		require.NoError(t, json.Unmarshal(c.Params[0], &address))
+		return map[string]any{"address": address, "hdkeypath": paths[address], "ismine": true}, ""
+	})
+	fake.handle("listreceivedbyaddress", func(bitcoindCall) (any, string) {
+		return []map[string]any{
+			{"address": usedAddr, "amount": 0.001, "txids": []string{}},
+			{"address": freshAddr, "amount": 0, "txids": []string{}},
+		}, ""
+	})
+	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+
+	for range 2 {
+		recv, err := backend.ListReceivedByAddress(context.Background(), coreID)
+		require.NoError(t, err)
+		require.Len(t, recv, 2)
+		for _, r := range recv {
+			assert.Equal(t, paths[r.Address], r.HDPath)
+		}
+	}
+	reads := map[string]int{}
+	for _, c := range fake.callsFor("getaddressinfo") {
+		var address string
+		require.NoError(t, json.Unmarshal(c.Params[0], &address))
+		reads[address]++
+	}
+	assert.Equal(t, 1, reads[usedAddr], "each address reads its path one time")
+	assert.Equal(t, 1, reads[freshAddr], "each address reads its path one time")
+}
+
+func TestCoreBackendListReceivedReturnsPathError(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	addr := p2wpkhAddr(t, fixedKey(0x63), &chaincfg.RegressionNetParams)
+	fake.handle("getaddressinfo", func(bitcoindCall) (any, string) { return nil, "Invalid address" })
+	fake.handle("listreceivedbyaddress", func(bitcoindCall) (any, string) {
+		return []map[string]any{{"address": addr, "amount": 0, "txids": []string{}}}, ""
+	})
+	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+
+	_, err := backend.ListReceivedByAddress(context.Background(), coreID)
+	require.ErrorContains(t, err, "Invalid address")
+}
+
 func TestCoreBackendListReceivedReportsLastUsed(t *testing.T) {
 	backend, fake, coreID := newCoreBackendFixture(t)
 	fake.stubEnsureFlow()
