@@ -186,7 +186,7 @@ class BMMTab extends StatelessWidget {
               spacing: SailStyleValues.padding16,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Controls(viewModel: viewModel),
+                BmmControls(viewModel: viewModel),
                 _CurrentSlot(viewModel: viewModel),
                 _BidsOnNextBlock(viewModel: viewModel),
                 _HistoricBids(viewModel: viewModel),
@@ -201,9 +201,10 @@ class BMMTab extends StatelessWidget {
 
 const double _controlsGap = 44;
 
-class _Controls extends StatelessWidget {
+/// The bid controls above the current slot.
+class BmmControls extends StatelessWidget {
   final BMMViewModel viewModel;
-  const _Controls({required this.viewModel});
+  const BmmControls({super.key, required this.viewModel});
 
   @override
   Widget build(BuildContext context) {
@@ -216,43 +217,54 @@ class _Controls extends StatelessWidget {
       spacing: SailStyleValues.padding08,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SailRow(
-          spacing: _controlsGap,
+        SailColumn(
+          spacing: SailStyleValues.padding12,
           children: [
-            SailButton(
-              label: viewModel.running ? 'Stop auto-bidding' : 'Start auto-bidding',
-              disabled: blocked && !viewModel.running,
-              onPressed: () async => viewModel.running ? await viewModel.stopBidding() : await viewModel.startBidding(),
+            SailRow(
+              spacing: _controlsGap,
+              children: [
+                SailButton(
+                  label: viewModel.running ? 'Stop auto-bidding' : 'Start auto-bidding',
+                  disabled: blocked && !viewModel.running,
+                  onPressed: () async =>
+                      viewModel.running ? await viewModel.stopBidding() : await viewModel.startBidding(),
+                ),
+                _Field(
+                  label: 'Wallet:',
+                  width: 220,
+                  child: WalletPicker(
+                    selectedWalletId: viewModel.fundingWalletId,
+                    onChanged: viewModel.setFundingWallet,
+                  ),
+                ),
+                Expanded(child: Container()),
+                SailButton(
+                  label: 'Bid manually',
+                  variant: ButtonVariant.secondary,
+                  disabled: blocked,
+                  onPressed: () async => _showManualBidDialog(context, viewModel),
+                ),
+              ],
             ),
-            _Field(
-              label: 'Wallet:',
-              width: 220,
-              child: WalletPicker(
-                selectedWalletId: viewModel.fundingWalletId,
-                onChanged: viewModel.setFundingWallet,
-              ),
-            ),
-            _Field(
-              label: 'Min bid:',
-              child: SailTextField(
-                controller: viewModel.minBidController,
-                hintText: '0.00005000',
-                readOnly: true,
-              ),
-            ),
-            _Field(
-              label: 'Max bid:',
-              child: SailTextField(
-                controller: viewModel.maxBidController,
-                hintText: '0.00020000',
-              ),
-            ),
-            Expanded(child: Container()),
-            SailButton(
-              label: 'Bid manually',
-              variant: ButtonVariant.secondary,
-              disabled: blocked,
-              onPressed: () async => _showManualBidDialog(context, viewModel),
+            SailRow(
+              spacing: _controlsGap,
+              children: [
+                _Field(
+                  label: 'Min bid:',
+                  child: SailTextField(
+                    controller: viewModel.minBidController,
+                    hintText: '0.00005000',
+                    readOnly: true,
+                  ),
+                ),
+                _Field(
+                  label: 'Max bid:',
+                  child: SailTextField(
+                    controller: viewModel.maxBidController,
+                    hintText: '0.00020000',
+                  ),
+                ),
+              ],
             ),
           ],
         ),
