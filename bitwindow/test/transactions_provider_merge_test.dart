@@ -6,17 +6,23 @@ import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wm
 final _deposit = 'd' * 64;
 final _payment = 'e' * 64;
 
-wmpb.TransactionEntry _entry(String txid, int vout, int amountSats, {double fee = 0, String address = ''}) =>
-    wmpb.TransactionEntry(
-      txid: txid,
-      vout: vout,
-      address: address,
-      category: amountSats < 0 ? 'send' : 'receive',
-      amountSats: Int64(amountSats),
-      fee: fee,
-      confirmations: 1,
-      blockTime: Int64(1700000000),
-    );
+wmpb.TransactionEntry _entry(
+  String txid,
+  int vout,
+  int amountSats, {
+  double fee = 0,
+  String address = '',
+  int confirmations = 1,
+}) => wmpb.TransactionEntry(
+  txid: txid,
+  vout: vout,
+  address: address,
+  category: amountSats < 0 ? 'send' : 'receive',
+  amountSats: Int64(amountSats),
+  fee: fee,
+  confirmations: confirmations,
+  blockTime: Int64(1700000000),
+);
 
 void main() {
   test('a deposit with two outputs gives one row', () {
@@ -57,5 +63,15 @@ void main() {
     ], {});
 
     expect(rows.map((tx) => tx.txid), unorderedEquals([_deposit, _payment]));
+  });
+
+  test('blocks of one second list the newest block first', () {
+    final rows = walletTransactionsFromEntries([
+      _entry('a' * 64, 0, 5000, confirmations: 3),
+      _entry('b' * 64, 0, 5000, confirmations: 1),
+      _entry('c' * 64, 0, 5000, confirmations: 2),
+    ], {});
+
+    expect(rows.map((tx) => tx.confirmationTime.height), [1, 2, 3]);
   });
 }
