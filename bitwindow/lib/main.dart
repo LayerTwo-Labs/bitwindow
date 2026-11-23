@@ -341,6 +341,7 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   put<CoinShiftRPC>(() => CoinShiftLive());
   put<PhotonRPC>(() => PhotonLive());
   put<TruthcoinRPC>(() => TruthcoinLive());
+  put<SidepotRPC>(() => SidepotLive());
 
   registerNodeMode();
   // After the node mode: the watcher reads it at the first check, and the mode
@@ -376,6 +377,7 @@ Future<(Directory, File, Logger)> init(String arguments) async {
           GetIt.I.get<PhotonRPC>(),
           GetIt.I.get<TruthcoinRPC>(),
           GetIt.I.get<CoinShiftRPC>(),
+          GetIt.I.get<SidepotRPC>(),
         ],
       ),
     ),
