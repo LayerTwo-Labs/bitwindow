@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:auto_route/auto_route.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -88,6 +88,11 @@ abstract class SidechainModule {
   Map<String, HomepageWidgetInfo> get widgetCatalog;
 
   String get homeTabLabel => 'Overview';
+
+  /// What the BMM tab shows above its controls about bidding on this chain,
+  /// null for nothing. A chain whose blocks pay their producer by the bid
+  /// explains that here.
+  Widget? bmmNote(BuildContext context) => null;
 
   /// The source files, other than the homepage, whose code search hits open the homepage.
   List<String> get homepageSourceFiles => const [];
