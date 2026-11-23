@@ -392,8 +392,11 @@ class CoinNewsViewModel extends BaseViewModel {
   final TextEditingController searchController = TextEditingController();
 
   // Pagination state
-  int currentPage = 1;
+  int _currentPage = 1;
   int pageSize = 5;
+
+  /// The selected page, kept inside the pages that the filtered entries fill.
+  int get currentPage => _currentPage.clamp(1, totalPages);
 
   // Sorting state
   bool _sortAscending = false;
@@ -527,13 +530,13 @@ class CoinNewsViewModel extends BaseViewModel {
   int get totalPages => (entries.length / pageSize).ceil().clamp(1, 9999);
 
   void setPage(int page) {
-    currentPage = page;
+    _currentPage = page;
     notifyListeners();
   }
 
   void setPageSize(int size) async {
     pageSize = size;
-    currentPage = 1;
+    _currentPage = 1;
 
     // Persist the page size
     final setting = PageSizeSetting(newValue: size);
