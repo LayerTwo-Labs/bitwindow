@@ -1259,7 +1259,7 @@ func hashrate(firstChainwork, tipChainwork string, seconds int64) (float64, erro
 }
 
 func (s *Server) checkElectrumUTXO(ctx context.Context, walletID string, txid string, vout uint32) (bool, error) {
-	utxos, err := s.walletEngine.GetElectrumUnspent(ctx, walletID)
+	utxos, err := s.walletEngine.ListWalletUnspent(ctx, walletID)
 	if err != nil {
 		return false, fmt.Errorf("list electrum utxos: %w", err)
 	}

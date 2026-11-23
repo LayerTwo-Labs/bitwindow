@@ -574,28 +574,26 @@ func (e *WalletEngine) CreateDeposit(ctx context.Context, req *orchpb.CreateDepo
 	return resp.Txid, nil
 }
 
-// GetElectrumUnspent returns an electrum wallet's UTXOs from the orchestrator,
-// which serves them over Esplora.
-func (e *WalletEngine) GetElectrumUnspent(ctx context.Context, walletID string) ([]*orchpb.UnspentOutput, error) {
+// ListWalletUnspent returns the wallet UTXOs from the orchestrator.
+func (e *WalletEngine) ListWalletUnspent(ctx context.Context, walletID string) ([]*orchpb.UnspentOutput, error) {
 	resp, err := e.orchClient.ListUnspent(ctx, &orchpb.ListUnspentRequest{
 		WalletId: walletID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("electrum: list unspent: %w", err)
+		return nil, fmt.Errorf("orchestrator: list unspent: %w", err)
 	}
 	return resp.Utxos, nil
 }
 
-// GetElectrumTransactions returns an electrum wallet's transactions from the
-// orchestrator, which serves them over Esplora.
-func (e *WalletEngine) GetElectrumTransactions(ctx context.Context, walletID string) ([]*orchpb.TransactionEntry, error) {
+// ListWalletTransactions returns the wallet transactions from the orchestrator.
+func (e *WalletEngine) ListWalletTransactions(ctx context.Context, walletID string) ([]*orchpb.TransactionEntry, error) {
 	resp, err := e.orchClient.ListTransactions(ctx, &orchpb.ListTransactionsRequest{
 		WalletId: walletID,
 		// The orchestrator has no skip, and a count of 0 means 100 rows.
 		Count: math.MaxInt32,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("electrum: list transactions: %w", err)
+		return nil, fmt.Errorf("orchestrator: list transactions: %w", err)
 	}
 	return resp.Transactions, nil
 }
