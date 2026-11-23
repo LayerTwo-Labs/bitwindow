@@ -2,6 +2,7 @@ package engines
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -491,4 +492,19 @@ func TestOpReturnHandling_WhitespaceHeadlineLooksBlank(t *testing.T) {
 	news, err := opreturns.ListCoinNews(ctx, db)
 	require.NoError(t, err)
 	assert.Empty(t, news, "whitespace-only headlines must not surface as canonical stories")
+}
+
+func TestShouldSkip(t *testing.T) {
+	script := func(t *testing.T, data []byte) []byte {
+		t.Helper()
+		s, err := txscript.NullDataScript(data)
+		require.NoError(t, err)
+		return s
+	}
+
+	known, err := hex.DecodeString("64656164626565664e6f7277656769616e2042c3b8726765204272656e6465206265636f6d657320707265736964656e74206f6620574546")
+	require.NoError(t, err)
+	assert.True(t, shouldSkip(script(t, known)), "known non-ASCII payload")
+	assert.True(t, shouldSkip(script(t, []byte{0xd1, 0x61, 0x73, 0x68, 0x01})), "known prefix")
+	assert.False(t, shouldSkip(script(t, []byte("Hei på deg, blåbær"))), "graffiti")
 }
