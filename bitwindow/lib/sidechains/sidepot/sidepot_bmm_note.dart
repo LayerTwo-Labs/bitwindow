@@ -140,17 +140,13 @@ class _SidepotBmmNoteState extends State<SidepotBmmNote> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SailText.primary13('Block bonus', bold: true),
-          SailRow(
-            spacing: SailStyleValues.padding64,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Figure('Bonus pool', sats(pool ?? 0)),
-              _Figure('Bonus for the next block', sats(cap)),
-              _Figure('Fees in the next block', sats(_feesSats)),
-              _Figure('Bid that earns it', sats(opening)),
-              _Figure('Profit if won', pool == null || profit <= 0 ? '—' : sats(profit)),
-            ],
-          ),
+          SidepotBonusFigures([
+            ('Bonus pool', sats(pool ?? 0)),
+            ('Bonus for the next block', sats(cap)),
+            ('Fees in the next block', sats(_feesSats)),
+            ('Bid that earns it', sats(opening)),
+            ('Profit if won', pool == null || profit <= 0 ? '—' : sats(profit)),
+          ]),
           SailText.secondary13(
             'The eCash block that takes your bid pays the producer of the Sidepot block twice the bid, up to 5% of '
             'the bonus pool. A bid under ${_grouped(bonusMinBidSats)} sats earns nothing.',
@@ -164,6 +160,22 @@ class _SidepotBmmNoteState extends State<SidepotBmmNote> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The block bonus figures as label and value pairs. They wrap to a new row when the width is too small.
+class SidepotBonusFigures extends StatelessWidget {
+  final List<(String, String)> figures;
+
+  const SidepotBonusFigures(this.figures, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: SailStyleValues.padding64,
+      runSpacing: SailStyleValues.padding12,
+      children: [for (final (label, value) in figures) _Figure(label, value)],
     );
   }
 }
