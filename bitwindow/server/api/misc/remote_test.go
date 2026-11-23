@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,15 +17,15 @@ import (
 
 type stubRemote []engines.RemoteItem
 
-func (s stubRemote) ListFrontPage(context.Context, string, uint32) ([]engines.RemoteItem, error) {
-	return s, nil
+func (s stubRemote) ListFrontPage(_ context.Context, topicHex string, _ uint32) ([]engines.RemoteItem, error) {
+	return lo.Filter(s, func(item engines.RemoteItem, _ int) bool { return item.TopicHex == topicHex }), nil
 }
 
 func TestService_ListCoinNews_RemoteFee(t *testing.T) {
 	t.Parallel()
 	remote := stubRemote{
-		{ItemIDHex: "aa", Headline: "Dear", FeeSats: 5000, BlockTime: time.Now()},
-		{ItemIDHex: "bb", Headline: "Cheap", FeeSats: 100, BlockTime: time.Now()},
+		{ItemIDHex: "aa", TopicHex: "a1a1a1a1", Headline: "Dear", FeeSats: 5000, BlockTime: time.Now()},
+		{ItemIDHex: "bb", TopicHex: "a2a2a2a2", Headline: "Cheap", FeeSats: 100, BlockTime: time.Now()},
 	}
 	srv := misc.New(database.Test(t), nil, nil, nil, remote)
 
