@@ -132,6 +132,10 @@ class TransactionProvider extends ChangeNotifier implements NetworkScoped {
   final Logger _log = GetIt.I.get<Logger>();
   BitwindowRPC get bitwindowd => GetIt.I.get<BitwindowRPC>();
   OrchestratorWalletRPC get orchestratorWallet => GetIt.I.get<OrchestratorRPC>().wallet;
+
+  // The orchestrator reads a count of 0 as 100 rows, and the history must show every row.
+  static const _allTransactionRows = 0x7fffffff;
+
   BalanceProvider get balanceProvider => GetIt.I.get<BalanceProvider>();
   WalletReaderProvider get _walletReader => GetIt.I.get<WalletReaderProvider>();
 
@@ -293,7 +297,7 @@ class TransactionProvider extends ChangeNotifier implements NetworkScoped {
           walletTransactions,
           () async {
             final (fetchedTransactions, notes) = await (
-              orchestratorWallet.listTransactions(walletId: walletId),
+              orchestratorWallet.listTransactions(walletId: walletId, count: _allTransactionRows),
               bitwindowd.bitwindowd.listTransactionNotes(walletId: walletId),
             ).wait;
             return walletTransactionsFromEntries(fetchedTransactions.transactions, notes);

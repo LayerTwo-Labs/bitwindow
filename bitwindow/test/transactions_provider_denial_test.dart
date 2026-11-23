@@ -26,9 +26,11 @@ class _OrchestratorWallet implements OrchestratorWalletRPC {
     ],
   );
 
+  List<wmpb.TransactionEntry> history = [];
+
   @override
   Future<wmpb.ListTransactionsResponse> listTransactions({required String walletId, int count = 100}) async =>
-      wmpb.ListTransactionsResponse();
+      wmpb.ListTransactionsResponse(transactions: history.take(count));
 
   @override
   Future<wmpb.ListReceiveAddressesResponse> listReceiveAddresses(String walletId) async =>
@@ -145,6 +147,32 @@ void main() {
     expect(byOutput['$_denied:1']!.hasDenialInfo(), isTrue);
     expect(byOutput['$_denied:1']!.denialInfo.id, Int64(7));
     expect(byOutput['$_plain:0']!.hasDenialInfo(), isFalse);
+  });
+
+  test('the history holds every wallet transaction, also past the first 100', () async {
+    final history = [
+      for (var i = 0; i < 150; i++)
+        wmpb.TransactionEntry(
+          txid: i.toRadixString(16).padLeft(64, '0'),
+          amountSats: Int64(5000000000),
+          confirmations: 150 - i,
+          category: 'generate',
+        ),
+    ];
+    (GetIt.I.get<OrchestratorRPC>().wallet as _OrchestratorWallet).history = history;
+
+    final provider = TransactionProvider();
+    addTearDown(provider.dispose);
+    final loaded = Completer<void>();
+    provider.addListener(() {
+      if ((provider.initialized || provider.error != null) && !loaded.isCompleted) {
+        loaded.complete();
+      }
+    });
+    await loaded.future;
+
+    expect(provider.error, isNull);
+    expect(provider.walletTransactions.map((tx) => tx.txid), unorderedEquals(history.map((tx) => tx.txid)));
   });
 
   test('a poll with the same data does not notify', () async {
