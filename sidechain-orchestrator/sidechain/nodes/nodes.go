@@ -11,6 +11,7 @@ import (
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/bbc"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/coinshift"
+	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/sidepot"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/solana"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/truthcoin"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/zside"
@@ -28,6 +29,8 @@ func New(name, host string, port int, isBitcoinCore bool, network config.Network
 			return node, nil
 		case "solana":
 			return solana.NewClient(host, port), nil
+		case "sidepot":
+			return sidepot.NewNode(Proxy(name, host, port, network), config.CusfNetworkName(network, config.ECashNetworkID())), nil
 		case "bitassets", "photon":
 			return selfMinedNode{Proxy(name, host, port, network)}, nil
 		default:

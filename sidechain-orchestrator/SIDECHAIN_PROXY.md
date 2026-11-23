@@ -14,7 +14,7 @@ The orchestrator now provides proxy commands for interacting with sidechain node
 ./drivechain thunder balance
 
 # All supported sidechains
-./drivechain {bitassets|bitnames|coinshift|photon|thunder|truthcoin|zside} <command>
+./drivechain {bitassets|bitnames|coinshift|photon|sidepot|thunder|truthcoin|zside} <command>
 ```
 
 ## Smart Binary Management

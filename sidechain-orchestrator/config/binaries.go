@@ -291,6 +291,7 @@ var (
 	PhotonDirs      = MustDirConfig("photon")
 	CoinShiftDirs   = MustDirConfig("coinshift")
 	BbcDirs         = MustDirConfig("bbc")
+	SidepotDirs     = MustDirConfig("sidepot")
 )
 
 // DirConfigByName returns the BinaryDirConfig for a given binary name.
@@ -389,7 +390,7 @@ func (b BinaryDirConfig) GetBlockchainDataPaths(networkDir string, network Netwo
 	case "bitwindowd":
 		return GetExistingFilesInDir(networkDir, []string{"bitdrive", "bitwindow.db"}, log)
 
-	case "thunder", "bitnames", "bitassets", "thunder-orchard", "truthcoin", "photon", "coinshift":
+	case "thunder", "bitnames", "bitassets", "thunder-orchard", "truthcoin", "photon", "coinshift", "sidepot-node":
 		return GetExistingFilesInDir(networkDir, SidechainChainDataNames, log)
 
 	default:
@@ -553,7 +554,7 @@ func (b BinaryDirConfig) GetWalletPaths(networkDir string, network Network, log 
 			paths = append(paths, legacyWallet)
 		}
 
-	case "thunder", "bitnames", "bitassets", "thunder-orchard", "truthcoin", "photon", "coinshift":
+	case "thunder", "bitnames", "bitassets", "thunder-orchard", "truthcoin", "photon", "coinshift", "sidepot-node":
 		paths = append(paths, GetExistingFilesInDir(networkDir, []string{"wallet.mdb"}, log)...)
 		// Each parked wallet.mdb: of another BitWindow wallet, another eCash
 		// network, or a seed no wallet here made.
@@ -663,7 +664,7 @@ func (b BinaryDirConfig) GetLogPaths(networkDir string, network Network, log zer
 			logfile.Name, "debug.log", "drivechaind.log",
 		}, log)...)
 
-	case "thunder", "bitnames", "bitassets", "thunder-orchard", "truthcoin", "photon", "coinshift":
+	case "thunder", "bitnames", "bitassets", "thunder-orchard", "truthcoin", "photon", "coinshift", "sidepot-node":
 		paths = append(paths, GetExistingFilesInDir(networkDir, []string{"logs"}, log)...)
 	}
 

@@ -14,7 +14,7 @@ func TestCreateSidechainCommands(t *testing.T) {
 
 	expectedSidechains := []string{
 		"bitassets", "bitnames", "coinshift",
-		"photon", "thunder", "truthcoin", "zside",
+		"photon", "sidepot", "thunder", "truthcoin", "zside",
 	}
 
 	if len(commands) != len(expectedSidechains) {
@@ -45,6 +45,7 @@ func TestSidechainPorts(t *testing.T) {
 		{"bitassets", 6004},
 		{"coinshift", 6255},
 		{"photon", 6099},
+		{"sidepot", 6088},
 		{"truthcoin", 6013},
 		{"zside", 6098},
 	}
@@ -72,6 +73,7 @@ func TestSidechainBinaryType(t *testing.T) {
 		{"bitassets", pb.BinaryType_BINARY_TYPE_BITASSETS},
 		{"coinshift", pb.BinaryType_BINARY_TYPE_COINSHIFT},
 		{"photon", pb.BinaryType_BINARY_TYPE_PHOTON},
+		{"sidepot", pb.BinaryType_BINARY_TYPE_SIDEPOT},
 		{"truthcoin", pb.BinaryType_BINARY_TYPE_TRUTHCOIN},
 		{"zside", pb.BinaryType_BINARY_TYPE_ZSIDE},
 	}

@@ -563,6 +563,8 @@ func binaryDisplayName(binary orchestratorpb.BinaryType) string {
 		return "Photon"
 	case orchestratorpb.BinaryType_BINARY_TYPE_COINSHIFT:
 		return "CoinShift"
+	case orchestratorpb.BinaryType_BINARY_TYPE_SIDEPOT:
+		return "Sidepot"
 	default:
 		return binary.String()
 	}
