@@ -1479,6 +1479,19 @@ class DownloadInfo {
     this.isDownloading = false,
   });
 
+  /// Copy with [hash] set, also when it is null.
+  DownloadInfo withHash(String? hash) => DownloadInfo(
+    progress: progress,
+    total: total,
+    error: error,
+    message: message,
+    hash: hash,
+    expectedHash: expectedHash,
+    hashMatch: hashMatch,
+    downloadedAt: downloadedAt,
+    isDownloading: isDownloading,
+  );
+
   /// Create a copy with updated fields
   DownloadInfo copyWith({
     double? progress,

@@ -229,12 +229,14 @@ class BackendStateProvider extends ChangeNotifier {
 
     final remote = _timeOrNull(status.remoteTimestampUnix.toInt());
     final downloaded = _timeOrNull(status.downloadedTimestampUnix.toInt());
+    final hash = status.sha256.isEmpty ? null : status.sha256;
 
     final binaryProvider = GetIt.I.get<BinaryProvider>();
     binaryProvider.updateBinary(type, (b) {
       if (b.metadata.binaryPath?.path == next?.path &&
           b.metadata.remoteTimestamp == remote &&
-          b.metadata.downloadedTimestamp == downloaded) {
+          b.metadata.downloadedTimestamp == downloaded &&
+          b.downloadInfo.hash == hash) {
         return b;
       }
       return b.copyWith(
@@ -244,6 +246,7 @@ class BackendStateProvider extends ChangeNotifier {
           binaryPath: next,
           updateable: b.metadata.updateable,
         ),
+        downloadInfo: b.downloadInfo.withHash(hash),
       );
     });
   }
