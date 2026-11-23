@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/config"
+	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain"
+	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/nodes"
 	"github.com/samber/lo"
 )
 
@@ -145,9 +147,11 @@ func (o *Orchestrator) SetNodeMode(ctx context.Context, mode NodeMode) error {
 				}
 			}
 		}
-		for _, flag := range []string{"--mainchain-grpc-url", "--mainchain-grpc-host", "--mainchain-grpc-port", "--mnemonic-seed-phrase-path"} {
-			opts.TargetArgs = replaceCLIFlag(opts.TargetArgs, flag, "")
+		args, err := o.dropModeArgs(cfg, opts.TargetArgs)
+		if err != nil {
+			return err
 		}
+		opts.TargetArgs = args
 		sidechains[cfg.Name] = opts
 	}
 	if mode == NodeModeFull && len(sidechains) > 0 {
@@ -207,4 +211,21 @@ func (o *Orchestrator) SetNodeMode(ctx context.Context, mode NodeMode) error {
 		}()
 	}
 	return nil
+}
+
+// dropModeArgs removes the flags a start builds again for the node mode it
+// runs in, from the command line of a running daemon.
+func (o *Orchestrator) dropModeArgs(cfg BinaryConfig, args []string) ([]string, error) {
+	flags := []string{"--mainchain-grpc-url", "--mainchain-grpc-host", "--mainchain-grpc-port", "--mnemonic-seed-phrase-path"}
+	node, err := nodes.New(cfg.Name, cfg.RPCHost(), cfg.Port, cfg.IsBitcoinCore, config.Network(o.CurrentNetwork()))
+	if err != nil {
+		return nil, err
+	}
+	if byMode, ok := node.(sidechain.ModeArgsNode); ok {
+		flags = append(flags, byMode.ModeArgs()...)
+	}
+	for _, flag := range flags {
+		args = replaceCLIFlag(args, flag, "")
+	}
+	return args, nil
 }

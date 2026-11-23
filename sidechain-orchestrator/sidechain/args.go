@@ -21,4 +21,16 @@ type Host interface {
 
 	// MainchainCookie is the admin cookie of the local mainchain node.
 	MainchainCookie() string
+
+	// MainchainEsplora is the Esplora server a node reads mainchain blocks
+	// from in light mode. It is empty when a local mainchain node runs.
+	MainchainEsplora() string
+}
+
+// ModeArgsNode is a chain whose Args differ between the node modes. A mode
+// change drops the flags ModeArgs names, and the next start builds them again.
+type ModeArgsNode interface {
+	Node
+
+	ModeArgs() []string
 }

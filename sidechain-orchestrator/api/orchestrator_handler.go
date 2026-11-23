@@ -592,6 +592,8 @@ func sidechainTypeFromName(name string) pb.SidechainType {
 		return pb.SidechainType_SIDECHAIN_TYPE_PHOTON
 	case "coinshift":
 		return pb.SidechainType_SIDECHAIN_TYPE_COINSHIFT
+	case "sidepot":
+		return pb.SidechainType_SIDECHAIN_TYPE_SIDEPOT
 	default:
 		return pb.SidechainType_SIDECHAIN_TYPE_UNSPECIFIED
 	}
@@ -688,6 +690,8 @@ func binaryTypeFromName(name string) pb.BinaryType {
 		return pb.BinaryType_BINARY_TYPE_PHOTON
 	case "coinshift":
 		return pb.BinaryType_BINARY_TYPE_COINSHIFT
+	case "sidepot":
+		return pb.BinaryType_BINARY_TYPE_SIDEPOT
 	case "grpcurl":
 		return pb.BinaryType_BINARY_TYPE_GRPCURL
 	case "drivechaind":
@@ -780,6 +784,8 @@ func sidechainNames(binary pb.BinaryType) (name, displayName string, err error) 
 		return "bbc", "Big Block Covenant", nil
 	case pb.BinaryType_BINARY_TYPE_SOLANA:
 		return "solana", "Solana", nil
+	case pb.BinaryType_BINARY_TYPE_SIDEPOT:
+		return "sidepot", "Sidepot", nil
 	default:
 		return "", "", fmt.Errorf("unsupported sidechain binary type: %s", binary)
 	}
@@ -933,6 +939,8 @@ func resetBinaryFromType(t pb.BinaryType) orchestrator.ResetBinary {
 		return orchestrator.ResetBinaryZSided
 	case pb.BinaryType_BINARY_TYPE_BBC:
 		return orchestrator.ResetBinaryBbc
+	case pb.BinaryType_BINARY_TYPE_SIDEPOT:
+		return orchestrator.ResetBinarySidepot
 	default:
 		return orchestrator.ResetBinaryUnknown
 	}
@@ -968,6 +976,8 @@ func binaryTypeFromResetBinary(binary orchestrator.ResetBinary) pb.BinaryType {
 		return pb.BinaryType_BINARY_TYPE_ZSIDED
 	case orchestrator.ResetBinaryBbc:
 		return pb.BinaryType_BINARY_TYPE_BBC
+	case orchestrator.ResetBinarySidepot:
+		return pb.BinaryType_BINARY_TYPE_SIDEPOT
 	default:
 		return pb.BinaryType_BINARY_TYPE_UNSPECIFIED
 	}

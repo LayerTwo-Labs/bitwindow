@@ -1541,6 +1541,13 @@ func (h bootHost) MainchainRPC() (string, int, error) {
 	return o.BitcoinConf.GetRPCHost(), o.BitcoinConf.GetRPCPort(), nil
 }
 
+func (h bootHost) MainchainEsplora() string {
+	if h.orch.NodeMode() != NodeModeLight {
+		return ""
+	}
+	return config.EsploraURLForNetwork(config.Network(h.orch.CurrentNetwork()))
+}
+
 func (h bootHost) MainchainCookie() string {
 	if h.orch.BitcoinConf == nil {
 		return ""

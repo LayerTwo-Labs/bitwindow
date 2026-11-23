@@ -728,4 +728,14 @@ var KnownSidechainSpecs = map[string]SidechainConfSpec{
 		RPCKey:         "rpc-addr",
 		DirKey:         "coinshift",
 	},
+	"sidepot": {
+		EnforcerArg:    "mainchain-grpc-url",
+		Name:           "Sidepot",
+		ConfigFilename: "sidepot.conf",
+		BasePort:       6088,
+		CliArgKeys:     []string{"net-addr", "mainchain-grpc-url"},
+		PortStyle:      "grpc",
+		RPCKey:         "rpc-addr",
+		DirKey:         "sidepot",
+	},
 }
