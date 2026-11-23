@@ -78,6 +78,16 @@ func TestBidSizing(t *testing.T) {
 			wantSats: 20_000, wantByRate: false,
 		},
 		{
+			name:     "the chain's opening bid stands in for the rate",
+			in:       bidInput{openingSats: 28_250, rateSatVb: 2, maxBidSats: 100_000},
+			wantSats: 28_250, wantByRate: false,
+		},
+		{
+			name:     "an exact bid ignores the chain's opening bid",
+			in:       bidInput{bidSats: 40_000, openingSats: 28_250, maxBidSats: 100_000},
+			wantSats: 40_000, wantByRate: false,
+		},
+		{
 			name:     "a rate under the ceiling pays the rate",
 			in:       bidInput{rateSatVb: 2, maxBidSats: 20_000, capToBlockWorth: true},
 			wantSats: int64(math.Ceil(2 * nominalBidVsize)), wantByRate: false,
@@ -180,5 +190,27 @@ func TestReplacementBidHoldsTheBlockWorthCap(t *testing.T) {
 	_, ok := replacementBid(sized, 12_000, bidCeiling(in))
 	if ok {
 		t.Fatal("a 12 000 sat floor over a 5 000 sat block must be refused")
+	}
+}
+
+func TestOpeningRefusal(t *testing.T) {
+	tests := []struct {
+		name                   string
+		worth, opening, maxBid int64
+		refused                bool
+	}{
+		{name: "a chain that names no opening bid is never refused", worth: 0, opening: 0, maxBid: 20_000},
+		{name: "a block worth more than the bid is bid for", worth: 56_500, opening: 28_250, maxBid: 100_000},
+		{name: "a block worth less than the bid is left alone", worth: 9_345, opening: 10_000, maxBid: 100_000, refused: true},
+		{name: "a block worth exactly the bid is left alone", worth: 10_000, opening: 10_000, maxBid: 100_000, refused: true},
+		{name: "a ceiling under the bid is left alone", worth: 56_500, opening: 28_250, maxBid: 20_000, refused: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := openingRefusal(test.worth, test.opening, test.maxBid)
+			if (err != nil) != test.refused {
+				t.Errorf("refusal is %v, want refused=%v", err, test.refused)
+			}
+		})
 	}
 }
