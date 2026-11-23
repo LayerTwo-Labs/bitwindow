@@ -16,6 +16,7 @@ import 'package:sidechain_core/rpcs/bitcoind_connection.dart';
 import 'package:sidechain_core/env.dart';
 import 'package:sidechain_core/rpcs/orchestrator_rpc.dart';
 import 'package:sidechain_core/rpcs/photon_rpc.dart';
+import 'package:sidechain_core/rpcs/sidepot_rpc.dart';
 import 'package:sidechain_core/rpcs/stream_or_poll.dart';
 import 'package:sidechain_core/rpcs/thunder_rpc.dart';
 import 'package:sidechain_core/rpcs/truthcoin_rpc.dart';
@@ -264,6 +265,7 @@ class BackendStateProvider extends ChangeNotifier {
       'truthcoin' => GetIt.I.isRegistered<TruthcoinRPC>() ? GetIt.I.get<TruthcoinRPC>() : null,
       'photon' => GetIt.I.isRegistered<PhotonRPC>() ? GetIt.I.get<PhotonRPC>() : null,
       'coinshift' => GetIt.I.isRegistered<CoinShiftRPC>() ? GetIt.I.get<CoinShiftRPC>() : null,
+      'sidepot' => GetIt.I.isRegistered<SidepotRPC>() ? GetIt.I.get<SidepotRPC>() : null,
       _ => null,
     };
   }
@@ -291,6 +293,8 @@ class BackendStateProvider extends ChangeNotifier {
         return BinaryType.BINARY_TYPE_PHOTON;
       case 'coinshift':
         return BinaryType.BINARY_TYPE_COINSHIFT;
+      case 'sidepot':
+        return BinaryType.BINARY_TYPE_SIDEPOT;
       default:
         return null;
     }
