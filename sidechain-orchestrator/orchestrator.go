@@ -75,6 +75,7 @@ type BinaryStatus struct {
 	UpdateAvailable bool      // a newer build is published than the one on disk
 	RemoteTimestamp time.Time // Last-Modified of the published download
 	LocalTimestamp  time.Time // mtime of the binary on disk
+	SHA256          string    // SHA256 of the binary on disk, empty when not downloaded
 	// LoadedWalletID names the wallet whose sidechain wallet the binary holds.
 	LoadedWalletID string
 	// HasExternalWallet says a wallet.mdb that no wallet here made is parked.
@@ -172,6 +173,8 @@ type Orchestrator struct {
 
 	// releases reports whether a newer build of each binary is published.
 	releases *ReleaseChecker
+
+	binaryHashes fileHashCache
 
 	BitcoinConf    *config.BitcoinConfManager
 	EnforcerConf   *config.EnforcerConfManager
@@ -832,6 +835,11 @@ func (o *Orchestrator) status(name string, opts DownloadOptions, dialPort bool) 
 	if downloaded {
 		status.BinaryPath = requestedPath
 		status.LocalTimestamp = localModTime(requestedPath)
+		sum, err := o.binaryHashes.Hash(requestedPath)
+		if err != nil {
+			status.Error = err.Error()
+		}
+		status.SHA256 = sum
 	}
 
 	if o.releases != nil {

@@ -673,8 +673,10 @@ type BinaryStatusMsg struct {
 	// The sidechain keeps a wallet.mdb aside that holds a seed no wallet here
 	// made, because its node refused it.
 	HasExternalWallet bool `protobuf:"varint,30,opt,name=has_external_wallet,json=hasExternalWallet,proto3" json:"has_external_wallet,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// SHA256 of the binary on disk, lowercase hex. Empty when not downloaded.
+	Sha256        string `protobuf:"bytes,31,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BinaryStatusMsg) Reset() {
@@ -908,6 +910,13 @@ func (x *BinaryStatusMsg) GetHasExternalWallet() bool {
 		return x.HasExternalWallet
 	}
 	return false
+}
+
+func (x *BinaryStatusMsg) GetSha256() string {
+	if x != nil {
+		return x.Sha256
+	}
+	return ""
 }
 
 type StartupLogEntryMsg struct {
@@ -6378,7 +6387,7 @@ const file_orchestrator_v1_orchestrator_proto_rawDesc = "" +
 	"\x0fconvert_from_id\x18\f \x01(\tR\rconvertFromId\x12*\n" +
 	"\x11convert_from_name\x18\r \x01(\tR\x0fconvertFromName\x12\"\n" +
 	"\rconvert_to_id\x18\x0e \x01(\tR\vconvertToId\x12&\n" +
-	"\x0fconvert_to_name\x18\x0f \x01(\tR\rconvertToName\"\xaf\b\n" +
+	"\x0fconvert_to_name\x18\x0f \x01(\tR\rconvertToName\"\xc7\b\n" +
 	"\x0fBinaryStatusMsg\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x18\n" +
@@ -6414,7 +6423,8 @@ const file_orchestrator_v1_orchestrator_proto_rawDesc = "" +
 	"\vwindow_open\x18\x1b \x01(\bR\n" +
 	"windowOpen\x12(\n" +
 	"\x10loaded_wallet_id\x18\x1d \x01(\tR\x0eloadedWalletId\x12.\n" +
-	"\x13has_external_wallet\x18\x1e \x01(\bR\x11hasExternalWalletJ\x04\b\x1c\x10\x1dR\x13serves_light_wallet\"U\n" +
+	"\x13has_external_wallet\x18\x1e \x01(\bR\x11hasExternalWallet\x12\x16\n" +
+	"\x06sha256\x18\x1f \x01(\tR\x06sha256J\x04\b\x1c\x10\x1dR\x13serves_light_wallet\"U\n" +
 	"\x12StartupLogEntryMsg\x12%\n" +
 	"\x0etimestamp_unix\x18\x01 \x01(\x03R\rtimestampUnix\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\":\n" +
