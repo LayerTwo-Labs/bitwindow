@@ -519,8 +519,21 @@ func (h *BMMHandler) CreateBid(
 		)
 	}
 
+	// A chain that names its own opening bid pays its block reward by the bid.
+	// An opening bid under that earns nothing, so a block worth no more than
+	// the bid, or a ceiling under it, leaves nothing to win. A manual bid names
+	// its own amount and is not held to this.
+	opening := int64(0)
+	if req.BidSats <= 0 {
+		opening = template.OpeningBidSats
+	}
+	if err := openingRefusal(template.FeesSats, opening, req.MaxBidSats); err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error())
+	}
+
 	sizing := bidInput{
 		bidSats:         req.BidSats,
+		openingSats:     opening,
 		rateSatVb:       req.FeeRateSatVb,
 		blockWorthSats:  template.FeesSats,
 		maxBidSats:      req.MaxBidSats,
