@@ -126,6 +126,15 @@ List<WalletTransaction>? mergeNewestTransactions(
   return byTxid.values.toList()..sort(newestTransactionFirst);
 }
 
+/// The first failed read of a pair that ran in parallel, so the error names its cause.
+@visibleForTesting
+Object readFailure(Object error) {
+  if (error is ParallelWaitError<Object?, (AsyncError?, AsyncError?)>) {
+    return (error.errors.$1 ?? error.errors.$2)?.error ?? error;
+  }
+  return error;
+}
+
 // because the class extends ChangeNotifier, any subscribers
 // to this class will be notified of changes to new transactions
 class TransactionProvider extends ChangeNotifier implements NetworkScoped {
@@ -413,8 +422,9 @@ class TransactionProvider extends ChangeNotifier implements NetworkScoped {
         error = null;
         notifyListeners();
       }
-    } catch (e) {
+    } catch (caught) {
       _listsRead = false;
+      final e = readFailure(caught);
       if (e.toString() != error) {
         if (!isExpectedBootError(e)) {
           _log.w('TransactionProvider: fetch failed: $e');

@@ -128,7 +128,7 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
   bool get loading => false;
 
   @override
-  String? get transactionsError => null;
+  String? get historyError => null;
 
   @override
   ({DateTime start, DateTime end})? get dateRange => null;

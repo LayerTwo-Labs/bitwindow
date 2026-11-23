@@ -19,7 +19,7 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
   _Overview(this.entries, {this.loading = false});
 
   @override
-  String? get transactionsError => null;
+  String? get historyError => null;
 
   @override
   ({DateTime start, DateTime end})? get dateRange => null;
