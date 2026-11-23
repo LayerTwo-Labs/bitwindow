@@ -189,6 +189,7 @@ export 'rpcs/thunder_rpc.dart';
 export 'rpcs/thunder_utxo.dart';
 export 'rpcs/truthcoin_rpc.dart';
 export 'rpcs/photon_rpc.dart';
+export 'rpcs/sidepot_rpc.dart';
 export 'rpcs/zside_rpc.dart';
 export 'services/code_search_service.dart';
 export 'utils/menu_commands.dart';
