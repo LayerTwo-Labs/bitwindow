@@ -1196,6 +1196,7 @@ func statusToProto(s orchestrator.BinaryStatus) *pb.BinaryStatusMsg {
 		Version:                 s.Version,
 		RepoUrl:                 s.RepoURL,
 		StartupLogs:             startupLogs,
+		Sha256:                  s.SHA256,
 	}
 }
 

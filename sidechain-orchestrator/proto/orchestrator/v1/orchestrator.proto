@@ -278,6 +278,8 @@ message BinaryStatusMsg {
   // The sidechain keeps a wallet.mdb aside that holds a seed no wallet here
   // made, because its node refused it.
   bool has_external_wallet = 30;
+  // SHA256 of the binary on disk, lowercase hex. Empty when not downloaded.
+  string sha256 = 31;
 }
 
 message StartupLogEntryMsg {
