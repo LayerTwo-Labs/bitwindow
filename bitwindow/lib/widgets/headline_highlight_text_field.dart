@@ -1,10 +1,30 @@
-import 'dart:math';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:sail_ui/sail_ui.dart';
 
-/// A TextEditingController that highlights the headline portion (first 64 chars
-/// or up to first newline) with a green background.
+/// The largest headline the backend accepts, in UTF-8 bytes.
+const headlineMaxBytes = 64;
+
+/// The end index in [text] of the headline: the first line, cut at [headlineMaxBytes] UTF-8 bytes on a character boundary.
+int headlineEndIndex(String text) {
+  var bytes = 0;
+  var index = 0;
+  for (final rune in text.runes) {
+    if (rune == 0x0A) {
+      return index;
+    }
+    final runeBytes = utf8.encode(String.fromCharCode(rune)).length;
+    if (bytes + runeBytes > headlineMaxBytes) {
+      return index;
+    }
+    bytes += runeBytes;
+    index += rune > 0xFFFF ? 2 : 1;
+  }
+  return index;
+}
+
+/// A TextEditingController that highlights the headline portion with a green background.
 class HeadlineHighlightController extends TextEditingController {
   HeadlineHighlightController({super.text});
 
@@ -15,7 +35,7 @@ class HeadlineHighlightController extends TextEditingController {
       return TextSpan(style: style, text: text);
     }
 
-    final headlineEnd = _headlineEndIndex(text);
+    final headlineEnd = headlineEndIndex(text);
     final headlinePart = text.substring(0, headlineEnd);
     final restPart = text.substring(headlineEnd);
 
@@ -32,16 +52,7 @@ class HeadlineHighlightController extends TextEditingController {
   }
 }
 
-int _headlineEndIndex(String text) {
-  final newlineIndex = text.indexOf('\n');
-  if (newlineIndex >= 0 && newlineIndex < 64) {
-    return newlineIndex;
-  }
-  return min(64, text.length);
-}
-
-/// A text field that highlights the headline portion (first 64 chars or up to first newline)
-/// with a green background directly in the text field.
+/// A text field that highlights the headline portion with a green background directly in the text field.
 class HeadlineHighlightTextField extends StatefulWidget {
   final HeadlineHighlightController controller;
   final String hintText;
@@ -82,7 +93,7 @@ class _HeadlineHighlightTextFieldState extends State<HeadlineHighlightTextField>
   @override
   Widget build(BuildContext context) {
     final text = widget.controller.text;
-    final headlineEndIndex = _headlineEndIndex(text);
+    final headlineBytes = utf8.encode(text.substring(0, headlineEndIndex(text))).length;
 
     return SailColumn(
       spacing: SailStyleValues.padding08,
@@ -95,7 +106,7 @@ class _HeadlineHighlightTextFieldState extends State<HeadlineHighlightTextField>
           maxLines: widget.maxLines,
         ),
         SailText.secondary12(
-          'Headline: $headlineEndIndex/64 chars',
+          'Headline: $headlineBytes/$headlineMaxBytes bytes',
         ),
       ],
     );

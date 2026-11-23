@@ -477,7 +477,7 @@ void _showNewsHelp(BuildContext context) {
         'With this page you can pay a fee to broadcast news on any topic. '
         'Clicking "Broadcast" will create a transaction with an OP_RETURN '
         'output that encodes the text you have entered.\n\n'
-        'The highlighted green portion is your headline (up to 64 characters). '
+        'The highlighted green portion is your headline (up to 64 bytes). '
         'Press Enter to end the headline early - everything after becomes content.\n\n'
         'Anyone subscribed to the topic will see posts filtered by time and '
         'sorted by fee amount.',
@@ -519,7 +519,7 @@ class BroadcastNewsView extends StatelessWidget {
               HeadlineHighlightTextField(
                 controller: viewModel.messageController,
                 label: 'Message (highlighted = headline)',
-                hintText: 'First 64 chars (or until Enter) is the headline',
+                hintText: 'First 64 bytes (or until Enter) is the headline',
                 minLines: 10,
               ),
               SailTextField(
@@ -642,24 +642,13 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   List<Topic> get topics => _newsProvider.topics;
 
-  /// Extract headline from unified text (first 64 chars or up to first newline)
-  String get headline {
-    final text = messageController.text;
-    final newlineIndex = text.indexOf('\n');
-    if (newlineIndex >= 0 && newlineIndex < 64) {
-      return text.substring(0, newlineIndex);
-    }
-    return text.substring(0, min(64, text.length));
-  }
+  String get headline => messageController.text.substring(0, headlineEndIndex(messageController.text));
 
-  /// Extract content from unified text (everything after headline)
+  /// The text after the headline, without the newline that ends the headline.
   String get content {
     final text = messageController.text;
-    final newlineIndex = text.indexOf('\n');
-    if (newlineIndex >= 0 && newlineIndex < 64) {
-      return text.substring(newlineIndex + 1);
-    }
-    return text.length > 64 ? text.substring(64) : '';
+    final end = headlineEndIndex(text);
+    return text.startsWith('\n', end) ? text.substring(end + 1) : text.substring(end);
   }
 
   String? broadcastError;
