@@ -219,7 +219,7 @@ func TestRemoteSidechainArgsMatchEachDaemon(t *testing.T) {
 			require.Contains(t, opts.TargetArgs, "--network=signet")
 			require.NotContains(t, strings.Join(opts.TargetArgs, " "), "localhost")
 			switch name {
-			case "bitnames", "bitassets":
+			case "bitassets":
 				require.Contains(t, opts.TargetArgs, "--mainchain-grpc-host="+u.Hostname())
 				require.Contains(t, opts.TargetArgs, "--mainchain-grpc-port="+u.Port())
 				require.False(t, hasCLIFlag(opts.TargetArgs, "--mainchain-grpc-url"))
@@ -301,7 +301,7 @@ func TestRemoteSidechainECashArgs(t *testing.T) {
 			require.Contains(t, opts.TargetArgs, "--network="+entry.ID)
 			require.NotContains(t, strings.Join(opts.TargetArgs, " "), "localhost")
 			switch name {
-			case "bitnames", "bitassets":
+			case "bitassets":
 				require.Contains(t, opts.TargetArgs, "--mainchain-grpc-host="+u.Hostname())
 				require.Contains(t, opts.TargetArgs, "--mainchain-grpc-port="+u.Port())
 				require.False(t, hasCLIFlag(opts.TargetArgs, "--mainchain-grpc-url"))
