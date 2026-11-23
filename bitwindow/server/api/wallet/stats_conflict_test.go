@@ -3,6 +3,7 @@ package wallet_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	connectv1 "connectrpc.com/connect"
 	corepb "github.com/barebitcoin/btc-buf/gen/bitcoin/bitcoind/v1alpha"
@@ -50,4 +51,25 @@ func TestStatsExcludeTheReplacedFee(t *testing.T) {
 			assert.Equal(t, int64(2000), response.TotalFeesSats)
 		})
 	}
+}
+
+func TestStatsLastActivityIsTheNewestBlock(t *testing.T) {
+	core := mocks.NewMockBitcoinServiceClient(gomock.NewController(t))
+	sameTime := timestamppb.New(time.Unix(1795035587, 0))
+	txs := []*corepb.GetTransactionResponse{
+		{Txid: "block-98", Amount: 50, Confirmations: 3, Time: sameTime},
+		{Txid: "block-99", Amount: 50, Confirmations: 2, Time: sameTime},
+		{Txid: "block-100", Amount: 50, Confirmations: 1, Time: sameTime},
+	}
+	core.EXPECT().ListTransactions(gomock.Any(), gomock.Any()).Return(connectv1.NewResponse(&corepb.ListTransactionsResponse{Transactions: txs}), nil)
+	core.EXPECT().ListUnspent(gomock.Any(), gomock.Any()).Return(connectv1.NewResponse(&corepb.ListUnspentResponse{}), nil)
+	expectCoreTip(core, 100)
+	apitests.ExpectCoreWalletSetup(core)
+	orch := feeStatsOrchestrator{apitests.OpenWallet(apitests.CoreWalletOrchestrator(t), &orchpb.WalletMetadata{Id: testWalletID, WalletType: orchpb.WalletType_WALLET_TYPE_BITCOIN_CORE})}
+	client := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t), apitests.WithCoreWallet(), apitests.WithBitcoind(core), apitests.WithOrchestrator(orch)))
+
+	response, err := client.GetStats(t.Context(), &walletpb.GetStatsRequest{WalletId: testWalletID})
+	require.NoError(t, err)
+	assert.Equal(t, uint32(100), response.LastTxBlockHeight)
+	assert.Equal(t, sameTime.AsTime(), response.LastTxAt.AsTime())
 }
