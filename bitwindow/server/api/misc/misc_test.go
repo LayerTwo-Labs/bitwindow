@@ -617,6 +617,7 @@ func TestService_ListCoinNews(t *testing.T) {
 		secondTopicID := validTopicID()
 		seedCurrentTopic(t, ctx, database, secondTopicID, "Test Topic 2", 2)
 
+		seedCurrentNews(t, ctx, database, secondTopicID, "Quiet topic", "", 2, time.Now().Add(-time.Hour))
 		for i := range 105 {
 			headline := "News"
 			seedCurrentNews(t, ctx, database, firstTopicID, headline, "Content for news", 3+i, time.Now().Add(time.Duration(i)*time.Second))
@@ -626,8 +627,10 @@ func TestService_ListCoinNews(t *testing.T) {
 
 		resp, err := cli.ListCoinNews(t.Context(), &miscv1.ListCoinNewsRequest{})
 		require.NoError(t, err)
-		// Should be limited to 100 entries
-		assert.Len(t, resp.CoinNews, 100)
+		byTopic := lo.GroupBy(resp.CoinNews, func(n *miscv1.CoinNews) string { return n.Topic })
+		assert.Len(t, byTopic[firstTopicID.String()], 100)
+		require.Len(t, byTopic[secondTopicID.String()], 1)
+		assert.Equal(t, "Quiet topic", byTopic[secondTopicID.String()][0].Headline)
 	})
 }
 

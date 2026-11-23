@@ -1,11 +1,13 @@
 package misc
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	connectv1 "connectrpc.com/connect"
@@ -276,76 +278,88 @@ func topicToProto(topic opreturns.Topic, _ int) *miscv1.Topic {
 	}
 }
 
+// coinNewsPerTopic is the number of stories ListCoinNews returns for each topic.
+const coinNewsPerTopic = 100
+
 // ListCoinNews implements miscv1connect.MiscServiceHandler.
 func (s *Server) ListCoinNews(ctx context.Context, req *miscv1.ListCoinNewsRequest) (*miscv1.ListCoinNewsResponse, error) {
-	var topicID opreturns.TopicID
-	if req.Topic != nil {
-		var err error
-		topicID, err = opreturns.ValidNewsTopicID(*req.Topic)
+	topics, err := s.coinNewsTopics(ctx, req.Topic)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []*miscv1.CoinNews
+	for _, topic := range topics {
+		news, err := s.confirmedCoinNews(ctx, topic)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, news[:min(len(news), coinNewsPerTopic)]...)
+	}
+	rankCoinNews(out)
+	return &miscv1.ListCoinNewsResponse{CoinNews: out}, nil
+}
+
+// coinNewsTopics returns the requested topic, or each topic of this node.
+func (s *Server) coinNewsTopics(ctx context.Context, topic *string) ([]opreturns.TopicID, error) {
+	if topic != nil {
+		topicID, err := opreturns.ValidNewsTopicID(*topic)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 		}
+		return []opreturns.TopicID{topicID}, nil
 	}
-	res, err := s.listRemoteCoinNews(ctx, req.Topic)
-	// No published indexer for this network, so the local index answers.
-	if !errors.Is(err, engines.ErrNoIndexer) {
-		return res, err
+	topics, err := opreturns.ListTopics(ctx, s.database)
+	if err != nil {
+		return nil, err
+	}
+	return lo.Map(topics, func(t opreturns.Topic, _ int) opreturns.TopicID { return t.Topic }), nil
+}
+
+// confirmedCoinNews returns the top stories of one topic, from the network's
+// indexer, or from the local index when the network publishes no indexer.
+func (s *Server) confirmedCoinNews(ctx context.Context, topic opreturns.TopicID) ([]*miscv1.CoinNews, error) {
+	items, err := s.remoteCoinNews.ListFrontPage(ctx, topic.String(), coinNewsPerTopic)
+	switch {
+	case errors.Is(err, engines.ErrNoIndexer):
+	case err != nil:
+		return nil, connect.NewError(connect.CodeUnavailable, fmt.Sprintf("read coin news indexer: %s", err)).WithCause(err)
+	default:
+		return lo.Map(items, remoteCoinNewsToProto), nil
 	}
 
 	news, err := opreturns.ListCoinNews(ctx, s.database)
 	if err != nil {
 		return nil, fmt.Errorf("list coin news: %w", err)
 	}
-
-	// Filter by topic if provided
-	if req.Topic != nil {
-		news = lo.Filter(news, func(coinNews opreturns.CoinNews, _ int) bool {
-			return coinNews.Topic == topicID
-		})
-	}
-
-	// news is already ranked by fee in ListCoinNews;
-	// preserve that order and take the top 100.
-	if len(news) > 100 {
-		news = news[:100]
-	}
-
-	return &miscv1.ListCoinNewsResponse{
-		CoinNews: lo.Map(news, coinNewsToProto),
-	}, nil
+	news = lo.Filter(news, func(n opreturns.CoinNews, _ int) bool { return n.Topic == topic })
+	return lo.Map(news[:min(len(news), coinNewsPerTopic)], coinNewsToProto), nil
 }
 
-// listRemoteCoinNews serves the feed straight from the network's indexer.
-// The indexer already ranks and decodes, so nothing is re-parsed here.
-func (s *Server) listRemoteCoinNews(ctx context.Context, topic *string) (*miscv1.ListCoinNewsResponse, error) {
-	var topicHex string
-	if topic != nil {
-		// already validated as four-byte hex by the caller
-		topicHex = *topic
-	}
-
-	items, err := s.remoteCoinNews.ListFrontPage(ctx, topicHex, 100)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, fmt.Sprintf("read coin news indexer: %s", err)).WithCause(err)
-	}
-
-	out := make([]*miscv1.CoinNews, len(items))
-	for i, item := range items {
-		out[i] = &miscv1.CoinNews{
-			Topic:      item.TopicHex,
-			Headline:   strings.ToValidUTF8(item.Headline, ""),
-			Content:    strings.ToValidUTF8(item.Body, ""),
-			CreateTime: timestamppb.New(item.BlockTime),
-			ItemId:     item.ItemIDHex,
-			FeeSats:    item.FeeSats,
-			Url:        item.URL,
-			Subtype:    item.Subtype,
-			Nsfw:       item.NSFW,
-			Txid:       item.TxID,
-			Vout:       item.Vout,
+// rankCoinNews orders stories by fee, the newest first on equal fees.
+func rankCoinNews(news []*miscv1.CoinNews) {
+	slices.SortStableFunc(news, func(a, b *miscv1.CoinNews) int {
+		if c := cmp.Compare(b.FeeSats, a.FeeSats); c != 0 {
+			return c
 		}
+		return b.CreateTime.AsTime().Compare(a.CreateTime.AsTime())
+	})
+}
+
+func remoteCoinNewsToProto(item engines.RemoteItem, _ int) *miscv1.CoinNews {
+	return &miscv1.CoinNews{
+		Topic:      item.TopicHex,
+		Headline:   strings.ToValidUTF8(item.Headline, ""),
+		Content:    strings.ToValidUTF8(item.Body, ""),
+		CreateTime: timestamppb.New(item.BlockTime),
+		ItemId:     item.ItemIDHex,
+		FeeSats:    item.FeeSats,
+		Url:        item.URL,
+		Subtype:    item.Subtype,
+		Nsfw:       item.NSFW,
+		Txid:       item.TxID,
+		Vout:       item.Vout,
 	}
-	return &miscv1.ListCoinNewsResponse{CoinNews: out}, nil
 }
 
 func coinNewsToProto(coinNews opreturns.CoinNews, _ int) *miscv1.CoinNews {
