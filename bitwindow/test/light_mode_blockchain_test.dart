@@ -139,12 +139,12 @@ void main() {
 
   test('blocks do not poll in light mode', () async {
     final provider = await boot(wmpb.NodeMode.NODE_MODE_LIGHT);
-    provider.errors = ['unable to connect to Bitcoin Core'];
+    provider.blocksError = 'could not list blocks';
 
     await provider.fetch();
 
     expect(rpc.api.blockCalls, 0);
-    expect(provider.errors, isEmpty);
+    expect(provider.blocksError, isNull);
   });
 
   test('a skipped poll drops the old blocks', () async {
@@ -165,7 +165,7 @@ void main() {
 
     await provider.fetch();
 
-    expect(provider.errors, isEmpty);
+    expect(provider.blocksError, isNull);
     expect(output.lines.where((l) => l.contains('Loading block index')), isEmpty);
   });
 
@@ -314,5 +314,47 @@ void main() {
 
     expect(rpc.api.blockCalls, before);
     expect(provider.blocks, isEmpty);
+  });
+
+  test('a failed block read names the cause, keeps the rows and clears at the next good read', () async {
+    final provider = await boot(wmpb.NodeMode.NODE_MODE_FULL);
+    await pumpEventQueue();
+    expect(provider.blocks.map((b) => b.height), [7]);
+    var notifies = 0;
+    provider.addListener(() => notifies++);
+
+    rpc.api.blockError = Exception('could not list blocks: stat .cookie: no such file or directory');
+    await provider.fetch();
+
+    expect(provider.blocksError, contains('no such file or directory'));
+    expect(provider.recentError, isNull, reason: 'the transactions read worked');
+    expect(provider.blocks.map((b) => b.height), [7]);
+    expect(notifies, 1);
+
+    await provider.fetch();
+    expect(notifies, 1, reason: 'the same error notifies one time');
+
+    rpc.api.blockError = null;
+    await provider.fetch();
+    expect(provider.blocksError, isNull);
+    expect(notifies, 2);
+  });
+
+  test('a failed transaction read names the cause on its own card', () async {
+    final provider = await boot(wmpb.NodeMode.NODE_MODE_FULL);
+    await pumpEventQueue();
+    var notifies = 0;
+    provider.addListener(() => notifies++);
+
+    rpc.api.txError = Exception('could not list unconfirmed transactions: getrawmempool: no core credentials');
+    await provider.fetch();
+
+    expect(provider.recentError, contains('getrawmempool'));
+    expect(provider.blocksError, isNull);
+    expect(notifies, 1);
+
+    rpc.api.txError = null;
+    await provider.fetch();
+    expect(provider.recentError, isNull);
   });
 }

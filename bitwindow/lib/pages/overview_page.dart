@@ -137,94 +137,25 @@ class FireplaceStat extends StatelessWidget {
   }
 }
 
-class TransactionsView extends StatelessWidget {
-  const TransactionsView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ViewModelBuilder<TransactionsViewModel>.reactive(
-      viewModelBuilder: () => TransactionsViewModel(),
-      builder: (context, model, child) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            // Responsive columns based on width
-            int crossAxisCount = (constraints.maxWidth / 600).ceil();
-            double gridSpacing = SailStyleValues.padding16;
-            double totalSpacing = gridSpacing * (crossAxisCount - 1);
-            double cardWidth = (constraints.maxWidth - totalSpacing) / crossAxisCount;
-            double desiredCardHeight = 300;
-
-            double childAspectRatio = cardWidth / desiredCardHeight;
-
-            List<Widget> cardList = [
-              SailCard(
-                bottomPadding: false,
-                title: 'Latest Transactions',
-                error: model.hasErrorForKey('blockchain') ? model.error('blockchain').toString() : null,
-                child: SizedBox(
-                  height: 300,
-                  child: ListenableBuilder(
-                    listenable: model.blockchainProvider.recentChanged,
-                    builder: (context, _) => LatestTransactionTable(
-                      entries: model.recentTransactions,
-                    ),
-                  ),
-                ),
-              ),
-              SailCard(
-                title: 'Latest Blocks',
-                bottomPadding: false,
-                child: SizedBox(
-                  height: 300,
-                  child: LatestBlocksTable(
-                    blocks: model.recentBlocks,
-                  ),
-                ),
-              ),
-            ];
-
-            return GridView.count(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: gridSpacing,
-              mainAxisSpacing: gridSpacing,
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              childAspectRatio: childAspectRatio,
-              children: cardList,
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
 class TransactionsViewModel extends BaseViewModel {
   final BlockchainProvider blockchainProvider = GetIt.I.get<BlockchainProvider>();
-  final BalanceProvider balanceProvider = GetIt.I.get<BalanceProvider>();
   TransactionsViewModel() {
-    balanceProvider.addListener(notifyListeners);
     blockchainProvider.addListener(notifyListeners);
   }
 
   @override
   void dispose() {
-    balanceProvider.removeListener(notifyListeners);
     blockchainProvider.removeListener(notifyListeners);
     super.dispose();
   }
 
-  void errorListener() {
-    if (balanceProvider.error != null) {
-      setErrorForObject('balance', balanceProvider.error);
-    }
-    if (blockchainProvider.errors.isNotEmpty) {
-      setErrorForObject('blockchain', blockchainProvider.errors);
-    }
-  }
-
   List<Block> get recentBlocks => blockchainProvider.blocks;
   List<RecentTransaction> get recentTransactions => blockchainProvider.recentTransactions;
+
+  String? get recentError => _readError('the latest transactions', blockchainProvider.recentError);
+  String? get blocksError => _readError('the latest blocks', blockchainProvider.blocksError);
+
+  static String? _readError(String what, String? error) => error == null ? null : 'Could not read $what: $error';
 }
 
 class QtSeparator extends StatelessWidget {
