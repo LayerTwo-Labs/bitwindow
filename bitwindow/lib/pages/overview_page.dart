@@ -42,6 +42,8 @@ class FireplaceViewModel extends BaseViewModel {
   final PriceProvider priceProvider = GetIt.I.get<PriceProvider>();
   final BitwindowRPC api = GetIt.I.get<BitwindowRPC>();
   final EnforcerRPC _enforcerRPC = GetIt.I<EnforcerRPC>();
+  SyncProvider get _syncProvider => GetIt.I.get<SyncProvider>();
+  (double, Timestamp?)? _processedTip;
 
   bool get loading => _enforcerRPC.initializingBinary;
 
@@ -50,34 +52,61 @@ class FireplaceViewModel extends BaseViewModel {
   String get priceTitle => activeTicker == Ticker.bitcoin ? 'Bitcoin Price' : '${activeTicker.symbol} Price';
 
   FireplaceViewModel() {
-    fetchFireplaceStats();
-    priceProvider.addListener(_onPriceChanged);
+    priceProvider.addListener(notifyListeners);
     _enforcerRPC.addListener(notifyListeners);
+    api.addListener(_onConnectionChanged);
+    _syncProvider.addListener(_onSyncChanged);
+    fetchFireplaceStats();
   }
 
+  /// The last good read, or null before it.
   GetFireplaceStatsResponse? stats;
 
-  void _onPriceChanged() {
-    notifyListeners();
+  /// Why the last read failed, or null.
+  String? statsError;
+
+  void _onConnectionChanged() {
+    if (api.connected) {
+      fetchFireplaceStats();
+    }
+  }
+
+  /// The stats count the blocks that bitwindowd processed, so only its tip changes them.
+  void _onSyncChanged() {
+    final info = _syncProvider.bitwindowdSyncInfo;
+    final tip = info == null ? null : (info.progressCurrent, info.lastBlockAt);
+    if (tip == null || tip == _processedTip) {
+      return;
+    }
+    _processedTip = tip;
     fetchFireplaceStats();
   }
 
   Future<void> fetchFireplaceStats() async {
+    if (!api.connected) {
+      return;
+    }
     try {
       final response = await api.bitwindowd.getFireplaceStats();
-      if (response != stats) {
+      if (response != stats || statsError != null) {
         stats = response;
+        statsError = null;
         notifyListeners();
       }
-    } catch (_) {
-      // is a fine to swallow
+    } catch (e) {
+      if (statsError != e.toString()) {
+        statsError = e.toString();
+        notifyListeners();
+      }
     }
   }
 
   @override
   void dispose() {
-    priceProvider.removeListener(_onPriceChanged);
+    priceProvider.removeListener(notifyListeners);
     _enforcerRPC.removeListener(notifyListeners);
+    api.removeListener(_onConnectionChanged);
+    _syncProvider.removeListener(_onSyncChanged);
     super.dispose();
   }
 }
@@ -93,7 +122,8 @@ class FireplaceStats extends StatelessWidget {
         priceLastUpdated: () => model.priceLastUpdated,
         price: model.price,
         priceTitle: model.priceTitle,
-        stats: model.stats ?? GetFireplaceStatsResponse(),
+        stats: model.statsError == null ? model.stats : null,
+        failed: model.statsError != null,
         loading: model.loading,
       ),
     );
@@ -1635,7 +1665,12 @@ class FireplaceStatsView extends StatelessWidget {
   final String Function() priceLastUpdated;
   final String price;
   final String priceTitle;
-  final GetFireplaceStatsResponse stats;
+
+  /// Null before the first good read and after a failed read, so the tiles show "-".
+  final GetFireplaceStatsResponse? stats;
+
+  /// The last read failed.
+  final bool failed;
   final bool loading;
 
   const FireplaceStatsView({
@@ -1644,8 +1679,16 @@ class FireplaceStatsView extends StatelessWidget {
     required this.price,
     required this.priceTitle,
     required this.stats,
+    this.failed = false,
     required this.loading,
   });
+
+  String _value(Int64 Function(GetFireplaceStatsResponse s) read) {
+    final current = stats;
+    return current == null ? '-' : read(current).toString();
+  }
+
+  String _subtitle(String period) => failed ? 'Could not read the stats' : period;
 
   @override
   Widget build(BuildContext context) {
@@ -1672,22 +1715,22 @@ class FireplaceStatsView extends StatelessWidget {
           ),
           FireplaceStat(
             title: 'New transactions',
-            value: stats.transactionCount24h.toString(),
-            subtitle: 'Last 24 hours',
+            value: _value((s) => s.transactionCount24h),
+            subtitle: _subtitle('Last 24 hours'),
             icon: SailSVGAsset.iconTransactions,
             loading: loading,
           ),
           FireplaceStat(
             title: 'New coinnews',
-            value: stats.coinnewsCount7d.toString(),
-            subtitle: 'Last 7 days',
+            value: _value((s) => s.coinnewsCount7d),
+            subtitle: _subtitle('Last 7 days'),
             icon: SailSVGAsset.newspaper,
             loading: loading,
           ),
           FireplaceStat(
             title: 'Number of blocks',
-            value: stats.blockCount24h.toString(),
-            subtitle: 'Last 24 hours',
+            value: _value((s) => s.blockCount24h),
+            subtitle: _subtitle('Last 24 hours'),
             icon: SailSVGAsset.blocks,
             loading: loading,
           ),
