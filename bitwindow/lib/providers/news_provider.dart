@@ -21,7 +21,8 @@ class NewsProvider extends ChangeNotifier {
   bool initialized = false;
   String? error;
 
-  bool _isFetching = false;
+  Future<void>? _fetching;
+  bool _fetchAgain = false;
 
   NewsProvider() {
     blockchainProvider.addListener(fetch);
@@ -31,12 +32,24 @@ class NewsProvider extends ChangeNotifier {
 
   String? topicName(String id) => topics.firstWhereOrNull((t) => t.topic == id)?.name;
 
-  // call this function from anywhere to refetch news and topics
-  Future<void> fetch() async {
-    if (_isFetching) {
-      return;
+  /// Reads news and topics. A call during a read gets one more read after it,
+  /// and completes when that read is done.
+  Future<void> fetch() {
+    if (_fetching != null) {
+      _fetchAgain = true;
+      return _fetching!;
     }
-    _isFetching = true;
+    return _fetching = _readUntilCurrent().whenComplete(() => _fetching = null);
+  }
+
+  Future<void> _readUntilCurrent() async {
+    do {
+      _fetchAgain = false;
+      await _read();
+    } while (_fetchAgain);
+  }
+
+  Future<void> _read() async {
     error = null;
 
     List<String> errors = [];
@@ -91,15 +104,6 @@ class NewsProvider extends ChangeNotifier {
 
       notifyListeners();
     }
-
-    _isFetching = false;
-  }
-
-  /// Add a news entry optimistically so it appears immediately after broadcast,
-  /// without waiting for a block.
-  void addOptimistic(CoinNews entry) {
-    news = [entry, ...news];
-    notifyListeners();
   }
 
   @override

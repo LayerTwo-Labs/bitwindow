@@ -683,16 +683,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
         feeSats: feeSats,
       );
 
-      // Optimistically add to the news list so it shows up immediately
-      _newsProvider.addOptimistic(
-        CoinNews(
-          topic: topic!.topic,
-          headline: headline,
-          content: content,
-          feeSats: Int64(feeSats ?? 0),
-          createTime: Timestamp.fromDateTime(DateTime.now()),
-        ),
-      );
+      unawaited(_newsProvider.fetch());
 
       GetIt.I.get<NotificationProvider>().add(
         title: 'News broadcast',
