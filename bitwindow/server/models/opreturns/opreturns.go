@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/btcsuite/btcd/btcutil"
@@ -233,25 +234,24 @@ func ReapExpiredMempool(ctx context.Context, db *sql.DB, mempoolTxIDs func() ([]
 	return nil
 }
 
+// OPReturnToReadable returns the data as text when it is printable UTF-8, or as
+// hex text decoded to printable UTF-8. Else it returns the data as hex.
 func OPReturnToReadable(data []byte) string {
-	// First try to decode as hex
-	decoded, err := hex.DecodeString(string(data))
-	if err == nil && isPrintableASCII(string(decoded)) {
+	if decoded, err := hex.DecodeString(string(data)); err == nil && isPrintableText(decoded) {
 		return string(decoded)
 	}
-
-	// If not hex or not human readable when decoded, try direct string
-	if isPrintableASCII(string(data)) {
+	if isPrintableText(data) {
 		return string(data)
 	}
-
-	// If all else fails, return as hex
 	return hex.EncodeToString(data)
 }
 
-func isPrintableASCII(s string) bool {
-	for _, r := range s {
-		if !unicode.IsPrint(r) || r > 127 {
+func isPrintableText(b []byte) bool {
+	if !utf8.Valid(b) {
+		return false
+	}
+	for _, r := range string(b) {
+		if !unicode.IsPrint(r) && !unicode.IsSpace(r) {
 			return false
 		}
 	}

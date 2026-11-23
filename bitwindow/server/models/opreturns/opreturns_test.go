@@ -590,7 +590,12 @@ func TestOPReturnToReadable(t *testing.T) {
 		{name: "hex of printable text", in: []byte(hex.EncodeToString([]byte("hello"))), want: "hello"},
 		{name: "printable text", in: []byte("hello world"), want: "hello world"},
 		{name: "binary", in: []byte{0x00, 0xff}, want: "00ff"},
-		{name: "non-ASCII text", in: []byte("blåbær"), want: hex.EncodeToString([]byte("blåbær"))},
+		{name: "non-ASCII text", in: []byte("Hei på deg, blåbær"), want: "Hei på deg, blåbær"},
+		{name: "emoji", in: []byte("gm 🚀 graffiti"), want: "gm 🚀 graffiti"},
+		{name: "line break", in: []byte("line one\nline two"), want: "line one\nline two"},
+		{name: "hex of non-ASCII text", in: []byte(hex.EncodeToString([]byte("blåbær"))), want: "blåbær"},
+		{name: "invalid UTF-8", in: []byte{'a', 0xc3}, want: "61c3"},
+		{name: "control byte", in: []byte("a\x07b"), want: "610762"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
