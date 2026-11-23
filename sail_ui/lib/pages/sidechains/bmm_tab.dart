@@ -758,10 +758,10 @@ class BMMViewModel extends BaseViewModel {
   }
 
   String get slotStatus {
-    if (!running) {
-      return 'Not bidding';
+    if (bmmProvider.liveBid != null) {
+      return 'Bid placed';
     }
-    return bmmProvider.liveBid == null ? 'Assembling' : 'Bid placed';
+    return running ? 'Assembling' : 'Not bidding';
   }
 
   SailBadgeTone get slotTone => bmmProvider.liveBid == null ? SailBadgeTone.neutral : SailBadgeTone.success;
