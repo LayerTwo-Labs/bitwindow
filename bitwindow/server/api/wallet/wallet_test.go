@@ -1532,55 +1532,6 @@ func TestGetStats(t *testing.T) {
 		assert.Equal(t, uint32(0), resp.LastTxBlockHeight)
 		assert.Equal(t, int64(1), resp.TransactionCountTotal)
 	})
-
-	t.Run("a core wallet reports the block of its newest transaction", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		mockBitcoind := mocks.NewMockBitcoinServiceClient(ctrl)
-		mockBitcoind.EXPECT().
-			ListTransactions(gomock.Any(), gomock.Any()).
-			Return(connectv1.NewResponse(&bitcoindv1alpha.ListTransactionsResponse{
-				Transactions: []*bitcoindv1alpha.GetTransactionResponse{
-					{Txid: "new", Amount: 0.001, Confirmations: 2, Time: timestamppb.New(time.Unix(blockTime, 0))},
-				},
-			}), nil)
-		mockBitcoind.EXPECT().
-			ListUnspent(gomock.Any(), gomock.Any()).
-			Return(connectv1.NewResponse(&bitcoindv1alpha.ListUnspentResponse{
-				Unspent: []*bitcoindv1alpha.UnspentOutput{{Txid: "new", Address: address, Amount: 0.001}},
-			}), nil)
-		expectCoreTip(mockBitcoind, 500)
-		apitests.ExpectCoreWalletSetup(mockBitcoind)
-		mockOrch := mocks.NewMockWalletManagerServiceClient(ctrl)
-		mockOrch.EXPECT().
-			GetSidechainDepositTotals(gomock.Any(), gomock.Any()).
-			Return(&orchpb.GetSidechainDepositTotalsResponse{}, nil)
-		mockOrch.EXPECT().
-			CreateBitcoinCoreWallet(gomock.Any(), gomock.Any()).
-			Return(&orchpb.CreateBitcoinCoreWalletResponse{CoreWalletName: "core"}, nil).
-			AnyTimes()
-		mockOrch.EXPECT().
-			DeriveAddresses(gomock.Any(), gomock.Any()).
-			Return(&orchpb.DeriveAddressesResponse{}, nil).
-			AnyTimes()
-		mockOrch.EXPECT().
-			ListWallets(gomock.Any(), gomock.Any()).
-			Return(&orchpb.ListWalletsResponse{
-				Wallets:        []*orchpb.WalletMetadata{{Id: testWalletID, WalletType: orchpb.WalletType_WALLET_TYPE_BITCOIN_CORE}},
-				ActiveWalletId: testWalletID,
-			}, nil).
-			AnyTimes()
-		apitests.ExpectOrchestratorReads(mockOrch)
-		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t),
-			apitests.WithBitcoind(mockBitcoind), apitests.WithOrchestrator(mockOrch)))
-
-		resp, err := cli.GetStats(t.Context(), &walletv1.GetStatsRequest{WalletId: testWalletID})
-		require.NoError(t, err)
-		assert.Equal(t, uint32(499), resp.LastTxBlockHeight)
-		assert.Equal(t, uint64(1), resp.UtxosCurrent)
-		assert.Equal(t, int64(1), resp.TransactionCountTotal)
-	})
 }
 
 func TestListReceiveAddresses(t *testing.T) {

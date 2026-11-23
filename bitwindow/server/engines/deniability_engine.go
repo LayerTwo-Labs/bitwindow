@@ -530,7 +530,7 @@ func (e *DeniabilityEngine) hopOutputsInHistory(ctx context.Context, walletID, t
 			}
 		}
 	case WalletTypeElectrum:
-		entries, err := e.walletEngine.GetElectrumTransactions(ctx, walletID)
+		entries, err := e.walletEngine.ListWalletTransactions(ctx, walletID)
 		if err != nil {
 			return nil, false, fmt.Errorf("electrum transactions: %w", err)
 		}
@@ -801,7 +801,7 @@ func (e *DeniabilityEngine) listUTXOsForWallet(ctx context.Context, walletID str
 // orchestrator/Esplora) and converts them to the enforcer output shape the
 // rest of the engine works with.
 func (e *DeniabilityEngine) listElectrumUTXOs(ctx context.Context, walletID string) ([]*UTXO, error) {
-	utxos, err := e.walletEngine.GetElectrumUnspent(ctx, walletID)
+	utxos, err := e.walletEngine.ListWalletUnspent(ctx, walletID)
 	if err != nil {
 		return nil, fmt.Errorf("electrum: list unspent: %w", err)
 	}

@@ -357,39 +357,7 @@ func (s *Server) listTransactions(ctx context.Context, walletID string, includeC
 	}
 
 	if walletType == engines.WalletTypeElectrum {
-		entries, err := s.walletEngine.GetElectrumTransactions(ctx, walletID)
-		if err != nil {
-			return nil, err
-		}
-
-		tip := s.enforcerTipHeight(ctx, lo.SomeBy(entries, func(t *orchpb.TransactionEntry) bool { return t.Confirmations > 0 }))
-
-		rows := make([]txRow, 0, len(entries))
-		for _, t := range entries {
-			if !includeConflicted && t.Confirmations < 0 {
-				continue
-			}
-			feeSats, err := btcToSats(math.Abs(t.Fee))
-			if err != nil {
-				return nil, fmt.Errorf("electrum: fee of %s: %w", t.Txid, err)
-			}
-			row := txRow{
-				txid:       t.Txid,
-				amountSats: t.AmountSats,
-				feeSats:    feeSats,
-				address:    t.Address,
-				label:      t.Label,
-				immature:   t.Category == "immature",
-			}
-			if t.Confirmations > 0 {
-				row.confirmation = &pb.Confirmation{
-					Height:    engines.ConfirmedHeight(tip, t.Confirmations),
-					Timestamp: &timestamppb.Timestamp{Seconds: t.BlockTime},
-				}
-			}
-			rows = append(rows, row)
-		}
-		return mergeTxRows(rows), nil
+		return s.orchestratorTransactions(ctx, walletID, walletType, includeConflicted)
 	}
 
 	coreWalletName, err := s.walletEngine.CoreWalletName(ctx, walletID)
@@ -454,6 +422,45 @@ func (s *Server) listTransactions(ctx context.Context, walletID string, includeC
 	return mergeTxRows(rows), nil
 }
 
+// orchestratorTransactions lists the wallet history from the orchestrator,
+// the source of the history table, the UTXO list and the balance.
+func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, walletType engines.WalletType, includeConflicted bool) ([]*pb.WalletTransaction, error) {
+	entries, err := s.walletEngine.ListWalletTransactions(ctx, walletID)
+	if err != nil {
+		return nil, err
+	}
+
+	tip := s.tipHeight(ctx, walletType, lo.SomeBy(entries, func(t *orchpb.TransactionEntry) bool { return t.Confirmations > 0 }))
+
+	rows := make([]txRow, 0, len(entries))
+	for _, t := range entries {
+		// A replaced transaction never confirms, so only a list of conflicts holds it.
+		if !includeConflicted && (t.Confirmations < 0 || t.ReplacedByTxid) {
+			continue
+		}
+		feeSats, err := btcToSats(math.Abs(t.Fee))
+		if err != nil {
+			return nil, fmt.Errorf("fee of %s: %w", t.Txid, err)
+		}
+		row := txRow{
+			txid:       t.Txid,
+			amountSats: t.AmountSats,
+			feeSats:    feeSats,
+			address:    t.Address,
+			label:      t.Label,
+			immature:   t.Category == "immature",
+		}
+		if t.Confirmations > 0 {
+			row.confirmation = &pb.Confirmation{
+				Height:    engines.ConfirmedHeight(tip, t.Confirmations),
+				Timestamp: &timestamppb.Timestamp{Seconds: t.BlockTime},
+			}
+		}
+		rows = append(rows, row)
+	}
+	return mergeTxRows(rows), nil
+}
+
 // txRow is one listtransactions entry. A transaction with more than one
 // output or input gives more than one row.
 type txRow struct {
@@ -493,6 +500,19 @@ func mergeTxRows(rows []txRow) []*pb.WalletTransaction {
 		tx.Immature = tx.Immature || r.immature
 	}
 	return out
+}
+
+// tipHeight reads the tip from the chain source of the wallet type.
+func (s *Server) tipHeight(ctx context.Context, walletType engines.WalletType, anyConfirmed bool) int32 {
+	if walletType == engines.WalletTypeElectrum {
+		return s.enforcerTipHeight(ctx, anyConfirmed)
+	}
+	bitcoind, err := s.bitcoind.Get(ctx)
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Err(err).Msg("list transactions: no block heights, bitcoind is down")
+		return 0
+	}
+	return coreTipHeight(ctx, bitcoind, anyConfirmed)
 }
 
 // A failed tip read gives no block heights; the transaction list must not depend on it.
@@ -725,7 +745,7 @@ func (s *Server) listUnspent(ctx context.Context, walletID string, labels map[st
 }
 
 func (s *Server) listUnspentElectrum(ctx context.Context, walletID string, labels map[string]string) ([]*pb.UnspentOutput, error) {
-	raw, err := s.walletEngine.GetElectrumUnspent(ctx, walletID)
+	raw, err := s.walletEngine.ListWalletUnspent(ctx, walletID)
 	if err != nil {
 		return nil, err
 	}
@@ -909,7 +929,8 @@ func (s *Server) ListReceiveAddresses(ctx context.Context, c *pb.ListReceiveAddr
 func (s *Server) GetStats(ctx context.Context, c *pb.GetStatsRequest) (*pb.GetStatsResponse, error) {
 	walletID := c.WalletId
 
-	utxos, err := s.listUnspent(ctx, walletID, nil, nil)
+	// The stats count the rows of the history table and the UTXO list, so they read the same source.
+	utxos, err := s.walletEngine.ListWalletUnspent(ctx, walletID)
 	if err != nil {
 		return nil, err
 	}
@@ -921,7 +942,11 @@ func (s *Server) GetStats(ctx context.Context, c *pb.GetStatsRequest) (*pb.GetSt
 	}
 	uniqueAddressCount := uint64(len(addressSet))
 
-	txs, err := s.listTransactions(ctx, walletID, false)
+	walletType, err := s.walletEngine.GetWalletBackendType(ctx, walletID)
+	if err != nil {
+		return nil, fmt.Errorf("get wallet type: %w", err)
+	}
+	txs, err := s.orchestratorTransactions(ctx, walletID, walletType, false)
 	if err != nil {
 		return nil, err
 	}
