@@ -356,7 +356,12 @@ func (m *SidechainConfManager) GetCliArgs() []string {
 
 	args = append(args, m.Spec.InstanceRPCArgs()...)
 	if m.Spec.PortStyle == "zmq" && instance.Port(enforcerGRPCPort) != enforcerGRPCPort {
-		args = append(args, fmt.Sprintf("--mainchain-grpc-port=%d", instance.Port(enforcerGRPCPort)))
+		switch m.Spec.EnforcerArg {
+		case "mainchain-grpc-url":
+			args = append(args, fmt.Sprintf("--mainchain-grpc-url=http://localhost:%d", instance.Port(enforcerGRPCPort)))
+		case "mainchain-grpc-host":
+			args = append(args, fmt.Sprintf("--mainchain-grpc-port=%d", instance.Port(enforcerGRPCPort)))
+		}
 	}
 
 	if m.BitcoinConf != nil {
@@ -675,7 +680,7 @@ var KnownSidechainSpecs = map[string]SidechainConfSpec{
 		DirKey:         "bitassets",
 	},
 	"bitnames": {
-		EnforcerArg:    "mainchain-grpc-host",
+		EnforcerArg:    "mainchain-grpc-url",
 		Name:           "BitNames",
 		ConfigFilename: "bitnames.conf",
 		BasePort:       6002,

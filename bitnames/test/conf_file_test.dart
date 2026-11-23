@@ -63,18 +63,24 @@ void main() {
     expect(source.appName, 'BitNames');
     expect(source.configFileName, 'bitnames.conf');
     expect(source.skippedCliKeys, []);
-    expect(source.getDefaultConfig(), _oldDefaultConf);
+    expect(
+      source.getDefaultConfig(),
+      _oldDefaultConf.replaceFirst(
+        '# Mainchain (Enforcer) gRPC connection\nmainchain-grpc-host=127.0.0.1\nmainchain-grpc-port=50051',
+        '# Mainchain (Enforcer) gRPC connection URL\nmainchain-grpc-url=http://localhost:50051',
+      ),
+    );
     expect(source.getNetworkPorts('regtest'), {
       'rpc-addr': '127.0.0.1:16002',
       'net-addr': '0.0.0.0:14002',
       'zmq-addr': '127.0.0.1:38002',
-      'mainchain-grpc-port': '50051',
+      'mainchain-grpc-url': 'http://localhost:50051',
     });
     expect(source.getNetworkPorts('mainnet'), {
       'rpc-addr': '127.0.0.1:26002',
       'net-addr': '0.0.0.0:24002',
       'zmq-addr': '127.0.0.1:48002',
-      'mainchain-grpc-port': '50051',
+      'mainchain-grpc-url': 'http://localhost:50051',
     });
   });
 
