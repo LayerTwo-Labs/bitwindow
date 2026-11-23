@@ -943,9 +943,11 @@ func (s *Server) GetStats(ctx context.Context, c *pb.GetStatsRequest) (*pb.GetSt
 			if t.After(currentMonthStart) || t.Equal(currentMonthStart) {
 				transactionCountSinceMonth++
 			}
-			if lastTxAt == nil || t.After(lastTxAt.AsTime()) {
+			// Many txs can share one time, as in a burst of blocks; the newest block wins.
+			height := tx.ConfirmationTime.Height
+			if lastTxAt == nil || height > lastTxBlockHeight || (height == lastTxBlockHeight && t.After(lastTxAt.AsTime())) {
 				lastTxAt = tx.ConfirmationTime.Timestamp
-				lastTxBlockHeight = tx.ConfirmationTime.Height
+				lastTxBlockHeight = height
 			}
 		}
 	}
