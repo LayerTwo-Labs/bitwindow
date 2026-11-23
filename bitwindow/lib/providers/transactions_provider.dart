@@ -76,16 +76,21 @@ List<WalletTransaction> walletTransactionsFromEntries(
           : null,
     );
   }
-  return byTxid.values.toList()..sort(_newestFirst);
+  return byTxid.values.toList()..sort(newestTransactionFirst);
 }
 
-int _newestFirst(WalletTransaction a, WalletTransaction b) {
-  final aTime = a.confirmationTime.timestamp.seconds;
-  final bTime = b.confirmationTime.timestamp.seconds;
-  if (aTime == bTime) {
-    return b.txid.compareTo(a.txid);
+/// Orders the history newest first. Blocks mined in one second share a time,
+/// so the transaction with fewer confirmations comes first.
+int newestTransactionFirst(WalletTransaction a, WalletTransaction b) {
+  final byTime = b.confirmationTime.timestamp.seconds.compareTo(a.confirmationTime.timestamp.seconds);
+  if (byTime != 0) {
+    return byTime;
   }
-  return bTime.compareTo(aTime);
+  final byConfirmations = a.confirmationTime.height.compareTo(b.confirmationTime.height);
+  if (byConfirmations != 0) {
+    return byConfirmations;
+  }
+  return b.txid.compareTo(a.txid);
 }
 
 /// [current] with the rows of [fresh], all wallet entries of new txs. Returns
@@ -118,7 +123,7 @@ List<WalletTransaction>? mergeNewestTransactions(
   if (!changed) {
     return null;
   }
-  return byTxid.values.toList()..sort(_newestFirst);
+  return byTxid.values.toList()..sort(newestTransactionFirst);
 }
 
 // because the class extends ChangeNotifier, any subscribers

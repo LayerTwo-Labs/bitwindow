@@ -233,13 +233,7 @@ class _TransactionTableState extends State<TransactionTable> {
       dynamic aValue, bValue;
       switch (sortColumn) {
         case 'date':
-          aValue = a.confirmationTime.timestamp.seconds;
-          bValue = b.confirmationTime.timestamp.seconds;
-          // If timestamps are equal, use txid as secondary sort
-          if (aValue == bValue) {
-            return sortAscending ? a.txid.compareTo(b.txid) : b.txid.compareTo(a.txid);
-          }
-          break;
+          return sortAscending ? newestTransactionFirst(b, a) : newestTransactionFirst(a, b);
         case 'txid':
           aValue = a.txid;
           bValue = b.txid;
@@ -637,7 +631,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
       ];
     }
 
-    final filteredTransactions = _txProvider.walletTransactions.where((tx) {
+    return _txProvider.walletTransactions.where((tx) {
       if (!transactionMatchesSearch(tx, searchController.text)) {
         return false;
       }
@@ -648,19 +642,6 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
 
       return true;
     }).toList();
-
-    // Always sort by date, newest first
-    filteredTransactions.sort((a, b) {
-      final aTime = a.confirmationTime.timestamp.seconds;
-      final bTime = b.confirmationTime.timestamp.seconds;
-      // If timestamps are equal, use txid as secondary sort
-      if (aTime == bTime) {
-        return b.txid.compareTo(a.txid);
-      }
-      return bTime.compareTo(aTime); // Newest first
-    });
-
-    return filteredTransactions;
   }
 
   String sortColumn = 'date';
