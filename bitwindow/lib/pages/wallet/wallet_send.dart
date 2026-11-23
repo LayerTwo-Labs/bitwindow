@@ -1243,71 +1243,40 @@ class SendPageViewModel extends BaseViewModel {
 
   Future<void> onUseAvailableBalance(int index) async {
     try {
-      // never send more than their max selected amount
-      double availableAmount = satoshiToBTC(selectedUtxos.fold(0, (sum, utxo) => sum + utxo.valueSats.toInt()));
-      if (availableAmount == 0) {
-        // if sum of all selected utxos, none are selected! defer to their balance
-        availableAmount =
-            balanceProvider.balance -
-            satoshiToBTC(SendPageViewModel.lockedSats(allUtxos, draftProvider.lockedOutpoints));
-      }
-
-      // 1. Sum up the amounts of all recipients except the one at 'index'
-      double sumOtherRecipients = 0.0;
-      for (int i = 0; i < recipients.length; i++) {
-        if (i == index) {
-          continue;
-        }
-        final amountBTC = parseAmountInUnit(recipients[i].amountController.text, currentUnit);
-        sumOtherRecipients += amountBTC;
-      }
-
-      // 2. Calculate the available balance. When the fee comes out of the
-      // amount itself, the backend subtracts it — do not subtract it twice.
-      var feeSats = 0;
-      if (!recipients[index].subtractFee) {
-        final walletId = _walletReader.activeWalletId;
-        final recipientCount = recipients.length;
-        final recipient = recipients[index];
-        final selection = selectedUtxos;
-        final maxSend = await _maxSendFee(index, btcToSatoshi(availableAmount), btcToSatoshi(sumOtherRecipients));
-        final formChanged =
-            disposed ||
-            _walletReader.activeWalletId != walletId ||
-            recipients.length != recipientCount ||
-            recipients[index] != recipient ||
-            !identical(selectedUtxos, selection);
-        if (maxSend == null || formChanged) {
-          return;
-        }
-        feeSats =
-            btcToSatoshi(availableAmount - sumOtherRecipients) -
-            maxSendAmountSats(
-              availableSats: maxSend.availableSats,
-              otherRecipientsSats: btcToSatoshi(sumOtherRecipients),
-              paymentFeeSats: maxSend.feeSats,
-              notificationKeepBackSats: maxSend.notificationKeepBackSats,
-            );
-      }
-      final available = availableAmount - satoshiToBTC(feeSats);
-
-      // 3. Set the remaining amount for the recipient at 'index'
-      final remaining = available - sumOtherRecipients;
-      if (remaining < 0) {
-        if (currentUnit == BitcoinUnit.btc) {
-          recipients[index].amountController.text = '0.00';
-        } else {
-          recipients[index].amountController.text = '0';
-        }
-      } else {
-        if (currentUnit == BitcoinUnit.btc) {
-          recipients[index].amountController.text = remaining.toStringAsFixed(8);
-        } else {
-          final sats = btcToSatoshi(remaining);
-          recipients[index].amountController.text = sats.toString();
+      final selectedSats = selectedUtxos.fold<int>(0, (sum, utxo) => sum + utxo.valueSats.toInt());
+      final availableSats = selectedSats > 0
+          ? selectedSats
+          : btcToSatoshi(balanceProvider.balance) - lockedSats(allUtxos, draftProvider.lockedOutpoints);
+      var otherSats = 0;
+      for (var i = 0; i < recipients.length; i++) {
+        if (i != index) {
+          otherSats += parseAmountToSatoshis(recipients[i].amountController.text, currentUnit);
         }
       }
 
+      final walletId = _walletReader.activeWalletId;
+      final recipientCount = recipients.length;
+      final recipient = recipients[index];
+      final selection = selectedUtxos;
+      final maxSend = await _maxSendFee(index, availableSats, otherSats);
+      final formChanged =
+          disposed ||
+          _walletReader.activeWalletId != walletId ||
+          recipients.length != recipientCount ||
+          recipients[index] != recipient ||
+          !identical(selectedUtxos, selection);
+      if (maxSend == null || formChanged) {
+        return;
+      }
+      final plan = maxSendPlan(
+        recipientCount: recipientCount,
+        availableSats: maxSend.availableSats,
+        otherRecipientsSats: otherSats,
+        notificationKeepBackSats: maxSend.notificationKeepBackSats,
+        feeOnTopSats: maxSend.feeSats,
+      );
+      recipient.subtractFee = plan.subtractFee;
+      recipient.amountController.text = amountTextInUnit(plan.amountSats, currentUnit);
       notifyListeners();
     } catch (error) {
       log.e('Error calculating available balance: $error');
@@ -1738,8 +1707,9 @@ class SendPageViewModel extends BaseViewModel {
       ),
   ]);
 
-  /// The fee of a send of every coin the recipient at [index] can take, and
-  /// the sats those coins hold. The backend prices it with the coins it picks.
+  /// The fee on top of a send of every coin the recipient at [index] can take,
+  /// the sats those coins hold, and the sats a BIP47 notification keeps back.
+  /// A sole recipient pays the fee out of the amount, so its fee is 0.
   /// Null after an error the page shows.
   Future<({int feeSats, int availableSats, int notificationKeepBackSats})?> _maxSendFee(
     int index,
@@ -1761,9 +1731,9 @@ class SendPageViewModel extends BaseViewModel {
       return null;
     }
     try {
-      if (destinations.length == 1) {
+      if (recipients.length == 1) {
         // A first BIP47 payment cannot spend the coin of its notification, so
-        // a small payment finds that coin before the full one is priced.
+        // a small payment finds that coin before MAX fills the amount.
         final probe = await _orchestratorWallet.previewSend(
           walletId: walletId,
           destinations: _destinationsWith(index: index, sats: dustSats)!,
@@ -1771,26 +1741,11 @@ class SendPageViewModel extends BaseViewModel {
           requiredInputs: selectedUtxos,
         );
         final notificationKeepBackSats = notificationKeepBack(probe, coinsSelected: selectedUtxos.isNotEmpty);
-        final paymentDestinations = _destinationsWith(
-          index: index,
-          sats: availableSats - otherSats - notificationKeepBackSats,
-        );
-        if (paymentDestinations == null) {
+        if (notificationKeepBackSats > 0 && availableSats - otherSats - notificationKeepBackSats < dustSats) {
           setSendError('The wallet has no coins left for the payment after the BIP47 notification.');
           return null;
         }
-        final preview = await _orchestratorWallet.previewSend(
-          walletId: walletId,
-          destinations: paymentDestinations,
-          feeRateSatPerVbyte: rate,
-          subtractFeeFromAmount: true,
-          requiredInputs: selectedUtxos,
-        );
-        return (
-          feeSats: preview.feeSats.toInt(),
-          availableSats: availableSats,
-          notificationKeepBackSats: notificationKeepBackSats,
-        );
+        return (feeSats: 0, availableSats: availableSats, notificationKeepBackSats: notificationKeepBackSats);
       }
       // The electrum backend takes the fee from one destination only, so a send
       // to several spends every coin with a dust payment and pays the fee on top.

@@ -226,6 +226,55 @@ void main() {
     });
   });
 
+  group('maxSendPlan', () {
+    test('a sole recipient sends every sat and pays the fee out of the amount', () {
+      final plan = maxSendPlan(
+        recipientCount: 1,
+        availableSats: 134_849_677_700,
+        otherRecipientsSats: 0,
+        notificationKeepBackSats: 0,
+        feeOnTopSats: 40_004,
+      );
+      expect(plan.amountSats, 134_849_677_700);
+      expect(plan.subtractFee, isTrue);
+    });
+
+    test('a sole BIP47 recipient leaves the notification coin', () {
+      final plan = maxSendPlan(
+        recipientCount: 1,
+        availableSats: 1_000_000,
+        otherRecipientsSats: 0,
+        notificationKeepBackSats: 100_000,
+        feeOnTopSats: 0,
+      );
+      expect(plan.amountSats, 900_000);
+      expect(plan.subtractFee, isTrue);
+    });
+
+    test('more recipients pay the fee on top', () {
+      final plan = maxSendPlan(
+        recipientCount: 2,
+        availableSats: 1_000_000,
+        otherRecipientsSats: 50_000,
+        notificationKeepBackSats: 0,
+        feeOnTopSats: 700,
+      );
+      expect(plan.amountSats, 949_300);
+      expect(plan.subtractFee, isFalse);
+    });
+
+    test('other recipients above the balance leave 0', () {
+      final plan = maxSendPlan(
+        recipientCount: 2,
+        availableSats: 1_000,
+        otherRecipientsSats: 5_000,
+        notificationKeepBackSats: 0,
+        feeOnTopSats: 700,
+      );
+      expect(plan.amountSats, 0);
+    });
+  });
+
   group('runNewest', () {
     test('runs the first key at once', () {
       final ran = <String>[];

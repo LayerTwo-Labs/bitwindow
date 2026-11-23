@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:fixnum/fixnum.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sidechain_core/gen/bitcoin/bitcoind/v1alpha/bitcoin.pb.dart' show EstimateSmartFeeRequest;
@@ -146,6 +148,27 @@ int maxSendAmountSats({
   required int paymentFeeSats,
   required int notificationKeepBackSats,
 }) => availableSats - otherRecipientsSats - notificationKeepBackSats - paymentFeeSats;
+
+/// What MAX puts in a recipient, and whether the fee comes out of it. A sole
+/// recipient pays the fee out of the amount: Core cannot fund an amount that
+/// keeps back the fee for a fee on top. More recipients pay [feeOnTopSats] on
+/// top, because a subtracted fee takes one destination only.
+({int amountSats, bool subtractFee}) maxSendPlan({
+  required int recipientCount,
+  required int availableSats,
+  required int otherRecipientsSats,
+  required int notificationKeepBackSats,
+  required int feeOnTopSats,
+}) {
+  final subtractFee = recipientCount == 1;
+  final amount = maxSendAmountSats(
+    availableSats: availableSats,
+    otherRecipientsSats: otherRecipientsSats,
+    paymentFeeSats: subtractFee ? 0 : feeOnTopSats,
+    notificationKeepBackSats: notificationKeepBackSats,
+  );
+  return (amountSats: max(amount, 0), subtractFee: subtractFee);
+}
 
 /// The smallest payment the backend sends to an address.
 const dustSats = 546;
