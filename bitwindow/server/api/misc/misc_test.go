@@ -632,6 +632,65 @@ func TestService_ListCoinNews(t *testing.T) {
 		require.Len(t, byTopic[secondTopicID.String()], 1)
 		assert.Equal(t, "Quiet topic", byTopic[secondTopicID.String()][0].Headline)
 	})
+
+	t.Run("list coin news with its txid and vout", func(t *testing.T) {
+		t.Parallel()
+
+		database := database.Test(t)
+		ctx := t.Context()
+		topicID := validTopicID()
+		seedCurrentTopic(t, ctx, database, topicID, "Test Topic", 1)
+		seedCurrentNews(t, ctx, database, topicID, "Placed", "", 7, time.Now())
+
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
+
+		resp, err := cli.ListCoinNews(t.Context(), &miscv1.ListCoinNewsRequest{})
+		require.NoError(t, err)
+		require.Len(t, resp.CoinNews, 1)
+		assert.Equal(t, fmt.Sprintf("%064x", 1007), resp.CoinNews[0].Txid)
+		assert.EqualValues(t, 0, resp.CoinNews[0].Vout)
+	})
+
+	t.Run("list coin news with mempool stories and their fee", func(t *testing.T) {
+		t.Parallel()
+
+		database := database.Test(t)
+		ctx := t.Context()
+		topicID := validTopicID()
+		seedCurrentTopic(t, ctx, database, topicID, "Test Topic", 1)
+		seedCurrentNews(t, ctx, database, topicID, "Confirmed", "", 3, time.Now().Add(-time.Hour))
+
+		payload, err := opreturns.EncodeNewsMessageWithOptions(topicID, "Pending", "pending body", opreturns.StoryOptions{URL: "https://example.com"})
+		require.NoError(t, err)
+		pendingTxID := fmt.Sprintf("%064x", 9001)
+		require.NoError(t, opreturns.Persist(ctx, database, []opreturns.OPReturn{
+			{TxID: pendingTxID, Vout: 1, Data: payload, Fee: 777},
+		}))
+
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
+
+		resp, err := cli.ListCoinNews(t.Context(), &miscv1.ListCoinNewsRequest{})
+		require.NoError(t, err)
+		require.Len(t, resp.CoinNews, 2)
+		pending := resp.CoinNews[0]
+		assert.Equal(t, "Pending", pending.Headline)
+		assert.Equal(t, "pending body", pending.Content)
+		assert.Equal(t, "https://example.com", pending.Url)
+		assert.EqualValues(t, 777, pending.FeeSats)
+		assert.Equal(t, topicID.String(), pending.Topic)
+		assert.Equal(t, pendingTxID, pending.Txid)
+		assert.EqualValues(t, 1, pending.Vout)
+		assert.Empty(t, pending.ItemId)
+
+		height := uint32(500)
+		require.NoError(t, opreturns.Persist(ctx, database, []opreturns.OPReturn{
+			{TxID: pendingTxID, Vout: 1, Data: payload, Height: &height},
+		}))
+		resp, err = cli.ListCoinNews(t.Context(), &miscv1.ListCoinNewsRequest{})
+		require.NoError(t, err)
+		require.Len(t, resp.CoinNews, 1)
+		assert.Equal(t, "Confirmed", resp.CoinNews[0].Headline)
+	})
 }
 
 func seedCurrentTopic(

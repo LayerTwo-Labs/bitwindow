@@ -202,7 +202,7 @@ func indexTopic(ctx context.Context, tx *sql.Tx, pos BlockPos, t *codec.TopicCre
 }
 
 func indexStory(ctx context.Context, tx *sql.Tx, id codec.ItemID, s *codec.Story) error {
-	url, body, lang, nsfw, mediaHash, subtype := extractStoryTLV(s.TLVs)
+	url, body, lang, nsfw, mediaHash, subtype := ExtractStoryTLV(s.TLVs)
 	rawTLV, err := codec.SerialiseTLVs(s.TLVs)
 	if err != nil {
 		return fmt.Errorf("coinnews: serialise story tlvs: %w", err)
@@ -324,10 +324,10 @@ func ReassembleTLVs(ctx context.Context, db *sql.DB, headID codec.ItemID, headRa
 	return tlvs, nil
 }
 
-// extractStoryTLV pulls the columns we hoist out of the Story TLV blob
+// ExtractStoryTLV pulls the columns we hoist out of the Story TLV blob
 // for fast feed queries. Anything we don't hoist remains in raw_tlv so
 // schema upgrades can re-derive without re-scanning the chain.
-func extractStoryTLV(tlvs []codec.TLV) (url, body, lang string, nsfw bool, mediaHash []byte, subtype codec.Subtype) {
+func ExtractStoryTLV(tlvs []codec.TLV) (url, body, lang string, nsfw bool, mediaHash []byte, subtype codec.Subtype) {
 	if t := codec.FindFirst(tlvs, codec.TLVURL); t != nil {
 		url = string(t.Value)
 	}
