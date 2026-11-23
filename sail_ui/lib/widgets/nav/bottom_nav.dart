@@ -112,6 +112,9 @@ class BottomNav extends StatelessWidget {
       builder: ((context, model, child) {
         final compact = SailStyleValues.compactBars(context);
         final allConnected = model.connectionStatus == 'All binaries connected';
+        // A phone shows no chain loaders, so only the desktop drops a status that repeats one.
+        final statusText =
+            statusOverride != null || ((!compact || !allConnected) && (phone || !model.statusRepeatsLoaders));
         Widget phoneFlex(Widget child) => phone ? Flexible(child: child) : child;
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -132,7 +135,9 @@ class BottomNav extends StatelessWidget {
                   );
                 },
                 child: Tooltip(
-                  message: compact
+                  message: !statusText
+                      ? model.connectionStatus
+                      : compact
                       ? statusOverride?.label ?? model.connectionStatus
                       : statusOverride == null
                       ? 'Open daemon status dialog'
@@ -164,7 +169,7 @@ class BottomNav extends StatelessWidget {
                           color: statusOverride == null ? model.connectionColor : SailTheme.of(context).colors.primary,
                         ),
                       ),
-                      if (statusOverride != null || !compact || !allConnected) ...[
+                      if (statusText) ...[
                         const SizedBox(width: SailStyleValues.padding08),
                         phoneFlex(
                           ConstrainedBox(
@@ -674,6 +679,44 @@ class BottomNavViewModel extends BaseViewModel with ChangeTrackingMixin {
   }
 
   String get _connectionStatusRaw {
+    return _problemStatus ??
+        _syncStatus?.line ??
+        (allConnected ? 'All binaries connected' : 'Wiring things together...');
+  }
+
+  /// True when the status line only repeats the sync that a chain loader shows.
+  bool get statusRepeatsLoaders => _problemStatus == null && (_syncStatus?.shownByLoader ?? false);
+
+  bool get mainchainLoaderShows => needsBackends && syncProvider.mainchainSyncInfo?.isSynced == false;
+
+  bool get enforcerLoaderShows => needsAdditionalSync && syncProvider.enforcerSyncInfo?.isSynced == false;
+
+  bool get additionalLoaderShows => needsAdditionalSync && additionalSyncInfo?.isSynced == false;
+
+  ({String line, bool shownByLoader})? get _syncStatus {
+    if (needsBackends && !(syncProvider.mainchainSyncInfo?.isSynced ?? false)) {
+      return (line: 'Syncing mainchain blocks', shownByLoader: mainchainLoaderShows);
+    }
+
+    if (needsEnforcer && !(syncProvider.enforcerSyncInfo?.isSynced ?? false)) {
+      return (line: 'Syncing enforcer blocks', shownByLoader: enforcerLoaderShows);
+    }
+
+    if (needsAdditionalSync && !(additionalSyncInfo?.isSynced ?? false)) {
+      final info = additionalSyncInfo;
+      if (info != null && info.mainchainSyncing) {
+        return (
+          line: '${mainchainSyncText(info.mainchainSyncPhase).$1} for ${additionalConnection.name}',
+          shownByLoader: additionalLoaderShows,
+        );
+      }
+      return (line: 'Syncing ${additionalConnection.name} blocks', shownByLoader: additionalLoaderShows);
+    }
+
+    return null;
+  }
+
+  String? get _problemStatus {
     final dp = downloadProvider;
     if (dp != null && dp.hasActiveDownloads) {
       // A message means work that isn't a plain binary fetch, e.g. the UTXO
@@ -740,27 +783,7 @@ class BottomNavViewModel extends BaseViewModel with ChangeTrackingMixin {
       }
     }
 
-    if (needsBackends && !(syncProvider.mainchainSyncInfo?.isSynced ?? false)) {
-      return 'Syncing mainchain blocks';
-    }
-
-    if (needsEnforcer && !(syncProvider.enforcerSyncInfo?.isSynced ?? false)) {
-      return 'Syncing enforcer blocks';
-    }
-
-    if (needsAdditionalSync && !(additionalSyncInfo?.isSynced ?? false)) {
-      final info = additionalSyncInfo;
-      if (info != null && info.mainchainSyncing) {
-        return '${mainchainSyncText(info.mainchainSyncPhase).$1} for ${additionalConnection.name}';
-      }
-      return 'Syncing ${additionalConnection.name} blocks';
-    }
-
-    if (!allConnected) {
-      return 'Wiring things together...';
-    }
-
-    return 'All binaries connected';
+    return null;
   }
 
   /// Per-binary status line. `connected` short-circuits to healthy — any stale
@@ -817,13 +840,8 @@ class ChainLoaders extends ViewModelWidget<BottomNavViewModel> {
       }
       return SailText.secondary12(blocks);
     }
-    final mainchainConnected = viewModel.needsBackends && viewModel.syncProvider.mainchainSyncInfo != null;
-    final enforcerConnected = viewModel.syncProvider.enforcerSyncInfo != null;
-    final additionalConnected = viewModel.additionalSyncInfo != null;
-
-    final mainchainSynced = mainchainConnected && viewModel.syncProvider.mainchainSyncInfo!.isSynced;
-    final enforcerSynced = enforcerConnected && viewModel.syncProvider.enforcerSyncInfo!.isSynced;
-    final additionalSynced = additionalConnected && viewModel.additionalSyncInfo!.isSynced;
+    final mainchainSynced = viewModel.needsBackends && (viewModel.syncProvider.mainchainSyncInfo?.isSynced ?? false);
+    final additionalSynced = viewModel.additionalSyncInfo?.isSynced ?? false;
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: SailStyleValues.compactBars(context) ? 180 : 300),
@@ -832,7 +850,7 @@ class ChainLoaders extends ViewModelWidget<BottomNavViewModel> {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (mainchainConnected && !mainchainSynced) ...[
+          if (viewModel.mainchainLoaderShows) ...[
             ChainLoader(
               name: viewModel.syncProvider.mainchain.name,
               syncInfo: viewModel.syncProvider.mainchainSyncInfo!,
@@ -840,7 +858,7 @@ class ChainLoaders extends ViewModelWidget<BottomNavViewModel> {
             ),
             DividerDot(),
           ],
-          if (enforcerConnected && !enforcerSynced) ...[
+          if (viewModel.enforcerLoaderShows) ...[
             ChainLoader(
               name: viewModel.syncProvider.enforcer.name,
               syncInfo: viewModel.syncProvider.enforcerSyncInfo!,
@@ -848,7 +866,7 @@ class ChainLoaders extends ViewModelWidget<BottomNavViewModel> {
             ),
             DividerDot(),
           ],
-          if (additionalConnected && !additionalSynced) ...[
+          if (viewModel.additionalLoaderShows) ...[
             ChainLoader(
               name: viewModel.syncProvider.additionalConnection!.name,
               syncInfo: viewModel.additionalSyncInfo!,

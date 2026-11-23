@@ -714,4 +714,46 @@ void main() {
     expect(status.width, greaterThanOrEqualTo(24));
     expect(status.left, greaterThan(tester.getRect(find.text(formatBitcoin(2))).right));
   });
+
+  for (final phone in [true, false]) {
+    testWidgets(
+      'while Thunder syncs a ${phone ? 'phone shows the status text' : 'desktop leaves it to the loader'}',
+      (tester) async {
+        SailStyleValues.phoneLayoutOverride = phone;
+        addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
+        GetIt.I.registerSingleton<BalanceProvider>(_Balance());
+        GetIt.I.registerSingleton<PriceProvider>(_Price());
+        GetIt.I.registerSingleton<UpdateProvider>(_Update());
+        sync.sidechains[SidechainType.SIDECHAIN_TYPE_THUNDER] = SyncInfo(
+          progressCurrent: 2,
+          progressGoal: 3,
+          lastBlockAt: null,
+        );
+        tester.view.physicalSize = phone ? const Size(390, 844) : const Size(1600, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SailTheme(
+              data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+              child: Scaffold(
+                bottomNavigationBar: BottomNav(
+                  endWidgets: const [],
+                  additionalConnection: model.additionalConnection,
+                  mainchainInfo: true,
+                  navigateToLogs: (_, _, _) {},
+                ),
+              ),
+            ),
+          ),
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Syncing Thunder blocks'), phone ? findsOneWidget : findsNothing);
+        expect(find.byType(ChainLoader), phone ? findsNothing : findsOneWidget);
+      },
+    );
+  }
 }

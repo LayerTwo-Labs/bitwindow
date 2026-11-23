@@ -1150,8 +1150,8 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
   }
 }
 
-/// Window width under which the block age and Reset show without their labels.
-const double statusBarFullWidth = 1280;
+/// Window width under which each part of the status bar goes compact.
+const double statusBarFullWidth = 1440;
 
 class StatusBar extends StatefulWidget {
   const StatusBar({super.key});
@@ -1190,55 +1190,58 @@ class _StatusBarState extends State<StatusBar> {
   Widget _bottomNav(BuildContext context, ECashMigrationProvider migration) {
     final swap = migration.status;
     final compact = MediaQuery.sizeOf(context).width < statusBarFullWidth;
-    return BottomNav(
-      statusOverride: migration.swapping && swap != null
-          ? BottomNavStatusOverride(
-              label: migration.navLabel,
-              onTap: () =>
-                  unawaited(openECashMigration(context, fromId: swap.fromId, toId: swap.toId, initialStatus: swap)),
-            )
-          : null,
-      additionalConnection: ConnectionMonitor(rpc: bitwindow, name: 'BitWindow'),
-      modeChip: const NodeModeChip(),
-      onRunLocally: NodeModeChip.open,
-      navigateToLogs: openLogWindow,
-      onOpenConfConfigurator: () {
-        GetIt.I.get<AppRouter>().push(const BitcoinConfEditorRoute());
-      },
-      onOpenEnforcerConfConfigurator: () {
-        GetIt.I.get<AppRouter>().push(const EnforcerConfEditorRoute());
-      },
-      mainchainInfo: true,
-      balanceEndWidgets: const [GetCoinsButton()],
-      endWidgets: [
-        // Electrum wallets run no local bitcoind, so block height and peer
-        // counts don't apply — only show them when a Bitcoin Core backend runs.
-        if (NodeModeProvider.runsLocalBackends) ...[
-          SailSkeletonizer(
-            description: 'Waiting for bitcoind to connect..',
-            enabled: !blockchainProvider.mainchain.connected,
-            child: LastBlockAge(
-              lastBlockAt: blockchainProvider.syncProvider.mainchainSyncInfo?.lastBlockAt,
-              blockInfo: blockchainProvider.blocks.firstOrNull?.toPretty(),
-              compact: compact,
+    return CompactBarsWidth(
+      width: statusBarFullWidth,
+      child: BottomNav(
+        statusOverride: migration.swapping && swap != null
+            ? BottomNavStatusOverride(
+                label: migration.navLabel,
+                onTap: () =>
+                    unawaited(openECashMigration(context, fromId: swap.fromId, toId: swap.toId, initialStatus: swap)),
+              )
+            : null,
+        additionalConnection: ConnectionMonitor(rpc: bitwindow, name: 'BitWindow'),
+        modeChip: const NodeModeChip(),
+        onRunLocally: NodeModeChip.open,
+        navigateToLogs: openLogWindow,
+        onOpenConfConfigurator: () {
+          GetIt.I.get<AppRouter>().push(const BitcoinConfEditorRoute());
+        },
+        onOpenEnforcerConfConfigurator: () {
+          GetIt.I.get<AppRouter>().push(const EnforcerConfEditorRoute());
+        },
+        mainchainInfo: true,
+        balanceEndWidgets: const [GetCoinsButton()],
+        endWidgets: [
+          // Electrum wallets run no local bitcoind, so block height and peer
+          // counts don't apply — only show them when a Bitcoin Core backend runs.
+          if (NodeModeProvider.runsLocalBackends) ...[
+            SailSkeletonizer(
+              description: 'Waiting for bitcoind to connect..',
+              enabled: !blockchainProvider.mainchain.connected,
+              child: LastBlockAge(
+                lastBlockAt: blockchainProvider.syncProvider.mainchainSyncInfo?.lastBlockAt,
+                blockInfo: blockchainProvider.blocks.firstOrNull?.toPretty(),
+                compact: compact,
+              ),
             ),
+            const DividerDot(),
+            SailSkeletonizer(
+              description: 'Waiting for bitcoind to connect..',
+              enabled: !blockchainProvider.mainchain.connected,
+              child: PeerCount(count: blockchainProvider.peerCount),
+            ),
+            const DividerDot(),
+          ],
+          ResetButton(
+            compact: compact,
+            onTap: () async {
+              SettingsPage.setSection(5);
+              await AutoTabsRouter.of(context).navigate(SettingsRoute());
+            },
           ),
-          const DividerDot(),
-          SailSkeletonizer(
-            description: 'Waiting for bitcoind to connect..',
-            enabled: !blockchainProvider.mainchain.connected,
-            child: PeerCount(count: blockchainProvider.peerCount),
-          ),
-          const DividerDot(),
         ],
-        ResetButton(
-          compact: compact,
-          onTap: () async {
-            SettingsPage.setSection(5);
-            await AutoTabsRouter.of(context).navigate(SettingsRoute());
-          },
-        ),
-      ],
+      ),
     );
   }
 
