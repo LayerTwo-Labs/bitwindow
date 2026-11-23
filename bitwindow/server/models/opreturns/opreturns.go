@@ -299,6 +299,8 @@ type CoinNews struct {
 	URL       string // optional link (TLV §10)
 	Subtype   int32  // 0=link,1=text,2=ask,3=show,4=poll,5=job
 	NSFW      bool
+	TxID      string
+	Vout      uint32
 
 	CreatedAt *time.Time
 }
@@ -466,6 +468,8 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 		URL       string         `db:"url"`
 		Subtype   int32          `db:"subtype"`
 		NSFW      bool           `db:"nsfw"`
+		TxID      string         `db:"txid"`
+		Vout      uint32         `db:"vout"`
 	}
 	rows, err := database.Select[storyRow](ctx, db, `
 		SELECT
@@ -480,7 +484,9 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 			COALESCE(s.raw_tlv, x'') AS raw_tlv,
 			COALESCE(s.url, '') AS url,
 			s.subtype AS subtype,
-			s.nsfw AS nsfw
+			s.nsfw AS nsfw,
+			i.txid AS txid,
+			i.vout AS vout
 		FROM cn_stories s
 		JOIN cn_items i ON i.item_id = s.item_id
 		LEFT JOIN cn_topics ct ON ct.topic = s.topic
@@ -522,6 +528,8 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 			URL:       row.URL,
 			Subtype:   row.Subtype,
 			NSFW:      row.NSFW,
+			TxID:      row.TxID,
+			Vout:      row.Vout,
 			CreatedAt: &blockTime,
 		})
 		toReassemble = append(toReassemble, continuationTarget{idx: len(out) - 1, itemID: row.ItemID, rawTLV: row.RawTLV})
@@ -559,6 +567,46 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 		}
 	}
 	return lo.Filter(out, func(_ CoinNews, i int) bool { return !invalid[i] }), nil
+}
+
+// ListPendingCoinNews returns the stories in the mempool, with the fee the
+// mempool gave. They have no ItemID: a comment needs a confirmed parent.
+func ListPendingCoinNews(ctx context.Context, db *sql.DB) ([]CoinNews, error) {
+	rows, err := database.Select[OPReturn](ctx, db, `
+		SELECT id, txid, vout, unhex(op_return_data) AS op_return_data, fee_sats, height, created_at
+		FROM op_returns
+		WHERE height IS NULL
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list pending coin news: %w", err)
+	}
+
+	var out []CoinNews
+	for _, row := range rows {
+		_, msg, err := codec.DecodeMessage(row.Data)
+		if err != nil {
+			continue
+		}
+		story, ok := msg.(*codec.Story)
+		if !ok || strings.TrimSpace(story.Headline) == "" {
+			continue
+		}
+		url, body, _, nsfw, _, subtype := cnstore.ExtractStoryTLV(story.TLVs)
+		out = append(out, CoinNews{
+			ID:        row.ID,
+			Topic:     TopicID(story.Topic),
+			Headline:  story.Headline,
+			Content:   body,
+			Fee:       row.Fee,
+			URL:       url,
+			Subtype:   int32(subtype),
+			NSFW:      nsfw,
+			TxID:      row.TxID,
+			Vout:      uint32(row.Vout),
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return out, nil
 }
 
 func reassembledTLVs(ctx context.Context, db *sql.DB, itemIDHex string, rawTLV []byte) ([]codec.TLV, error) {

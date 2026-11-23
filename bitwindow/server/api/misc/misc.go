@@ -287,6 +287,10 @@ func (s *Server) ListCoinNews(ctx context.Context, req *miscv1.ListCoinNewsReque
 	if err != nil {
 		return nil, err
 	}
+	pending, err := opreturns.ListPendingCoinNews(ctx, s.database)
+	if err != nil {
+		return nil, err
+	}
 
 	var out []*miscv1.CoinNews
 	for _, topic := range topics {
@@ -294,6 +298,15 @@ func (s *Server) ListCoinNews(ctx context.Context, req *miscv1.ListCoinNewsReque
 		if err != nil {
 			return nil, err
 		}
+		confirmed := lo.SliceToMap(news, func(n *miscv1.CoinNews) (string, bool) {
+			return fmt.Sprintf("%s:%d", n.Txid, n.Vout), true
+		})
+		for _, story := range pending {
+			if story.Topic == topic && !confirmed[fmt.Sprintf("%s:%d", story.TxID, story.Vout)] {
+				news = append(news, coinNewsToProto(story, 0))
+			}
+		}
+		rankCoinNews(news)
 		out = append(out, news[:min(len(news), coinNewsPerTopic)]...)
 	}
 	rankCoinNews(out)
@@ -378,6 +391,8 @@ func coinNewsToProto(coinNews opreturns.CoinNews, _ int) *miscv1.CoinNews {
 		Url:        coinNews.URL,
 		Subtype:    coinNews.Subtype,
 		Nsfw:       coinNews.NSFW,
+		Txid:       coinNews.TxID,
+		Vout:       coinNews.Vout,
 	}
 }
 
