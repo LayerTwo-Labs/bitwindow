@@ -52,7 +52,7 @@ class PendingMove {
   /// A cash-out's or a move's amount. A cash-out of 0 takes everything.
   final int amountSats;
 
-  /// The node's eCash height when the move's transaction was first seen in a block, or 0.
+  /// The eCash height of the block that holds the move's transaction, or 0 while it is not known.
   final int minedSeenAt;
 
   const PendingMove({
@@ -126,8 +126,9 @@ class PendingFacts {
   final int clock;
   final int height;
 
-  /// The eCash transactions of this wallet that are in a block.
-  final Set<String> minedTxids;
+  /// The eCash transactions of this wallet that are in a block, each with the height of that block, or 0
+  /// when the wallet cannot tell the height.
+  final Map<String, int> minedAt;
 
   /// The Sidepot transactions waiting for a Sidepot block, or null when the node could not list them.
   final Set<String>? sidepotMempool;
@@ -137,7 +138,7 @@ class PendingFacts {
     required this.previewNonce,
     required this.clock,
     required this.height,
-    this.minedTxids = const {},
+    this.minedAt = const {},
     this.sidepotMempool,
   });
 }
@@ -169,10 +170,10 @@ PendingStage stageOf(PendingMove move, PendingFacts facts) {
   if (facts.clock > move.expires) {
     return PendingStage.expired;
   }
-  return facts.minedTxids.contains(move.txid) ? PendingStage.mined : PendingStage.waiting;
+  return facts.minedAt.containsKey(move.txid) ? PendingStage.mined : PendingStage.waiting;
 }
 
-/// The moves still worth keeping, each with the height its transaction was first seen mined at.
+/// The moves still worth keeping, each with the height of the block that holds its transaction.
 ///
 /// A final move is dropped. A refused or expired one stays, to be shown until it is dismissed.
 List<PendingMove> settled(List<PendingMove> moves, PendingFacts facts) {
@@ -181,8 +182,8 @@ List<PendingMove> settled(List<PendingMove> moves, PendingFacts facts) {
     if (stageOf(move, facts) == PendingStage.done) {
       continue;
     }
-    final mined = move.kind != PendingKind.fund && move.minedSeenAt == 0 && facts.minedTxids.contains(move.txid);
-    kept.add(mined && facts.height > 0 ? move.seenMinedAt(facts.height) : move);
+    final minedAt = move.kind == PendingKind.fund || move.minedSeenAt > 0 ? 0 : facts.minedAt[move.txid] ?? 0;
+    kept.add(minedAt > 0 ? move.seenMinedAt(minedAt) : move);
   }
   return kept;
 }

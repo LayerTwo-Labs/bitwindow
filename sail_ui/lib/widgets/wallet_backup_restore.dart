@@ -839,6 +839,7 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
       BinaryType.BINARY_TYPE_TRUTHCOIN => 'Truthcoin',
       BinaryType.BINARY_TYPE_PHOTON => 'Photon',
       BinaryType.BINARY_TYPE_COINSHIFT => 'CoinShift',
+      BinaryType.BINARY_TYPE_SIDEPOT => 'Sidepot',
       _ => binary.name,
     };
   }
