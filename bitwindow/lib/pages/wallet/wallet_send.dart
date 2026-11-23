@@ -319,6 +319,9 @@ int sendTotalSats({
   int notificationSats = 0,
 }) => (subtractFee ? amountSats : amountSats + feeSats) + notificationSats;
 
+/// A sum of the send summary, or a dash while the fee of the form is unknown.
+String summarySats(int? sats, String Function(int sats) format) => sats == null ? '–' : format(sats);
+
 /// The name of a fee target in blocks. Null is a fee the user typed.
 String feeTargetLabel(int? confTarget) => switch (confTarget) {
   null => 'Custom',
@@ -698,14 +701,19 @@ class SummaryCard extends ViewModelWidget<SendPageViewModel> {
                     onTarget: viewModel.selectFeeTarget,
                     onCustom: viewModel.selectCustomFee,
                     child: _SummaryLink(
-                      '${feeTargetLabel(viewModel.selectedConfTarget)} · $estimate${fmt(viewModel.feeSats)}',
+                      '${feeTargetLabel(viewModel.selectedConfTarget)} · '
+                      '${summarySats(viewModel.feeFailed ? null : viewModel.feeSats, (sats) => '$estimate${fmt(sats)}')}',
                     ),
                   ),
           ),
           SummaryLine(
             label: 'Total',
             bold: true,
-            value: SailText.primary13(fmt(viewModel.totalSats), monospace: true, bold: true),
+            value: SailText.primary13(
+              summarySats(viewModel.feeFailed ? null : viewModel.totalSats, fmt),
+              monospace: true,
+              bold: true,
+            ),
           ),
         ],
       ),
@@ -1013,6 +1021,7 @@ class SendPageViewModel extends BaseViewModel {
   DateTime _feePreviewKeyAt = DateTime.now();
   Timer? _feePreviewErrorTimer;
   String? _pricedKey;
+  String? _failedKey;
   List<UnspentOutput> _pricedInputs = const [];
   UnspentOutput? _pricedNotificationInput;
   int _pricedFeeSats = 0;
@@ -1023,6 +1032,9 @@ class SendPageViewModel extends BaseViewModel {
   /// True when the fee field shows an estimate: a first BIP47 payment from a
   /// one-coin wallet pays from the notification change, which no preview can price.
   bool get feeIsEstimate => _pricedIsEstimate && _currentFeePreviewKey() == _pricedKey;
+
+  /// True when the preview of this form failed, so the fee field holds no fee of this send.
+  bool get feeFailed => !customFee && _failedKey != null && _currentFeePreviewKey() == _failedKey;
   bool showTransactionGraph = false;
 
   void toggleTransactionGraph() {
@@ -1835,6 +1847,7 @@ class SendPageViewModel extends BaseViewModel {
         return;
       }
       _feePreviewErrorTimer?.cancel();
+      _failedKey = null;
       UnspentOutput coin(wmpb.UnspentOutput i) => UnspentOutput(output: '${i.txid}:${i.vout}', valueSats: i.amountSats);
       _pricedKey = key;
       _pricedInputs = preview.inputs.map(coin).toList();
@@ -1851,12 +1864,14 @@ class SendPageViewModel extends BaseViewModel {
       final message = 'Could not calculate the fee: $error';
       final wait = feePreviewErrorWait(_feePreviewKeyAt);
       if (errorNow || wait <= Duration.zero) {
+        _failedKey = key;
         setSendError(message);
         return;
       }
       _feePreviewErrorTimer?.cancel();
       _feePreviewErrorTimer = Timer(wait, () {
         if (!disposed && key == _feePreviewKey) {
+          _failedKey = key;
           setSendError(message);
         }
       });

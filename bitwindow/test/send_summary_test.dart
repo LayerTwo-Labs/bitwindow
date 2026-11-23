@@ -23,6 +23,16 @@ void main() {
     });
   });
 
+  group('summarySats', () {
+    test('a known fee shows the sum', () {
+      expect(summarySats(40_000_226, (sats) => '$sats sats'), '40000226 sats');
+    });
+
+    test('a failed fee preview shows a dash, not an older fee', () {
+      expect(summarySats(null, (sats) => '$sats sats'), '–');
+    });
+  });
+
   group('feeTargetLabel', () {
     test('names each menu target', () {
       expect(sendFeeTargets.map(feeTargetLabel), ['Next block', '3 blocks', '6 blocks']);
