@@ -328,6 +328,7 @@ class BinaryStatusMsg extends $pb.GeneratedMessage {
     $core.bool? windowOpen,
     $core.String? loadedWalletId,
     $core.bool? hasExternalWallet,
+    $core.String? sha256,
   }) {
     final result = BinaryStatusMsg._();
     if (name != null) result.name = name;
@@ -359,6 +360,7 @@ class BinaryStatusMsg extends $pb.GeneratedMessage {
     if (windowOpen != null) result.windowOpen = windowOpen;
     if (loadedWalletId != null) result.loadedWalletId = loadedWalletId;
     if (hasExternalWallet != null) result.hasExternalWallet = hasExternalWallet;
+    if (sha256 != null) result.sha256 = sha256;
     return result;
   }
 
@@ -402,6 +404,7 @@ class BinaryStatusMsg extends $pb.GeneratedMessage {
     ..aOB(27, _omitFieldNames ? '' : 'windowOpen')
     ..aOS(29, _omitFieldNames ? '' : 'loadedWalletId')
     ..aOB(30, _omitFieldNames ? '' : 'hasExternalWallet')
+    ..aOS(31, _omitFieldNames ? '' : 'sha256')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -692,6 +695,16 @@ class BinaryStatusMsg extends $pb.GeneratedMessage {
   $core.bool hasHasExternalWallet() => $_has(28);
   @$pb.TagNumber(30)
   void clearHasExternalWallet() => $_clearField(30);
+
+  /// SHA256 of the binary on disk, lowercase hex. Empty when not downloaded.
+  @$pb.TagNumber(31)
+  $core.String get sha256 => $_getSZ(29);
+  @$pb.TagNumber(31)
+  set sha256($core.String value) => $_setString(29, value);
+  @$pb.TagNumber(31)
+  $core.bool hasSha256() => $_has(29);
+  @$pb.TagNumber(31)
+  void clearSha256() => $_clearField(31);
 }
 
 class StartupLogEntryMsg extends $pb.GeneratedMessage {

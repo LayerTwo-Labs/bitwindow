@@ -236,6 +236,7 @@ const BinaryStatusMsg$json = {
     {'1': 'window_open', '3': 27, '4': 1, '5': 8, '10': 'windowOpen'},
     {'1': 'loaded_wallet_id', '3': 29, '4': 1, '5': 9, '10': 'loadedWalletId'},
     {'1': 'has_external_wallet', '3': 30, '4': 1, '5': 8, '10': 'hasExternalWallet'},
+    {'1': 'sha256', '3': 31, '4': 1, '5': 9, '10': 'sha256'},
   ],
   '9': [
     {'1': 28, '2': 29},
@@ -263,8 +264,8 @@ final $typed_data.Uint8List binaryStatusMsgDescriptor =
         'l4GBkgASgDUhNyZW1vdGVUaW1lc3RhbXBVbml4EjoKGWRvd25sb2FkZWRfdGltZXN0YW1wX3Vu'
         'aXgYGiABKANSF2Rvd25sb2FkZWRUaW1lc3RhbXBVbml4Eh8KC3dpbmRvd19vcGVuGBsgASgIUg'
         'p3aW5kb3dPcGVuEigKEGxvYWRlZF93YWxsZXRfaWQYHSABKAlSDmxvYWRlZFdhbGxldElkEi4K'
-        'E2hhc19leHRlcm5hbF93YWxsZXQYHiABKAhSEWhhc0V4dGVybmFsV2FsbGV0SgQIHBAdUhNzZX'
-        'J2ZXNfbGlnaHRfd2FsbGV0');
+        'E2hhc19leHRlcm5hbF93YWxsZXQYHiABKAhSEWhhc0V4dGVybmFsV2FsbGV0EhYKBnNoYTI1Nh'
+        'gfIAEoCVIGc2hhMjU2SgQIHBAdUhNzZXJ2ZXNfbGlnaHRfd2FsbGV0');
 
 @$core.Deprecated('Use startupLogEntryMsgDescriptor instead')
 const StartupLogEntryMsg$json = {
