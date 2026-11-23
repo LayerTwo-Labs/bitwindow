@@ -74,4 +74,16 @@ void main() {
 
     expect(rows.map((tx) => tx.confirmationTime.height), [1, 2, 3]);
   });
+
+  test('a failed parallel read names the read that failed', () async {
+    Object? caught;
+    try {
+      await (Future<int>.value(1), Future<int>.error(Exception('connection refused'))).wait;
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(readFailure(caught!).toString(), 'Exception: connection refused');
+    expect(readFailure(StateError('down')).toString(), 'Bad state: down');
+  });
 }

@@ -285,7 +285,7 @@ class _TransactionTableState extends State<TransactionTable> {
       builder: (BuildContext context, BoxConstraints constraints) {
         return SailCard(
           title: 'Wallet Transaction History',
-          error: widget.model.transactionsError,
+          error: widget.model.historyError,
           titleTooltip: 'This transaction list contains all your wallet transactions. Sends, receives, and sidechain-interaction transactions.',
           bottomPadding: false,
           widgetHeaderEnd: SailButton(
@@ -652,6 +652,18 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
   String? modelError;
   String? transactionsError;
 
+  /// The last stats read failed, so the tiles show no numbers.
+  String? statsError;
+
+  /// Why the overview could not read the wallet, or null.
+  String? get readError {
+    final error = _txProvider.error ?? statsError;
+    return error == null ? null : 'Could not read the wallet: $error';
+  }
+
+  /// The error line of the history card.
+  String? get historyError => transactionsError ?? readError;
+
   final TextEditingController searchController = TextEditingController();
 
   bool get loading => _enforcerRPC.initializingBinary;
@@ -676,6 +688,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
     track('dateRange', dateRange);
     track('loading', loading);
     track('stats', stats);
+    track('readError', readError);
     notifyIfChanged();
   }
 
@@ -699,10 +712,19 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
       return;
     }
 
-    final newStats = await _bitwindowRPC.wallet.getStats(walletId);
-    if (track('stats', newStats)) {
-      stats = newStats;
-      notifyListeners();
+    try {
+      final newStats = await _bitwindowRPC.wallet.getStats(walletId);
+      final errorChanged = statsError != null;
+      statsError = null;
+      if (track('stats', newStats) || errorChanged) {
+        stats = newStats;
+        notifyListeners();
+      }
+    } catch (e) {
+      if (statsError != e.toString()) {
+        statsError = e.toString();
+        notifyListeners();
+      }
     }
   }
 
@@ -948,6 +970,10 @@ class WalletStats extends ViewModelWidget<OverviewViewModel> {
       enabled: viewModel.loading,
       description: 'Waiting for enforcer to boot and wallet to sync..',
     );
+    // A failed read must not leave the last numbers up as if they were new.
+    final failed = viewModel.statsError != null;
+    final value = failed ? '-' : this.value;
+    final subtitle = failed ? '' : this.subtitle;
     if (SailStyleValues.phoneLayout(context)) {
       return SailStatRow(title: phoneTitle ?? title, subtitle: subtitle, value: value, loading: loading);
     }
