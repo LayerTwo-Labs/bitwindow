@@ -29,7 +29,12 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
   List<Block> blocks = [];
   List<RecentTransaction> recentTransactions = [];
 
-  List<String> errors = [];
+  /// Why the last read of [recentTransactions] failed, or null.
+  String? recentError;
+
+  /// Why the last read of [blocks] failed, or null.
+  String? blocksError;
+
   bool hasMoreBlocks = true;
   bool isLoadingMoreBlocks = false;
   Set<int> loadedBlockHeights = {};
@@ -107,6 +112,10 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
     if (!NodeModeProvider.runsLocalBackends || (syncProvider.bitwindowdSyncInfo?.waitsForCore ?? false)) {
       return;
     }
+    if (recentError != null) {
+      recentError = null;
+      notifyListeners();
+    }
     if (recentTransactions.updateWith(frame.transactions)) {
       _recentChanged.notify();
     }
@@ -127,7 +136,7 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
     // Light mode runs no local Bitcoin Core, and blocks, transactions and peers read it.
     if (!NodeModeProvider.runsLocalBackends) {
       _syncRecentWatch(false);
-      if (blocks.isNotEmpty || recentTransactions.isNotEmpty || peerCount != 0 || errors.isNotEmpty) {
+      if (blocks.isNotEmpty || recentTransactions.isNotEmpty || peerCount != 0 || _hasError) {
         clear();
       }
       return;
@@ -140,7 +149,7 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
     // IBD holds rows from the chain it left, so drop them.
     if (syncProvider.bitwindowdSyncInfo?.waitsForCore ?? false) {
       _syncRecentWatch(false);
-      if (blocks.isNotEmpty || recentTransactions.isNotEmpty || peerCount != 0 || errors.isNotEmpty) {
+      if (blocks.isNotEmpty || recentTransactions.isNotEmpty || peerCount != 0 || _hasError) {
         clear();
       }
       return;
@@ -149,38 +158,41 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
     _isFetching = true;
 
     try {
-      errors = [];
       final tip = _mainchainTip;
       final readBlocks = blocks.isEmpty || tip == null || tip != _blocksTip;
-      var blocksFailed = false;
       final streamed = _streamedRecent;
       final frames = _recentFrames;
       final polled = !_streamsRecent || streamed == null;
-      var recentFailed = false;
+      Object? recentFailure;
+      Object? blocksFailure;
+      Object? peerFailure;
       final tReq = polled
           ? bitwindowd.bitwindowd.listRecentTransactions().onError((e, st) {
-              recentFailed = true;
-              return _return(recentTransactions)(e, st);
+              recentFailure = e;
+              return recentTransactions;
             })
           : Future.value(streamed);
       final bReq = readBlocks
           ? bitwindowd.bitwindowd.listBlocks().onError((e, st) {
-              blocksFailed = true;
-              return _return((blocks, false))(e, st);
+              blocksFailure = e;
+              return (blocks, false);
             })
           : null;
       // A shown peer list polls getpeerinfo, so the count reads no more.
       final peerList = GetIt.I.get<PeersProvider>();
       final nReq = peerList.polling
           ? Future.value(peerList.peers.length)
-          : _orchestrator.bitcoind
-                .getNetworkInfo(GetNetworkInfoRequest())
-                .then((r) => r.connections)
-                .onError(_return(peerCount));
+          : _orchestrator.bitcoind.getNetworkInfo(GetNetworkInfoRequest()).then((r) => r.connections).onError((
+              e,
+              st,
+            ) {
+              peerFailure = e;
+              return peerCount;
+            });
 
       final newTXs = await tReq;
       // bitwindowd answers, so a stream that waits out its backoff can subscribe now.
-      if (polled && !recentFailed) {
+      if (polled && recentFailure == null) {
         _recentWatch?.retryNow();
       }
       final newPeerCount = await nReq;
@@ -192,32 +204,44 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
         peerCount = newPeerCount;
         hasChanges = true;
       }
+      if (polled && _recentFrames == frames) {
+        final error = _shown(recentFailure);
+        if (error != recentError) {
+          recentError = error;
+          hasChanges = true;
+        }
+      }
       if (bReq != null) {
         final (newBlocks, hasMore) = await bReq;
-        if (!blocksFailed) {
-          _blocksTip = tip;
+        final error = _shown(blocksFailure);
+        if (error != blocksError) {
+          blocksError = error;
+          hasChanges = true;
         }
-        final connects =
-            hasMore && newBlocks.isNotEmpty && blocks.any((b) => b.hash == newBlocks.last.previousBlockHash);
-        final olderBlocks = [
-          if (connects)
-            for (final b in blocks.where((b) => b.height < newBlocks.last.height))
-              b.deepCopy()
-                ..confirmations = newBlocks.first.height - b.height + 1
-                ..nextBlockHash = b.hash == newBlocks.last.previousBlockHash ? newBlocks.last.hash : b.nextBlockHash,
-        ];
-        final mergedBlocks = [...newBlocks, ...olderBlocks];
-        hasChanges =
-            hasChanges |
-            blocks.updateWith(
-              mergedBlocks,
-              afterUpdate: () {
-                if (olderBlocks.isEmpty) {
-                  hasMoreBlocks = hasMore;
-                }
-                loadedBlockHeights = mergedBlocks.map((b) => b.height).toSet();
-              },
-            );
+        if (blocksFailure == null) {
+          _blocksTip = tip;
+          final connects =
+              hasMore && newBlocks.isNotEmpty && blocks.any((b) => b.hash == newBlocks.last.previousBlockHash);
+          final olderBlocks = [
+            if (connects)
+              for (final b in blocks.where((b) => b.height < newBlocks.last.height))
+                b.deepCopy()
+                  ..confirmations = newBlocks.first.height - b.height + 1
+                  ..nextBlockHash = b.hash == newBlocks.last.previousBlockHash ? newBlocks.last.hash : b.nextBlockHash,
+          ];
+          final mergedBlocks = [...newBlocks, ...olderBlocks];
+          hasChanges =
+              hasChanges |
+              blocks.updateWith(
+                mergedBlocks,
+                afterUpdate: () {
+                  if (olderBlocks.isEmpty) {
+                    hasMoreBlocks = hasMore;
+                  }
+                  loadedBlockHeights = mergedBlocks.map((b) => b.height).toSet();
+                },
+              );
+        }
       }
       if (hasChanges) {
         notifyListeners();
@@ -225,9 +249,8 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
       if (recentChanged) {
         _recentChanged.notify();
       }
-      // The three calls run at the same time, so the list holds them in
-      // completion order. One sort keeps the text the same on every tick.
-      _report(([...errors]..sort()).join('\n'));
+      // The three calls run at the same time. One sort keeps the text the same on every tick.
+      _report(([recentError, blocksError, _shown(peerFailure)].whereType<String>().toList()..sort()).join('\n'));
     } catch (e) {
       if (!isExpectedBootError(e)) {
         _report(e.toString());
@@ -251,16 +274,11 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
     log.e(text);
   }
 
-  FutureOr<T> Function(Object? e, StackTrace stt) _return<T>(T previous) {
-    return (e, stt) {
-      // A daemon that boots answers every call the same way, and its stack
-      // trace names this file, not the cause.
-      if (e != null && !isExpectedBootError(e)) {
-        errors.add(e.toString());
-      }
-      return previous;
-    };
-  }
+  bool get _hasError => recentError != null || blocksError != null;
+
+  /// The text of [error] for the cards. A daemon that boots answers every call
+  /// the same way, so that error shows nothing.
+  static String? _shown(Object? error) => error == null || isExpectedBootError(error) ? null : error.toString();
 
   void _startFetchTimer() {
     fetch();
@@ -283,7 +301,8 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
     loadedBlockHeights = {};
     hasMoreBlocks = true;
     isLoadingMoreBlocks = false;
-    errors.clear();
+    recentError = null;
+    blocksError = null;
     _loggedError = null;
     notifyListeners();
     _recentChanged.notify();

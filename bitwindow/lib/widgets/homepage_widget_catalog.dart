@@ -72,7 +72,7 @@ class HomepageWidgetCatalog {
           return SailCard(
             bottomPadding: false,
             title: 'Latest Transactions',
-            error: model.hasErrorForKey('blockchain') ? model.error('blockchain').toString() : null,
+            error: model.recentError,
             child: SizedBox(
               height: 300,
               child: ListenableBuilder(
@@ -94,6 +94,7 @@ class HomepageWidgetCatalog {
         builder: (context, model, child) {
           return SailCard(
             title: 'Latest Blocks',
+            error: model.blocksError,
             bottomPadding: false,
             child: SizedBox(height: 300, child: LatestBlocksTable(blocks: model.recentBlocks)),
           );
