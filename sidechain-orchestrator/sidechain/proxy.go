@@ -18,6 +18,18 @@ type BlockTemplate struct {
 	// what FeesSats says, on a chain whose block reward depends on the bid.
 	// Zero leaves the opening bid to the engine, which sizes it by fee rate.
 	OpeningBidSats int64 `json:"-"`
+
+	// WorthAt is what the block earns with a bid of bidSats, on a chain whose
+	// block reward depends on the bid. Nil means FeesSats for any bid.
+	WorthAt func(bidSats int64) int64 `json:"-"`
+}
+
+// WorthFor is what the block earns when a bid of bidSats takes it.
+func (t *BlockTemplate) WorthFor(bidSats int64) int64 {
+	if t.WorthAt == nil {
+		return t.FeesSats
+	}
+	return t.WorthAt(bidSats)
 }
 
 // ErrNotReady is what a node answers when it cannot build on the current

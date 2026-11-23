@@ -52,7 +52,7 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
   bool _pendingLoaded = false;
 
   /// This wallet's eCash transactions that are in a block, and the node's waiting Sidepot transactions.
-  Set<String> _mined = {};
+  Map<String, int> _mined = {};
   Set<String>? _sidepotMempool;
 
   final _keys = TextEditingController(text: '1');
@@ -94,7 +94,7 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     try {
       final game = await _rpc.callRAW('game_state');
       final account = await _rpc.callRAW('game_my_account');
-      final mined = await _minedTxids();
+      final mined = await _minedAt();
       final mempool = await _waitingSidepotTxids();
       if (!mounted) {
         return;
@@ -151,7 +151,7 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     previewNonce: _int(_mine, 'nonce'),
     clock: _int(_now, 'clock'),
     height: _int(_now, 'l1_height'),
-    minedTxids: _mined,
+    minedAt: _mined,
     sidepotMempool: _sidepotMempool,
   );
 
@@ -203,18 +203,19 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     _savePending();
   }
 
-  /// This wallet's eCash transactions that are in a block, or null when there is nothing to look for or the
-  /// wallet could not be read.
-  Future<Set<String>?> _minedTxids() async {
+  /// This wallet's eCash transactions that are in a block, each with the height of that block, or null when
+  /// there is nothing to look for or the wallet could not be read.
+  Future<Map<String, int>?> _minedAt() async {
     final walletId = _walletId;
     if (walletId == null || !_pending.any((m) => m.kind != PendingKind.fund && m.minedSeenAt == 0)) {
       return null;
     }
     try {
       final listed = await GetIt.I.get<OrchestratorRPC>().wallet.listTransactions(walletId: walletId);
+      final tip = GetIt.I.get<SyncProvider>().mainchainSyncInfo?.progressCurrent.toInt() ?? 0;
       return {
         for (final tx in listed.transactions)
-          if (tx.confirmations > 0) tx.txid,
+          if (tx.confirmations > 0) tx.txid: tip > 0 ? tip - tx.confirmations + 1 : 0,
       };
     } catch (_) {
       return null;

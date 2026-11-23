@@ -622,7 +622,7 @@ func (h *BMMHandler) CreateBid(
 	return &bmmpb.CreateBidResponse{
 		CriticalHash: template.CriticalHash,
 		BmmTxid:      send.Txid,
-		FeesSats:     template.FeesSats,
+		FeesSats:     template.WorthFor(bidSats),
 		BlockJson:    string(template.Block),
 		PrevMainHash: prevMainHash,
 		BidSats:      bidSats,

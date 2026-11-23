@@ -28,14 +28,14 @@ PendingFacts _facts({
   int preview = 4,
   int clock = 100,
   int height = 500,
-  Set<String> mined = const {},
+  Map<String, int> mined = const {},
   Set<String>? mempool,
 }) => PendingFacts(
   confirmedNonce: confirmed,
   previewNonce: preview,
   clock: clock,
   height: height,
-  minedTxids: mined,
+  minedAt: mined,
   sidepotMempool: mempool,
 );
 
@@ -43,18 +43,31 @@ void main() {
   test('a buy waits, is mined, counts, and is final', () {
     final buy = _buy(5);
     expect(stageOf(buy, _facts()), PendingStage.waiting);
-    expect(stageOf(buy, _facts(mined: {'buy5'})), PendingStage.mined);
-    expect(stageOf(buy, _facts(preview: 5, mined: {'buy5'})), PendingStage.counted);
+    expect(stageOf(buy, _facts(mined: {'buy5': 500})), PendingStage.mined);
+    expect(stageOf(buy, _facts(preview: 5, mined: {'buy5': 500})), PendingStage.counted);
     expect(stageOf(buy, _facts(confirmed: 5, preview: 5)), PendingStage.done);
   });
 
+  test('a buy mined ahead of the node is not refused before the node reads its block', () {
+    final seen = settled([_buy(5)], _facts(mined: {'buy5': 503})).single;
+    expect(seen.minedSeenAt, 503);
+    expect(stageOf(seen, _facts(height: 501, clock: 101, mined: {'buy5': 503})), PendingStage.mined);
+    expect(stageOf(seen, _facts(height: 504, clock: 101, mined: {'buy5': 503})), PendingStage.rejected);
+  });
+
+  test('a mined buy whose height the wallet cannot tell is not refused', () {
+    final unknown = settled([_buy(5)], _facts(mined: {'buy5': 0})).single;
+    expect(unknown.minedSeenAt, 0);
+    expect(stageOf(unknown, _facts(height: 900, clock: 101, mined: {'buy5': 0})), PendingStage.mined);
+  });
+
   test('a mined buy is refused only once the node has read past the block it was seen in', () {
-    final seen = settled([_buy(5)], _facts(mined: {'buy5'})).single;
+    final seen = settled([_buy(5)], _facts(mined: {'buy5': 500})).single;
     expect(seen.minedSeenAt, 500);
-    expect(stageOf(seen, _facts(mined: {'buy5'})), PendingStage.mined);
-    expect(stageOf(seen, _facts(height: 501, clock: 101, mined: {'buy5'})), PendingStage.rejected);
+    expect(stageOf(seen, _facts(mined: {'buy5': 500})), PendingStage.mined);
+    expect(stageOf(seen, _facts(height: 501, clock: 101, mined: {'buy5': 500})), PendingStage.rejected);
     // The node was only behind: it counts the move after all.
-    expect(stageOf(seen, _facts(height: 501, clock: 101, preview: 5, mined: {'buy5'})), PendingStage.counted);
+    expect(stageOf(seen, _facts(height: 501, clock: 101, preview: 5, mined: {'buy5': 500})), PendingStage.counted);
   });
 
   test('a buy that is never mined expires, and one a later move passed is settled', () {

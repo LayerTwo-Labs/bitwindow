@@ -206,6 +206,7 @@ class SyncProvider extends ChangeNotifier implements NetworkScoped {
       Truthcoin() => orch_pb.SidechainType.SIDECHAIN_TYPE_TRUTHCOIN,
       Photon() => orch_pb.SidechainType.SIDECHAIN_TYPE_PHOTON,
       CoinShift() => orch_pb.SidechainType.SIDECHAIN_TYPE_COINSHIFT,
+      Sidepot() => orch_pb.SidechainType.SIDECHAIN_TYPE_SIDEPOT,
       _ => null,
     };
   }

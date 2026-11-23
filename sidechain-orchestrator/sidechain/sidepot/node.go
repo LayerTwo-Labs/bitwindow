@@ -51,6 +51,14 @@ func bonusCapSats(poolSats int64) int64 {
 	return poolSats * bonusPoolBps / 10_000
 }
 
+// bonusSats is what a bid of bidSats earns from a bonus cap of capSats.
+func bonusSats(bidSats, capSats int64) int64 {
+	if bidSats < bonusMinBidSats {
+		return 0
+	}
+	return min(bidSats*bonusBidMultiple, capSats)
+}
+
 // openingBidSats is the smallest bid that earns the whole bonus cap: half the
 // cap, and never under the minimum a bid needs to earn anything.
 func openingBidSats(capSats int64) int64 {
@@ -87,8 +95,10 @@ func (n *Node) GetBlockTemplate(ctx context.Context) (*sidechain.BlockTemplate, 
 		}
 	}
 	bonus := bonusCapSats(pool)
+	fees := template.FeesSats
 	template.FeesSats += bonus
 	template.OpeningBidSats = openingBidSats(bonus)
+	template.WorthAt = func(bidSats int64) int64 { return fees + bonusSats(bidSats, bonus) }
 	return template, nil
 }
 

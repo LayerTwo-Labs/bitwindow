@@ -160,3 +160,27 @@ func TestBlockTemplateCountsTheBlockBonus(t *testing.T) {
 		})
 	}
 }
+
+func TestBlockTemplateWorthFollowsTheBid(t *testing.T) {
+	node := nodeFromServer(t, fakeRPC(t, map[string]any{
+		"get_block_template": map[string]any{
+			"critical_hash": "ab", "block": map[string]any{}, "fees_sats": 300,
+		},
+		"game_state": map[string]any{"bonus_pool_sats": 1_130_000},
+	}, nil))
+
+	template, err := node.GetBlockTemplate(context.Background())
+	require.NoError(t, err)
+	for _, test := range []struct {
+		name      string
+		bidSats   int64
+		wantWorth int64
+	}{
+		{name: "a bid under the minimum earns no bonus", bidSats: 9_999, wantWorth: 300},
+		{name: "a bid under the opening bid earns twice the bid", bidSats: 10_001, wantWorth: 300 + 20_002},
+		{name: "the opening bid earns the whole cap", bidSats: 28_250, wantWorth: 300 + 56_500},
+		{name: "a bid over the opening bid earns no more than the cap", bidSats: 40_000, wantWorth: 300 + 56_500},
+	} {
+		assert.Equal(t, test.wantWorth, template.WorthFor(test.bidSats), test.name)
+	}
+}
