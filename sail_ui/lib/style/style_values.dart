@@ -5,7 +5,7 @@ abstract class SailStyleValues {
   /// Window width under which the top nav and the status bar go compact.
   static const double compactBarsWidth = 1200;
 
-  static bool compactBars(BuildContext context) => MediaQuery.sizeOf(context).width < compactBarsWidth;
+  static bool compactBars(BuildContext context) => MediaQuery.sizeOf(context).width < CompactBarsWidth.of(context);
 
   /// Forces the phone or the desktop layout in a test.
   @visibleForTesting
@@ -82,4 +82,17 @@ abstract class SailStyleValues {
     fontSize: 10,
     fontWeight: regularWeight,
   );
+}
+
+/// Sets the window width under which the bars below it go compact.
+class CompactBarsWidth extends InheritedWidget {
+  final double width;
+
+  const CompactBarsWidth({super.key, required this.width, required super.child});
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<CompactBarsWidth>()?.width ?? SailStyleValues.compactBarsWidth;
+
+  @override
+  bool updateShouldNotify(CompactBarsWidth oldWidget) => width != oldWidget.width;
 }

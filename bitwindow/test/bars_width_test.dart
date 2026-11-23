@@ -341,7 +341,7 @@ void main() {
     await pumpBars(tester, 1200);
 
     expect(tester.takeException(), isNull);
-    expect(find.textContaining('maturing'), findsOneWidget);
+    expect(find.byTooltip('Maturing balance'), findsOneWidget);
     expect(find.textContaining('Last block:'), findsNothing);
     expect(find.text('Reset'), findsNothing);
     expect(tester.getTopRight(find.byType(ResetButton)).dx, lessThanOrEqualTo(1200));
@@ -365,8 +365,33 @@ void main() {
     expect(AutoTabsRouter.of(tester.element(find.byType(StatusBar))).activeIndex, phoneTabs.length);
   });
 
-  testWidgets('a 1280 px window shows the full last block label', (tester) async {
-    await pumpBars(tester, 1280);
+  for (final width in [1024.0, 1200.0, 1280.0, 1439.0, 1440.0]) {
+    testWidgets('the status bar fits a $width px window while each chain syncs', (tester) async {
+      final balance = GetIt.I.get<BalanceProvider>() as _Balance;
+      balance.balance = 12100;
+      balance.maturingBalance = 5000;
+
+      await pumpBars(tester, width);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ChainLoader), findsNWidgets(3));
+      expect(find.text('Syncing mainchain blocks'), findsNothing);
+      expect(find.byTooltip('Syncing mainchain blocks'), findsOneWidget);
+      expect(tester.getTopRight(find.byType(ResetButton)).dx, lessThanOrEqualTo(width));
+    });
+  }
+
+  testWidgets('the status text shows while a chain waits for its first sync info', (tester) async {
+    sync.mainchainSyncInfo = null;
+
+    await pumpBars(tester, 1200);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Syncing mainchain blocks'), findsOneWidget);
+  });
+
+  testWidgets('a 1440 px window shows the full last block label', (tester) async {
+    await pumpBars(tester, 1440);
 
     expect(tester.takeException(), isNull);
     expect(find.text('Last block: Unknown'), findsOneWidget);
@@ -379,7 +404,7 @@ void main() {
       progressGoal: 997070,
       lastBlockAt: Timestamp.fromDateTime(DateTime.now().subtract(const Duration(seconds: 5))),
     );
-    await pumpBars(tester, 1280);
+    await pumpBars(tester, 1440);
     expect(find.text('Last block: 5 seconds ago'), findsOneWidget);
     final bar = tester.widget<BottomNav>(find.byType(BottomNav));
 
