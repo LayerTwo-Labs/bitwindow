@@ -21,6 +21,9 @@ class NewsProvider extends ChangeNotifier {
   bool initialized = false;
   String? error;
 
+  /// The error of the last OP_RETURN read, or null when it worked.
+  String? opReturnsError;
+
   bool _isFetching = false;
 
   NewsProvider() {
@@ -64,18 +67,20 @@ class NewsProvider extends ChangeNotifier {
       errors.add('Topics: ${e.toString()}');
     }
 
-    // Fetch OP_RETURNs independently
+    final previousOPReturnsError = opReturnsError;
     try {
       final newOPReturns = await api.misc.listOPReturns();
+      opReturnsError = null;
       if (!listEquals(opReturns, newOPReturns)) {
         opReturns = newOPReturns;
         dataChanged = true;
       }
     } catch (e) {
-      errors.add('OP_RETURNs: ${e.toString()}');
+      opReturnsError = e.toString();
+      errors.add('OP_RETURNs: $opReturnsError');
     }
 
-    if (dataChanged || errors.isNotEmpty) {
+    if (dataChanged || errors.isNotEmpty || opReturnsError != previousOPReturnsError) {
       if (dataChanged) {
         initialized = true;
       }
