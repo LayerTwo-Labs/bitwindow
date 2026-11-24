@@ -290,12 +290,12 @@ class _LatestTransactionTableState extends State<LatestTransactionTable> {
         final entry = entries[row];
         return [
           SailTableCell(value: entry.time.toDateTime().toLocal().toString()),
-          SailTableCell(value: entry.feeSats.toString(), width: phone ? 56 : null),
+          SailTableCell(value: entry.feeSats.toString(), hugContent: phone),
           SailTableCell(value: entry.txid),
           SailTableCell(value: entry.virtualSize.toString()),
           SailTableCell(
             value: entry.confirmedInBlock == 0 ? '-' : entry.confirmedInBlock.toString(),
-            width: phone ? 76 : null,
+            hugContent: phone,
           ),
         ];
       },
