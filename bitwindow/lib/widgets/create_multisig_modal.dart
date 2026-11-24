@@ -540,6 +540,9 @@ class CreateMultisigModalViewModel extends BaseViewModel {
     mController.addListener(_validateParameters);
     nController.addListener(_validateParameters);
     nameController.addListener(_clearNameError);
+    ownerController.addListener(notifyListeners);
+    pathController.addListener(notifyListeners);
+    pubkeyController.addListener(notifyListeners);
     _validateParameters();
 
     notifyListeners();

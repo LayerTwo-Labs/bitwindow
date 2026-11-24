@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:bitwindow/providers/hd_wallet_provider.dart';
+import 'package:bitwindow/widgets/create_multisig_modal.dart';
 import 'package:bitwindow/widgets/multisig_key_modal.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -117,5 +118,25 @@ void main() {
 
     expect(model.keyInfo!['path'], "m/84'/1'/8000'");
     expect(model.keyInfo!['xpub'], _xpubFor("m/84'/1'/8000'"));
+  });
+
+  test('manual key fields refresh the save action', () {
+    GetIt.I.registerSingleton<BitcoinConfProvider>(_FakeConf(false));
+    GetIt.I.registerSingleton<HDWalletProvider>(_FixedIndexHDWallet());
+    final model = CreateMultisigModalViewModel()..init();
+    addTearDown(model.dispose);
+
+    var saveEnabled = model.canSaveKey;
+    model.addListener(() => saveEnabled = model.canSaveKey);
+    model.ownerController.text = 'Bob';
+    model.pubkeyController.text = _xpubFor(model.pathController.text);
+    expect(saveEnabled, isTrue);
+
+    model.pathController.clear();
+    expect(saveEnabled, isFalse);
+    model.pathController.text = "m/84'/1'/8000'";
+    expect(saveEnabled, isTrue);
+    model.ownerController.clear();
+    expect(saveEnabled, isFalse);
   });
 }
