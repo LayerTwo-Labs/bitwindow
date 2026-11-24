@@ -35,6 +35,12 @@ type loungeRegtest struct {
 
 func newLoungeRegtest(t *testing.T) *loungeRegtest {
 	t.Helper()
+	return startLoungeRegtest(t, "-fallbackfee=0.0001")
+}
+
+// startLoungeRegtest starts a regtest node with extra bitcoind args.
+func startLoungeRegtest(t *testing.T, extraArgs ...string) *loungeRegtest {
+	t.Helper()
 	cli, err := exec.LookPath("bitcoin-cli")
 	if err != nil {
 		t.Skip("bitcoin-cli not on PATH; skipping multisig sync e2e")
@@ -50,10 +56,11 @@ func newLoungeRegtest(t *testing.T) *loungeRegtest {
 	// historical txs by id via getrawtransaction, which needs the tx index.
 	// Per-node RPC and P2P ports keep concurrent regtest nodes (e.g. the wallet
 	// package's e2e running in parallel) from colliding on the defaults.
-	cmd := exec.Command(daemon, "-regtest", "-datadir="+dir, "-server=1",
-		"-rpcuser=u", "-rpcpassword=p", "-fallbackfee=0.0001", "-txindex=1",
+	args := append([]string{"-regtest", "-datadir=" + dir, "-server=1",
+		"-rpcuser=u", "-rpcpassword=p", "-txindex=1",
 		fmt.Sprintf("-rpcport=%d", rpcPort), fmt.Sprintf("-port=%d", p2pPort),
-		fmt.Sprintf("-bind=127.0.0.1:%d", p2pPort), "-listen=1")
+		fmt.Sprintf("-bind=127.0.0.1:%d", p2pPort), "-listen=1"}, extraArgs...)
+	cmd := exec.Command(daemon, args...)
 	require.NoError(t, cmd.Start())
 	rt := &loungeRegtest{t: t, cli: cli, dataDir: dir, port: rpcPort, cmd: cmd}
 	t.Cleanup(rt.stop)
@@ -593,4 +600,89 @@ func TestCreateSpendPsbtE2E(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, cab.Txid, 64, "the CreateSpendPsbt output must sign+combine+broadcast end to end")
+}
+
+func TestCreateSpendPsbtWithNoFeeEstimateE2E(t *testing.T) {
+	rt := startLoungeRegtest(t)
+	h := newSyncHandler(rt)
+	group := loungeSyncTestGroup(t)
+	ctx := t.Context()
+
+	_, err := h.SyncGroup(ctx, &pb.SyncGroupRequest{Group: group})
+	require.NoError(t, err)
+
+	rt.rpcInto(t, "", "createwallet", `["fund"]`, nil)
+	var fundAddr string
+	rt.rpcInto(t, "fund", "getnewaddress", "", &fundAddr)
+	rt.rpcInto(t, "", "generatetoaddress", fmt.Sprintf(`[101,%q]`, fundAddr), nil)
+	var msAddr string
+	rt.rpcInto(t, "ms_sync", "getnewaddress", "", &msAddr)
+	rt.rpcInto(t, "fund", "sendtoaddress",
+		fmt.Sprintf(`[%q,"1.0","","",false,true,null,"unset",false,2]`, msAddr), nil)
+
+	resp, err := h.SyncGroup(ctx, &pb.SyncGroupRequest{Group: group})
+	require.NoError(t, err)
+	require.Zero(t, resp.ConfirmedSats, "a coin from another wallet is not trusted before a block")
+	require.Equal(t, int64(100_000_000), resp.PendingSats)
+	require.Zero(t, resp.UtxoCount, "the count holds only the coins of the balance")
+
+	rt.rpcInto(t, "", "generatetoaddress", fmt.Sprintf(`[1,%q]`, fundAddr), nil)
+	resp, err = h.SyncGroup(ctx, &pb.SyncGroupRequest{Group: group})
+	require.NoError(t, err)
+	require.Equal(t, int64(100_000_000), resp.ConfirmedSats)
+	require.Equal(t, uint32(1), resp.UtxoCount)
+
+	var dest string
+	rt.rpcInto(t, "fund", "getnewaddress", "", &dest)
+	destValue := func(psbt string) float64 {
+		var decoded struct {
+			Tx struct {
+				Vout []struct {
+					Value        float64 `json:"value"`
+					ScriptPubKey struct {
+						Address string `json:"address"`
+					} `json:"scriptPubKey"`
+				} `json:"vout"`
+			} `json:"tx"`
+		}
+		rt.rpcInto(t, "", "decodepsbt", fmt.Sprintf(`[%q]`, psbt), &decoded)
+		for _, o := range decoded.Tx.Vout {
+			if o.ScriptPubKey.Address == dest {
+				return o.Value
+			}
+		}
+		t.Fatalf("psbt pays no output to %s", dest)
+		return 0
+	}
+
+	spend, err := h.CreateSpendPsbt(ctx, &pb.CreateSpendPsbtRequest{
+		Group:        group,
+		Destinations: []*pb.SpendDestination{{Address: dest, Sats: 50_000_000}},
+	})
+	require.NoError(t, err, "a node with no fee estimate pays the relay floor")
+	require.Positive(t, spend.FeeSats)
+	require.InDelta(t, 0.5, destValue(spend.PsbtBase64), 1e-9)
+
+	all, err := h.CreateSpendPsbt(ctx, &pb.CreateSpendPsbtRequest{
+		Group:                  group,
+		Destinations:           []*pb.SpendDestination{{Address: dest, Sats: 100_000_000}},
+		SubtractFeeFromOutputs: true,
+	})
+	require.NoError(t, err, "the full balance funds when the fee comes from the amount")
+	require.InDelta(t, float64(100_000_000-all.FeeSats)/1e8, destValue(all.PsbtBase64), 1e-9)
+}
+
+func TestBtcPerKvbToSatPerVb(t *testing.T) {
+	for _, tc := range []struct {
+		btcPerKvb float64
+		want      string
+	}{
+		{0.00001, "1"},
+		{0.000001, "0.1"},
+		{0.00012345678, "12.346"},
+	} {
+		got, err := json.Marshal(btcPerKvbToSatPerVb(tc.btcPerKvb))
+		require.NoError(t, err)
+		require.Equal(t, tc.want, string(got), "Core rejects a rate with more than 3 decimals")
+	}
 }

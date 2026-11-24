@@ -243,10 +243,18 @@ func (h *MultisigLoungeHandler) PublishGroup(
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("get receive address: %w", err).Error())
 	}
 
-	txid, err := h.engine.Backend().Send(ctx, walletID, wallet.SendRequest{
+	send := wallet.SendRequest{
 		DestinationsSats: map[string]int64{derived.Address: multisigGroupFundingSats},
 		OpReturnHex:      hex.EncodeToString([]byte(message)),
-	})
+	}
+	if h.coreCaller != nil {
+		rate, err := h.defaultFeeRate(ctx)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
+		}
+		send.FeeRateSatPerVB = int64(math.Ceil(rate))
+	}
+	txid, err := h.engine.Backend().Send(ctx, walletID, send)
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -337,6 +345,33 @@ func groupDataToLoungeGroup(g *pb.GroupData) wallet.MultisigLoungeGroup {
 
 // coreCall invokes a bitcoind JSON-RPC method with positional params, wallet-less
 // (matching the Dart multisig path), and unmarshals the result into out.
+// defaultFeeRate is the sat/vB rate of a lounge tx with no rate from the user:
+// Core's 6-block estimate, or the relay floor on a node with no fee history.
+func (h *MultisigLoungeHandler) defaultFeeRate(ctx context.Context) (float64, error) {
+	var estimate struct {
+		FeeRate float64 `json:"feerate"`
+	}
+	if err := h.coreCall(ctx, "estimatesmartfee", []interface{}{6}, &estimate); err != nil {
+		return 0, fmt.Errorf("estimatesmartfee: %w", err)
+	}
+	if estimate.FeeRate > 0 {
+		return btcPerKvbToSatPerVb(estimate.FeeRate), nil
+	}
+	var mempool struct {
+		MempoolMinFee float64 `json:"mempoolminfee"`
+		MinRelayTxFee float64 `json:"minrelaytxfee"`
+	}
+	if err := h.coreCall(ctx, "getmempoolinfo", nil, &mempool); err != nil {
+		return 0, fmt.Errorf("getmempoolinfo: %w", err)
+	}
+	return btcPerKvbToSatPerVb(max(mempool.MempoolMinFee, mempool.MinRelayTxFee)), nil
+}
+
+// btcPerKvbToSatPerVb rounds to 0.001 sat/vB, the finest rate Core takes.
+func btcPerKvbToSatPerVb(btcPerKvb float64) float64 {
+	return math.Round(btcPerKvb*1e8) / 1000
+}
+
 func (h *MultisigLoungeHandler) coreCall(ctx context.Context, method string, params []interface{}, out interface{}) error {
 	return h.coreCallWallet(ctx, "", method, params, out)
 }
@@ -693,7 +728,12 @@ func (h *MultisigLoungeHandler) SyncGroup(
 	}
 
 	pbUtxos := make([]*pb.MultisigUtxo, 0, len(utxos))
+	safeCount := uint32(0)
 	for _, u := range utxos {
+		// Safe coins are the coins that getbalances counts as trusted.
+		if u.Safe {
+			safeCount++
+		}
 		pbUtxos = append(pbUtxos, &pb.MultisigUtxo{
 			Txid:          u.Txid,
 			Vout:          u.Vout,
@@ -710,7 +750,7 @@ func (h *MultisigLoungeHandler) SyncGroup(
 	return &pb.SyncGroupResponse{
 		ConfirmedSats: btcToSatsInt(confirmed),
 		PendingSats:   btcToSatsInt(pending),
-		UtxoCount:     uint32(len(utxos)),
+		UtxoCount:     safeCount,
 		Utxos:         pbUtxos,
 	}, nil
 }
@@ -852,14 +892,23 @@ func (h *MultisigLoungeHandler) CreateSpendPsbt(
 		outputs[d.GetAddress()] = float64(d.GetSats()) / 1e8
 	}
 
-	// Options mirror the Dart path: includeWatching (watch-only wallet) and
-	// changePosition 1. A non-zero fee rate is forwarded when provided.
+	rate := req.GetFeeRateSatVb()
+	if rate <= 0 {
+		if rate, err = h.defaultFeeRate(ctx); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
+		}
+	}
 	options := map[string]interface{}{
 		"includeWatching": true,
 		"changePosition":  1,
+		"fee_rate":        rate,
 	}
-	if rate := req.GetFeeRateSatVb(); rate > 0 {
-		options["fee_rate"] = rate
+	if req.GetSubtractFeeFromOutputs() {
+		all := make([]int, len(outputs))
+		for i := range all {
+			all[i] = i
+		}
+		options["subtractFeeFromOutputs"] = all
 	}
 
 	var res struct {

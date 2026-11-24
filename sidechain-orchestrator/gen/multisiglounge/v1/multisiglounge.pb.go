@@ -79,11 +79,13 @@ type CreateSpendPsbtRequest struct {
 	Group        *GroupData             `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
 	WalletId     string                 `protobuf:"bytes,2,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`
 	Destinations []*SpendDestination    `protobuf:"bytes,3,rep,name=destinations,proto3" json:"destinations,omitempty"`
-	// Optional fee rate in sat/vB. 0 lets bitcoind pick (fallback/estimate fee),
-	// matching the current Dart path which passes no explicit fee rate.
-	FeeRateSatVb  float64 `protobuf:"fixed64,4,opt,name=fee_rate_sat_vb,json=feeRateSatVb,proto3" json:"fee_rate_sat_vb,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Fee rate in sat/vB. 0 uses Core's 6-block estimate, or the relay floor
+	// when Core has no estimate.
+	FeeRateSatVb float64 `protobuf:"fixed64,4,opt,name=fee_rate_sat_vb,json=feeRateSatVb,proto3" json:"fee_rate_sat_vb,omitempty"`
+	// Takes the fee from the destination amounts, so a spend of the full balance funds.
+	SubtractFeeFromOutputs bool `protobuf:"varint,5,opt,name=subtract_fee_from_outputs,json=subtractFeeFromOutputs,proto3" json:"subtract_fee_from_outputs,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *CreateSpendPsbtRequest) Reset() {
@@ -142,6 +144,13 @@ func (x *CreateSpendPsbtRequest) GetFeeRateSatVb() float64 {
 		return x.FeeRateSatVb
 	}
 	return 0
+}
+
+func (x *CreateSpendPsbtRequest) GetSubtractFeeFromOutputs() bool {
+	if x != nil {
+		return x.SubtractFeeFromOutputs
+	}
+	return false
 }
 
 type CreateSpendPsbtResponse struct {
@@ -362,8 +371,9 @@ type SyncGroupResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ConfirmedSats int64                  `protobuf:"varint,1,opt,name=confirmed_sats,json=confirmedSats,proto3" json:"confirmed_sats,omitempty"`
 	PendingSats   int64                  `protobuf:"varint,2,opt,name=pending_sats,json=pendingSats,proto3" json:"pending_sats,omitempty"`
-	UtxoCount     uint32                 `protobuf:"varint,3,opt,name=utxo_count,json=utxoCount,proto3" json:"utxo_count,omitempty"`
-	Utxos         []*MultisigUtxo        `protobuf:"bytes,4,rep,name=utxos,proto3" json:"utxos,omitempty"`
+	// Number of the coins in confirmed_sats.
+	UtxoCount     uint32          `protobuf:"varint,3,opt,name=utxo_count,json=utxoCount,proto3" json:"utxo_count,omitempty"`
+	Utxos         []*MultisigUtxo `protobuf:"bytes,4,rep,name=utxos,proto3" json:"utxos,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1732,12 +1742,13 @@ const file_multisiglounge_v1_multisiglounge_proto_rawDesc = "" +
 	"&multisiglounge/v1/multisiglounge.proto\x12\x11multisiglounge.v1\"@\n" +
 	"\x10SpendDestination\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
-	"\x04sats\x18\x02 \x01(\x03R\x04sats\"\xd9\x01\n" +
+	"\x04sats\x18\x02 \x01(\x03R\x04sats\"\x94\x02\n" +
 	"\x16CreateSpendPsbtRequest\x122\n" +
 	"\x05group\x18\x01 \x01(\v2\x1c.multisiglounge.v1.GroupDataR\x05group\x12\x1b\n" +
 	"\twallet_id\x18\x02 \x01(\tR\bwalletId\x12G\n" +
 	"\fdestinations\x18\x03 \x03(\v2#.multisiglounge.v1.SpendDestinationR\fdestinations\x12%\n" +
-	"\x0ffee_rate_sat_vb\x18\x04 \x01(\x01R\ffeeRateSatVb\"U\n" +
+	"\x0ffee_rate_sat_vb\x18\x04 \x01(\x01R\ffeeRateSatVb\x129\n" +
+	"\x19subtract_fee_from_outputs\x18\x05 \x01(\bR\x16subtractFeeFromOutputs\"U\n" +
 	"\x17CreateSpendPsbtResponse\x12\x1f\n" +
 	"\vpsbt_base64\x18\x01 \x01(\tR\n" +
 	"psbtBase64\x12\x19\n" +
