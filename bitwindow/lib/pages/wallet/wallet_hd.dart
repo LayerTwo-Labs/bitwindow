@@ -1,4 +1,3 @@
-import 'package:bitwindow/providers/hd_wallet_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -413,7 +412,7 @@ class _AddressesSection extends StatelessWidget {
 }
 
 class HDWalletViewModel extends BaseViewModel {
-  final HDWalletProvider _hdWalletProvider = GetIt.I.get<HDWalletProvider>();
+  WalletReaderProvider get _reader => GetIt.I.get<WalletReaderProvider>();
   final TextEditingController mnemonicController = TextEditingController();
   BitcoinConfProvider get _conf => GetIt.I.get<BitcoinConfProvider>();
   late final TextEditingController derivationPathController = TextEditingController(text: defaultDerivationPath);
@@ -435,9 +434,13 @@ class HDWalletViewModel extends BaseViewModel {
   bool _hideMnemonic = false;
   bool _hidePrivateKeys = true;
 
+  // The orchestrator explores this wallet by its stored seed, so its passphrase counts.
+  String? _walletId;
+  String _walletMnemonic = '';
+
   // Getters
   List<HDWalletEntry> get derivedEntries => _derivedEntries;
-  String? get errorMessage => _errorMessage ?? _hdWalletProvider.error;
+  String? get errorMessage => _errorMessage;
   int get currentPage => _currentPage;
   String get masterSeed => _masterSeed;
   String get xpriv => _xpriv;
@@ -449,6 +452,7 @@ class HDWalletViewModel extends BaseViewModel {
   bool get canGoPrevious => _currentPage > 0 && _derivedEntries.isNotEmpty;
   bool get canGoNext => _derivedEntries.isNotEmpty;
   bool get canDeriveAddresses => hasMnemonic && _isValidDerivationPath();
+  bool get _exploresWallet => _walletId != null && mnemonicController.text.trim() == _walletMnemonic;
 
   bool _isValidDerivationPath() {
     final path = derivationPathController.text.trim();
@@ -461,23 +465,44 @@ class HDWalletViewModel extends BaseViewModel {
 
   HDWalletViewModel() {
     mnemonicController.addListener(notifyListeners);
+    _reader.addListener(_onWalletChange);
+  }
+
+  void _onWalletChange() {
+    if (_walletId != null && _reader.activeWallet?.id != _walletId) {
+      clearAll();
+      derivationPathController.text = defaultDerivationPath;
+    }
   }
 
   Future<void> useWalletMnemonic() async {
     _errorMessage = null;
+    final wallet = _reader.activeWallet;
+    if (wallet == null) {
+      _errorMessage = "Couldn't load wallet mnemonic";
+      notifyListeners();
+      return;
+    }
 
+    final run = ++_exploreRun;
     try {
-      await _hdWalletProvider.loadMnemonic();
-      final mnemonic = _hdWalletProvider.mnemonic;
-
-      if (mnemonic != null && mnemonic.isNotEmpty) {
-        mnemonicController.text = mnemonic;
-        _errorMessage = null;
-      } else {
-        _errorMessage = "Couldn't load wallet mnemonic";
+      final explored = await _orchestratorWallet.exploreSeed(
+        walletId: wallet.id,
+        basePath: '',
+        startIndex: 0,
+        count: 0,
+      );
+      if (run != _exploreRun || _reader.activeWallet?.id != wallet.id) {
+        return;
       }
+      _walletId = wallet.id;
+      _walletMnemonic = explored.mnemonic;
+      mnemonicController.text = explored.mnemonic;
+      derivationPathController.text = explored.basePath;
     } catch (e) {
-      _errorMessage = 'Error loading wallet mnemonic: $e';
+      if (run == _exploreRun) {
+        _errorMessage = 'Error loading wallet mnemonic: ${extractConnectException(e)}';
+      }
     } finally {
       notifyListeners();
     }
@@ -511,8 +536,10 @@ class HDWalletViewModel extends BaseViewModel {
   Future<void> _explore(String mnemonic) async {
     final run = ++_exploreRun;
     try {
+      final walletId = _exploresWallet ? _walletId! : '';
       final explored = await _orchestratorWallet.exploreSeed(
-        mnemonic: mnemonic,
+        mnemonic: walletId.isEmpty ? mnemonic : '',
+        walletId: walletId,
         basePath: derivationPathController.text.trim(),
         startIndex: _currentPage * _entriesPerPage,
         count: _entriesPerPage,
@@ -548,6 +575,8 @@ class HDWalletViewModel extends BaseViewModel {
 
   void clearAll() {
     _exploreRun++;
+    _walletId = null;
+    _walletMnemonic = '';
     mnemonicController.clear();
     _masterSeed = '';
     _xpriv = '';
@@ -590,6 +619,7 @@ class HDWalletViewModel extends BaseViewModel {
 
   @override
   void dispose() {
+    _reader.removeListener(_onWalletChange);
     mnemonicController.removeListener(notifyListeners);
     mnemonicController.dispose();
     derivationPathController.dispose();

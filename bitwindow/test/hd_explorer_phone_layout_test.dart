@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:bitwindow/pages/wallet/wallet_hd.dart';
-import 'package:bitwindow/providers/hd_wallet_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -17,8 +16,9 @@ const _xpub =
 class _FakeWallet implements OrchestratorWalletRPC {
   @override
   Future<wmpb.ExploreSeedResponse> exploreSeed({
-    required String mnemonic,
+    String mnemonic = '',
     String passphrase = '',
+    String walletId = '',
     required String basePath,
     required int startIndex,
     required int count,
@@ -26,7 +26,7 @@ class _FakeWallet implements OrchestratorWalletRPC {
     seedHex: 'seed',
     xprv: 'xprv-master',
     xpub: _xpub,
-    bip47PaymentCode: 'PD1code',
+    bip47PaymentCode: 'PM8code',
     keys: [wmpb.ExploredKey(path: '$basePath/0', address: 'addr-0', publicKey: 'pub-0', wif: 'wif-0')],
   );
 
@@ -77,7 +77,6 @@ void main() {
     await GetIt.I.reset();
     await registerTestDependencies();
     GetIt.I.registerSingleton<WalletReaderProvider>(WalletReaderProvider(Directory.systemTemp));
-    GetIt.I.registerSingleton<HDWalletProvider>(HDWalletProvider());
     GetIt.I.registerSingleton<BitcoinConfProvider>(_Conf());
     GetIt.I.registerSingleton<OrchestratorRPC>(_FakeOrchestrator());
   });

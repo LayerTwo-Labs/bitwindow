@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bitwindow/pages/wallet/wallet_hd.dart';
-import 'package:bitwindow/providers/hd_wallet_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -13,9 +12,10 @@ import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wm
 const _mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
 class _Explore {
-  _Explore(this.mnemonic, this.basePath, this.startIndex, this.count);
+  _Explore(this.mnemonic, this.walletId, this.basePath, this.startIndex, this.count);
 
   final String mnemonic;
+  final String walletId;
   final String basePath;
   final int startIndex;
   final int count;
@@ -23,30 +23,35 @@ class _Explore {
 
 class _FakeWallet implements OrchestratorWalletRPC {
   final explores = <_Explore>[];
+  final walletPaths = {'w1': "m/84'/1'/0'/0", 'w2': "m/84'/1'/2'/0"};
   Object? exploreError;
   Completer<void>? gate;
 
   @override
   Future<wmpb.ExploreSeedResponse> exploreSeed({
-    required String mnemonic,
+    String mnemonic = '',
     String passphrase = '',
+    String walletId = '',
     required String basePath,
     required int startIndex,
     required int count,
   }) async {
-    explores.add(_Explore(mnemonic, basePath, startIndex, count));
+    explores.add(_Explore(mnemonic, walletId, basePath, startIndex, count));
     await gate?.future;
     if (exploreError != null) {
       throw exploreError!;
     }
+    final path = walletId.isNotEmpty && basePath.isEmpty ? walletPaths[walletId]! : basePath;
     return wmpb.ExploreSeedResponse(
-      seedHex: 'seed',
+      seedHex: walletId.isEmpty ? 'seed' : 'seed-$walletId',
+      mnemonic: walletId.isEmpty ? '' : 'words of $walletId',
+      basePath: path,
       xprv: 'xprv-master',
       xpub: 'xpub-master',
-      bip47PaymentCode: 'PD1code',
+      bip47PaymentCode: 'PM8code',
       keys: [
         for (var i = startIndex; i < startIndex + 2; i++)
-          wmpb.ExploredKey(path: '$basePath/$i', address: 'addr-$i', publicKey: 'pub-$i', wif: 'wif-$i'),
+          wmpb.ExploredKey(path: '$path/$i', address: '${walletId}addr-$i', publicKey: 'pub-$i', wif: 'wif-$i'),
       ],
     );
   }
@@ -76,17 +81,33 @@ class _Conf extends ChangeNotifier implements BitcoinConfProvider {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+WalletData _wallet(String id, {bool starter = false}) => WalletData(
+  version: 1,
+  master: MasterWallet(mnemonic: '', seedHex: '', masterKey: '', chainCode: ''),
+  l1: L1Wallet(mnemonic: starter ? 'starter words' : ''),
+  sidechains: const [],
+  id: id,
+  name: id,
+  gradient: WalletGradient.fromWalletId(id),
+  createdAt: DateTime(2026),
+  walletType: BinaryType.BINARY_TYPE_BITCOIND,
+  isStarter: starter,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _FakeWallet wallet;
+  late WalletReaderProvider reader;
 
   setUp(() async {
     await GetIt.I.reset();
     wallet = _FakeWallet();
     GetIt.I.registerSingleton<Logger>(Logger(level: Level.off));
-    GetIt.I.registerSingleton<WalletReaderProvider>(WalletReaderProvider(Directory.systemTemp));
-    GetIt.I.registerSingleton<HDWalletProvider>(HDWalletProvider());
+    reader = WalletReaderProvider(Directory.systemTemp)
+      ..wallets = [_wallet('w1', starter: true), _wallet('w2')]
+      ..activeWalletId = 'w2';
+    GetIt.I.registerSingleton<WalletReaderProvider>(reader);
     GetIt.I.registerSingleton<BitcoinConfProvider>(_Conf());
     GetIt.I.registerSingleton<OrchestratorRPC>(_FakeOrchestrator(wallet));
   });
@@ -109,7 +130,7 @@ void main() {
     expect(model.masterSeed, 'seed');
     expect(model.xpriv, 'xprv-master');
     expect(model.xpub, 'xpub-master');
-    expect(model.bip47PaymentCode, 'PD1code');
+    expect(model.bip47PaymentCode, 'PM8code');
     expect(model.derivedEntries.map((e) => (e.path, e.address, e.publicKey, e.privateKey)), [
       ("m/84'/0'/0'/0/0", 'addr-0', 'pub-0', 'wif-0'),
       ("m/84'/0'/0'/0/1", 'addr-1', 'pub-1', 'wif-1'),
@@ -166,5 +187,76 @@ void main() {
     expect(model.xpriv, isEmpty);
     expect(model.bip47PaymentCode, isEmpty);
     expect(model.derivedEntries, isEmpty);
+  });
+
+  test('Use Wallet explores the active wallet by its stored seed', () async {
+    final model = HDWalletViewModel();
+
+    await model.useWalletMnemonic();
+
+    expect(wallet.explores.single.walletId, 'w2');
+    expect(wallet.explores.single.mnemonic, isEmpty);
+    expect(model.mnemonicController.text, 'words of w2');
+    expect(model.derivationPathController.text, "m/84'/1'/2'/0");
+    expect(model.derivedEntries, isEmpty);
+
+    await model.deriveAddresses();
+
+    final call = wallet.explores.last;
+    expect(call.walletId, 'w2');
+    expect(call.mnemonic, isEmpty);
+    expect(call.basePath, "m/84'/1'/2'/0");
+    expect(model.masterSeed, 'seed-w2');
+    expect(model.derivedEntries.first.address, 'w2addr-0');
+  });
+
+  test('an edited mnemonic is explored as typed, not as the wallet', () async {
+    final model = HDWalletViewModel();
+    await model.useWalletMnemonic();
+    model.mnemonicController.text = _mnemonic;
+
+    await model.deriveAddresses();
+
+    expect(wallet.explores.last.walletId, isEmpty);
+    expect(wallet.explores.last.mnemonic, _mnemonic);
+  });
+
+  test('a switch to another wallet drops the keys of the old one', () async {
+    final model = HDWalletViewModel();
+    await model.useWalletMnemonic();
+    await model.deriveAddresses();
+    expect(model.derivedEntries, isNotEmpty);
+
+    reader.activeWalletId = 'w1';
+    reader.notifyListeners();
+
+    expect(model.mnemonicController.text, isEmpty);
+    expect(model.masterSeed, isEmpty);
+    expect(model.derivedEntries, isEmpty);
+    expect(model.derivationPathController.text, model.defaultDerivationPath);
+  });
+
+  test('Use Wallet shows the reason when the wallet holds no seed', () async {
+    wallet.exploreError = Exception('wallet w2 holds no single seed to explore');
+    final model = HDWalletViewModel();
+
+    await model.useWalletMnemonic();
+
+    expect(model.errorMessage, contains('holds no single seed'));
+    expect(model.mnemonicController.text, isEmpty);
+  });
+
+  test('Use Wallet drops the answer when another wallet becomes active first', () async {
+    wallet.gate = Completer<void>();
+    final model = HDWalletViewModel();
+
+    final pending = model.useWalletMnemonic();
+    reader.activeWalletId = 'w1';
+    reader.notifyListeners();
+    wallet.gate!.complete();
+    await pending;
+
+    expect(model.mnemonicController.text, isEmpty);
+    expect(model.derivationPathController.text, model.defaultDerivationPath);
   });
 }
