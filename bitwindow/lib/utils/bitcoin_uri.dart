@@ -26,30 +26,26 @@ class BitcoinURI {
       throw const FormatException('Not a bitcoin URI');
     }
 
-    // Split the URI into address and query parts
-    final parts = uri.substring(8).split('?');
-    if (parts.isEmpty || parts[0].isEmpty) {
+    final queryStart = uri.indexOf('?', 8);
+    final address = uri.substring(8, queryStart == -1 ? null : queryStart);
+    if (address.isEmpty) {
       throw const FormatException('No address specified');
     }
 
-    final address = parts[0];
     final params = <String, String>{};
-
-    // Parse query parameters if they exist
-    if (parts.length > 1) {
-      final queryParts = parts[1].split('&');
-      for (final param in queryParts) {
-        final keyValue = param.split('=');
-        if (keyValue.length != 2) {
+    if (queryStart != -1) {
+      for (final param in uri.substring(queryStart + 1).split('&')) {
+        final separator = param.indexOf('=');
+        if (separator == -1) {
           continue;
         }
 
-        // Check for required parameters we don't understand
-        if (keyValue[0].startsWith('req-')) {
-          throw FormatException('Required parameter not understood: ${keyValue[0]}');
+        final key = param.substring(0, separator);
+        if (key.startsWith('req-')) {
+          throw FormatException('Required parameter not understood: $key');
         }
 
-        params[Uri.decodeComponent(keyValue[0])] = Uri.decodeComponent(keyValue[1]);
+        params[Uri.decodeComponent(key)] = Uri.decodeComponent(param.substring(separator + 1));
       }
     }
 
