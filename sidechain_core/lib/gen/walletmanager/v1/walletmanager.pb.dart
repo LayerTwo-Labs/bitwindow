@@ -1596,7 +1596,7 @@ class WalletMetadata extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   void clearCreatedAt() => $_clearField(5);
 
-  /// BIP47 v3 payment code derived from the wallet's master pubkey.
+  /// BIP47 v1 payment code of the wallet seed, from m/47'/coin'/0'.
   /// Deterministic per wallet, never changes. Empty for watch-only wallets.
   @$pb.TagNumber(6)
   $core.String get bip47PaymentCode => $_getSZ(5);
@@ -8492,6 +8492,7 @@ class ExploreSeedRequest extends $pb.GeneratedMessage {
     $core.String? basePath,
     $core.int? startIndex,
     $core.int? count,
+    $core.String? walletId,
   }) {
     final result = ExploreSeedRequest._();
     if (mnemonic != null) result.mnemonic = mnemonic;
@@ -8499,6 +8500,7 @@ class ExploreSeedRequest extends $pb.GeneratedMessage {
     if (basePath != null) result.basePath = basePath;
     if (startIndex != null) result.startIndex = startIndex;
     if (count != null) result.count = count;
+    if (walletId != null) result.walletId = walletId;
     return result;
   }
 
@@ -8519,6 +8521,7 @@ class ExploreSeedRequest extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'basePath')
     ..aI(4, _omitFieldNames ? '' : 'startIndex', fieldType: $pb.PbFieldType.OU3)
     ..aI(5, _omitFieldNames ? '' : 'count', fieldType: $pb.PbFieldType.OU3)
+    ..aOS(6, _omitFieldNames ? '' : 'walletId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8586,6 +8589,17 @@ class ExploreSeedRequest extends $pb.GeneratedMessage {
   $core.bool hasCount() => $_has(4);
   @$pb.TagNumber(5)
   void clearCount() => $_clearField(5);
+
+  /// Explores the seed of this wallet, passphrase included, in place of mnemonic
+  /// and passphrase. An empty base_path then takes the receive chain of the wallet.
+  @$pb.TagNumber(6)
+  $core.String get walletId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set walletId($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasWalletId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearWalletId() => $_clearField(6);
 }
 
 class ExploredKey extends $pb.GeneratedMessage {
@@ -8684,6 +8698,8 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     $core.String? xpub,
     $core.String? bip47PaymentCode,
     $core.Iterable<ExploredKey>? keys,
+    $core.String? basePath,
+    $core.String? mnemonic,
   }) {
     final result = ExploreSeedResponse._();
     if (seedHex != null) result.seedHex = seedHex;
@@ -8691,6 +8707,8 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     if (xpub != null) result.xpub = xpub;
     if (bip47PaymentCode != null) result.bip47PaymentCode = bip47PaymentCode;
     if (keys != null) result.keys.addAll(keys);
+    if (basePath != null) result.basePath = basePath;
+    if (mnemonic != null) result.mnemonic = mnemonic;
     return result;
   }
 
@@ -8711,6 +8729,8 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'xpub')
     ..aOS(4, _omitFieldNames ? '' : 'bip47PaymentCode')
     ..pPM<ExploredKey>(5, _omitFieldNames ? '' : 'keys', subBuilder: ExploredKey.$_createMessage)
+    ..aOS(6, _omitFieldNames ? '' : 'basePath')
+    ..aOS(7, _omitFieldNames ? '' : 'mnemonic')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8771,6 +8791,24 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(5)
   $pb.PbList<ExploredKey> get keys => $_getList(4);
+
+  @$pb.TagNumber(6)
+  $core.String get basePath => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set basePath($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasBasePath() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearBasePath() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get mnemonic => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set mnemonic($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasMnemonic() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearMnemonic() => $_clearField(7);
 }
 
 class GenerateMnemonicRequest extends $pb.GeneratedMessage {

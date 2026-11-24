@@ -17,6 +17,9 @@ import (
 // MaxExploredKeys caps the keys that one ExploreSeed call derives.
 const MaxExploredKeys = 100
 
+// ErrNoSingleSeed is the error for a watch-only, multisig or electrum wallet.
+var ErrNoSingleSeed = errors.New("holds no single seed to explore")
+
 // ExploredKey is one child key of a seed, for display.
 type ExploredKey struct {
 	Path      string
@@ -31,6 +34,7 @@ type SeedExplorer struct {
 	Xprv        string
 	Xpub        string
 	PaymentCode string // BIP47 v1, as the wallet gives it
+	BasePath    string // canonical parent path of Keys
 	Keys        []ExploredKey
 }
 
@@ -38,6 +42,34 @@ type SeedExplorer struct {
 // basePath/start to basePath/start+count-1. The purpose level of basePath
 // picks the address: 49 nested segwit, 84 segwit, 86 taproot, others P2PKH.
 func ExploreSeed(mnemonic, passphrase, basePath string, start, count uint32, net *chaincfg.Params) (SeedExplorer, error) {
+	normal, err := ParseMnemonic(mnemonic)
+	if err != nil {
+		return SeedExplorer{}, err
+	}
+	return exploreSeedBytes(MnemonicToSeed(normal, passphrase), basePath, start, count, net)
+}
+
+// ExploreWallet explores the seed of w, passphrase included. An empty basePath
+// takes the receive chain of the default address type of w.
+func ExploreWallet(w *WalletData, basePath string, start, count uint32, net *chaincfg.Params) (SeedExplorer, error) {
+	if w.Multisig != nil || w.Master.SeedHex == "" {
+		return SeedExplorer{}, fmt.Errorf("wallet %s %w", w.ID, ErrNoSingleSeed)
+	}
+	seed, err := hex.DecodeString(w.Master.SeedHex)
+	if err != nil {
+		return SeedExplorer{}, fmt.Errorf("decode seed of wallet %s: %w", w.ID, err)
+	}
+	if strings.TrimSpace(basePath) == "" {
+		account, err := accountPathFor(w, ReceiveKinds(w)[0], net)
+		if err != nil {
+			return SeedExplorer{}, err
+		}
+		basePath = account.String() + "/0"
+	}
+	return exploreSeedBytes(seed, basePath, start, count, net)
+}
+
+func exploreSeedBytes(seed []byte, basePath string, start, count uint32, net *chaincfg.Params) (SeedExplorer, error) {
 	if net == nil {
 		return SeedExplorer{}, errors.New("no chain params")
 	}
@@ -46,10 +78,6 @@ func ExploreSeed(mnemonic, passphrase, basePath string, start, count uint32, net
 	}
 	if uint64(start)+uint64(count) > hdkeychain.HardenedKeyStart {
 		return SeedExplorer{}, fmt.Errorf("index %d+%d is out of the non-hardened range", start, count)
-	}
-	normal, err := ParseMnemonic(mnemonic)
-	if err != nil {
-		return SeedExplorer{}, err
 	}
 	base, err := ParseKeystorePath(basePath)
 	if err != nil {
@@ -60,7 +88,6 @@ func ExploreSeed(mnemonic, passphrase, basePath string, start, count uint32, net
 		return SeedExplorer{}, err
 	}
 
-	seed := MnemonicToSeed(normal, passphrase)
 	master, err := hdkeychain.NewMaster(seed, net)
 	if err != nil {
 		return SeedExplorer{}, fmt.Errorf("create master key: %w", err)
@@ -99,6 +126,7 @@ func ExploreSeed(mnemonic, passphrase, basePath string, start, count uint32, net
 		Xprv:        master.String(),
 		Xpub:        masterPub.String(),
 		PaymentCode: paymentCode,
+		BasePath:    base,
 		Keys:        keys,
 	}, nil
 }
