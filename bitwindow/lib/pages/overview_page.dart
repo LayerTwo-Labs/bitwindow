@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:auto_route/auto_route.dart';
+import 'package:collection/collection.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:bitwindow/env.dart';
 import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
@@ -476,17 +477,17 @@ class BroadcastNewsView extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             leadingSpacing: true,
             children: [
-              SailDropdownButton<Topic>(
+              SailDropdownButton<String>(
                 items: [
                   ...viewModel.topics.map(
                     (topic) => SailDropdownItem(
-                      value: topic,
+                      value: topic.topic,
                       label: topic.confirmed ? topic.name : '${topic.name} (pending)',
                     ),
                   ),
                 ],
                 onChanged: viewModel.setTopic,
-                value: viewModel.topic,
+                value: viewModel.topic?.topic,
                 hint: 'Select a topic',
               ),
               HeadlineHighlightTextField(
@@ -542,7 +543,7 @@ class BroadcastNewsView extends StatelessWidget {
                   SailButton(
                     label: 'Broadcast',
                     onPressed: () async => viewModel.broadcastNews(context),
-                    disabled: viewModel.headline.isEmpty,
+                    disabled: viewModel.headline.isEmpty || viewModel.topic == null,
                   ),
                 ],
               ),
@@ -611,7 +612,10 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   BitcoinUnit get feeUnit => GetIt.I.get<SettingsProvider>().bitcoinUnit;
 
-  Topic? topic;
+  String? _topicId;
+
+  /// The selected topic, looked up by ID so a new read of the topics keeps it.
+  Topic? get topic => topics.firstWhereOrNull((t) => t.topic == _topicId);
 
   List<Topic> get topics => _newsProvider.topics;
 
@@ -627,6 +631,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
   String? broadcastError;
 
   BroadcastNewsViewModel() {
+    _newsProvider.addListener(notifyListeners);
     _loadLastUsedTopic();
     messageController.addListener(_onInputChanged);
     feeController.addListener(_onInputChanged);
@@ -642,15 +647,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
     final setting = LastUsedTopicSetting();
     final lastUsedTopicId = (await _settings.getValue(setting)).value;
 
-    if (lastUsedTopicId.isNotEmpty) {
-      // Try to find the last used topic in the available topics
-      topic = topics.firstWhere(
-        (t) => t.topic == lastUsedTopicId,
-        orElse: () => topics.first,
-      );
-    } else {
-      topic = topics.first;
-    }
+    _topicId = topics.any((t) => t.topic == lastUsedTopicId) ? lastUsedTopicId : topics.firstOrNull?.topic;
 
     // Defer notifyListeners to avoid mouse tracker assertion during dialog initialization
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -658,15 +655,14 @@ class BroadcastNewsViewModel extends BaseViewModel {
     });
   }
 
-  void setTopic(Topic? newTopic) async {
-    if (newTopic == null) {
+  void setTopic(String? topicId) async {
+    if (topicId == null) {
       return;
     }
 
-    topic = newTopic;
+    _topicId = topicId;
     broadcastError = null;
-    // Persist the selected topic
-    await _settings.setValue(LastUsedTopicSetting(newValue: newTopic.topic));
+    await _settings.setValue(LastUsedTopicSetting(newValue: topicId));
 
     // Defer notifyListeners to avoid mouse tracker assertion during dropdown interaction
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -675,7 +671,8 @@ class BroadcastNewsViewModel extends BaseViewModel {
   }
 
   Future<void> broadcastNews(BuildContext context) async {
-    if (headline.isEmpty) {
+    final topicId = topic?.topic;
+    if (headline.isEmpty || topicId == null) {
       return;
     }
 
@@ -686,7 +683,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
       final feeSats = feeController.text.isNotEmpty ? parseAmountToSatoshis(feeController.text, feeUnit) : null;
 
       await _api.misc.broadcastNews(
-        topic!.topic,
+        topicId,
         headline,
         content,
         url: urlController.text.trim().isEmpty ? null : urlController.text.trim(),
@@ -714,6 +711,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   @override
   void dispose() {
+    _newsProvider.removeListener(notifyListeners);
     messageController.removeListener(_onInputChanged);
     messageController.dispose();
     feeController.removeListener(_onInputChanged);
