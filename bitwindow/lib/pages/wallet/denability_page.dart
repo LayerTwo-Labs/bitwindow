@@ -596,14 +596,8 @@ class DeniabilityViewModel extends BaseViewModel {
     if (!u.hasDenialInfo()) {
       return true;
     }
-    // Has denial info but it's cancelled or completed
-    if (u.denialInfo.hasCancelTime()) {
-      return true;
-    }
-    if (!denialHasScheduledNextExecution(u.denialInfo)) {
-      return true;
-    }
-    return false;
+    final info = u.denialInfo;
+    return info.hasCancelTime() || (!denialHasScheduledNextExecution(info) && (info.isChange || !info.hasPausedAt()));
   }).toList();
 
   DeniabilityViewModel() {
