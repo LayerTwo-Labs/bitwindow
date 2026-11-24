@@ -409,7 +409,8 @@ abstract class BitwindowAPI {
   Future<String> exportLabels();
   Future<ImportLabelsResponse> importLabels(String jsonl);
 
-  Future<GetFireplaceStatsResponse> getFireplaceStats();
+  /// Sends the stats, then the stats again on each change.
+  Stream<WatchFireplaceStatsResponse> watchFireplaceStats();
 
   Future<List<RecentTransaction>> listRecentTransactions();
   Stream<WatchRecentTransactionsResponse> watchRecentTransactions();
@@ -538,10 +539,7 @@ class _BitwindowAPILive implements BitwindowAPI {
   }
 
   @override
-  Future<GetFireplaceStatsResponse> getFireplaceStats() async {
-    final response = await _client.getFireplaceStats(Empty());
-    return response;
-  }
+  Stream<WatchFireplaceStatsResponse> watchFireplaceStats() => _client.watchFireplaceStats(Empty());
 
   static final _recentCount = Int64(20);
 

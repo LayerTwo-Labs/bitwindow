@@ -138,6 +138,15 @@ abstract final class BitwindowdService {
     bitwindowdv1bitwindowd.GetFireplaceStatsResponse.new,
   );
 
+  /// Sends the stats, then the stats again on each change: a new block, or a
+  /// block or a story that leaves its window.
+  static const watchFireplaceStats = connect.Spec(
+    '/$name/WatchFireplaceStats',
+    connect.StreamType.server,
+    googleprotobufempty.Empty.new,
+    bitwindowdv1bitwindowd.WatchFireplaceStatsResponse.new,
+  );
+
   /// Lists the most recent transactions, both confirmed and unconfirmed.
   static const listRecentTransactions = connect.Spec(
     '/$name/ListRecentTransactions',

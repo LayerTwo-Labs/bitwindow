@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bitwindow/pages/overview_page.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/widgets.dart';
@@ -10,18 +12,11 @@ import 'mocks/api_mock.dart';
 import 'test_utils.dart';
 
 class _StatsBitwindowdAPI extends MockBitwindowdAPI {
-  int reads = 0;
-  Object? error;
-  int blocks = 1;
+  // ignore: close_sinks, the tearDown closes it
+  final frames = StreamController<WatchFireplaceStatsResponse>.broadcast();
 
   @override
-  Future<GetFireplaceStatsResponse> getFireplaceStats() async {
-    reads++;
-    if (error case final e?) {
-      throw e;
-    }
-    return GetFireplaceStatsResponse(blockCount24h: Int64(blocks));
-  }
+  Stream<WatchFireplaceStatsResponse> watchFireplaceStats() => frames.stream;
 }
 
 class _StatsAPI extends MockAPI {
@@ -58,73 +53,71 @@ void main() {
     await registerTestDependencies();
   });
 
-  tearDown(() => GetIt.I.reset());
-
-  void newTip(int height) {
-    sync.bitwindowdSyncInfo = SyncInfo(
-      progressCurrent: height.toDouble(),
-      progressGoal: height.toDouble(),
-      lastBlockAt: null,
-    );
-    sync.notifyListeners();
-  }
-
-  test(
-    'a new processed block reads the stats again, with no price change',
-    () async {
-      final model = FireplaceViewModel();
-      addTearDown(model.dispose);
-      await pumpEventQueue();
-      expect(model.stats?.blockCount24h, Int64(1));
-
-      rpc.api.blocks = 2;
-      newTip(102);
-      await pumpEventQueue();
-
-      expect(model.stats?.blockCount24h, Int64(2));
-    },
-  );
-
-  test('the stats follow bitwindowd while the enforcer still syncs', () async {
-    final model = FireplaceViewModel();
-    addTearDown(model.dispose);
-    sync.enforcerSyncInfo = SyncInfo(
-      progressCurrent: 10,
-      progressGoal: 900,
-      lastBlockAt: null,
-    );
-    await pumpEventQueue();
-    final reads = rpc.api.reads;
-
-    rpc.api.blocks = 3;
-    newTip(103);
-    await pumpEventQueue();
-    expect(rpc.api.reads, reads + 1);
-    expect(model.stats?.blockCount24h, Int64(3));
-
-    sync.notifyListeners();
-    await pumpEventQueue();
-    expect(rpc.api.reads, reads + 1, reason: 'the same tip reads nothing');
+  tearDown(() async {
+    await rpc.api.frames.close();
+    await GetIt.I.reset();
   });
 
-  test(
-    'a failed read sets the error and the next good read clears it',
-    () async {
-      rpc.api.error = Exception('database is locked');
-      final model = FireplaceViewModel();
-      addTearDown(model.dispose);
-      await pumpEventQueue();
+  WatchFireplaceStatsResponse frame(int blocks) =>
+      WatchFireplaceStatsResponse(stats: GetFireplaceStatsResponse(blockCount24h: Int64(blocks)));
 
-      expect(model.statsError, contains('database is locked'));
-      expect(model.stats, isNull);
+  test('each stats frame replaces the stats', () async {
+    final model = FireplaceViewModel();
+    addTearDown(model.dispose);
+    await pumpEventQueue();
+    expect(model.stats, isNull);
 
-      rpc.api.error = null;
-      newTip(102);
-      await pumpEventQueue();
-      expect(model.statsError, isNull);
-      expect(model.stats?.blockCount24h, Int64(1));
-    },
-  );
+    rpc.api.frames.add(frame(1));
+    await pumpEventQueue();
+    expect(model.stats?.blockCount24h, Int64(1));
+
+    rpc.api.frames.add(frame(0));
+    await pumpEventQueue();
+    expect(model.stats?.blockCount24h, Int64(0), reason: 'a block that left the window counts no more');
+  });
+
+  test('a heartbeat keeps the stats', () async {
+    final model = FireplaceViewModel();
+    addTearDown(model.dispose);
+    rpc.api.frames.add(frame(2));
+    await pumpEventQueue();
+    var notified = 0;
+    model.addListener(() => notified++);
+
+    rpc.api.frames.add(WatchFireplaceStatsResponse(heartbeat: true));
+    await pumpEventQueue();
+
+    expect(model.stats?.blockCount24h, Int64(2));
+    expect(notified, 0);
+  });
+
+  test('a stream that breaks marks the stats failed, and the next frame clears it', () async {
+    final model = FireplaceViewModel();
+    addTearDown(model.dispose);
+    rpc.api.frames.add(frame(3));
+    await pumpEventQueue();
+    expect(model.statsFailed, isFalse);
+
+    rpc.api.frames.addError(Exception('database is locked'));
+    await pumpEventQueue();
+    expect(model.statsFailed, isTrue);
+
+    model.applyStatsFrame(frame(4));
+    expect(model.statsFailed, isFalse);
+    expect(model.stats?.blockCount24h, Int64(4));
+  });
+
+  test('an error before the first frame marks the stats failed', () async {
+    final model = FireplaceViewModel();
+    addTearDown(model.dispose);
+    await pumpEventQueue();
+
+    rpc.api.frames.addError(Exception('database is locked'));
+    await pumpEventQueue();
+
+    expect(model.statsFailed, isTrue);
+    expect(model.stats, isNull);
+  });
 
   testWidgets(
     'the tiles show "-" and the cause, not a number, when no read worked',

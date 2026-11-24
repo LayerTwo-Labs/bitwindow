@@ -1827,6 +1827,77 @@ class GetFireplaceStatsResponse extends $pb.GeneratedMessage {
   void clearBlockCount24h() => $_clearField(3);
 }
 
+class WatchFireplaceStatsResponse extends $pb.GeneratedMessage {
+  factory WatchFireplaceStatsResponse({
+    GetFireplaceStatsResponse? stats,
+    $core.bool? heartbeat,
+  }) {
+    final result = WatchFireplaceStatsResponse._();
+    if (stats != null) result.stats = stats;
+    if (heartbeat != null) result.heartbeat = heartbeat;
+    return result;
+  }
+
+  WatchFireplaceStatsResponse._();
+
+  factory WatchFireplaceStatsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      WatchFireplaceStatsResponse()..mergeFromBuffer(data, registry);
+  factory WatchFireplaceStatsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      WatchFireplaceStatsResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'WatchFireplaceStatsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'bitwindowd.v1'),
+      createEmptyInstance: WatchFireplaceStatsResponse.$_createMessage)
+    ..aOM<GetFireplaceStatsResponse>(1, _omitFieldNames ? '' : 'stats',
+        subBuilder: GetFireplaceStatsResponse.$_createMessage)
+    ..aOB(2, _omitFieldNames ? '' : 'heartbeat')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchFireplaceStatsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchFireplaceStatsResponse copyWith(void Function(WatchFireplaceStatsResponse) updates) =>
+      super.copyWith((message) => updates(message as WatchFireplaceStatsResponse)) as WatchFireplaceStatsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use WatchFireplaceStatsResponse() / WatchFireplaceStatsResponse.new instead')
+  static WatchFireplaceStatsResponse create() => WatchFireplaceStatsResponse._();
+  static $pb.GeneratedMessage $_createMessage() => WatchFireplaceStatsResponse._();
+  @$core.override
+  WatchFireplaceStatsResponse createEmptyInstance() => WatchFireplaceStatsResponse._();
+  @$core.pragma('dart2js:noInline')
+  static WatchFireplaceStatsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<WatchFireplaceStatsResponse>(WatchFireplaceStatsResponse.$_createMessage);
+  static WatchFireplaceStatsResponse? _defaultInstance;
+
+  /// Unset in a heartbeat frame.
+  @$pb.TagNumber(1)
+  GetFireplaceStatsResponse get stats => $_getN(0);
+  @$pb.TagNumber(1)
+  set stats(GetFireplaceStatsResponse value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStats() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStats() => $_clearField(1);
+  @$pb.TagNumber(1)
+  GetFireplaceStatsResponse ensureStats() => $_ensure(0);
+
+  /// True for an idle keepalive frame that carries no stats.
+  @$pb.TagNumber(2)
+  $core.bool get heartbeat => $_getBF(1);
+  @$pb.TagNumber(2)
+  set heartbeat($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasHeartbeat() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearHeartbeat() => $_clearField(2);
+}
+
 class SetMempoolWatchRequest extends $pb.GeneratedMessage {
   factory SetMempoolWatchRequest({
     $core.bool? enabled,
@@ -4028,6 +4099,12 @@ class BitwindowdServiceApi {
   $async.Future<GetFireplaceStatsResponse> getFireplaceStats($pb.ClientContext? ctx, $1.Empty request) =>
       _client.invoke<GetFireplaceStatsResponse>(
           ctx, 'BitwindowdService', 'GetFireplaceStats', request, GetFireplaceStatsResponse());
+
+  /// Sends the stats, then the stats again on each change: a new block, or a
+  /// block or a story that leaves its window.
+  $async.Future<WatchFireplaceStatsResponse> watchFireplaceStats($pb.ClientContext? ctx, $1.Empty request) =>
+      _client.invoke<WatchFireplaceStatsResponse>(
+          ctx, 'BitwindowdService', 'WatchFireplaceStats', request, WatchFireplaceStatsResponse());
 
   /// Lists the most recent transactions, both confirmed and unconfirmed.
   $async.Future<ListRecentTransactionsResponse> listRecentTransactions(
