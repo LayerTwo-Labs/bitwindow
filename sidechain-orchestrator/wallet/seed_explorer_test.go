@@ -5,6 +5,8 @@ import (
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/wallet/bip47"
 )
 
 // Values that the Dart HD Explorer gave for the same seed. The mainnet rows are the BIP44, 49, 84 and 86 vectors.
@@ -14,7 +16,7 @@ func TestExploreSeedMatchesFrontend(t *testing.T) {
 	require.Equal(t, "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4", out.SeedHex)
 	require.Equal(t, "xprv9s21ZrQH143K3GJpoapnV8SFfukcVBSfeCficPSGfubmSFDxo1kuHnLisriDvSnRRuL2Qrg5ggqHKNVpxR86QEC8w35uxmGoggxtQTPvfUu", out.Xprv)
 	require.Equal(t, "xpub661MyMwAqRbcFkPHucMnrGNzDwb6teAX1RbKQmqtEF8kK3Z7LZ59qafCjB9eCRLiTVG3uxBxgKvRgbubRhqSKXnGGb1aoaqLrpMBDrVxga8", out.Xpub)
-	require.Equal(t, "PD1mf1yi3BKbwH935QwrB1CvhugkodvBtusgCsEVtJrucpMK52841", out.PaymentCode)
+	require.Equal(t, "PM8TJdJWQ5c9XJUMuNBBaJ7Zq9GnjfYtQk7PJn9n4jt8qdgRFBB9TUkAGGd4mK1VRLekUt3ifC9aGVRLYYmLb9WhsvsUrFin1FUBzEoyPxBnmVExHAjE", out.PaymentCode)
 
 	cases := []struct {
 		base string
@@ -83,4 +85,15 @@ func TestExploreSeedRefusesBadInput(t *testing.T) {
 	require.ErrorContains(t, err, "non-hardened range")
 	_, err = ExploreSeed(testMnemonic, "", "m/84'/0'/0'/0", 0, 1, nil)
 	require.ErrorContains(t, err, "no chain params")
+}
+
+func TestExploreSeedGivesTheWalletPaymentCode(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	out, err := ExploreSeed(testMnemonic, "", "m/84'/1'/0'/0", 0, 1, net)
+	require.NoError(t, err)
+	want, err := Bip47PaymentCodeFromSeed(out.SeedHex, net)
+	require.NoError(t, err)
+	require.Equal(t, want, out.PaymentCode)
+	_, err = bip47.ParsePaymentCode(out.PaymentCode)
+	require.NoError(t, err)
 }
