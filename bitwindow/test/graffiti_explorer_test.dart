@@ -193,4 +193,33 @@ void main() {
     expect(find.textContaining('could not list op returns'), findsNothing);
     expect(find.text('Browse blockchain graffiti and OP_RETURN data'), findsOneWidget);
   });
+
+  testWidgets('the parsed tip refreshes graffiti after the mainchain tip arrives', (tester) async {
+    final sync = GetIt.I.get<SyncProvider>();
+    sync.mainchainSyncInfo = SyncInfo(progressCurrent: 104, progressGoal: 104, lastBlockAt: null);
+    sync.enforcerSyncInfo = SyncInfo(progressCurrent: 104, progressGoal: 104, lastBlockAt: null);
+    sync.bitwindowdSyncInfo = SyncInfo(progressCurrent: 103, progressGoal: 104, lastBlockAt: null);
+    misc.rows = [graffiti(4, 'new row', height: 0, feeSats: 190, minute: 4)];
+    await pump(tester);
+    sync.notifyListeners();
+    await tester.pumpAndSettle();
+    final reads = misc.requests.length;
+
+    misc.rows = [graffiti(4, 'new row', height: 104, feeSats: 190, minute: 4)];
+    sync.bitwindowdSyncInfo = SyncInfo(progressCurrent: 104, progressGoal: 104, lastBlockAt: null);
+    sync.notifyListeners();
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<GraffitiTable>(find.byType(GraffitiTable)).entries.single.height, 104);
+    expect(misc.requests.length, reads + 1);
+    sync.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(misc.requests.length, reads + 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    sync.bitwindowdSyncInfo = SyncInfo(progressCurrent: 105, progressGoal: 105, lastBlockAt: null);
+    sync.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(misc.requests.length, reads + 1);
+  });
 }
