@@ -183,6 +183,98 @@ func List(ctx context.Context, db *sql.DB, limit int) ([]OPReturn, error) {
 	return opReturns, nil
 }
 
+// SortColumn selects the order of Query.
+type SortColumn int
+
+const (
+	SortByTime SortColumn = iota
+	SortByHeight
+	SortByFee
+	SortByTxID
+	SortByMessage
+)
+
+var sortColumns = map[SortColumn]string{
+	SortByTime:    "created_at",
+	SortByHeight:  "height",
+	SortByFee:     "fee_sats",
+	SortByTxID:    "txid",
+	SortByMessage: "id",
+}
+
+// Filter selects the rows of Query. A zero Filter returns the newest rows first.
+type Filter struct {
+	// Search is text that the readable message or the txid holds, with no case match.
+	Search string
+	// From and To bound the create time: From <= created_at < To. A zero time sets no bound.
+	From, To  time.Time
+	Sort      SortColumn
+	Ascending bool
+}
+
+// Query returns at most limit OP_RETURNs that match the filter, in the filter order.
+// A limit of 0 or less returns all matches.
+func Query(ctx context.Context, db *sql.DB, filter Filter, limit int) ([]OPReturn, error) {
+	column, ok := sortColumns[filter.Sort]
+	if !ok {
+		return nil, fmt.Errorf("unknown sort column %d", filter.Sort)
+	}
+	direction := "DESC"
+	if filter.Ascending {
+		direction = "ASC"
+	}
+
+	var where []string
+	var args []any
+	// datetime() reads each stored zone offset, so rows from other offsets compare right.
+	if !filter.From.IsZero() {
+		where = append(where, "datetime(created_at) >= datetime(?)")
+		args = append(args, filter.From.UTC().Format(time.DateTime))
+	}
+	if !filter.To.IsZero() {
+		where = append(where, "datetime(created_at) < datetime(?)")
+		args = append(args, filter.To.UTC().Format(time.DateTime))
+	}
+	query := "SELECT id, txid, vout, unhex(op_return_data) AS op_return_data, fee_sats, height, created_at FROM op_returns"
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
+	}
+	query += fmt.Sprintf(" ORDER BY %s %s, id %s", column, direction, direction)
+
+	var keep func(OPReturn) bool
+	if search := strings.ToLower(filter.Search); search != "" {
+		keep = func(o OPReturn) bool {
+			return strings.Contains(strings.ToLower(o.TxID), search) ||
+				strings.Contains(strings.ToLower(OPReturnToReadable(o.Data)), search)
+		}
+	}
+
+	if filter.Sort != SortByMessage {
+		opReturns, err := database.SelectMatching(ctx, db, max(limit, 0), keep, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("query op_returns: %w", err)
+		}
+		return opReturns, nil
+	}
+
+	// The shown message is decoded in Go, so SQL cannot sort by it.
+	opReturns, err := database.SelectMatching(ctx, db, 0, keep, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query op_returns: %w", err)
+	}
+	slices.SortStableFunc(opReturns, func(a, b OPReturn) int {
+		order := strings.Compare(OPReturnToReadable(a.Data), OPReturnToReadable(b.Data))
+		if !filter.Ascending {
+			order = -order
+		}
+		return order
+	})
+	if limit > 0 && len(opReturns) > limit {
+		opReturns = opReturns[:limit]
+	}
+	return opReturns, nil
+}
+
 // mempoolExpiry is the default -mempoolexpiry of Core.
 const mempoolExpiry = 336 * time.Hour
 

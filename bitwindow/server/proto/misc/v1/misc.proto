@@ -6,7 +6,8 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 service MiscService {
-  rpc ListOPReturn(google.protobuf.Empty) returns (ListOPReturnResponse);
+  // Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
+  rpc ListOPReturn(ListOPReturnRequest) returns (ListOPReturnResponse);
   rpc BroadcastNews(BroadcastNewsRequest) returns (BroadcastNewsResponse);
   rpc CreateTopic(CreateTopicRequest) returns (CreateTopicResponse);
   rpc ListTopics(google.protobuf.Empty) returns (ListTopicsResponse);
@@ -22,6 +23,26 @@ service MiscService {
   rpc TimestampFile(TimestampFileRequest) returns (TimestampFileResponse);
   rpc ListTimestamps(google.protobuf.Empty) returns (ListTimestampsResponse);
   rpc VerifyTimestamp(VerifyTimestampRequest) returns (VerifyTimestampResponse);
+}
+
+enum OPReturnSort {
+  OP_RETURN_SORT_UNSPECIFIED = 0; // Same as OP_RETURN_SORT_TIME.
+  OP_RETURN_SORT_TIME = 1;
+  OP_RETURN_SORT_HEIGHT = 2;
+  OP_RETURN_SORT_FEE = 3;
+  OP_RETURN_SORT_TXID = 4;
+  OP_RETURN_SORT_MESSAGE = 5;
+}
+
+message ListOPReturnRequest {
+  // Text that the message or the txid must hold, with no case match. Empty matches all.
+  string search = 1;
+  // Only items with a create time at or after this time.
+  google.protobuf.Timestamp from = 2;
+  // Only items with a create time before this time.
+  google.protobuf.Timestamp to = 3;
+  OPReturnSort sort = 4;
+  bool ascending = 5;
 }
 
 message ListOPReturnResponse {

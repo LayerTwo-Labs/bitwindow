@@ -15,11 +15,13 @@ import (
 	connectv1 "connectrpc.com/connect"
 	"connectrpc.com/connect/v2"
 	corepb "github.com/barebitcoin/btc-buf/gen/bitcoin/bitcoind/v1alpha"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/database"
 	miscv1 "github.com/LayerTwo-Labs/sidesail/bitwindow/server/gen/misc/v1"
@@ -42,7 +44,7 @@ func TestService_ListOPReturn(t *testing.T) {
 		database := database.Test(t)
 		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
 
-		resp, err := cli.ListOPReturn(t.Context(), &emptypb.Empty{})
+		resp, err := cli.ListOPReturn(t.Context(), &miscv1.ListOPReturnRequest{})
 		require.NoError(t, err)
 		assert.Empty(t, resp.OpReturns)
 	})
@@ -67,7 +69,7 @@ func TestService_ListOPReturn(t *testing.T) {
 
 		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
 
-		resp, err := cli.ListOPReturn(t.Context(), &emptypb.Empty{})
+		resp, err := cli.ListOPReturn(t.Context(), &miscv1.ListOPReturnRequest{})
 		require.NoError(t, err)
 		require.Len(t, resp.OpReturns, 1)
 		assert.Equal(t, "test message", resp.OpReturns[0].Message)
@@ -75,6 +77,137 @@ func TestService_ListOPReturn(t *testing.T) {
 		assert.EqualValues(t, 0, resp.OpReturns[0].Vout)
 		assert.EqualValues(t, 100, lo.FromPtr(resp.OpReturns[0].Height))
 		assert.EqualValues(t, 624, resp.OpReturns[0].FeeSats)
+	})
+}
+
+// seedOPReturns stores count rows. Row i has height 100+i, a create time i
+// minutes after start, the fee i+1 and the message "bulk <i>".
+func seedOPReturns(t *testing.T, db *sql.DB, start time.Time, count int) {
+	t.Helper()
+	rows := make([]opreturns.OPReturn, count)
+	for i := range rows {
+		height := uint32(100 + i)
+		rows[i] = opreturns.OPReturn{
+			TxID:      fmt.Sprintf("%064x", i),
+			Data:      fmt.Appendf(nil, "bulk #%d;", i),
+			Fee:       btcutil.Amount(i + 1),
+			Height:    &height,
+			CreatedAt: lo.ToPtr(start.Add(time.Duration(i) * time.Minute)),
+		}
+	}
+	require.NoError(t, opreturns.Persist(t.Context(), db, rows))
+}
+
+func TestService_ListOPReturn_Filter(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	db := database.Test(t)
+	seedOPReturns(t, db, start, 1100)
+	cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+
+	list := func(t *testing.T, req *miscv1.ListOPReturnRequest) []*miscv1.OPReturn {
+		t.Helper()
+		resp, err := cli.ListOPReturn(t.Context(), req)
+		require.NoError(t, err)
+		return resp.OpReturns
+	}
+	messages := func(rows []*miscv1.OPReturn) []string {
+		return lo.Map(rows, func(r *miscv1.OPReturn, _ int) string { return r.Message })
+	}
+
+	t.Run("no filter gives the newest rows first, at the cap", func(t *testing.T) {
+		t.Parallel()
+		rows := list(t, &miscv1.ListOPReturnRequest{})
+		require.Len(t, rows, 1000)
+		assert.Equal(t, "bulk #1099;", rows[0].Message)
+		assert.Equal(t, "bulk #100;", rows[999].Message)
+	})
+
+	t.Run("search finds a row older than the cap", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, []string{"bulk #7;"}, messages(list(t, &miscv1.ListOPReturnRequest{Search: "BULK #7;"})))
+	})
+
+	t.Run("search matches the txid", func(t *testing.T) {
+		t.Parallel()
+		rows := list(t, &miscv1.ListOPReturnRequest{Search: strings.ToUpper(fmt.Sprintf("%064x", 3))})
+		assert.Equal(t, []string{"bulk #3;"}, messages(rows))
+	})
+
+	t.Run("search matches decoded text with no case match", func(t *testing.T) {
+		t.Parallel()
+		db := database.Test(t)
+		require.NoError(t, opreturns.Persist(t.Context(), db, []opreturns.OPReturn{
+			{TxID: "aa", Data: []byte("Blåbær ØL")},
+			{TxID: "bb", Data: []byte("other")},
+		}))
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+		resp, err := cli.ListOPReturn(t.Context(), &miscv1.ListOPReturnRequest{Search: "bær øl"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Blåbær ØL"}, messages(resp.OpReturns))
+	})
+
+	t.Run("ascending height starts at the oldest row", func(t *testing.T) {
+		t.Parallel()
+		rows := list(t, &miscv1.ListOPReturnRequest{Sort: miscv1.OPReturnSort_OP_RETURN_SORT_HEIGHT, Ascending: true})
+		require.Len(t, rows, 1000)
+		assert.EqualValues(t, 100, lo.FromPtr(rows[0].Height))
+	})
+
+	t.Run("descending fee starts at the highest fee", func(t *testing.T) {
+		t.Parallel()
+		rows := list(t, &miscv1.ListOPReturnRequest{Sort: miscv1.OPReturnSort_OP_RETURN_SORT_FEE})
+		assert.EqualValues(t, 1100, rows[0].FeeSats)
+	})
+
+	t.Run("date range holds each row in it and none outside", func(t *testing.T) {
+		t.Parallel()
+		rows := list(t, &miscv1.ListOPReturnRequest{
+			From:      timestamppb.New(start.Add(10 * time.Minute)),
+			To:        timestamppb.New(start.Add(13 * time.Minute)),
+			Ascending: true,
+		})
+		assert.Equal(t, []string{"bulk #10;", "bulk #11;", "bulk #12;"}, messages(rows))
+	})
+
+	t.Run("date range compares rows stored in another zone", func(t *testing.T) {
+		t.Parallel()
+		db := database.Test(t)
+		oslo := time.FixedZone("CET", 3600)
+		require.NoError(t, opreturns.Persist(t.Context(), db, []opreturns.OPReturn{
+			{TxID: "aa", Data: []byte("in"), CreatedAt: lo.ToPtr(time.Date(2026, 1, 1, 0, 30, 0, 0, oslo))},
+			{TxID: "bb", Data: []byte("out"), CreatedAt: lo.ToPtr(time.Date(2026, 1, 1, 1, 30, 0, 0, oslo))},
+		}))
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+		resp, err := cli.ListOPReturn(t.Context(), &miscv1.ListOPReturnRequest{
+			From: timestamppb.New(time.Date(2025, 12, 31, 23, 0, 0, 0, time.UTC)),
+			To:   timestamppb.New(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"in"}, messages(resp.OpReturns))
+	})
+
+	t.Run("message sort uses the shown text", func(t *testing.T) {
+		t.Parallel()
+		db := database.Test(t)
+		require.NoError(t, opreturns.Persist(t.Context(), db, []opreturns.OPReturn{
+			{TxID: "aa", Data: []byte("7a")},
+			{TxID: "bb", Data: []byte("b")},
+			{TxID: "cc", Data: []byte("c")},
+		}))
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+		resp, err := cli.ListOPReturn(t.Context(), &miscv1.ListOPReturnRequest{
+			Sort: miscv1.OPReturnSort_OP_RETURN_SORT_MESSAGE, Ascending: true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"b", "c", "z"}, messages(resp.OpReturns))
+	})
+
+	t.Run("unknown sort is an invalid argument", func(t *testing.T) {
+		t.Parallel()
+		_, err := cli.ListOPReturn(t.Context(), &miscv1.ListOPReturnRequest{Sort: 99})
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 	})
 }
 

@@ -133,7 +133,8 @@ var (
 
 // MiscServiceClient is a client for the misc.v1.MiscService service.
 type MiscServiceClient interface {
-	ListOPReturn(context.Context, *emptypb.Empty) (*v1.ListOPReturnResponse, error)
+	// Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
+	ListOPReturn(context.Context, *v1.ListOPReturnRequest) (*v1.ListOPReturnResponse, error)
 	BroadcastNews(context.Context, *v1.BroadcastNewsRequest) (*v1.BroadcastNewsResponse, error)
 	CreateTopic(context.Context, *v1.CreateTopicRequest) (*v1.CreateTopicResponse, error)
 	ListTopics(context.Context, *emptypb.Empty) (*v1.ListTopicsResponse, error)
@@ -158,7 +159,8 @@ func NewMiscServiceClient(client *connect.Client) MiscServiceClient {
 
 // MiscServiceHandler is an implementation of the misc.v1.MiscService service.
 type MiscServiceHandler interface {
-	ListOPReturn(context.Context, *emptypb.Empty) (*v1.ListOPReturnResponse, error)
+	// Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
+	ListOPReturn(context.Context, *v1.ListOPReturnRequest) (*v1.ListOPReturnResponse, error)
 	BroadcastNews(context.Context, *v1.BroadcastNewsRequest) (*v1.BroadcastNewsResponse, error)
 	CreateTopic(context.Context, *v1.CreateTopicRequest) (*v1.CreateTopicResponse, error)
 	ListTopics(context.Context, *emptypb.Empty) (*v1.ListTopicsResponse, error)
@@ -196,7 +198,7 @@ func RegisterMiscServiceHandler(server *connect.Server, svc MiscServiceHandler) 
 // UnimplementedMiscServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedMiscServiceHandler struct{}
 
-func (UnimplementedMiscServiceHandler) ListOPReturn(context.Context, *emptypb.Empty) (*v1.ListOPReturnResponse, error) {
+func (UnimplementedMiscServiceHandler) ListOPReturn(context.Context, *v1.ListOPReturnRequest) (*v1.ListOPReturnResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "misc.v1.MiscService.ListOPReturn is not implemented")
 }
 
@@ -244,7 +246,7 @@ type miscServiceClient struct {
 	client *connect.Client
 }
 
-func (c *miscServiceClient) ListOPReturn(ctx context.Context, req *emptypb.Empty) (*v1.ListOPReturnResponse, error) {
+func (c *miscServiceClient) ListOPReturn(ctx context.Context, req *v1.ListOPReturnRequest) (*v1.ListOPReturnResponse, error) {
 	var res v1.ListOPReturnResponse
 	if err := c.client.CallUnary(ctx, miscServiceListOPReturnSpec(), req, &res); err != nil {
 		return nil, err
@@ -335,7 +337,7 @@ func (c *miscServiceClient) VerifyTimestamp(ctx context.Context, req *v1.VerifyT
 type miscServiceHandler struct{ svc MiscServiceHandler }
 
 func (h miscServiceHandler) listOPReturn(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req emptypb.Empty
+	var req v1.ListOPReturnRequest
 	if err := stream.Receive(&req); err != nil {
 		return err
 	}

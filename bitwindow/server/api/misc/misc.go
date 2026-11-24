@@ -55,14 +55,37 @@ type Server struct {
 	remoteCoinNews  engines.RemoteCoinNews
 }
 
-// listOPReturnLimit is the cap for the gRPC ListOPReturn handler. The
-// UI is the only consumer and only renders the most-recent N; without
-// a cap each poll dragged every row in the table back through the wire.
+// listOPReturnLimit is the cap for the gRPC ListOPReturn handler.
 const listOPReturnLimit = 1000
 
+var opReturnSorts = map[miscv1.OPReturnSort]opreturns.SortColumn{
+	miscv1.OPReturnSort_OP_RETURN_SORT_UNSPECIFIED: opreturns.SortByTime,
+	miscv1.OPReturnSort_OP_RETURN_SORT_TIME:        opreturns.SortByTime,
+	miscv1.OPReturnSort_OP_RETURN_SORT_HEIGHT:      opreturns.SortByHeight,
+	miscv1.OPReturnSort_OP_RETURN_SORT_FEE:         opreturns.SortByFee,
+	miscv1.OPReturnSort_OP_RETURN_SORT_TXID:        opreturns.SortByTxID,
+	miscv1.OPReturnSort_OP_RETURN_SORT_MESSAGE:     opreturns.SortByMessage,
+}
+
 // ListOPReturn implements miscv1connect.MiscServiceHandler.
-func (s *Server) ListOPReturn(ctx context.Context, req *emptypb.Empty) (*miscv1.ListOPReturnResponse, error) {
-	opReturns, err := opreturns.List(ctx, s.database, listOPReturnLimit)
+func (s *Server) ListOPReturn(ctx context.Context, req *miscv1.ListOPReturnRequest) (*miscv1.ListOPReturnResponse, error) {
+	sort, ok := opReturnSorts[req.Sort]
+	if !ok {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("unknown sort %d", req.Sort))
+	}
+	filter := opreturns.Filter{
+		Search:    strings.TrimSpace(req.Search),
+		Sort:      sort,
+		Ascending: req.Ascending,
+	}
+	if req.From != nil {
+		filter.From = req.From.AsTime()
+	}
+	if req.To != nil {
+		filter.To = req.To.AsTime()
+	}
+
+	opReturns, err := opreturns.Query(ctx, s.database, filter, listOPReturnLimit)
 	if err != nil {
 		return nil, err
 	}
