@@ -237,6 +237,9 @@ class CreateTransactionViewModel extends BaseViewModel {
       notifyListeners();
 
       final amount = double.parse(amountController.text);
+      final sats = (amount * 100000000).round();
+      // A spend of the full balance has no coin left for the fee.
+      final subtractFee = sats >= (group.balance * 100000000).round();
       final walletId = _walletReader.activeWalletId;
       if (walletId == null) {
         throw Exception('No active wallet');
@@ -246,8 +249,9 @@ class CreateTransactionViewModel extends BaseViewModel {
         group: multisigGroupToProto(group),
         walletId: walletId,
         destinations: [
-          mlpb.SpendDestination(address: destinationController.text, sats: Int64((amount * 100000000).round())),
+          mlpb.SpendDestination(address: destinationController.text, sats: Int64(sats)),
         ],
+        subtractFeeFromOutputs: subtractFee,
       );
 
       final psbt = resp.psbtBase64;
@@ -277,12 +281,13 @@ class CreateTransactionViewModel extends BaseViewModel {
         keyPSBTs: keyPSBTs,
         inputs: [],
         destination: destinationController.text,
-        amount: amount,
+        amount: subtractFee ? (sats - resp.feeSats.toInt()) / 100000000.0 : amount,
         status: TxStatus.needsSignatures,
         type: TxType.withdrawal,
         created: DateTime.now(),
         fee: fee,
         confirmations: 0,
+        requiredSignatures: group.m,
       );
 
       await TransactionStorage.saveTransaction(transaction);

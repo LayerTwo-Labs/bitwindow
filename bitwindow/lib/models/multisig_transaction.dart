@@ -133,6 +133,9 @@ class MultisigTransaction {
   final List<UtxoInfo> inputs;
   final int confirmations;
 
+  /// The m of the group: the number of signatures the tx needs.
+  final int requiredSignatures;
+
   const MultisigTransaction({
     required this.id,
     required this.groupId,
@@ -150,11 +153,11 @@ class MultisigTransaction {
     required this.fee,
     required this.inputs,
     this.confirmations = 0,
+    required this.requiredSignatures,
   });
 
   List<String> get signedPSBTs => keyPSBTs.where((k) => k.isSigned && k.psbt != null).map((k) => k.psbt!).toList();
   int get signatureCount => keyPSBTs.where((k) => k.isSigned).length;
-  int get requiredSignatures => keyPSBTs.length;
 
   factory MultisigTransaction.fromJson(Map<String, dynamic> json) {
     return MultisigTransaction(
@@ -180,6 +183,7 @@ class MultisigTransaction {
           .map((input) => UtxoInfo.fromJson(input as Map<String, dynamic>))
           .toList(),
       confirmations: json['confirmations'] as int? ?? 0,
+      requiredSignatures: json['requiredSignatures'] as int,
     );
   }
 
@@ -201,6 +205,7 @@ class MultisigTransaction {
       'fee': fee,
       'inputs': inputs.map((input) => input.toJson()).toList(),
       'confirmations': confirmations,
+      'requiredSignatures': requiredSignatures,
     };
   }
 
@@ -221,6 +226,7 @@ class MultisigTransaction {
     double? fee,
     List<UtxoInfo>? inputs,
     int? confirmations,
+    int? requiredSignatures,
   }) {
     return MultisigTransaction(
       id: id ?? this.id,
@@ -239,6 +245,7 @@ class MultisigTransaction {
       fee: fee ?? this.fee,
       inputs: inputs ?? this.inputs,
       confirmations: confirmations ?? this.confirmations,
+      requiredSignatures: requiredSignatures ?? this.requiredSignatures,
     );
   }
 

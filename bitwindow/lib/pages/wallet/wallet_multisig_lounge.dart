@@ -1020,32 +1020,14 @@ class MultisigLoungeViewModel extends BaseViewModel {
     isLoadingTransactions = true;
     notifyListeners();
 
-    _transactionListener = () async {
-      if (_disposed) {
-        return;
-      }
-      await _stateManager.refreshData();
-      if (_disposed) {
-        return;
-      }
-      notifyListeners();
-    };
+    _transactionListener = _readState;
     TransactionStorage.notifier.addListener(_transactionListener);
 
-    _blockchainListener = () async {
-      if (_disposed) {
-        return;
-      }
-      await _stateManager.refreshData();
-      if (_disposed) {
-        return;
-      }
-      notifyListeners();
-    };
+    _blockchainListener = _readState;
     _blockchainProvider.addListener(_blockchainListener);
     _blockchainProvider.recentChanged.addListener(_blockchainListener);
 
-    await _stateManager.refreshData();
+    await _readState();
     if (_disposed) {
       return;
     }
@@ -1067,15 +1049,27 @@ class MultisigLoungeViewModel extends BaseViewModel {
     isLoadingTransactions = true;
     notifyListeners();
 
+    await _readState();
+    if (_disposed) {
+      return;
+    }
+
+    isLoadingGroups = false;
+    isLoadingTransactions = false;
+    notifyListeners();
+  }
+
+  /// Reads groups and transactions again, and shows the error of the read.
+  Future<void> _readState() async {
+    if (_disposed) {
+      return;
+    }
     await _stateManager.refreshData();
     if (_disposed) {
       return;
     }
     isLoading = _stateManager.isLoading;
     errorMessage = _stateManager.errorMessage;
-
-    isLoadingGroups = false;
-    isLoadingTransactions = false;
     notifyListeners();
   }
 

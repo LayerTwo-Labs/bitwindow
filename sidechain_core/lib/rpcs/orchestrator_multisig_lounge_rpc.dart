@@ -82,6 +82,7 @@ class OrchestratorMultisigLoungeRPC {
     required String walletId,
     required List<mlpb.SpendDestination> destinations,
     double feeRateSatVb = 0,
+    bool subtractFeeFromOutputs = false,
   }) {
     return _client.createSpendPsbt(
       mlpb.CreateSpendPsbtRequest(
@@ -89,6 +90,7 @@ class OrchestratorMultisigLoungeRPC {
         walletId: walletId,
         destinations: destinations,
         feeRateSatVb: feeRateSatVb,
+        subtractFeeFromOutputs: subtractFeeFromOutputs,
       ),
     );
   }
