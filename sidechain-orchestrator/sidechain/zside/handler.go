@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
+
+	enforcerrpc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/mainchain/v1/mainchainv1connect"
 
 	pb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/zside/v1"
 	svc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/zside/v1/zsidev1connect"
@@ -17,11 +20,15 @@ var _ svc.ZSideServiceHandler = (*Handler)(nil)
 // Common methods delegate to the proxy field; ZSide-specific methods are
 // implemented directly using the proxy's Client.
 type Handler struct {
-	proxy *sidechain.JSONRPCProxy
+	proxy      *sidechain.JSONRPCProxy
+	validator  func() (enforcerrpc.ValidatorServiceClient, error)
+	maturityMu sync.Mutex
+	deposits   maturityCache
+	coinbases  maturityCache
 }
 
-func NewHandler(proxy *sidechain.JSONRPCProxy) *Handler {
-	return &Handler{proxy: proxy}
+func NewHandler(proxy *sidechain.JSONRPCProxy, validator func() (enforcerrpc.ValidatorServiceClient, error)) *Handler {
+	return &Handler{proxy: proxy, validator: validator}
 }
 
 // --- Common Node methods ---
@@ -36,6 +43,27 @@ func (h *Handler) GetBalance(ctx context.Context, req *pb.GetBalanceRequest) (*p
 	}
 	if err := h.proxy.Client.Call(ctx, "balance", nil, &result); err != nil {
 		return nil, err
+	}
+	coins, err := h.GetWalletUtxos(ctx, &pb.GetWalletUtxosRequest{})
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		Spendable bool `json:"spendable"`
+		Output    struct {
+			Content struct {
+				Value int64 `json:"Value"`
+			} `json:"content"`
+		} `json:"output"`
+	}
+	if err := json.Unmarshal([]byte(coins.UtxosJson), &rows); err != nil {
+		return nil, err
+	}
+	result.AvailableTransparentSats = 0
+	for _, row := range rows {
+		if row.Spendable {
+			result.AvailableTransparentSats += row.Output.Content.Value
+		}
 	}
 	return &pb.GetBalanceResponse{
 		TotalShieldedSats:        result.TotalShieldedSats,
@@ -141,6 +169,9 @@ func (h *Handler) GetWalletUtxos(ctx context.Context, req *pb.GetWalletUtxosRequ
 			}
 			rows = append(rows, utxo)
 		}
+	}
+	if err := h.setSpendable(ctx, rows); err != nil {
+		return nil, err
 	}
 	raw, err := json.Marshal(rows)
 	if err != nil {
@@ -351,4 +382,13 @@ func (h *Handler) ListWalletTransactions(ctx context.Context, req *pb.ListWallet
 		return nil, err
 	}
 	return &pb.ListWalletTransactionsResponse{Transactions: transactions}, nil
+}
+
+// WalletBalance returns the total and available wallet amounts in sats.
+func (h *Handler) WalletBalance(ctx context.Context) (int64, int64, error) {
+	balance, err := h.GetBalance(ctx, &pb.GetBalanceRequest{})
+	if err != nil {
+		return 0, 0, err
+	}
+	return balance.TotalShieldedSats + balance.TotalTransparentSats, balance.AvailableShieldedSats + balance.AvailableTransparentSats, nil
 }

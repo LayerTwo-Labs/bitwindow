@@ -42,7 +42,7 @@ func recordingHandler(t *testing.T, result any) (*Handler, *[]recordedCall) {
 	require.NoError(t, err)
 	port, err := strconv.Atoi(portText)
 	require.NoError(t, err)
-	return NewHandler(sidechain.NewJSONRPCProxy(host, port)), &calls
+	return NewHandler(sidechain.NewJSONRPCProxy(host, port), nil), &calls
 }
 
 // The method names and argument order are those of thunder-orchard 0.18.1.
@@ -138,7 +138,7 @@ func TestHandlerListsCoinsAsTheMempoolLeavesThem(t *testing.T) {
 		}},
 	})
 
-	resp, err := NewHandler(node.JSONRPCProxy).GetWalletUtxos(context.Background(), &pb.GetWalletUtxosRequest{})
+	resp, err := NewHandler(node.JSONRPCProxy, nil).GetWalletUtxos(context.Background(), &pb.GetWalletUtxosRequest{})
 	require.NoError(t, err)
 
 	var got []map[string]any
@@ -166,7 +166,7 @@ func TestHandlerDropsASpentRecreatedWithdrawal(t *testing.T) {
 		}},
 	})
 
-	resp, err := NewHandler(node.JSONRPCProxy).GetWalletUtxos(context.Background(), &pb.GetWalletUtxosRequest{})
+	resp, err := NewHandler(node.JSONRPCProxy, nil).GetWalletUtxos(context.Background(), &pb.GetWalletUtxosRequest{})
 	require.NoError(t, err)
 
 	var got []map[string]any

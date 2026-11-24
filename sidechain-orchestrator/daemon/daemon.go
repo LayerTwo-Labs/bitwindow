@@ -659,7 +659,8 @@ func Run(ctx context.Context, cfg Config) (err error) {
 			sidepotrpc.RegisterSidepotServiceHandler(sidechainServer, h)
 			log.Info().Str("sidechain", name).Int("port", cfg.Port).Msg("registered sidechain RPC service")
 		case "zside":
-			h := zsidesvc.NewHandler(proxy)
+			h := zsidesvc.NewHandler(proxy, orch.EnforcerValidator)
+			handler.SetSidechainBalance(name, h.WalletBalance)
 			zsiderpc.RegisterZSideServiceHandler(sidechainServer, h)
 			log.Info().Str("sidechain", name).Int("port", cfg.Port).Msg("registered sidechain RPC service")
 		case "bbc":

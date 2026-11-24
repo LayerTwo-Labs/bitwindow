@@ -68,6 +68,11 @@ func TestZSideAppUI(t *testing.T) {
 	balance, err := stack.zside.GetBalance(ctx, &zpb.GetBalanceRequest{})
 	require.NoError(t, err)
 	require.EqualValues(t, depositSats, balance.TotalTransparentSats)
+	mineMainchain(ctx, t, stack.enforcer, 49, stack.mainAddr)
+	waitFor(t, time.Minute, "the mature deposit", func() bool {
+		balance, err := stack.zside.GetBalance(ctx, &zpb.GetBalanceRequest{})
+		return err == nil && balance.AvailableTransparentSats == depositSats
+	})
 
 	withdrawAddr, err := stack.wallets.GetNewAddress(ctx, &wmpb.GetNewAddressRequest{})
 	require.NoError(t, err)

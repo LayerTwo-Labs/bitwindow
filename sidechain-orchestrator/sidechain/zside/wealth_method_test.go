@@ -45,7 +45,7 @@ func wealthNode(t *testing.T, sats string) (*sidechain.JSONRPCProxy, *[]string) 
 func TestSidechainWealthCallsSidechainWealth(t *testing.T) {
 	proxy, seen := wealthNode(t, "10603007000")
 
-	resp, err := NewHandler(proxy).GetSidechainWealth(context.Background(),
+	resp, err := NewHandler(proxy, nil).GetSidechainWealth(context.Background(),
 		&pb.GetSidechainWealthRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(10603007000), resp.Sats)

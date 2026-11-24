@@ -70,6 +70,8 @@ class SidechainUTXO {
   /// withdrawal is true for an output a pending withdrawal bundle locks.
   final bool withdrawal;
 
+  final bool spendable;
+
   SidechainUTXO({
     required this.outpoint,
     required this.address,
@@ -77,6 +79,7 @@ class SidechainUTXO {
     required this.type,
     this.confirmed = true,
     this.withdrawal = false,
+    this.spendable = true,
   });
 
   factory SidechainUTXO.fromJson(Map<String, dynamic> json) {
@@ -90,6 +93,7 @@ class SidechainUTXO {
       type: outpoint.type,
       confirmed: json['confirmed'] as bool? ?? true,
       withdrawal: withdrawal != null,
+      spendable: json['spendable'] as bool? ?? true,
     );
   }
 
