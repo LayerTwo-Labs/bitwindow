@@ -285,6 +285,7 @@ type Topic struct {
 	Txid          string
 	RetentionDays int32
 
+	// CreatedAt is zero for a topic with no known creation time.
 	CreatedAt time.Time
 }
 
@@ -332,7 +333,7 @@ func listConfirmedTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
 	SELECT rowid, topic, name, COALESCE(txid, ''), retention_days,
 		(SELECT i.block_time FROM cn_items i WHERE i.txid = cn_topics.txid ORDER BY i.block_time ASC LIMIT 1) AS created_at
 	FROM cn_topics
-	ORDER BY created_at ASC
+	ORDER BY created_at ASC, rowid ASC
 `)
 	if err != nil {
 		return nil, fmt.Errorf("list topics: query: %w", err)
@@ -349,8 +350,6 @@ func listConfirmedTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
 		}
 		if createdAt.Valid {
 			topic.CreatedAt = createdAt.Time
-		} else {
-			topic.CreatedAt = time.Now()
 		}
 
 		topics = append(topics, topic)

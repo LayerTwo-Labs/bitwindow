@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/database"
@@ -498,6 +499,20 @@ func TestService_ListTopics(t *testing.T) {
 		require.Len(t, resp.Topics, 2)
 		assert.True(t, lo.ContainsBy(resp.Topics, func(tp *miscv1.Topic) bool { return tp.Name == "US Weekly" }))
 		assert.True(t, lo.ContainsBy(resp.Topics, func(tp *miscv1.Topic) bool { return tp.Name == "Japan Weekly" }))
+	})
+
+	t.Run("list the same topics on each read", func(t *testing.T) {
+		t.Parallel()
+
+		database := database.Test(t)
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
+
+		first, err := cli.ListTopics(t.Context(), &emptypb.Empty{})
+		require.NoError(t, err)
+		time.Sleep(time.Millisecond)
+		second, err := cli.ListTopics(t.Context(), &emptypb.Empty{})
+		require.NoError(t, err)
+		assert.True(t, proto.Equal(first, second), "first %v, second %v", first, second)
 	})
 
 	t.Run("list topics with data", func(t *testing.T) {
