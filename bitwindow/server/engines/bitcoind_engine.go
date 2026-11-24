@@ -172,19 +172,19 @@ func (p *Parser) tick(ctx context.Context, sweptOnStart *bool) {
 		Msgf("bitcoind_engine/parser: finished processing block tick")
 }
 
-// sweepMempool drops expired unconfirmed OP_RETURNs and reports whether it
+// sweepMempool drops absent unconfirmed OP_RETURNs and reports whether it
 // finished, so the caller can try again. A failure means Bitcoin Core is
 // unreachable, which the block tick reports on the same cadence.
 func (p *Parser) sweepMempool(ctx context.Context) bool {
-	if err := p.reapExpiredMempool(ctx); err != nil {
-		zerolog.Ctx(ctx).Debug().Err(err).Msg("reap expired mempool OP_RETURNs")
+	if err := p.pruneMempool(ctx); err != nil {
+		zerolog.Ctx(ctx).Debug().Err(err).Msg("prune mempool OP_RETURNs")
 		return false
 	}
 	return true
 }
 
-// reapExpiredMempool drops unconfirmed OP_RETURNs that can no longer confirm.
-func (p *Parser) reapExpiredMempool(ctx context.Context) error {
+// pruneMempool drops unconfirmed OP_RETURNs that can no longer confirm.
+func (p *Parser) pruneMempool(ctx context.Context) error {
 	mempoolTxIDs := func() ([]string, error) {
 		bitcoind, err := p.bitcoind.Get(ctx)
 		if err != nil {
@@ -196,7 +196,7 @@ func (p *Parser) reapExpiredMempool(ctx context.Context) error {
 		}
 		return res.Msg.Txids, nil
 	}
-	return opreturns.ReapExpiredMempool(ctx, p.db, mempoolTxIDs)
+	return opreturns.PruneMempool(ctx, p.db, mempoolTxIDs)
 }
 
 // ResetChainData deletes every row derived from a block at or above height. It

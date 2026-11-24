@@ -275,20 +275,29 @@ func Query(ctx context.Context, db *sql.DB, filter Filter, limit int) ([]OPRetur
 	return opReturns, nil
 }
 
-// mempoolExpiry is the default -mempoolexpiry of Core.
-const mempoolExpiry = 336 * time.Hour
-
-// ReapExpiredMempool deletes unconfirmed OP_RETURNs older than the mempool expiry
-// that are not in mempoolTxIDs, the txids that the node still holds.
-func ReapExpiredMempool(ctx context.Context, db *sql.DB, mempoolTxIDs func() ([]string, error)) error {
-	cutoff := time.Now().Add(-mempoolExpiry)
-
-	candidates, err := database.Select[string](ctx, db, `
-		SELECT txid FROM op_returns
-		WHERE height IS NULL AND datetime(created_at) < datetime(?)
-	`, cutoff)
+// ForgetPending removes the unconfirmed outputs for a transaction.
+func ForgetPending(ctx context.Context, db *sql.DB, txid string) error {
+	result, err := db.ExecContext(ctx, `DELETE FROM op_returns WHERE txid = ? AND height IS NULL`, txid)
 	if err != nil {
-		return fmt.Errorf("select expired mempool OP_RETURNs: %w", err)
+		return fmt.Errorf("delete pending OP_RETURNs for %s: %w", txid, err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count deleted OP_RETURNs for %s: %w", txid, err)
+	}
+	if count > 0 {
+		invalidateCaches(db)
+	}
+	return nil
+}
+
+// PruneMempool drops pending OP_RETURNs absent from Core's mempool.
+func PruneMempool(ctx context.Context, db *sql.DB, mempoolTxIDs func() ([]string, error)) error {
+	candidates, err := database.Select[string](ctx, db, `
+		SELECT DISTINCT txid FROM op_returns WHERE height IS NULL
+	`)
+	if err != nil {
+		return fmt.Errorf("select pending OP_RETURNs: %w", err)
 	}
 	if len(candidates) == 0 {
 		return nil
@@ -298,31 +307,15 @@ func ReapExpiredMempool(ctx context.Context, db *sql.DB, mempoolTxIDs func() ([]
 	if err != nil {
 		return fmt.Errorf("read mempool: %w", err)
 	}
-	live := map[string]bool{}
-	for _, txid := range txids {
-		live[txid] = true
-	}
-
-	reaped := 0
+	live := lo.Keyify(txids)
 	for _, txid := range candidates {
-		if live[txid] {
+		if _, found := live[txid]; found {
 			continue
 		}
-		if _, err := db.ExecContext(ctx,
-			`DELETE FROM op_returns WHERE txid = ? AND height IS NULL`, txid,
-		); err != nil {
-			return fmt.Errorf("reap expired mempool OP_RETURN %s: %w", txid, err)
+		if err := ForgetPending(ctx, db, txid); err != nil {
+			return err
 		}
-		reaped++
 	}
-
-	if reaped > 0 {
-		invalidateCaches(db)
-
-		zerolog.Ctx(ctx).Info().
-			Msgf("opreturns: reaped %d expired mempool OP_RETURN(s)", reaped)
-	}
-
 	return nil
 }
 
