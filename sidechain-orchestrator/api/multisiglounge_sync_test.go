@@ -35,7 +35,7 @@ type loungeRegtest struct {
 
 func newLoungeRegtest(t *testing.T) *loungeRegtest {
 	t.Helper()
-	return startLoungeRegtest(t, "-fallbackfee=0.0001")
+	return startLoungeRegtest(t, "-fallbackfee=0.0001", "-txindex=1")
 }
 
 // startLoungeRegtest starts a regtest node with extra bitcoind args.
@@ -57,7 +57,7 @@ func startLoungeRegtest(t *testing.T, extraArgs ...string) *loungeRegtest {
 	// Per-node RPC and P2P ports keep concurrent regtest nodes (e.g. the wallet
 	// package's e2e running in parallel) from colliding on the defaults.
 	args := append([]string{"-regtest", "-datadir=" + dir, "-server=1",
-		"-rpcuser=u", "-rpcpassword=p", "-txindex=1",
+		"-rpcuser=u", "-rpcpassword=p",
 		fmt.Sprintf("-rpcport=%d", rpcPort), fmt.Sprintf("-port=%d", p2pPort),
 		fmt.Sprintf("-bind=127.0.0.1:%d", p2pPort), "-listen=1"}, extraArgs...)
 	cmd := exec.Command(daemon, args...)
@@ -602,6 +602,7 @@ func TestCreateSpendPsbtE2E(t *testing.T) {
 	require.Len(t, cab.Txid, 64, "the CreateSpendPsbt output must sign+combine+broadcast end to end")
 }
 
+// The node runs with no fee estimate and no txindex, like a new node.
 func TestCreateSpendPsbtWithNoFeeEstimateE2E(t *testing.T) {
 	rt := startLoungeRegtest(t)
 	h := newSyncHandler(rt)
@@ -631,6 +632,14 @@ func TestCreateSpendPsbtWithNoFeeEstimateE2E(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(100_000_000), resp.ConfirmedSats)
 	require.Equal(t, uint32(1), resp.UtxoCount)
+
+	rt.rpcInto(t, "", "generatetoaddress", fmt.Sprintf(`[2,%q]`, fundAddr), nil)
+	history, err := h.RestoreHistory(ctx, &pb.RestoreHistoryRequest{Group: group})
+	require.NoError(t, err)
+	require.Len(t, history.Transactions, 1, "a confirmed deposit lists with no txindex")
+	require.EqualValues(t, 3, history.Transactions[0].Confirmations)
+	require.Equal(t, int64(100_000_000), history.Transactions[0].AmountSats)
+	require.NotEmpty(t, history.Transactions[0].FinalHex)
 
 	var dest string
 	rt.rpcInto(t, "fund", "getnewaddress", "", &dest)

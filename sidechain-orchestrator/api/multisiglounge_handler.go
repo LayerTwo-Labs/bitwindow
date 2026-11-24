@@ -794,18 +794,16 @@ func (h *MultisigLoungeHandler) RestoreHistory(
 		}
 		seen[wtx.Txid] = true
 
-		var raw wallet.RawTransaction
-		// getrawtransaction(txid, verbose=true)
-		if err := h.coreCall(ctx, "getrawtransaction", []interface{}{wtx.Txid, true}, &raw); err != nil {
-			continue // skip txs we can't fetch (matches Dart's per-tx tolerance)
-		}
-
 		// Core emits one row per wallet-relevant output, and lists a tx's receive
 		// rows before its send rows. Net every row for the txid, or a spend whose
 		// change pays a group address reads as an inbound deposit of that change.
 		// gettransaction carries the whole row set, so a transaction split by the
 		// listtransactions count boundary still nets completely.
-		details := h.walletTxDetails(ctx, name, wtx.Txid)
+		walletTx, err := h.walletTx(ctx, name, wtx.Txid)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
+		}
+		details, raw := walletTx.Details, walletTx.Decoded
 
 		net := 0.0
 		owned := map[string]bool{}
@@ -854,7 +852,7 @@ func (h *MultisigLoungeHandler) RestoreHistory(
 			SignatureCount: uint32(wallet.CountMultisigSignatures(raw.Vin)),
 			Status:         restoreStatus(wtx.Confirmations),
 			Time:           wtx.Time,
-			FinalHex:       raw.Hex,
+			FinalHex:       walletTx.Hex,
 			Inputs:         inputs,
 		})
 	}
@@ -987,16 +985,22 @@ type walletTxRow struct {
 	Amount   float64 `json:"amount"`
 }
 
-// walletTxDetails returns every wallet-relevant row of one transaction. It reads
-// gettransaction, whose detail set is complete, rather than the listtransactions
-// page, which a fixed count can cut in half.
-func (h *MultisigLoungeHandler) walletTxDetails(ctx context.Context, wallet, txid string) []walletTxRow {
-	var res struct {
-		Details []walletTxRow `json:"details"`
-	}
+// walletTxData is one wallet transaction as gettransaction gives it.
+type walletTxData struct {
+	Details []walletTxRow         `json:"details"`
+	Hex     string                `json:"hex"`
+	Decoded wallet.RawTransaction `json:"decoded"`
+}
+
+// walletTx reads one transaction from the watch wallet. It needs no txindex,
+// and it holds every wallet-relevant row, where a listtransactions page can
+// cut a transaction in half.
+func (h *MultisigLoungeHandler) walletTx(ctx context.Context, wallet, txid string) (walletTxData, error) {
+	var res walletTxData
+	// gettransaction(txid, include_watchonly=true, verbose=true)
 	if err := h.coreCallWallet(ctx, wallet, "gettransaction",
-		[]interface{}{txid, true}, &res); err != nil {
-		return nil
+		[]interface{}{txid, true, true}, &res); err != nil {
+		return walletTxData{}, fmt.Errorf("gettransaction %s: %w", txid, err)
 	}
-	return res.Details
+	return res, nil
 }
