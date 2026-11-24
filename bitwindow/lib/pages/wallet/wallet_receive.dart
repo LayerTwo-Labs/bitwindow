@@ -463,10 +463,7 @@ class ReceivePageViewModel extends BaseViewModel {
 
   /// The wallet addresses, with the label from the address book where it has one.
   List<ReceiveAddress> get receiveAddresses {
-    final labels = {
-      for (final entry in _addressBookProvider.receiveEntries)
-        if (entry.label.isNotEmpty) entry.address: entry.label,
-    };
+    final labels = labelsByAddress(_addressBookProvider.receiveEntries);
     return transactionsProvider.receiveAddresses
         .map(
           (address) => switch (labels[address.address]) {

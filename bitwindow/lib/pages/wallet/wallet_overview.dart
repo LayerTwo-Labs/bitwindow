@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
 import 'package:bitwindow/pages/wallet/bump_fee_dialog.dart';
+import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:bitwindow/utils/transaction_search.dart';
 import 'package:bitwindow/utils/wallet_amount.dart';
@@ -248,6 +249,15 @@ String transactionsCsv(List<WalletTransaction> transactions) {
 
   return encodeCsv(rows);
 }
+
+/// [rows] with the address book label of each address. A row the book holds no label for keeps its own.
+List<WalletTransaction> withBookLabels(List<WalletTransaction> rows, Map<String, String> labels) => [
+  for (final tx in rows)
+    switch (labels[tx.address]) {
+      final label? when label != tx.addressLabel => tx.deepCopy()..addressLabel = label,
+      _ => tx,
+    },
+];
 
 class TransactionTable extends StatefulWidget {
   final Widget searchWidget;
@@ -622,6 +632,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
   final OrchestratorBmmRPC _orchestratorBmm = GetIt.I<OrchestratorRPC>().bmm;
   final EnforcerRPC _enforcerRPC = GetIt.I<EnforcerRPC>();
   final BalanceProvider _balanceProvider = GetIt.I<BalanceProvider>();
+  final AddressBookProvider _addressBook = GetIt.I<AddressBookProvider>();
   WalletReaderProvider get _walletReader => GetIt.I<WalletReaderProvider>();
 
   ({DateTime start, DateTime end})? dateRange;
@@ -674,7 +685,8 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
       ];
     }
 
-    return _txProvider.walletTransactions.where((tx) {
+    final labels = labelsByAddress([..._addressBook.receiveEntries, ..._addressBook.sendEntries]);
+    return withBookLabels(_txProvider.walletTransactions, labels).where((tx) {
       if (!transactionMatchesSearch(tx, searchController.text)) {
         return false;
       }
@@ -721,6 +733,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
     _balanceProvider.addListener(_onChange);
     _balanceProvider.addListener(_debouncedGetStats);
     _enforcerRPC.addListener(_onChange);
+    _addressBook.addListener(_onChange);
     getStats();
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) => getStats());
   }
@@ -944,6 +957,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
     _balanceProvider.removeListener(_onChange);
     _balanceProvider.removeListener(_debouncedGetStats);
     _enforcerRPC.removeListener(_onChange);
+    _addressBook.removeListener(_onChange);
     super.dispose();
   }
 }

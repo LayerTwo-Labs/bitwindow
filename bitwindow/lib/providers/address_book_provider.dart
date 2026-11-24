@@ -5,6 +5,15 @@ import 'package:get_it/get_it.dart';
 import 'package:sidechain_core/gen/bitwindowd/v1/bitwindowd.pb.dart';
 import 'package:sidechain_core/rpcs/bitwindow_api.dart';
 
+/// The label of each address in [entries]. The first entry with a label wins.
+Map<String, String> labelsByAddress(Iterable<AddressBookEntry> entries) {
+  final labels = <String, String>{};
+  for (final entry in entries.where((e) => e.label.isNotEmpty)) {
+    labels.putIfAbsent(entry.address, () => entry.label);
+  }
+  return labels;
+}
+
 class AddressBookProvider extends ChangeNotifier implements NetworkScoped {
   @override
   Future<void> onNetworkChanged() async {

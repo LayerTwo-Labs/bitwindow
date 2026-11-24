@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:flutter/widgets.dart';
@@ -73,6 +74,7 @@ void main() {
     GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
     GetIt.I.registerSingleton<TransactionProvider>(transactions);
     await registerTestDependencies();
+    GetIt.I.registerSingleton<AddressBookProvider>(AddressBookProvider());
     final walletReader = WalletReaderProvider(Directory.systemTemp)..activeWalletId = 'wallet-1';
     GetIt.I.registerSingleton<WalletReaderProvider>(walletReader);
   });
