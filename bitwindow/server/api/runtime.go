@@ -268,7 +268,7 @@ func (s *Server) buildRuntime(ctx context.Context, conf config.Config, networkID
 			_, err := orchestrator.RestartL1(ctx, &orchctlpb.RestartL1Request{})
 			return err
 		}
-		rt.walletSvc = api_wallet.New(rt.db, s.Bitcoind, s.Enforcer, rt.chequeEngine, rt.chequeChain, rt.walletEngine, rt.walletDir, chequeScope, restartL1)
+		rt.walletSvc = api_wallet.New(rt.db, s.Bitcoind, rt.chequeEngine, rt.chequeChain, rt.walletEngine, rt.walletDir, chequeScope, restartL1)
 		walletv1connect.RegisterWalletServiceHandler(rpcServer, rt.walletSvc)
 	}
 	{

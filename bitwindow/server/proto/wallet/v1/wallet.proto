@@ -201,6 +201,7 @@ message ReceiveAddress {
 }
 
 message Confirmation {
+  // Height of the block that holds the transaction.
   uint32 height = 1;
   google.protobuf.Timestamp timestamp = 2;
 }
@@ -224,6 +225,8 @@ message WalletTransaction {
   bool immature = 11;
   // Set when the transaction is a sidechain deposit request this install made.
   DepositRequest deposit_request = 12;
+  // Blocks on top of the transaction, its own block included. 0 when unconfirmed.
+  uint32 confirmations = 13;
 }
 
 // DepositRequest names the sidechain a deposit request pays into.

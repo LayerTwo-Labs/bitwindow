@@ -58,17 +58,21 @@ func TestImmatureCoinbase(t *testing.T) {
 			ListTransactions(gomock.Any(), gomock.Any()).
 			Return(&orchpb.ListTransactionsResponse{
 				Transactions: []*orchpb.TransactionEntry{
-					{Txid: "maturing", Category: "immature", AmountSats: 312_500_000, Confirmations: 10},
+					{Txid: "maturing", Category: "immature", AmountSats: 312_500_000, Confirmations: 10, BlockHeight: 191},
 					{Txid: "mature", Category: "generate", AmountSats: 312_500_000, Confirmations: 150},
 					{Txid: "payment", Category: "receive", AmountSats: 15_000_000, Confirmations: 3},
 				},
 			}, nil)
 		apitests.ExpectOrchestratorReads(mockOrch)
-		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, db, apitests.WithOrchestrator(mockOrch), apitests.WithValidator(chainTipValidator(t, 200))))
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, db, apitests.WithOrchestrator(mockOrch)))
 
 		resp, err := cli.ListTransactions(t.Context(), &walletv1.ListTransactionsRequest{WalletId: testWalletID})
 		require.NoError(t, err)
 		require.Equal(t, map[string]bool{"maturing": true, "mature": false, "payment": false}, immatureByTxid(resp.Transactions))
+		maturing := resp.Transactions[0]
+		require.Equal(t, "maturing", maturing.Txid)
+		require.Equal(t, uint32(191), maturing.ConfirmationTime.Height)
+		require.Equal(t, uint32(10), maturing.Confirmations)
 	})
 
 	t.Run("core balance reports immature coins apart", func(t *testing.T) {

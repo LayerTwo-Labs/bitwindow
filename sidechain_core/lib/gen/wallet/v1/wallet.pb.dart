@@ -1199,6 +1199,7 @@ class Confirmation extends $pb.GeneratedMessage {
       _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Confirmation>(Confirmation.$_createMessage);
   static Confirmation? _defaultInstance;
 
+  /// Height of the block that holds the transaction.
   @$pb.TagNumber(1)
   $core.int get height => $_getIZ(0);
   @$pb.TagNumber(1)
@@ -1234,6 +1235,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     $core.String? warningMessage,
     $core.bool? immature,
     DepositRequest? depositRequest,
+    $core.int? confirmations,
   }) {
     final result = WalletTransaction._();
     if (txid != null) result.txid = txid;
@@ -1248,6 +1250,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     if (warningMessage != null) result.warningMessage = warningMessage;
     if (immature != null) result.immature = immature;
     if (depositRequest != null) result.depositRequest = depositRequest;
+    if (confirmations != null) result.confirmations = confirmations;
     return result;
   }
 
@@ -1276,6 +1279,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     ..aOS(10, _omitFieldNames ? '' : 'warningMessage')
     ..aOB(11, _omitFieldNames ? '' : 'immature')
     ..aOM<DepositRequest>(12, _omitFieldNames ? '' : 'depositRequest', subBuilder: DepositRequest.$_createMessage)
+    ..aI(13, _omitFieldNames ? '' : 'confirmations', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1415,6 +1419,16 @@ class WalletTransaction extends $pb.GeneratedMessage {
   void clearDepositRequest() => $_clearField(12);
   @$pb.TagNumber(12)
   DepositRequest ensureDepositRequest() => $_ensure(11);
+
+  /// Blocks on top of the transaction, its own block included. 0 when unconfirmed.
+  @$pb.TagNumber(13)
+  $core.int get confirmations => $_getIZ(12);
+  @$pb.TagNumber(13)
+  set confirmations($core.int value) => $_setUnsignedInt32(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasConfirmations() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearConfirmations() => $_clearField(13);
 }
 
 /// DepositRequest names the sidechain a deposit request pays into.
