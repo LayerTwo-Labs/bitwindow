@@ -456,6 +456,31 @@ func TestService_CreateTopic(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "topic already exists")
 	})
+
+	t.Run("create topic whose creation waits in the mempool", func(t *testing.T) {
+		t.Parallel()
+
+		database := database.Test(t)
+		topicID := validTopicID()
+		persistPendingTopic(t, database, topicID, "Pending Topic")
+
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
+
+		_, err := cli.CreateTopic(t.Context(), &miscv1.CreateTopicRequest{
+			Topic: topicID.String(),
+			Name:  "Pending Topic",
+		})
+		require.ErrorContains(t, err, "topic already exists")
+	})
+}
+
+func persistPendingTopic(t *testing.T, db *sql.DB, topicID opreturns.TopicID, name string) string {
+	t.Helper()
+	data, err := opreturns.EncodeTopicCreationMessageNewFormat(topicID, name, 7)
+	require.NoError(t, err)
+	txid := fmt.Sprintf("%x%056x", topicID[:], 1)
+	require.NoError(t, opreturns.Persist(t.Context(), db, []opreturns.OPReturn{{TxID: txid, Data: data, Fee: 300}}))
+	return txid
 }
 
 func TestService_ListTopics(t *testing.T) {
@@ -497,6 +522,24 @@ func TestService_ListTopics(t *testing.T) {
 		assert.True(t, lo.ContainsBy(resp.Topics, func(topic *miscv1.Topic) bool {
 			return topic.Topic == topicID2.String()
 		}), "topic 2 not found")
+	})
+
+	t.Run("list a topic whose creation waits in the mempool", func(t *testing.T) {
+		t.Parallel()
+
+		database := database.Test(t)
+		topicID := validTopicID()
+		txid := persistPendingTopic(t, database, topicID, "Pending Topic")
+
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
+
+		resp, err := cli.ListTopics(t.Context(), &emptypb.Empty{})
+		require.NoError(t, err)
+		topic, ok := lo.Find(resp.Topics, func(tp *miscv1.Topic) bool { return tp.Topic == topicID.String() })
+		require.True(t, ok)
+		assert.Equal(t, "Pending Topic", topic.Name)
+		assert.False(t, topic.Confirmed)
+		assert.Equal(t, txid, topic.Txid)
 	})
 }
 

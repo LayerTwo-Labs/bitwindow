@@ -305,9 +305,31 @@ type CoinNews struct {
 	CreatedAt *time.Time
 }
 
+// ListTopics returns the confirmed topics, then each topic whose creation
+// waits in the mempool. The earliest creation of a topic wins.
 func ListTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
+	topics, err := listConfirmedTopics(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := listPendingTopics(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	known := lo.SliceToMap(topics, func(t Topic) (TopicID, bool) { return t.Topic, true })
+	for _, topic := range pending {
+		if known[topic.Topic] {
+			continue
+		}
+		known[topic.Topic] = true
+		topics = append(topics, topic)
+	}
+	return topics, nil
+}
+
+func listConfirmedTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
 	rows, err := db.QueryContext(ctx, `
-	SELECT rowid, topic, name, 1, COALESCE(txid, ''), retention_days,
+	SELECT rowid, topic, name, COALESCE(txid, ''), retention_days,
 		(SELECT i.block_time FROM cn_items i WHERE i.txid = cn_topics.txid ORDER BY i.block_time ASC LIMIT 1) AS created_at
 	FROM cn_topics
 	ORDER BY created_at ASC
@@ -319,9 +341,9 @@ func ListTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
 
 	var topics []Topic
 	for rows.Next() {
-		var topic Topic
+		topic := Topic{Confirmed: true}
 		var createdAt sql.NullTime
-		err := rows.Scan(&topic.ID, &topic.Topic, &topic.Name, &topic.Confirmed, &topic.Txid, &topic.RetentionDays, &createdAt)
+		err := rows.Scan(&topic.ID, &topic.Topic, &topic.Name, &topic.Txid, &topic.RetentionDays, &createdAt)
 		if err != nil {
 			return nil, fmt.Errorf("list topics: scan: %w", err)
 		}
@@ -341,14 +363,52 @@ func ListTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
 	return topics, nil
 }
 
+// listPendingTopics returns the topic creations in the mempool, the first seen first.
+func listPendingTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
+	rows, err := listPendingOPReturns(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("list pending topics: %w", err)
+	}
+
+	var out []Topic
+	for _, row := range rows {
+		_, msg, err := codec.DecodeMessage(row.Data)
+		if err != nil {
+			continue
+		}
+		creation, ok := msg.(*codec.TopicCreation)
+		if !ok {
+			continue
+		}
+		out = append(out, Topic{
+			ID:            row.ID,
+			Topic:         TopicID(creation.Topic),
+			Name:          creation.Name,
+			Txid:          row.TxID,
+			RetentionDays: int32(creation.RetentionDays),
+			CreatedAt:     lo.FromPtr(row.CreatedAt),
+		})
+	}
+	return out, nil
+}
+
+// listPendingOPReturns returns the OP_RETURNs in the mempool, the first seen first.
+func listPendingOPReturns(ctx context.Context, db *sql.DB) ([]OPReturn, error) {
+	return database.Select[OPReturn](ctx, db, `
+		SELECT id, txid, vout, unhex(op_return_data) AS op_return_data, fee_sats, height, created_at
+		FROM op_returns
+		WHERE height IS NULL
+		ORDER BY created_at ASC, id ASC
+	`)
+}
+
+// TopicExists reports whether a block or the mempool holds a creation of the topic.
 func TopicExists(ctx context.Context, db *sql.DB, topic TopicID) (bool, error) {
-	exists, err := database.Get[bool](ctx, db, `
-		SELECT EXISTS(SELECT 1 FROM cn_topics WHERE topic = ?)
-	`, topic[:])
+	topics, err := ListTopics(ctx, db)
 	if err != nil {
 		return false, fmt.Errorf("topic exists: %w", err)
 	}
-	return exists, nil
+	return lo.ContainsBy(topics, func(t Topic) bool { return t.Topic == topic }), nil
 }
 
 // EncodeNewsMessageNewFormat produces the current CoinNews Story wire
@@ -572,11 +632,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 // ListPendingCoinNews returns the stories in the mempool, with the fee the
 // mempool gave. They have no ItemID: a comment needs a confirmed parent.
 func ListPendingCoinNews(ctx context.Context, db *sql.DB) ([]CoinNews, error) {
-	rows, err := database.Select[OPReturn](ctx, db, `
-		SELECT id, txid, vout, unhex(op_return_data) AS op_return_data, fee_sats, height, created_at
-		FROM op_returns
-		WHERE height IS NULL
-	`)
+	rows, err := listPendingOPReturns(ctx, db)
 	if err != nil {
 		return nil, fmt.Errorf("list pending coin news: %w", err)
 	}
