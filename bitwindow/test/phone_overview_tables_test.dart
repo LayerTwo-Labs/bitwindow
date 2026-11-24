@@ -86,7 +86,7 @@ void main() {
       SizedBox(
         width: width,
         height: 300,
-        child: GraffitiTable(entries: [graffiti()], onSort: (_) {}),
+        child: GraffitiTable(entries: [graffiti()], sortColumn: 'time', sortAscending: false, onSort: (_) {}),
       ),
     );
     await tester.pumpAndSettle();
