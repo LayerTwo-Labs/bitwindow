@@ -370,6 +370,7 @@ const WalletTransaction$json = {
     {'1': 'warning_message', '3': 10, '4': 1, '5': 9, '10': 'warningMessage'},
     {'1': 'immature', '3': 11, '4': 1, '5': 8, '10': 'immature'},
     {'1': 'deposit_request', '3': 12, '4': 1, '5': 11, '6': '.wallet.v1.DepositRequest', '10': 'depositRequest'},
+    {'1': 'confirmations', '3': 13, '4': 1, '5': 13, '10': 'confirmations'},
   ],
 };
 
@@ -383,7 +384,8 @@ final $typed_data.Uint8List walletTransactionDescriptor =
         '9uUhBjb25maXJtYXRpb25UaW1lEioKB2JtbV9iaWQYCSABKAsyES53YWxsZXQudjEuQm1tQmlk'
         'UgZibW1CaWQSJwoPd2FybmluZ19tZXNzYWdlGAogASgJUg53YXJuaW5nTWVzc2FnZRIaCghpbW'
         '1hdHVyZRgLIAEoCFIIaW1tYXR1cmUSQgoPZGVwb3NpdF9yZXF1ZXN0GAwgASgLMhkud2FsbGV0'
-        'LnYxLkRlcG9zaXRSZXF1ZXN0Ug5kZXBvc2l0UmVxdWVzdA==');
+        'LnYxLkRlcG9zaXRSZXF1ZXN0Ug5kZXBvc2l0UmVxdWVzdBIkCg1jb25maXJtYXRpb25zGA0gAS'
+        'gNUg1jb25maXJtYXRpb25z');
 
 @$core.Deprecated('Use depositRequestDescriptor instead')
 const DepositRequest$json = {

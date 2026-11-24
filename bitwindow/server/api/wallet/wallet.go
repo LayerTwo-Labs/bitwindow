@@ -38,8 +38,6 @@ import (
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/utxometadata"
 	service "github.com/LayerTwo-Labs/sidesail/bitwindow/server/service"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/signmessage"
-	validatorpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/mainchain/v1"
-	validatorrpc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/mainchain/v1/mainchainv1connect"
 	orchpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/walletmanager/v1"
 	orchwallet "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/wallet"
 )
@@ -49,7 +47,6 @@ var _ rpc.WalletServiceHandler = new(Server)
 func New(
 	database *sql.DB,
 	bitcoind *service.Service[corerpc.BitcoinServiceClient],
-	enforcer *service.Service[validatorrpc.ValidatorServiceClient],
 	chequeEngine *engines.ChequeEngine,
 	chequeChain engines.ChequeChain,
 	walletEngine *engines.WalletEngine,
@@ -60,7 +57,6 @@ func New(
 		database:     database,
 		chequeChain:  chequeChain,
 		bitcoind:     bitcoind,
-		enforcer:     enforcer,
 		chequeEngine: chequeEngine,
 		walletEngine: walletEngine,
 		backupEngine: engines.NewBackupEngine(database, walletDir, network),
@@ -71,7 +67,6 @@ func New(
 type Server struct {
 	database     *sql.DB
 	bitcoind     *service.Service[corerpc.BitcoinServiceClient]
-	enforcer     *service.Service[validatorrpc.ValidatorServiceClient]
 	chequeEngine *engines.ChequeEngine
 	chequeChain  engines.ChequeChain
 	walletEngine *engines.WalletEngine
@@ -357,7 +352,7 @@ func (s *Server) listTransactions(ctx context.Context, walletID string, includeC
 	}
 
 	if walletType == engines.WalletTypeElectrum {
-		return s.orchestratorTransactions(ctx, walletID, walletType, includeConflicted)
+		return s.orchestratorTransactions(ctx, walletID, includeConflicted)
 	}
 
 	coreWalletName, err := s.walletEngine.CoreWalletName(ctx, walletID)
@@ -405,6 +400,7 @@ func (s *Server) listTransactions(ctx context.Context, walletID string, includeC
 			row.address = tx.Details[0].Address
 		}
 		if tx.Confirmations > 0 {
+			row.confirmations = uint32(tx.Confirmations)
 			// BlockTime is always nil for ListTransactions in btc-buf, use Time or TimeReceived instead
 			timestamp := tx.Time
 			if timestamp == nil {
@@ -424,13 +420,11 @@ func (s *Server) listTransactions(ctx context.Context, walletID string, includeC
 
 // orchestratorTransactions lists the wallet history from the orchestrator,
 // the source of the history table, the UTXO list and the balance.
-func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, walletType engines.WalletType, includeConflicted bool) ([]*pb.WalletTransaction, error) {
+func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, includeConflicted bool) ([]*pb.WalletTransaction, error) {
 	entries, err := s.walletEngine.ListWalletTransactions(ctx, walletID)
 	if err != nil {
 		return nil, err
 	}
-
-	tip := s.tipHeight(ctx, walletType, lo.SomeBy(entries, func(t *orchpb.TransactionEntry) bool { return t.Confirmations > 0 }))
 
 	rows := make([]txRow, 0, len(entries))
 	for _, t := range entries {
@@ -451,8 +445,9 @@ func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, 
 			immature:   t.Category == "immature",
 		}
 		if t.Confirmations > 0 {
+			row.confirmations = uint32(t.Confirmations)
 			row.confirmation = &pb.Confirmation{
-				Height:    engines.ConfirmedHeight(tip, t.Confirmations),
+				Height:    t.BlockHeight,
 				Timestamp: &timestamppb.Timestamp{Seconds: t.BlockTime},
 			}
 		}
@@ -464,13 +459,14 @@ func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, 
 // txRow is one listtransactions entry. A transaction with more than one
 // output or input gives more than one row.
 type txRow struct {
-	txid         string
-	amountSats   int64
-	feeSats      uint64
-	address      string
-	label        string
-	confirmation *pb.Confirmation
-	immature     bool
+	txid          string
+	amountSats    int64
+	feeSats       uint64
+	address       string
+	label         string
+	confirmation  *pb.Confirmation
+	confirmations uint32
+	immature      bool
 }
 
 // mergeTxRows gives one transaction per txid, in the order of the first row.
@@ -486,6 +482,7 @@ func mergeTxRows(rows []txRow) []*pb.WalletTransaction {
 				Address:          r.address,
 				AddressLabel:     r.label,
 				ConfirmationTime: r.confirmation,
+				Confirmations:    r.confirmations,
 			}
 			byTxid[r.txid] = tx
 			out = append(out, tx)
@@ -502,19 +499,6 @@ func mergeTxRows(rows []txRow) []*pb.WalletTransaction {
 	return out
 }
 
-// tipHeight reads the tip from the chain source of the wallet type.
-func (s *Server) tipHeight(ctx context.Context, walletType engines.WalletType, anyConfirmed bool) int32 {
-	if walletType == engines.WalletTypeElectrum {
-		return s.enforcerTipHeight(ctx, anyConfirmed)
-	}
-	bitcoind, err := s.bitcoind.Get(ctx)
-	if err != nil {
-		zerolog.Ctx(ctx).Warn().Err(err).Msg("list transactions: no block heights, bitcoind is down")
-		return 0
-	}
-	return coreTipHeight(ctx, bitcoind, anyConfirmed)
-}
-
 // A failed tip read gives no block heights; the transaction list must not depend on it.
 func coreTipHeight(ctx context.Context, bitcoind corerpc.BitcoinServiceClient, anyConfirmed bool) int32 {
 	if !anyConfirmed {
@@ -526,24 +510,6 @@ func coreTipHeight(ctx context.Context, bitcoind corerpc.BitcoinServiceClient, a
 		return 0
 	}
 	return int32(info.Msg.Blocks)
-}
-
-// A down enforcer gives no block heights; the transaction list must not depend on it.
-func (s *Server) enforcerTipHeight(ctx context.Context, anyConfirmed bool) int32 {
-	if !anyConfirmed {
-		return 0
-	}
-	enforcer, err := s.enforcer.Get(ctx)
-	if err != nil {
-		zerolog.Ctx(ctx).Warn().Err(err).Msg("list transactions: no block heights, enforcer is down")
-		return 0
-	}
-	resp, err := enforcer.GetChainTip(ctx, &validatorpb.GetChainTipRequest{})
-	if err != nil {
-		zerolog.Ctx(ctx).Warn().Err(err).Msg("list transactions: no block heights, get chain tip")
-		return 0
-	}
-	return int32(resp.BlockHeaderInfo.GetHeight())
 }
 
 // ListSidechainDeposits implements walletv1connect.WalletServiceHandler.
@@ -942,11 +908,7 @@ func (s *Server) GetStats(ctx context.Context, c *pb.GetStatsRequest) (*pb.GetSt
 	}
 	uniqueAddressCount := uint64(len(addressSet))
 
-	walletType, err := s.walletEngine.GetWalletBackendType(ctx, walletID)
-	if err != nil {
-		return nil, fmt.Errorf("get wallet type: %w", err)
-	}
-	txs, err := s.orchestratorTransactions(ctx, walletID, walletType, false)
+	txs, err := s.orchestratorTransactions(ctx, walletID, false)
 	if err != nil {
 		return nil, err
 	}

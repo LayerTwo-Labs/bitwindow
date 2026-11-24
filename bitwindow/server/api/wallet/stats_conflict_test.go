@@ -37,12 +37,9 @@ func (coreStatsOrchestrator) GetSidechainDepositTotals(context.Context, *orchpb.
 	return &orchpb.GetSidechainDepositTotalsResponse{}, nil
 }
 
-func coreStats(t *testing.T, tip uint32, txs []*orchpb.TransactionEntry, utxos []*orchpb.UnspentOutput) *walletpb.GetStatsResponse {
+func coreStats(t *testing.T, txs []*orchpb.TransactionEntry, utxos []*orchpb.UnspentOutput) *walletpb.GetStatsResponse {
 	t.Helper()
 	core := mocks.NewMockBitcoinServiceClient(gomock.NewController(t))
-	if tip > 0 {
-		expectCoreTip(core, tip)
-	}
 	apitests.ExpectCoreWalletSetup(core)
 	orch := coreStatsOrchestrator{
 		WalletManagerServiceClient: apitests.OpenWallet(apitests.CoreWalletOrchestrator(t), &orchpb.WalletMetadata{Id: testWalletID, WalletType: orchpb.WalletType_WALLET_TYPE_BITCOIN_CORE}),
@@ -57,7 +54,7 @@ func coreStats(t *testing.T, tip uint32, txs []*orchpb.TransactionEntry, utxos [
 
 func TestStatsCountTheRowsOfTheHistory(t *testing.T) {
 	t.Run("a replaced send counts no fee and no transaction", func(t *testing.T) {
-		response := coreStats(t, 0, []*orchpb.TransactionEntry{
+		response := coreStats(t, []*orchpb.TransactionEntry{
 			{Txid: "replaced", Category: "send", AmountSats: -50_000_000, Fee: -0.00000282, ReplacedByTxid: true},
 			{Txid: "replacement", Category: "send", AmountSats: -50_000_000, Fee: -0.0000282},
 			{Txid: "conflicted", Category: "send", AmountSats: -1_000, Fee: -0.00000100, Confirmations: -1},
@@ -67,7 +64,7 @@ func TestStatsCountTheRowsOfTheHistory(t *testing.T) {
 	})
 
 	t.Run("unconfirmed change counts as a UTXO", func(t *testing.T) {
-		response := coreStats(t, 0, nil, []*orchpb.UnspentOutput{
+		response := coreStats(t, nil, []*orchpb.UnspentOutput{
 			{Txid: "send", Vout: 1, Address: "bcrt1qchange", AmountSats: 4_949_999_718},
 		})
 		assert.Equal(t, uint64(1), response.UtxosCurrent)
@@ -77,10 +74,10 @@ func TestStatsCountTheRowsOfTheHistory(t *testing.T) {
 
 func TestStatsLastActivityIsTheNewestBlock(t *testing.T) {
 	const sameTime = int64(1795035587)
-	response := coreStats(t, 100, []*orchpb.TransactionEntry{
-		{Txid: "block-98", Category: "generate", AmountSats: 5_000_000_000, Confirmations: 3, BlockTime: sameTime},
-		{Txid: "block-99", Category: "generate", AmountSats: 5_000_000_000, Confirmations: 2, BlockTime: sameTime},
-		{Txid: "block-100", Category: "immature", AmountSats: 5_000_000_000, Confirmations: 1, BlockTime: sameTime},
+	response := coreStats(t, []*orchpb.TransactionEntry{
+		{Txid: "block-98", Category: "generate", AmountSats: 5_000_000_000, Confirmations: 3, BlockHeight: 98, BlockTime: sameTime},
+		{Txid: "block-99", Category: "generate", AmountSats: 5_000_000_000, Confirmations: 2, BlockHeight: 99, BlockTime: sameTime},
+		{Txid: "block-100", Category: "immature", AmountSats: 5_000_000_000, Confirmations: 1, BlockHeight: 100, BlockTime: sameTime},
 	}, nil)
 	assert.Equal(t, uint32(100), response.LastTxBlockHeight)
 	assert.Equal(t, sameTime, response.LastTxAt.Seconds)

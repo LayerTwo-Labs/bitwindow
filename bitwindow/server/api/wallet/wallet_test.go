@@ -38,7 +38,6 @@ import (
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/preferences"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/tests/apitests"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/tests/mocks"
-	mainchainv1 "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/mainchain/v1"
 	orchpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/walletmanager/v1"
 )
 
@@ -1333,6 +1332,7 @@ func TestListTransactions(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, resp.Transactions, 1)
 		assert.Equal(t, uint32(298), resp.Transactions[0].ConfirmationTime.Height)
+		assert.Equal(t, uint32(3), resp.Transactions[0].Confirmations)
 	})
 
 	t.Run("a failed core tip read gives no heights and no error", func(t *testing.T) {
@@ -1398,16 +1398,6 @@ func (s *statsOrchestrator) GetSidechainDepositTotals(
 	context.Context, *orchpb.GetSidechainDepositTotalsRequest,
 ) (*orchpb.GetSidechainDepositTotalsResponse, error) {
 	return &orchpb.GetSidechainDepositTotalsResponse{TotalSats: 7, RecentSats: 3}, nil
-}
-
-func chainTipValidator(t *testing.T, height uint32) *mocks.MockValidatorServiceClient {
-	validator := mocks.NewMockValidatorServiceClient(gomock.NewController(t))
-	validator.EXPECT().
-		GetChainTip(gomock.Any(), gomock.Any()).
-		Return(&mainchainv1.GetChainTipResponse{
-			BlockHeaderInfo: &mainchainv1.BlockHeaderInfo{Height: height},
-		}, nil)
-	return validator
 }
 
 func TestGetUTXODistribution(t *testing.T) {
@@ -1487,8 +1477,8 @@ func TestGetStats(t *testing.T) {
 		orchestrator := &statsOrchestrator{
 			fakeOrchestrator: &fakeOrchestrator{address: address},
 			transactions: []*orchpb.TransactionEntry{
-				{Txid: "old", Address: address, AmountSats: 1_000, Confirmations: 10, BlockTime: blockTime - 600},
-				{Txid: "new", Address: address, AmountSats: -500, Fee: 0.00000200, Confirmations: 3, BlockTime: blockTime},
+				{Txid: "old", Address: address, AmountSats: 1_000, Confirmations: 10, BlockHeight: 91, BlockTime: blockTime - 600},
+				{Txid: "new", Address: address, AmountSats: -500, Fee: 0.00000200, Confirmations: 3, BlockHeight: 98, BlockTime: blockTime},
 				{Txid: "pending", Address: address, AmountSats: 100},
 			},
 			unspent: []*orchpb.UnspentOutput{
@@ -1496,8 +1486,7 @@ func TestGetStats(t *testing.T) {
 				{Txid: "pending", Vout: 1, Address: address, AmountSats: 100},
 			},
 		}
-		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t),
-			apitests.WithOrchestrator(orchestrator), apitests.WithValidator(chainTipValidator(t, 100))))
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(orchestrator)))
 
 		resp, err := cli.GetStats(t.Context(), &walletv1.GetStatsRequest{WalletId: testWalletID})
 		require.NoError(t, err)
@@ -1509,28 +1498,6 @@ func TestGetStats(t *testing.T) {
 		assert.Equal(t, int64(200), resp.TotalFeesSats)
 		assert.Equal(t, int64(7), resp.SidechainDepositVolume)
 		assert.Equal(t, int64(3), resp.SidechainDepositVolumeLast_30Days)
-	})
-
-	t.Run("a down enforcer gives stats with no block height", func(t *testing.T) {
-		t.Parallel()
-
-		orchestrator := &statsOrchestrator{
-			fakeOrchestrator: &fakeOrchestrator{address: address},
-			transactions: []*orchpb.TransactionEntry{
-				{Txid: "new", Address: address, AmountSats: 1_000, Confirmations: 3, BlockTime: blockTime},
-			},
-		}
-		validator := mocks.NewMockValidatorServiceClient(gomock.NewController(t))
-		validator.EXPECT().
-			GetChainTip(gomock.Any(), gomock.Any()).
-			Return(nil, connect.NewError(connect.CodeUnavailable, "enforcer restarts"))
-		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t),
-			apitests.WithOrchestrator(orchestrator), apitests.WithValidator(validator)))
-
-		resp, err := cli.GetStats(t.Context(), &walletv1.GetStatsRequest{WalletId: testWalletID})
-		require.NoError(t, err)
-		assert.Equal(t, uint32(0), resp.LastTxBlockHeight)
-		assert.Equal(t, int64(1), resp.TransactionCountTotal)
 	})
 }
 
