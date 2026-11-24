@@ -267,15 +267,18 @@ func (s *Server) ListTopics(ctx context.Context, req *emptypb.Empty) (*miscv1.Li
 }
 
 func topicToProto(topic opreturns.Topic, _ int) *miscv1.Topic {
-	return &miscv1.Topic{
+	out := &miscv1.Topic{
 		Id:            topic.ID,
 		Topic:         topic.Topic.String(),
 		Name:          topic.Name,
-		CreateTime:    timestamppb.New(topic.CreatedAt),
 		Confirmed:     topic.Confirmed,
 		Txid:          topic.Txid,
 		RetentionDays: topic.RetentionDays,
 	}
+	if !topic.CreatedAt.IsZero() {
+		out.CreateTime = timestamppb.New(topic.CreatedAt)
+	}
+	return out
 }
 
 // coinNewsPerTopic is the number of stories ListCoinNews returns for each topic.
