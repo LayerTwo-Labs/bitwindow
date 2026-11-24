@@ -32,6 +32,9 @@ class _FakeTransactions extends ChangeNotifier implements TransactionProvider {
   ];
 
   @override
+  String? error;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -44,6 +47,9 @@ class _FakeCoinSelection extends ChangeNotifier implements CoinSelectionProvider
 
   @override
   Set<String> get frozenOutpoints => {};
+
+  @override
+  String? error;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -171,5 +177,16 @@ void main() {
     expect(plan.left, greaterThan(limit.right));
     expect(tester.widget<SailSlider>(find.byType(SailSlider)).showSteps, isTrue);
     expect(find.text('1 of 2'), findsOneWidget);
+  });
+
+  testWidgets('the Coins card shows a failed read', (tester) async {
+    await _pump(tester, phone: false);
+    expect(find.textContaining('connection refused'), findsNothing);
+
+    (GetIt.I<TransactionProvider>() as _FakeTransactions)
+      ..error = 'list unspent: connection refused'
+      ..notifyListeners();
+    await tester.pump();
+    expect(find.textContaining('connection refused'), findsOneWidget);
   });
 }

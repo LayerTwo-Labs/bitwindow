@@ -16,6 +16,9 @@ class _Transactions extends ChangeNotifier implements TransactionProvider {
   List<UnspentOutput> utxos = [];
 
   @override
+  String? error;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

@@ -74,7 +74,8 @@ class CoinSelectionProvider extends ChangeNotifier {
       final newMetadata = results[0] as Map<String, pb.UTXOMetadata>;
       final newStrategy = _fromProto(results[1] as pb.CoinSelectionStrategy);
 
-      bool changed = false;
+      bool changed = error != null;
+      error = null;
       if (!mapEquals(_metadata, newMetadata)) {
         _metadata = newMetadata;
         changed = true;

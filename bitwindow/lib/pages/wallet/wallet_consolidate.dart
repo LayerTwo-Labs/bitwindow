@@ -72,6 +72,9 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
 
   List<UnspentOutput> get _coins => _txProvider.utxos;
 
+  /// Why the coins or their freeze marks did not read. The plan then uses the last good read.
+  String? get _readError => _txProvider.error ?? _coinSelection.error;
+
   bool _isLocked(String outpoint) => _drafts.lockedOutpoints.contains(outpoint);
 
   /// A frozen coin, or a coin a saved transaction spends. No consolidation takes one.
@@ -302,6 +305,7 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
       return SailCard(
         title: 'Coins',
         subtitle: '${_selectedCoins.length} of ${_coins.length} coins selected',
+        error: _readError,
         child: SailColumn(
           spacing: SailStyleValues.padding08,
           children: [
@@ -335,6 +339,7 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
     return SailCard(
       title: 'Coins',
       subtitle: '${_selectedCoins.length} of ${_coins.length} coins selected',
+      error: _readError,
       bottomPadding: false,
       widgetHeaderEnd: SailRow(
         spacing: SailStyleValues.padding08,

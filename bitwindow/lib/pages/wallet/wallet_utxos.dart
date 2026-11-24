@@ -393,6 +393,7 @@ class _UTXOTableState extends State<UTXOTable> {
 
     return SailCard(
       title: 'Your UTXOs',
+      error: widget.model.readError,
       bottomPadding: false,
       widgetHeaderEnd: SailCheckbox(
         value: hideFrozen,
@@ -543,6 +544,7 @@ class _UTXOTableState extends State<UTXOTable> {
 /// - Consolidation sendTransaction: MOVED to orchestrator shared wallet RPC
 class LatestUTXOsViewModel extends BaseViewModel with ChangeTrackingMixin {
   final TransactionProvider _txProvider = GetIt.I<TransactionProvider>();
+  final CoinSelectionProvider _coinSelection = GetIt.I<CoinSelectionProvider>();
   final EnforcerRPC _enforcerRPC = GetIt.I<EnforcerRPC>();
 
   static final _loadingEntries = List<UnspentOutput>.unmodifiable([
@@ -594,19 +596,25 @@ class LatestUTXOsViewModel extends BaseViewModel with ChangeTrackingMixin {
   LatestUTXOsViewModel() {
     initChangeTracker();
     _txProvider.addListener(_onChange);
+    _coinSelection.addListener(_onChange);
   }
 
   void _onChange() {
     track('entriesss', entries);
     track('loading', loading);
+    track('readError', readError);
     notifyIfChanged();
   }
 
   bool get loading => _enforcerRPC.initializingBinary;
 
+  /// Why the coins or their freeze marks did not read. The rows then show the last good read.
+  String? get readError => _txProvider.error ?? _coinSelection.error;
+
   @override
   void dispose() {
     _txProvider.removeListener(_onChange);
+    _coinSelection.removeListener(_onChange);
     super.dispose();
   }
 

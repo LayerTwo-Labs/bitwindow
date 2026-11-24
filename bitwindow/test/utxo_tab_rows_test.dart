@@ -147,4 +147,19 @@ void main() {
     expect(find.descendant(of: chart, matching: find.text('2 UTXOs')), findsOneWidget);
     expect(find.descendant(of: chart, matching: find.text('1 UTXO')), findsOneWidget);
   });
+
+  testWidgets('the UTXO card shows a failed read over the last rows', (tester) async {
+    transactions.utxos = [_coin(1)];
+
+    await tester.pumpSailPage(const Column(children: [Expanded(child: UTXOsTab())]));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('connection refused'), findsNothing);
+
+    transactions.error = 'list unspent: connection refused';
+    transactions.notifyListeners();
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('connection refused'), findsOneWidget);
+    expect(find.text("m/84'/1'/0'/0/1"), findsOneWidget, reason: 'the last good rows stay');
+  });
 }
