@@ -1400,65 +1400,6 @@ func (s *statsOrchestrator) GetSidechainDepositTotals(
 	return &orchpb.GetSidechainDepositTotalsResponse{TotalSats: 7, RecentSats: 3}, nil
 }
 
-func TestGetUTXODistribution(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name       string
-		values     []int64
-		maxBuckets int32
-		want       []*walletv1.UTXOBucket
-	}{
-		{
-			name:   "values below 0.0001 get exact labels",
-			values: []int64{546, 999, 1_000, 4_999, 9_999},
-			want: []*walletv1.UTXOBucket{
-				{Label: "0.00000546 - 0.00000999", ValueSats: 1_545, Count: 2},
-				{Label: "0.00001 - 0.00004999", ValueSats: 5_999, Count: 2},
-				{Label: "0.00005 - 0.00009999", ValueSats: 9_999, Count: 1},
-			},
-		},
-		{
-			name:   "one value is one bucket",
-			values: []int64{100_000_000},
-			want:   []*walletv1.UTXOBucket{{Label: "1.0 - 1.0", ValueSats: 100_000_000, Count: 1}},
-		},
-		{
-			name:       "a wide range keeps to the bucket cap",
-			values:     []int64{546, 50_000, 1_000_000_000},
-			maxBuckets: 3,
-			want: []*walletv1.UTXOBucket{
-				{Label: "0.00000546 - 0.00000999", ValueSats: 546, Count: 1},
-				{Label: "0.00001 - 0.010", ValueSats: 50_000, Count: 1},
-				{Label: "0.01 - 10.0", ValueSats: 1_000_000_000, Count: 1},
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			orchestrator := &statsOrchestrator{fakeOrchestrator: &fakeOrchestrator{}}
-			for i, v := range tt.values {
-				orchestrator.unspent = append(orchestrator.unspent, &orchpb.UnspentOutput{Txid: "tx", Vout: int32(i), Address: "bcrt1q", AmountSats: v})
-			}
-			cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(orchestrator)))
-
-			resp, err := cli.GetUTXODistribution(t.Context(), &walletv1.GetUTXODistributionRequest{
-				WalletId:   testWalletID,
-				MaxBuckets: tt.maxBuckets,
-			})
-			require.NoError(t, err)
-			require.Len(t, resp.Buckets, len(tt.want))
-			for i, want := range tt.want {
-				got := resp.Buckets[i]
-				assert.Equal(t, want.Label, got.Label)
-				assert.Equal(t, want.ValueSats, got.ValueSats)
-				assert.Equal(t, want.Count, got.Count)
-			}
-		})
-	}
-}
-
 func expectCoreTip(mock *mocks.MockBitcoinServiceClient, height uint32) {
 	mock.EXPECT().
 		GetBlockchainInfo(gomock.Any(), gomock.Any()).

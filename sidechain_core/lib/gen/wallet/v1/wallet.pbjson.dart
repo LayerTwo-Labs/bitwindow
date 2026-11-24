@@ -1093,50 +1093,6 @@ final $typed_data.Uint8List transactionOutputDescriptor =
         'B1YmtleUFzbRIqChFzY3JpcHRfcHVia2V5X2hleBgGIAEoCVIPc2NyaXB0UHVia2V5SGV4EhsK'
         'CWlzX2NoYW5nZRgHIAEoCFIIaXNDaGFuZ2USFwoHaXNfbWluZRgIIAEoCFIGaXNNaW5l');
 
-@$core.Deprecated('Use getUTXODistributionRequestDescriptor instead')
-const GetUTXODistributionRequest$json = {
-  '1': 'GetUTXODistributionRequest',
-  '2': [
-    {'1': 'wallet_id', '3': 1, '4': 1, '5': 9, '10': 'walletId'},
-    {'1': 'max_buckets', '3': 2, '4': 1, '5': 5, '10': 'maxBuckets'},
-  ],
-};
-
-/// Descriptor for `GetUTXODistributionRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List getUTXODistributionRequestDescriptor =
-    $convert.base64Decode('ChpHZXRVVFhPRGlzdHJpYnV0aW9uUmVxdWVzdBIbCgl3YWxsZXRfaWQYASABKAlSCHdhbGxldE'
-        'lkEh8KC21heF9idWNrZXRzGAIgASgFUgptYXhCdWNrZXRz');
-
-@$core.Deprecated('Use getUTXODistributionResponseDescriptor instead')
-const GetUTXODistributionResponse$json = {
-  '1': 'GetUTXODistributionResponse',
-  '2': [
-    {'1': 'buckets', '3': 1, '4': 3, '5': 11, '6': '.wallet.v1.UTXOBucket', '10': 'buckets'},
-  ],
-};
-
-/// Descriptor for `GetUTXODistributionResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List getUTXODistributionResponseDescriptor =
-    $convert.base64Decode('ChtHZXRVVFhPRGlzdHJpYnV0aW9uUmVzcG9uc2USLwoHYnVja2V0cxgBIAMoCzIVLndhbGxldC'
-        '52MS5VVFhPQnVja2V0UgdidWNrZXRz');
-
-@$core.Deprecated('Use uTXOBucketDescriptor instead')
-const UTXOBucket$json = {
-  '1': 'UTXOBucket',
-  '2': [
-    {'1': 'label', '3': 1, '4': 1, '5': 9, '10': 'label'},
-    {'1': 'value_sats', '3': 2, '4': 1, '5': 3, '10': 'valueSats'},
-    {'1': 'count', '3': 3, '4': 1, '5': 5, '10': 'count'},
-    {'1': 'outpoints', '3': 4, '4': 3, '5': 9, '10': 'outpoints'},
-  ],
-};
-
-/// Descriptor for `UTXOBucket`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List uTXOBucketDescriptor =
-    $convert.base64Decode('CgpVVFhPQnVja2V0EhQKBWxhYmVsGAEgASgJUgVsYWJlbBIdCgp2YWx1ZV9zYXRzGAIgASgDUg'
-        'l2YWx1ZVNhdHMSFAoFY291bnQYAyABKAVSBWNvdW50EhwKCW91dHBvaW50cxgEIAMoCVIJb3V0'
-        'cG9pbnRz');
-
 @$core.Deprecated('Use bumpFeeRequestDescriptor instead')
 const BumpFeeRequest$json = {
   '1': 'BumpFeeRequest',
@@ -1324,11 +1280,6 @@ const $core.Map<$core.String, $core.dynamic> WalletServiceBase$json = {
       '2': '.wallet.v1.GetTransactionDetailsRequest',
       '3': '.wallet.v1.GetTransactionDetailsResponse'
     },
-    {
-      '1': 'GetUTXODistribution',
-      '2': '.wallet.v1.GetUTXODistributionRequest',
-      '3': '.wallet.v1.GetUTXODistributionResponse'
-    },
     {'1': 'BumpFee', '2': '.wallet.v1.BumpFeeRequest', '3': '.wallet.v1.BumpFeeResponse'},
     {'1': 'SelectCoins', '2': '.wallet.v1.SelectCoinsRequest', '3': '.wallet.v1.SelectCoinsResponse'},
     {'1': 'CreateBackup', '2': '.google.protobuf.Empty', '3': '.wallet.v1.CreateBackupResponse'},
@@ -1401,9 +1352,6 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> WalletServ
   '.wallet.v1.GetTransactionDetailsResponse': GetTransactionDetailsResponse$json,
   '.wallet.v1.TransactionInput': TransactionInput$json,
   '.wallet.v1.TransactionOutput': TransactionOutput$json,
-  '.wallet.v1.GetUTXODistributionRequest': GetUTXODistributionRequest$json,
-  '.wallet.v1.GetUTXODistributionResponse': GetUTXODistributionResponse$json,
-  '.wallet.v1.UTXOBucket': UTXOBucket$json,
   '.wallet.v1.BumpFeeRequest': BumpFeeRequest$json,
   '.wallet.v1.BumpFeeResponse': BumpFeeResponse$json,
   '.wallet.v1.SelectCoinsRequest': SelectCoinsRequest$json,
@@ -1457,13 +1405,11 @@ final $typed_data.Uint8List walletServiceDescriptor =
         'b2J1Zi5FbXB0eRJfChhHZXRDb2luU2VsZWN0aW9uU3RyYXRlZ3kSFi5nb29nbGUucHJvdG9idW'
         'YuRW1wdHkaKy53YWxsZXQudjEuR2V0Q29pblNlbGVjdGlvblN0cmF0ZWd5UmVzcG9uc2USagoV'
         'R2V0VHJhbnNhY3Rpb25EZXRhaWxzEicud2FsbGV0LnYxLkdldFRyYW5zYWN0aW9uRGV0YWlsc1'
-        'JlcXVlc3QaKC53YWxsZXQudjEuR2V0VHJhbnNhY3Rpb25EZXRhaWxzUmVzcG9uc2USZAoTR2V0'
-        'VVRYT0Rpc3RyaWJ1dGlvbhIlLndhbGxldC52MS5HZXRVVFhPRGlzdHJpYnV0aW9uUmVxdWVzdB'
-        'omLndhbGxldC52MS5HZXRVVFhPRGlzdHJpYnV0aW9uUmVzcG9uc2USQAoHQnVtcEZlZRIZLndh'
-        'bGxldC52MS5CdW1wRmVlUmVxdWVzdBoaLndhbGxldC52MS5CdW1wRmVlUmVzcG9uc2USTAoLU2'
-        'VsZWN0Q29pbnMSHS53YWxsZXQudjEuU2VsZWN0Q29pbnNSZXF1ZXN0Gh4ud2FsbGV0LnYxLlNl'
-        'bGVjdENvaW5zUmVzcG9uc2USRwoMQ3JlYXRlQmFja3VwEhYuZ29vZ2xlLnByb3RvYnVmLkVtcH'
-        'R5Gh8ud2FsbGV0LnYxLkNyZWF0ZUJhY2t1cFJlc3BvbnNlEkgKDVJlc3RvcmVCYWNrdXASHy53'
-        'YWxsZXQudjEuUmVzdG9yZUJhY2t1cFJlcXVlc3QaFi5nb29nbGUucHJvdG9idWYuRW1wdHkSVQ'
-        'oOVmFsaWRhdGVCYWNrdXASIC53YWxsZXQudjEuVmFsaWRhdGVCYWNrdXBSZXF1ZXN0GiEud2Fs'
-        'bGV0LnYxLlZhbGlkYXRlQmFja3VwUmVzcG9uc2U=');
+        'JlcXVlc3QaKC53YWxsZXQudjEuR2V0VHJhbnNhY3Rpb25EZXRhaWxzUmVzcG9uc2USQAoHQnVt'
+        'cEZlZRIZLndhbGxldC52MS5CdW1wRmVlUmVxdWVzdBoaLndhbGxldC52MS5CdW1wRmVlUmVzcG'
+        '9uc2USTAoLU2VsZWN0Q29pbnMSHS53YWxsZXQudjEuU2VsZWN0Q29pbnNSZXF1ZXN0Gh4ud2Fs'
+        'bGV0LnYxLlNlbGVjdENvaW5zUmVzcG9uc2USRwoMQ3JlYXRlQmFja3VwEhYuZ29vZ2xlLnByb3'
+        'RvYnVmLkVtcHR5Gh8ud2FsbGV0LnYxLkNyZWF0ZUJhY2t1cFJlc3BvbnNlEkgKDVJlc3RvcmVC'
+        'YWNrdXASHy53YWxsZXQudjEuUmVzdG9yZUJhY2t1cFJlcXVlc3QaFi5nb29nbGUucHJvdG9idW'
+        'YuRW1wdHkSVQoOVmFsaWRhdGVCYWNrdXASIC53YWxsZXQudjEuVmFsaWRhdGVCYWNrdXBSZXF1'
+        'ZXN0GiEud2FsbGV0LnYxLlZhbGlkYXRlQmFja3VwUmVzcG9uc2U=');

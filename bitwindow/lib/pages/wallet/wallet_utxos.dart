@@ -28,7 +28,7 @@ class _UTXOsTabState extends State<UTXOsTab> {
   ConsolidationProvider get _consolidation => GetIt.I<ConsolidationProvider>();
   WalletReaderProvider get _walletReader => GetIt.I<WalletReaderProvider>();
 
-  void _showBucketContextMenu(BuildContext context, UTXOBucket bucket, Offset position) {
+  void _showBucketContextMenu(BuildContext context, UtxoBucket bucket, Offset position) {
     final isSingleUtxo = bucket.count == 1;
     final outpoint = isSingleUtxo ? bucket.outpoints.first : null;
 
@@ -127,7 +127,7 @@ class _UTXOsTabState extends State<UTXOsTab> {
                                 },
                               )
                             : UTXODistributionChart(
-                                walletId: walletId,
+                                utxos: model.entries,
                                 onBucketContextMenu: (bucket, position) {
                                   _showBucketContextMenu(context, bucket, position);
                                 },

@@ -56,8 +56,6 @@ abstract class WalletServiceBase extends $pb.GeneratedService {
   $async.Future<$3.GetCoinSelectionStrategyResponse> getCoinSelectionStrategy($pb.ServerContext ctx, $2.Empty request);
   $async.Future<$3.GetTransactionDetailsResponse> getTransactionDetails(
       $pb.ServerContext ctx, $3.GetTransactionDetailsRequest request);
-  $async.Future<$3.GetUTXODistributionResponse> getUTXODistribution(
-      $pb.ServerContext ctx, $3.GetUTXODistributionRequest request);
   $async.Future<$3.BumpFeeResponse> bumpFee($pb.ServerContext ctx, $3.BumpFeeRequest request);
   $async.Future<$3.SelectCoinsResponse> selectCoins($pb.ServerContext ctx, $3.SelectCoinsRequest request);
   $async.Future<$3.CreateBackupResponse> createBackup($pb.ServerContext ctx, $2.Empty request);
@@ -120,8 +118,6 @@ abstract class WalletServiceBase extends $pb.GeneratedService {
         return $2.Empty();
       case 'GetTransactionDetails':
         return $3.GetTransactionDetailsRequest();
-      case 'GetUTXODistribution':
-        return $3.GetUTXODistributionRequest();
       case 'BumpFee':
         return $3.BumpFeeRequest();
       case 'SelectCoins':
@@ -194,8 +190,6 @@ abstract class WalletServiceBase extends $pb.GeneratedService {
         return getCoinSelectionStrategy(ctx, request as $2.Empty);
       case 'GetTransactionDetails':
         return getTransactionDetails(ctx, request as $3.GetTransactionDetailsRequest);
-      case 'GetUTXODistribution':
-        return getUTXODistribution(ctx, request as $3.GetUTXODistributionRequest);
       case 'BumpFee':
         return bumpFee(ctx, request as $3.BumpFeeRequest);
       case 'SelectCoins':

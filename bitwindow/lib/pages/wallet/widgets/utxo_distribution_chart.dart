@@ -1,18 +1,100 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/widgets.dart';
-import 'package:get_it/get_it.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+/// A group of coins in one value range.
+class UtxoBucket {
+  /// The value range without a unit, for example "0.005 - 0.010".
+  final String label;
+  int valueSats = 0;
+  int count = 0;
+  final List<String> outpoints = [];
+
+  UtxoBucket(this.label);
+}
+
+const List<int> _distributionBounds = [
+  546,
+  1000,
+  5000,
+  10000,
+  50000,
+  100000,
+  500000,
+  1000000,
+  5000000,
+  10000000,
+  50000000,
+  100000000,
+  500000000,
+  1000000000,
+  5000000000,
+  10000000000,
+];
+
+/// The coins sorted into at most [maxBuckets] value ranges, smallest first. A range with no coins drops out.
+List<UtxoBucket> utxoDistribution(List<UnspentOutput> utxos, {int maxBuckets = 8}) {
+  if (utxos.isEmpty) {
+    return [];
+  }
+  final values = utxos.map((u) => u.valueSats.toInt());
+  final minSats = values.reduce(math.min);
+  final maxSats = values.reduce(math.max);
+
+  var bounds = _distributionBounds.where((b) => b > minSats && b < maxSats).toList();
+  if (bounds.length > maxBuckets - 1) {
+    final step = bounds.length / (maxBuckets - 1);
+    bounds = [for (var i = 0; i < maxBuckets - 1; i++) bounds[(i * step).floor()]];
+  }
+
+  final ranges = <(int, int)>[];
+  var lower = minSats;
+  for (final bound in bounds) {
+    ranges.add((lower, bound - 1));
+    lower = bound;
+  }
+  ranges.add((lower, maxSats));
+
+  final buckets = [for (final (low, high) in ranges) UtxoBucket('${_rangeValue(low)} - ${_rangeValue(high)}')];
+  for (final utxo in utxos) {
+    final sats = utxo.valueSats.toInt();
+    final bucket = buckets[ranges.indexWhere((r) => sats >= r.$1 && sats <= r.$2)];
+    bucket.valueSats += sats;
+    bucket.count++;
+    bucket.outpoints.add(utxo.output);
+  }
+  return buckets.where((b) => b.count > 0).toList();
+}
+
+String _rangeValue(int sats) {
+  final coins = sats / 100000000;
+  if (coins >= 1) {
+    return coins.toStringAsFixed(1);
+  }
+  if (coins >= 0.01) {
+    return coins.toStringAsFixed(2);
+  }
+  if (coins >= 0.001) {
+    return coins.toStringAsFixed(3);
+  }
+  if (coins >= 0.0001) {
+    return coins.toStringAsFixed(4);
+  }
+  return coins.toStringAsFixed(8).replaceFirst(RegExp(r'0+$'), '');
+}
+
 class UTXODistributionChart extends StatefulWidget {
-  final String walletId;
+  final List<UnspentOutput> utxos;
   final void Function(List<String> outpoints)? onBucketTap;
-  final void Function(UTXOBucket bucket, Offset position)? onBucketContextMenu;
-  final void Function(List<UTXOBucket> smallBuckets)? onConsolidate;
+  final void Function(UtxoBucket bucket, Offset position)? onBucketContextMenu;
+  final void Function(List<UtxoBucket> smallBuckets)? onConsolidate;
 
   const UTXODistributionChart({
     super.key,
-    required this.walletId,
+    required this.utxos,
     this.onBucketTap,
     this.onBucketContextMenu,
     this.onConsolidate,
@@ -23,77 +105,16 @@ class UTXODistributionChart extends StatefulWidget {
 }
 
 class _UTXODistributionChartState extends State<UTXODistributionChart> {
-  GetUTXODistributionResponse? _distribution;
-  bool _isLoading = true;
-  String? _error;
   int _touchedIndex = -1;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDistribution();
-  }
-
-  @override
-  void didUpdateWidget(UTXODistributionChart oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.walletId != oldWidget.walletId) {
-      _loadDistribution();
-    }
-  }
-
-  Future<void> _loadDistribution() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final rpc = GetIt.I<BitwindowRPC>();
-      final response = await rpc.wallet.getUTXODistribution(widget.walletId, maxBuckets: 8);
-      if (mounted) {
-        setState(() {
-          _distribution = response;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-
-    if (_isLoading) {
-      return SizedBox(
-        height: 180,
-        child: Center(
-          child: SailCircularProgressIndicator(color: theme.colors.text),
-        ),
-      );
-    }
-
-    if (_error != null) {
-      return SizedBox(
-        height: 180,
-        child: Center(
-          child: SailText.secondary12('Failed to load distribution'),
-        ),
-      );
-    }
-
-    if (_distribution == null || _distribution!.buckets.isEmpty) {
+    final buckets = utxoDistribution(widget.utxos);
+    if (buckets.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final buckets = _distribution!.buckets;
     final totalValue = buckets.fold<double>(0, (sum, b) => sum + b.valueSats.toDouble());
 
     // Find small UTXOs (less than 1% of total, or in "Other" bucket)
@@ -177,7 +198,7 @@ class _UTXODistributionChartState extends State<UTXODistributionChart> {
   }
 
   List<PieChartSectionData> _buildSections(
-    List<UTXOBucket> buckets,
+    List<UtxoBucket> buckets,
     double totalValue,
     SailThemeData theme,
   ) {
@@ -206,12 +227,12 @@ class _UTXODistributionChartState extends State<UTXODistributionChart> {
 }
 
 class _Legend extends StatelessWidget {
-  final List<UTXOBucket> buckets;
+  final List<UtxoBucket> buckets;
   final double totalValue;
   final int touchedIndex;
   final void Function(int) onTouchChange;
   final void Function(List<String> outpoints)? onBucketTap;
-  final void Function(UTXOBucket bucket, Offset position)? onBucketContextMenu;
+  final void Function(UtxoBucket bucket, Offset position)? onBucketContextMenu;
 
   const _Legend({
     required this.buckets,
@@ -293,8 +314,8 @@ const List<int> phoneBucketBounds = [100000, 1000000, 10000000, 100000000, 10000
 const List<String> phoneBucketLabels = ['<.001', '.001–.01', '.01–.1', '.1–1', '1–10', '>10'];
 
 /// The coins sorted into the six phone buckets, smallest first. A bucket with no coins stays in the list.
-List<UTXOBucket> phoneUtxoBuckets(List<UnspentOutput> utxos) {
-  final buckets = [for (final label in phoneBucketLabels) UTXOBucket(label: label)];
+List<UtxoBucket> phoneUtxoBuckets(List<UnspentOutput> utxos) {
+  final buckets = [for (final label in phoneBucketLabels) UtxoBucket(label)];
   for (final utxo in utxos) {
     final sats = utxo.valueSats.toInt();
     var index = phoneBucketBounds.indexWhere((bound) => sats < bound);
@@ -302,7 +323,7 @@ List<UTXOBucket> phoneUtxoBuckets(List<UnspentOutput> utxos) {
       index = phoneBucketBounds.length;
     }
     final bucket = buckets[index];
-    bucket.valueSats += utxo.valueSats;
+    bucket.valueSats += sats;
     bucket.count += 1;
     bucket.outpoints.add(utxo.output);
   }
@@ -312,7 +333,7 @@ List<UTXOBucket> phoneUtxoBuckets(List<UnspentOutput> utxos) {
 /// The phone form of the UTXO distribution: one bar per bucket, with the coin count above it.
 class UTXOPhoneBars extends StatelessWidget {
   final List<UnspentOutput> utxos;
-  final void Function(UTXOBucket bucket, Offset position)? onBucketContextMenu;
+  final void Function(UtxoBucket bucket, Offset position)? onBucketContextMenu;
 
   const UTXOPhoneBars({super.key, required this.utxos, this.onBucketContextMenu});
 

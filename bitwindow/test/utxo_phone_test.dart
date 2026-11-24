@@ -16,6 +16,9 @@ class _Transactions extends ChangeNotifier implements TransactionProvider {
   List<UnspentOutput> utxos = [];
 
   @override
+  String? error;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -34,6 +37,40 @@ void main() {
     await GetIt.I.reset();
   });
 
+  group('utxoDistribution', () {
+    List<UnspentOutput> coins(List<int> values) => [
+      for (var i = 0; i < values.length; i++) UnspentOutput(output: 'tx:$i', valueSats: Int64(values[i])),
+    ];
+    List<(String, int, int)> read(List<UtxoBucket> buckets) => [
+      for (final b in buckets) (b.label, b.valueSats, b.count),
+    ];
+
+    test('gives values below 0.0001 exact labels', () {
+      expect(read(utxoDistribution(coins([546, 999, 1000, 4999, 9999]))), [
+        ('0.00000546 - 0.00000999', 1545, 2),
+        ('0.00001 - 0.00004999', 5999, 2),
+        ('0.00005 - 0.00009999', 9999, 1),
+      ]);
+    });
+
+    test('puts one value in one bucket', () {
+      expect(read(utxoDistribution(coins([100000000]))), [('1.0 - 1.0', 100000000, 1)]);
+    });
+
+    test('keeps a wide range to the bucket cap', () {
+      expect(read(utxoDistribution(coins([546, 50000, 1000000000]), maxBuckets: 3)), [
+        ('0.00000546 - 0.00000999', 546, 1),
+        ('0.00001 - 0.010', 50000, 1),
+        ('0.01 - 10.0', 1000000000, 1),
+      ]);
+    });
+
+    test('names the outpoints of each bucket and reads no coin as no bucket', () {
+      expect(utxoDistribution(coins([1000, 2000])).single.outpoints, ['tx:0', 'tx:1']);
+      expect(utxoDistribution([]), isEmpty);
+    });
+  });
+
   group('phoneUtxoBuckets', () {
     UnspentOutput coin(String output, int sats) => UnspentOutput(output: output, valueSats: Int64(sats));
 
@@ -49,13 +86,13 @@ void main() {
       expect([for (final b in buckets) b.label], phoneBucketLabels);
       expect([for (final b in buckets) b.count], [1, 1, 0, 2, 0, 1]);
       expect(buckets[3].outpoints, ['c:0', 'd:0']);
-      expect(buckets[3].valueSats.toInt(), 110000000);
+      expect(buckets[3].valueSats, 110000000);
     });
   });
 
   testWidgets('the phone bars draw the count above each bar and the bucket label below', (tester) async {
     SailStyleValues.phoneLayoutOverride = true;
-    UTXOBucket? pressed;
+    UtxoBucket? pressed;
     await tester.pumpSailPage(
       SizedBox(
         width: 342,

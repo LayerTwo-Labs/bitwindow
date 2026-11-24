@@ -94,9 +94,6 @@ const (
 	// WalletServiceGetTransactionDetailsProcedure is the procedure name of the WalletService's
 	// GetTransactionDetails RPC.
 	WalletServiceGetTransactionDetailsProcedure = "/wallet.v1.WalletService/GetTransactionDetails"
-	// WalletServiceGetUTXODistributionProcedure is the procedure name of the WalletService's
-	// GetUTXODistribution RPC.
-	WalletServiceGetUTXODistributionProcedure = "/wallet.v1.WalletService/GetUTXODistribution"
 	// WalletServiceBumpFeeProcedure is the procedure name of the WalletService's BumpFee RPC.
 	WalletServiceBumpFeeProcedure = "/wallet.v1.WalletService/BumpFee"
 	// WalletServiceSelectCoinsProcedure is the procedure name of the WalletService's SelectCoins RPC.
@@ -301,13 +298,6 @@ var (
 			Procedure:  WalletServiceGetTransactionDetailsProcedure,
 		}
 	})
-	walletServiceGetUTXODistributionSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_wallet_v1_wallet_proto.Services().ByName("WalletService").Methods().ByName("GetUTXODistribution"),
-			Procedure:  WalletServiceGetUTXODistributionProcedure,
-		}
-	})
 	walletServiceBumpFeeSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -381,8 +371,6 @@ type WalletServiceClient interface {
 	GetCoinSelectionStrategy(context.Context, *emptypb.Empty) (*v1.GetCoinSelectionStrategyResponse, error)
 	// Transaction Details (enriched with input values/addresses)
 	GetTransactionDetails(context.Context, *v1.GetTransactionDetailsRequest) (*v1.GetTransactionDetailsResponse, error)
-	// UTXO Distribution (for chart visualization)
-	GetUTXODistribution(context.Context, *v1.GetUTXODistributionRequest) (*v1.GetUTXODistributionResponse, error)
 	// RBF - Replace-By-Fee for unconfirmed transactions
 	BumpFee(context.Context, *v1.BumpFeeRequest) (*v1.BumpFeeResponse, error)
 	// Coin Selection - Select UTXOs for a transaction
@@ -435,8 +423,6 @@ type WalletServiceHandler interface {
 	GetCoinSelectionStrategy(context.Context, *emptypb.Empty) (*v1.GetCoinSelectionStrategyResponse, error)
 	// Transaction Details (enriched with input values/addresses)
 	GetTransactionDetails(context.Context, *v1.GetTransactionDetailsRequest) (*v1.GetTransactionDetailsResponse, error)
-	// UTXO Distribution (for chart visualization)
-	GetUTXODistribution(context.Context, *v1.GetUTXODistributionRequest) (*v1.GetUTXODistributionResponse, error)
 	// RBF - Replace-By-Fee for unconfirmed transactions
 	BumpFee(context.Context, *v1.BumpFeeRequest) (*v1.BumpFeeResponse, error)
 	// Coin Selection - Select UTXOs for a transaction
@@ -479,7 +465,6 @@ func RegisterWalletServiceHandler(server *connect.Server, svc WalletServiceHandl
 		connect.Method{Spec: walletServiceSetCoinSelectionStrategySpec(), Handler: adapter.setCoinSelectionStrategy},
 		connect.Method{Spec: walletServiceGetCoinSelectionStrategySpec(), Handler: adapter.getCoinSelectionStrategy},
 		connect.Method{Spec: walletServiceGetTransactionDetailsSpec(), Handler: adapter.getTransactionDetails},
-		connect.Method{Spec: walletServiceGetUTXODistributionSpec(), Handler: adapter.getUTXODistribution},
 		connect.Method{Spec: walletServiceBumpFeeSpec(), Handler: adapter.bumpFee},
 		connect.Method{Spec: walletServiceSelectCoinsSpec(), Handler: adapter.selectCoins},
 		connect.Method{Spec: walletServiceCreateBackupSpec(), Handler: adapter.createBackup},
@@ -597,10 +582,6 @@ func (UnimplementedWalletServiceHandler) GetCoinSelectionStrategy(context.Contex
 
 func (UnimplementedWalletServiceHandler) GetTransactionDetails(context.Context, *v1.GetTransactionDetailsRequest) (*v1.GetTransactionDetailsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "wallet.v1.WalletService.GetTransactionDetails is not implemented")
-}
-
-func (UnimplementedWalletServiceHandler) GetUTXODistribution(context.Context, *v1.GetUTXODistributionRequest) (*v1.GetUTXODistributionResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "wallet.v1.WalletService.GetUTXODistribution is not implemented")
 }
 
 func (UnimplementedWalletServiceHandler) BumpFee(context.Context, *v1.BumpFeeRequest) (*v1.BumpFeeResponse, error) {
@@ -838,14 +819,6 @@ func (c *walletServiceClient) GetCoinSelectionStrategy(ctx context.Context, req 
 func (c *walletServiceClient) GetTransactionDetails(ctx context.Context, req *v1.GetTransactionDetailsRequest) (*v1.GetTransactionDetailsResponse, error) {
 	var res v1.GetTransactionDetailsResponse
 	if err := c.client.CallUnary(ctx, walletServiceGetTransactionDetailsSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *walletServiceClient) GetUTXODistribution(ctx context.Context, req *v1.GetUTXODistributionRequest) (*v1.GetUTXODistributionResponse, error) {
-	var res v1.GetUTXODistributionResponse
-	if err := c.client.CallUnary(ctx, walletServiceGetUTXODistributionSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1211,18 +1184,6 @@ func (h walletServiceHandler) getTransactionDetails(ctx context.Context, _ conne
 		return err
 	}
 	res, err := h.svc.GetTransactionDetails(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h walletServiceHandler) getUTXODistribution(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GetUTXODistributionRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.GetUTXODistribution(ctx, &req)
 	if err != nil {
 		return err
 	}

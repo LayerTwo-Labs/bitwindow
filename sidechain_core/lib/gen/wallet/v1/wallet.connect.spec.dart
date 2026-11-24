@@ -209,14 +209,6 @@ abstract final class WalletService {
     walletv1wallet.GetTransactionDetailsResponse.new,
   );
 
-  /// UTXO Distribution (for chart visualization)
-  static const getUTXODistribution = connect.Spec(
-    '/$name/GetUTXODistribution',
-    connect.StreamType.unary,
-    walletv1wallet.GetUTXODistributionRequest.new,
-    walletv1wallet.GetUTXODistributionResponse.new,
-  );
-
   /// RBF - Replace-By-Fee for unconfirmed transactions
   static const bumpFee = connect.Spec(
     '/$name/BumpFee',
