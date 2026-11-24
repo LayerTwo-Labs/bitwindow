@@ -84,6 +84,7 @@ func opReturnToProto(opReturn opreturns.OPReturn, _ int) *miscv1.OPReturn {
 		Vout:       opReturn.Vout,
 		Height:     height,
 		CreateTime: timestamppb.New(lo.FromPtr(opReturn.CreatedAt)),
+		FeeSats:    int64(opReturn.Fee),
 	}
 }
 

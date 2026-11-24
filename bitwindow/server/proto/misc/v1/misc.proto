@@ -36,6 +36,8 @@ message OPReturn {
   optional int32 height = 5;
 
   google.protobuf.Timestamp create_time = 7;
+  // Fee of the transaction in satoshis. Zero when the node gave no fee.
+  int64 fee_sats = 8;
 }
 
 message BroadcastNewsRequest {

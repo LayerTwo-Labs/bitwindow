@@ -60,6 +60,7 @@ func TestService_ListOPReturn(t *testing.T) {
 				TxID:   "txid1",
 				Vout:   0,
 				Data:   []byte("test message"),
+				Fee:    624,
 			},
 		})
 		require.NoError(t, err)
@@ -73,6 +74,7 @@ func TestService_ListOPReturn(t *testing.T) {
 		assert.Equal(t, "txid1", resp.OpReturns[0].Txid)
 		assert.EqualValues(t, 0, resp.OpReturns[0].Vout)
 		assert.EqualValues(t, 100, lo.FromPtr(resp.OpReturns[0].Height))
+		assert.EqualValues(t, 624, resp.OpReturns[0].FeeSats)
 	})
 }
 

@@ -80,6 +80,7 @@ class OPReturn extends $pb.GeneratedMessage {
     $core.int? vout,
     $core.int? height,
     $0.Timestamp? createTime,
+    $fixnum.Int64? feeSats,
   }) {
     final result = OPReturn._();
     if (id != null) result.id = id;
@@ -88,6 +89,7 @@ class OPReturn extends $pb.GeneratedMessage {
     if (vout != null) result.vout = vout;
     if (height != null) result.height = height;
     if (createTime != null) result.createTime = createTime;
+    if (feeSats != null) result.feeSats = feeSats;
     return result;
   }
 
@@ -107,6 +109,7 @@ class OPReturn extends $pb.GeneratedMessage {
     ..aI(4, _omitFieldNames ? '' : 'vout')
     ..aI(5, _omitFieldNames ? '' : 'height')
     ..aOM<$0.Timestamp>(7, _omitFieldNames ? '' : 'createTime', subBuilder: $0.Timestamp.$_createMessage)
+    ..aInt64(8, _omitFieldNames ? '' : 'feeSats')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -184,6 +187,16 @@ class OPReturn extends $pb.GeneratedMessage {
   void clearCreateTime() => $_clearField(7);
   @$pb.TagNumber(7)
   $0.Timestamp ensureCreateTime() => $_ensure(5);
+
+  /// Fee of the transaction in satoshis. Zero when the node gave no fee.
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get feeSats => $_getI64(6);
+  @$pb.TagNumber(8)
+  set feeSats($fixnum.Int64 value) => $_setInt64(6, value);
+  @$pb.TagNumber(8)
+  $core.bool hasFeeSats() => $_has(6);
+  @$pb.TagNumber(8)
+  void clearFeeSats() => $_clearField(8);
 }
 
 class BroadcastNewsRequest extends $pb.GeneratedMessage {
