@@ -24,6 +24,115 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 export 'misc.pbenum.dart';
 
+class ListOPReturnRequest extends $pb.GeneratedMessage {
+  factory ListOPReturnRequest({
+    $core.String? search,
+    $0.Timestamp? from,
+    $0.Timestamp? to,
+    OPReturnSort? sort,
+    $core.bool? ascending,
+  }) {
+    final result = ListOPReturnRequest._();
+    if (search != null) result.search = search;
+    if (from != null) result.from = from;
+    if (to != null) result.to = to;
+    if (sort != null) result.sort = sort;
+    if (ascending != null) result.ascending = ascending;
+    return result;
+  }
+
+  ListOPReturnRequest._();
+
+  factory ListOPReturnRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ListOPReturnRequest()..mergeFromBuffer(data, registry);
+  factory ListOPReturnRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ListOPReturnRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ListOPReturnRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'misc.v1'),
+      createEmptyInstance: ListOPReturnRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'search')
+    ..aOM<$0.Timestamp>(2, _omitFieldNames ? '' : 'from', subBuilder: $0.Timestamp.$_createMessage)
+    ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'to', subBuilder: $0.Timestamp.$_createMessage)
+    ..aE<OPReturnSort>(4, _omitFieldNames ? '' : 'sort', enumValues: OPReturnSort.values)
+    ..aOB(5, _omitFieldNames ? '' : 'ascending')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListOPReturnRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListOPReturnRequest copyWith(void Function(ListOPReturnRequest) updates) =>
+      super.copyWith((message) => updates(message as ListOPReturnRequest)) as ListOPReturnRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ListOPReturnRequest() / ListOPReturnRequest.new instead')
+  static ListOPReturnRequest create() => ListOPReturnRequest._();
+  static $pb.GeneratedMessage $_createMessage() => ListOPReturnRequest._();
+  @$core.override
+  ListOPReturnRequest createEmptyInstance() => ListOPReturnRequest._();
+  @$core.pragma('dart2js:noInline')
+  static ListOPReturnRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ListOPReturnRequest>(ListOPReturnRequest.$_createMessage);
+  static ListOPReturnRequest? _defaultInstance;
+
+  /// Text that the message or the txid must hold, with no case match. Empty matches all.
+  @$pb.TagNumber(1)
+  $core.String get search => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set search($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSearch() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSearch() => $_clearField(1);
+
+  /// Only items with a create time at or after this time.
+  @$pb.TagNumber(2)
+  $0.Timestamp get from => $_getN(1);
+  @$pb.TagNumber(2)
+  set from($0.Timestamp value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasFrom() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFrom() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $0.Timestamp ensureFrom() => $_ensure(1);
+
+  /// Only items with a create time before this time.
+  @$pb.TagNumber(3)
+  $0.Timestamp get to => $_getN(2);
+  @$pb.TagNumber(3)
+  set to($0.Timestamp value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTo() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTo() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Timestamp ensureTo() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  OPReturnSort get sort => $_getN(3);
+  @$pb.TagNumber(4)
+  set sort(OPReturnSort value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasSort() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearSort() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get ascending => $_getBF(4);
+  @$pb.TagNumber(5)
+  set ascending($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasAscending() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearAscending() => $_clearField(5);
+}
+
 class ListOPReturnResponse extends $pb.GeneratedMessage {
   factory ListOPReturnResponse({
     $core.Iterable<OPReturn>? opReturns,
@@ -2103,7 +2212,8 @@ class MiscServiceApi {
 
   MiscServiceApi(this._client);
 
-  $async.Future<ListOPReturnResponse> listOPReturn($pb.ClientContext? ctx, $1.Empty request) =>
+  /// Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
+  $async.Future<ListOPReturnResponse> listOPReturn($pb.ClientContext? ctx, ListOPReturnRequest request) =>
       _client.invoke<ListOPReturnResponse>(ctx, 'MiscService', 'ListOPReturn', request, ListOPReturnResponse());
   $async.Future<BroadcastNewsResponse> broadcastNews($pb.ClientContext? ctx, BroadcastNewsRequest request) =>
       _client.invoke<BroadcastNewsResponse>(ctx, 'MiscService', 'BroadcastNews', request, BroadcastNewsResponse());

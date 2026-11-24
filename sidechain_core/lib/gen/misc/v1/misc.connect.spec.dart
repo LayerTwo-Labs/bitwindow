@@ -4,18 +4,20 @@
 //
 
 import "package:connectrpc/connect.dart" as connect;
-import "package:protobuf/well_known_types/google/protobuf/empty.pb.dart" as googleprotobufempty;
 
 import "misc.pb.dart" as miscv1misc;
+
+import "package:protobuf/well_known_types/google/protobuf/empty.pb.dart" as googleprotobufempty;
 
 abstract final class MiscService {
   /// Fully-qualified name of the MiscService service.
   static const name = 'misc.v1.MiscService';
 
+  /// Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
   static const listOPReturn = connect.Spec(
     '/$name/ListOPReturn',
     connect.StreamType.unary,
-    googleprotobufempty.Empty.new,
+    miscv1misc.ListOPReturnRequest.new,
     miscv1misc.ListOPReturnResponse.new,
   );
 
