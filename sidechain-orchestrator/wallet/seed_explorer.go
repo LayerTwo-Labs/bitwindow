@@ -7,11 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/txscript"
 )
 
 // MaxExploredKeys caps the keys that one ExploreSeed call derives.
@@ -46,7 +44,7 @@ func ExploreSeed(mnemonic, passphrase, basePath string, start, count uint32, net
 	if err != nil {
 		return SeedExplorer{}, err
 	}
-	return exploreSeedBytes(MnemonicToSeed(normal, passphrase), basePath, start, count, net)
+	return exploreSeedBytes(MnemonicToSeed(normal, passphrase), nil, basePath, start, count, net)
 }
 
 // ExploreWallet explores the seed of w, passphrase included. An empty basePath
@@ -59,17 +57,10 @@ func ExploreWallet(w *WalletData, basePath string, start, count uint32, net *cha
 	if err != nil {
 		return SeedExplorer{}, fmt.Errorf("decode seed of wallet %s: %w", w.ID, err)
 	}
-	if strings.TrimSpace(basePath) == "" {
-		account, err := accountPathFor(w, ReceiveKinds(w)[0], net)
-		if err != nil {
-			return SeedExplorer{}, err
-		}
-		basePath = account.String() + "/0"
-	}
-	return exploreSeedBytes(seed, basePath, start, count, net)
+	return exploreSeedBytes(seed, w, basePath, start, count, net)
 }
 
-func exploreSeedBytes(seed []byte, basePath string, start, count uint32, net *chaincfg.Params) (SeedExplorer, error) {
+func exploreSeedBytes(seed []byte, w *WalletData, basePath string, start, count uint32, net *chaincfg.Params) (SeedExplorer, error) {
 	if net == nil {
 		return SeedExplorer{}, errors.New("no chain params")
 	}
@@ -79,13 +70,29 @@ func exploreSeedBytes(seed []byte, basePath string, start, count uint32, net *ch
 	if uint64(start)+uint64(count) > hdkeychain.HardenedKeyStart {
 		return SeedExplorer{}, fmt.Errorf("index %d+%d is out of the non-hardened range", start, count)
 	}
-	base, err := ParseKeystorePath(basePath)
+	var walletAccount string
+	if w != nil {
+		account, err := accountPathFor(w, w.scriptKind(), net)
+		if err != nil {
+			return SeedExplorer{}, err
+		}
+		walletAccount = account.String()
+		if strings.TrimSpace(basePath) == "" {
+			basePath = walletAccount + "/0"
+		}
+	}
+	path, err := ParseAccountPath(basePath)
 	if err != nil {
 		return SeedExplorer{}, err
 	}
-	levels, err := parseHDPath(base)
-	if err != nil {
-		return SeedExplorer{}, err
+	base := path.String()
+	levels := path.Indices()
+	kind, ok := purposeToCoreKind(levels[0] &^ hdkeychain.HardenedKeyStart)
+	if !ok {
+		kind = ScriptLegacy
+	}
+	if w != nil && (base == walletAccount+"/0" || base == walletAccount+"/1") {
+		kind = w.scriptKind()
 	}
 
 	master, err := hdkeychain.NewMaster(seed, net)
@@ -110,10 +117,9 @@ func exploreSeedBytes(seed []byte, basePath string, start, count uint32, net *ch
 		}
 	}
 
-	purpose := pathPurpose(base)
 	keys := make([]ExploredKey, 0, count)
 	for i := start; i < start+count; i++ {
-		key, err := exploreChild(parent, i, purpose, net)
+		key, err := exploreChild(parent, i, kind, net)
 		if err != nil {
 			return SeedExplorer{}, fmt.Errorf("derive %s/%d: %w", base, i, err)
 		}
@@ -131,7 +137,7 @@ func exploreSeedBytes(seed []byte, basePath string, start, count uint32, net *ch
 	}, nil
 }
 
-func exploreChild(parent *hdkeychain.ExtendedKey, index uint32, purpose uint32, net *chaincfg.Params) (ExploredKey, error) {
+func exploreChild(parent *hdkeychain.ExtendedKey, index uint32, kind ScriptKind, net *chaincfg.Params) (ExploredKey, error) {
 	child, err := parent.Derive(index)
 	if err != nil {
 		return ExploredKey{}, err
@@ -141,19 +147,7 @@ func exploreChild(parent *hdkeychain.ExtendedKey, index uint32, purpose uint32, 
 		return ExploredKey{}, err
 	}
 	pub := priv.PubKey()
-	hash := btcutil.Hash160(pub.SerializeCompressed())
-
-	var address btcutil.Address
-	switch purpose {
-	case 49:
-		address, err = btcutil.NewAddressScriptHash(append([]byte{txscript.OP_0, txscript.OP_DATA_20}, hash...), net)
-	case 84:
-		address, err = btcutil.NewAddressWitnessPubKeyHash(hash, net)
-	case 86:
-		address, err = btcutil.NewAddressTaproot(schnorr.SerializePubKey(txscript.ComputeTaprootKeyNoScript(pub)), net)
-	default:
-		address, err = btcutil.NewAddressPubKeyHash(hash, net)
-	}
+	output, err := singleSigOutput(kind, pub, net)
 	if err != nil {
 		return ExploredKey{}, err
 	}
@@ -162,18 +156,8 @@ func exploreChild(parent *hdkeychain.ExtendedKey, index uint32, purpose uint32, 
 		return ExploredKey{}, err
 	}
 	return ExploredKey{
-		Address:   address.EncodeAddress(),
+		Address:   output.address.EncodeAddress(),
 		PublicKey: hex.EncodeToString(pub.SerializeCompressed()),
 		WIF:       wif.String(),
 	}, nil
-}
-
-// pathPurpose is the first level of a canonical path such as m/84'/0'/0'/0, or 0.
-func pathPurpose(canonical string) uint32 {
-	levels := strings.Split(strings.TrimPrefix(canonical, "m/"), "/")
-	purpose, err := strconv.ParseUint(strings.TrimSuffix(levels[0], "'"), 10, 31)
-	if err != nil {
-		return 0
-	}
-	return uint32(purpose)
 }

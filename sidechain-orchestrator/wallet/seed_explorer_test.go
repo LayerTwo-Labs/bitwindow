@@ -158,3 +158,33 @@ func TestExploreWalletRefusesAWalletWithNoSeed(t *testing.T) {
 	_, err = ExploreWallet(multisig, "", 0, 1, net)
 	require.ErrorContains(t, err, "holds no single seed")
 }
+
+func TestExploreWalletUsesScriptTypeForCustomPath(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	w := explorerTestWallet("", 0)
+	w.DerivationPath = "m/7'/2'"
+	w.ScriptType = "native-segwit"
+	descriptor, err := DescriptorFor(w, ScriptNativeSegwit, net)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name   string
+		path   string
+		branch string
+		change bool
+	}{
+		{name: "default", branch: "0"},
+		{name: "receive", path: "M/7h/2H/0", branch: "0"},
+		{name: "change", path: "m/7'/2'/1", branch: "1", change: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := ExploreWallet(w, tc.path, 10, 1, net)
+			require.NoError(t, err)
+			require.Len(t, out.Keys, 1)
+			want, _, err := descriptor.DeriveScript(tc.change, 10, net)
+			require.NoError(t, err)
+			require.Equal(t, w.DerivationPath+"/"+tc.branch+"/10", out.Keys[0].Path)
+			require.Equal(t, want.address.EncodeAddress(), out.Keys[0].Address)
+		})
+	}
+}
