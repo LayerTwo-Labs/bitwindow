@@ -790,29 +790,50 @@ func (s *Server) ImportLabels(ctx context.Context, req *pb.ImportLabelsRequest) 
 
 // GetFireplaceStats implements bitwindowdv1connect.BitwindowdServiceHandler.
 func (s *Server) GetFireplaceStats(ctx context.Context, req *emptypb.Empty) (*pb.GetFireplaceStatsResponse, error) {
-	// Calculate block count in last 24 hours
-	blockCount24h, err := blocks.CountSince(ctx, s.db, time.Now().Add(-24*time.Hour))
+	stats, _, err := s.fireplaceStats(ctx, time.Now())
+	return stats, err
+}
+
+const (
+	blockStatsWindow = 24 * time.Hour
+	storyStatsWindow = 7 * 24 * time.Hour
+)
+
+// fireplaceStats returns the stats at now, and the time at which the oldest
+// counted block or story leaves its window. That time is zero when no item counts.
+func (s *Server) fireplaceStats(ctx context.Context, now time.Time) (*pb.GetFireplaceStatsResponse, time.Time, error) {
+	blockWindow, err := blocks.WindowSince(ctx, s.db, now.Add(-blockStatsWindow))
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Sprintf("get block count: %s", err)).WithCause(err)
+		return nil, time.Time{}, connect.NewError(connect.CodeInternal, fmt.Sprintf("get block stats: %s", err)).WithCause(err)
+	}
+	storyWindow, err := cnstore.StoriesSince(ctx, s.db, now.Add(-storyStatsWindow))
+	if err != nil {
+		return nil, time.Time{}, connect.NewError(connect.CodeInternal, fmt.Sprintf("get coinnews count: %s", err)).WithCause(err)
 	}
 
-	// Calculate transaction count in last 24 hours
-	txCount24h, err := blocks.TxCountSince(ctx, s.db, time.Now().Add(-24*time.Hour))
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Sprintf("get transaction count: %s", err)).WithCause(err)
-	}
-
-	// Calculate coinnews count in last 7 days
-	coinnewsCount7d, err := cnstore.CountStoriesSince(ctx, s.db, time.Now().Add(-7*24*time.Hour))
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Sprintf("get coinnews count: %s", err)).WithCause(err)
+	// The windows compare whole seconds, so an item leaves one second after its edge.
+	var next time.Time
+	for _, leaves := range []time.Time{
+		leavesAt(blockWindow.Oldest(), blockStatsWindow),
+		leavesAt(storyWindow.Oldest(), storyStatsWindow),
+	} {
+		if !leaves.IsZero() && (next.IsZero() || leaves.Before(next)) {
+			next = leaves
+		}
 	}
 
 	return &pb.GetFireplaceStatsResponse{
-		TransactionCount_24H: txCount24h,
-		CoinnewsCount_7D:     coinnewsCount7d,
-		BlockCount_24H:       blockCount24h,
-	}, nil
+		TransactionCount_24H: blockWindow.Transactions,
+		CoinnewsCount_7D:     storyWindow.Stories,
+		BlockCount_24H:       blockWindow.Blocks,
+	}, next, nil
+}
+
+func leavesAt(oldest time.Time, window time.Duration) time.Time {
+	if oldest.IsZero() {
+		return time.Time{}
+	}
+	return oldest.Add(window + time.Second)
 }
 
 func (s *Server) ListBlocks(ctx context.Context, c *pb.ListBlocksRequest) (*pb.ListBlocksResponse, error) {

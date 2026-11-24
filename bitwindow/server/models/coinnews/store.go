@@ -251,20 +251,37 @@ func indexContinuation(ctx context.Context, tx *sql.Tx, pos BlockPos, c *codec.C
 	return nil
 }
 
-// CountStoriesSince returns the number of stories with a headline in blocks
-// with a block time at or after since.
-func CountStoriesSince(ctx context.Context, db *sql.DB, since time.Time) (int64, error) {
-	count, err := database.Get[int64](ctx, db, `
-		SELECT COUNT(*)
+// StoryWindow is the stories with a headline in blocks with a block time at or
+// after a time.
+type StoryWindow struct {
+	Stories int64 `db:"stories"`
+	// OldestUnix is the block time of the oldest story, in Unix seconds.
+	OldestUnix int64 `db:"oldest"`
+}
+
+// Oldest returns the block time of the oldest story, or the zero time for no story.
+func (w StoryWindow) Oldest() time.Time {
+	if w.Stories == 0 {
+		return time.Time{}
+	}
+	return time.Unix(w.OldestUnix, 0)
+}
+
+// StoriesSince returns the stories with a headline in blocks with a block time
+// at or after since. It compares whole seconds.
+func StoriesSince(ctx context.Context, db *sql.DB, since time.Time) (StoryWindow, error) {
+	window, err := database.Get[StoryWindow](ctx, db, `
+		SELECT COUNT(*) AS stories,
+		       COALESCE(CAST(strftime('%s', MIN(datetime(i.block_time))) AS INTEGER), 0) AS oldest
 		FROM cn_stories s
 		JOIN cn_items i ON i.item_id = s.item_id
 		WHERE datetime(i.block_time) >= datetime(?)
 		  AND trim(s.headline) != ''
 	`, since)
 	if err != nil {
-		return 0, fmt.Errorf("count stories since %s: %w", since, err)
+		return StoryWindow{}, fmt.Errorf("read stories since %s: %w", since, err)
 	}
-	return count, nil
+	return window, nil
 }
 
 // ErrInvalidContinuation identifies a message with invalid continuation chunks.
