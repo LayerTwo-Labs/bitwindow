@@ -12,8 +12,6 @@ Future<String?> signAndBroadcast(
   required String unsignedPsbtBase64,
   required PsbtSigner signer,
 }) async {
-  final wallet = GetIt.I<OrchestratorRPC>().wallet;
-
   final String signed;
   try {
     signed = await signer.signPsbt(unsignedPsbtBase64, context);
@@ -21,7 +19,18 @@ Future<String?> signAndBroadcast(
     return null;
   }
 
-  final combined = await wallet.combinePsbt(psbtsBase64: [unsignedPsbtBase64, signed]);
+  return broadcastSignedPsbt(walletId: walletId, unsignedPsbtBase64: unsignedPsbtBase64, signedPsbtBase64: signed);
+}
+
+/// Combines [signedPsbtBase64] with [unsignedPsbtBase64], finalizes it and
+/// broadcasts it over the chain of [walletId]. Returns the txid.
+Future<String> broadcastSignedPsbt({
+  required String walletId,
+  required String unsignedPsbtBase64,
+  required String signedPsbtBase64,
+}) async {
+  final wallet = GetIt.I<OrchestratorRPC>().wallet;
+  final combined = await wallet.combinePsbt(psbtsBase64: [unsignedPsbtBase64, signedPsbtBase64]);
   final rawTxHex = await wallet.finalizePsbt(psbtBase64: combined);
   // Broadcast over the wallet's own chain source, which also refreshes its scan.
   final txid = await wallet.broadcastTransaction(walletId: walletId, txHex: rawTxHex);

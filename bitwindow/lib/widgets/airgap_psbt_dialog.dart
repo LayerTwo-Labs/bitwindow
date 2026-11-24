@@ -1,12 +1,13 @@
-import 'package:bitwindow/utils/explorer_url.dart';
+import 'package:bitwindow/signing/sign_and_broadcast.dart';
 import 'package:bitwindow/widgets/airgap_sign_step.dart';
 import 'package:flutter/widgets.dart';
-import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 /// Single-sig external-signer (airgap) flow: produce the signed PSBT via
 /// [AirgapSignStep], then combine, finalize and broadcast it.
 class AirgapPsbtDialog extends StatefulWidget {
+  /// The wallet whose chain broadcasts the transaction.
+  final String walletId;
   final String unsignedPsbtBase64;
 
   /// Called with the broadcast txid on success.
@@ -14,6 +15,7 @@ class AirgapPsbtDialog extends StatefulWidget {
 
   const AirgapPsbtDialog({
     super.key,
+    required this.walletId,
     required this.unsignedPsbtBase64,
     this.onBroadcast,
   });
@@ -27,30 +29,20 @@ class _AirgapPsbtDialogState extends State<AirgapPsbtDialog> {
   String? _broadcastTxid;
   String? _error;
 
-  OrchestratorWalletRPC get _wallet => GetIt.I<OrchestratorRPC>().wallet;
-
   Future<void> _finalizeAndBroadcast(String signedPsbtBase64) async {
     setState(() {
       _broadcasting = true;
       _error = null;
     });
     try {
-      final combined = await _wallet.combinePsbt(
-        psbtsBase64: [widget.unsignedPsbtBase64, signedPsbtBase64],
+      final txid = await broadcastSignedPsbt(
+        walletId: widget.walletId,
+        unsignedPsbtBase64: widget.unsignedPsbtBase64,
+        signedPsbtBase64: signedPsbtBase64,
       );
-      final rawTxHex = await _wallet.finalizePsbt(psbtBase64: combined);
-      final txid = await bitcoindRpcCall('sendrawtransaction', params: [rawTxHex]) as String;
 
       _broadcastTxid = txid;
       widget.onBroadcast?.call(txid);
-
-      final network = GetIt.I.get<BitcoinConfProvider>().network;
-      GetIt.I.get<NotificationProvider>().add(
-        title: 'Transaction broadcast',
-        content: txid,
-        dialogType: DialogType.info,
-        links: [NotificationLink(text: 'View transaction', url: mempoolTxUrl(txid, network))],
-      );
 
       if (mounted) {
         showSailToast(context, 'Transaction broadcast', variant: SailToastVariant.success);
