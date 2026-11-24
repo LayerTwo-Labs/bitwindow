@@ -1311,6 +1311,7 @@ class GraffitiExplorerView extends StatelessWidget {
         return SailCard(
           title: 'Graffiti Explorer',
           subtitle: 'Browse blockchain graffiti and OP_RETURN data',
+          error: viewModel.readError,
           widgetHeaderEnd: SailButton(
             label: 'New Graffiti',
             onPressed: () => newGraffitiDialog(context),
@@ -1483,6 +1484,7 @@ class GraffitiExplorerViewModel extends BaseViewModel {
 
   String get sortColumn => _sortColumn;
   bool get sortAscending => _sortAscending;
+  String? get readError => _newsProvider.opReturnsError;
 
   // Date range filter
   DateTime? _fromDate;

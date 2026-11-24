@@ -24,6 +24,10 @@ class NewsProvider extends ChangeNotifier {
   Future<void>? _fetching;
   bool _fetchAgain = false;
 
+  /// The error of the last OP_RETURN read, or null when it worked.
+  String? opReturnsError;
+
+
   NewsProvider() {
     blockchainProvider.addListener(fetch);
     blockchainProvider.recentChanged.addListener(fetch);
@@ -83,18 +87,20 @@ class NewsProvider extends ChangeNotifier {
       errors.add('Topics: ${e.toString()}');
     }
 
-    // Fetch OP_RETURNs independently
+    final previousOPReturnsError = opReturnsError;
     try {
       final newOPReturns = await api.misc.listOPReturns();
+      opReturnsError = null;
       if (!listEquals(opReturns, newOPReturns)) {
         opReturns = newOPReturns;
         dataChanged = true;
       }
     } catch (e) {
-      errors.add('OP_RETURNs: ${e.toString()}');
+      opReturnsError = e.toString();
+      errors.add('OP_RETURNs: $opReturnsError');
     }
 
-    if (dataChanged || errors.isNotEmpty) {
+    if (dataChanged || errors.isNotEmpty || opReturnsError != previousOPReturnsError) {
       if (dataChanged) {
         initialized = true;
       }
