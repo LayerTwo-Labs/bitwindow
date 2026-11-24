@@ -34,6 +34,7 @@ class FeeCoinNewsView extends ViewModelWidget<FeeCoinNewsViewModel> {
     return SailCard(
       title: 'Coin News',
       titleTooltip: "On-chain news ranked by fee, within each topic's retention window",
+      error: viewModel.readError,
       widgetHeaderEnd: ExtraActionsDropdown(
         title: 'Extra Coin News Actions',
         items: [
@@ -98,7 +99,8 @@ class FeeCoinNewsViewModel extends BaseViewModel {
     _loadTopic();
   }
 
-  bool get loading => !_newsProvider.initialized;
+  bool get loading => _newsProvider.loading;
+  String? get readError => _newsProvider.readError;
   List<Topic> get topics => _newsProvider.topics;
 
   List<SailDropdownItem<String>> get topicItems => topics
@@ -174,6 +176,7 @@ class FeeCoinNewsLargeView extends ViewModelWidget<FeeCoinNewsLargeViewModel> {
                   ],
                 ),
               ),
+              if (viewModel.readError != null) NewsReadError(viewModel.readError!),
               stories(
                 FeeCoinNewsTable(
                   entries: viewModel.leftEntries,
@@ -234,6 +237,7 @@ class FeeCoinNewsLargeView extends ViewModelWidget<FeeCoinNewsLargeViewModel> {
                   ],
                 ),
               ),
+              if (viewModel.readError != null) NewsReadError(viewModel.readError!),
               stories(
                 FeeCoinNewsTable(
                   entries: viewModel.rightEntries,
@@ -273,7 +277,8 @@ class FeeCoinNewsLargeViewModel extends BaseViewModel {
     _loadTopics();
   }
 
-  bool get loading => !_newsProvider.initialized;
+  bool get loading => _newsProvider.loading;
+  String? get readError => _newsProvider.readError;
   List<Topic> get topics => _newsProvider.topics;
 
   List<SailDropdownItem<String>> get topicItems => topics
