@@ -15,6 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const lightECashTarget = "test-ecash"
+
+func TestLightECashFixtureHasNoRemoteEnforcer(t *testing.T) {
+	o := lightECashTestNode(t)
+	config.SetECashEndpoints(o.Catalog.Networks[1])
+	require.Empty(t, config.RemoteEnforcerURLForNetwork(config.NetworkECash))
+}
+
 func TestECashLightSwitchKeepsLocalFiles(t *testing.T) {
 	for _, path := range []string{"direct", "pending"} {
 		t.Run(path, func(t *testing.T) {
@@ -25,26 +33,26 @@ func TestECashLightSwitchKeepsLocalFiles(t *testing.T) {
 			require.Equal(t, "betanet", o.installedECashNetwork())
 
 			if path == "pending" {
-				require.Equal(t, "ecash", o.PendingECashUpgrade().ID)
+				require.Equal(t, lightECashTarget, o.PendingECashUpgrade().ID)
 				require.NoError(t, o.ConfirmPendingECashNetwork(context.Background()))
 			} else {
-				require.NoError(t, o.ApplyECashSwitch(context.Background(), "ecash"))
+				require.NoError(t, o.ApplyECashSwitch(context.Background(), lightECashTarget))
 			}
 
-			require.Equal(t, "ecash", o.ecashID)
-			require.Equal(t, "ecash", o.Settings.ECashNetworkID())
-			require.Equal(t, "ecash", o.installedECashNetwork())
-			require.Equal(t, "ecash", o.EnforcerConf.Config.GetSetting("fork"))
+			require.Equal(t, lightECashTarget, o.ecashID)
+			require.Equal(t, lightECashTarget, o.Settings.ECashNetworkID())
+			require.Equal(t, lightECashTarget, o.installedECashNetwork())
+			require.Equal(t, lightECashTarget, o.EnforcerConf.Config.GetSetting("fork"))
 			require.Equal(t, "new.example:8301", config.ECashEndpoints().P2P.Address)
 			require.Equal(t, "betanet", o.Settings.ECashChainID())
-			require.Equal(t, "ecash", o.Settings.PendingEnforcerWipe())
-			require.NoError(t, o.ApplyECashSwitch(context.Background(), "ecash"))
+			require.Equal(t, lightECashTarget, o.Settings.PendingEnforcerWipe())
+			require.NoError(t, o.ApplyECashSwitch(context.Background(), lightECashTarget))
 			require.Equal(t, "betanet", o.Settings.ECashChainID())
 			require.NoError(t, o.SwapNetwork(context.Background(), config.NetworkECash))
 			require.Equal(t, "betanet", o.Settings.ECashChainID())
-			o.adoptCatalog(o.Catalog, "ecash")
+			o.adoptCatalog(o.Catalog, lightECashTarget)
 			require.Equal(t, "betanet", o.Settings.ECashChainID())
-			require.Equal(t, "ecash", o.ecashID)
+			require.Equal(t, lightECashTarget, o.ecashID)
 			require.NoFileExists(t, o.migrationPath())
 			require.Empty(t, o.Settings.RewoundBlockHash())
 			require.False(t, o.process.IsRunning("bitcoind"))
@@ -56,16 +64,16 @@ func TestECashLightSwitchKeepsLocalFiles(t *testing.T) {
 func TestECashLightSwitchKeepsSourceForFullMode(t *testing.T) {
 	o := lightECashTestNode(t)
 	files := lightECashFiles(t, o)
-	require.NoError(t, o.ApplyECashSwitch(context.Background(), "ecash"))
+	require.NoError(t, o.ApplyECashSwitch(context.Background(), lightECashTarget))
 	core := BinaryConfig{IsBitcoinCore: true, ChainLayer: 1}
 	services := []BinaryConfig{{Name: "enforcer"}, {Name: "thunder", ChainLayer: 2}, {Name: "bitnames", IsBitcoinCore: true, ChainLayer: 2}}
-	want := "ECX files belong to betanet; open Settings, Network, ECX migration to move them to ecash"
+	want := "ECX files belong to betanet; open Settings, Network, ECX migration to move them to " + lightECashTarget
 	require.EqualError(t, o.checkECashMigrationStart(context.Background(), core), want)
 	for _, cfg := range services {
 		require.NoError(t, o.checkECashMigrationStart(context.Background(), cfg))
 	}
 	require.NoError(t, WriteNodeMode(o.BitwindowDir, NodeModeFull))
-	require.NoError(t, o.AdoptECashID("ecash"))
+	require.NoError(t, o.AdoptECashID(lightECashTarget))
 	require.Equal(t, "betanet", o.Settings.ECashChainID())
 	for _, cfg := range append(services, core) {
 		require.EqualError(t, o.checkECashMigrationStart(context.Background(), cfg), want)
@@ -76,13 +84,13 @@ func TestECashLightSwitchKeepsSourceForFullMode(t *testing.T) {
 func TestECashLightSwitchKeepsIncompleteJob(t *testing.T) {
 	o := lightECashTestNode(t)
 	files := lightECashFiles(t, o)
-	state, err := o.newMigration(context.Background(), "betanet", "ecash")
+	state, err := o.newMigration(context.Background(), "betanet", lightECashTarget)
 	require.NoError(t, err)
 	state.Status.JobID = "saved-job"
 	state.Step = 2
 	require.NoError(t, o.saveMigration(state))
 	want := "resume ECX migration saved-job before a node start"
-	require.EqualError(t, o.ApplyECashSwitch(context.Background(), "ecash"), want)
+	require.EqualError(t, o.ApplyECashSwitch(context.Background(), lightECashTarget), want)
 	for _, cfg := range []BinaryConfig{{Name: "enforcer"}, {ChainLayer: 2}, {IsBitcoinCore: true, ChainLayer: 1}} {
 		require.EqualError(t, o.checkECashMigrationStart(context.Background(), cfg), want)
 	}
@@ -94,10 +102,10 @@ func TestECashLightSwitchKeepsIncompleteJob(t *testing.T) {
 
 func TestECashLightSwitchRecordsEmptyDirectory(t *testing.T) {
 	o := lightECashTestNode(t)
-	require.NoError(t, o.ApplyECashSwitch(context.Background(), "ecash"))
-	require.Equal(t, "ecash", o.ecashID)
-	require.Equal(t, "ecash", o.Settings.ECashChainID())
-	require.NoError(t, o.ApplyECashSwitch(context.Background(), "ecash"))
+	require.NoError(t, o.ApplyECashSwitch(context.Background(), lightECashTarget))
+	require.Equal(t, lightECashTarget, o.ecashID)
+	require.Equal(t, lightECashTarget, o.Settings.ECashChainID())
+	require.NoError(t, o.ApplyECashSwitch(context.Background(), lightECashTarget))
 	require.NoFileExists(t, o.migrationPath())
 }
 
@@ -107,8 +115,8 @@ func TestAdoptECashIDKeepsLightDiskSource(t *testing.T) {
 	o.BitcoinConf.Config.SetGroupDatadir(config.DatadirGroupDefault, t.TempDir())
 	require.NoError(t, o.SwapNetwork(context.Background(), config.NetworkRegtest))
 	require.Equal(t, NodeModeFull, o.NodeMode())
-	require.NoError(t, o.AdoptECashID("ecash"))
-	require.Equal(t, "ecash", o.ecashID)
+	require.NoError(t, o.AdoptECashID(lightECashTarget))
+	require.Equal(t, lightECashTarget, o.ecashID)
 	require.Equal(t, "betanet", o.Settings.ECashChainID())
 	require.NoFileExists(t, o.migrationPath())
 	for path := range files {
@@ -121,7 +129,7 @@ func TestAdoptECashIDKeepsLightDiskSource(t *testing.T) {
 
 func lightECashTestNode(t *testing.T) *Orchestrator {
 	t.Helper()
-	o := migrationTestNodeFor(t, "betanet", "ecash")
+	o := migrationTestNodeFor(t, "betanet", lightECashTarget)
 	require.NoError(t, WriteNodeMode(o.BitwindowDir, NodeModeLight))
 	var requests atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -191,15 +199,14 @@ func checkLightECashFiles(t *testing.T, files map[string][]byte) {
 func TestSetNodeModeRefusesForeignBlocks(t *testing.T) {
 	o := lightECashTestNode(t)
 	lightECashFiles(t, o)
-	require.NoError(t, o.ApplyECashSwitch(context.Background(), "ecash"))
+	require.NoError(t, o.ApplyECashSwitch(context.Background(), lightECashTarget))
 	require.Equal(t, "betanet", o.Settings.ECashChainID())
 
-	want := "ECX files belong to betanet; open Settings, Network, ECX migration to move them to ecash"
+	want := "ECX files belong to betanet; open Settings, Network, ECX migration to move them to " + lightECashTarget
 	require.EqualError(t, o.SetNodeMode(context.Background(), NodeModeFull), want)
 	require.Equal(t, NodeModeLight, o.NodeMode(), "the mode stays until the files move")
 
-	// The files belong to ecash, so the move passes.
-	require.NoError(t, o.Settings.SetECashChainID("ecash"))
+	require.NoError(t, o.Settings.SetECashChainID(lightECashTarget))
 	require.NoError(t, o.SetNodeMode(context.Background(), NodeModeFull))
 	require.Equal(t, NodeModeFull, o.NodeMode())
 }
