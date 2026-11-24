@@ -79,6 +79,22 @@ func TestService_ListOPReturn(t *testing.T) {
 		assert.EqualValues(t, 100, lo.FromPtr(resp.OpReturns[0].Height))
 		assert.EqualValues(t, 624, resp.OpReturns[0].FeeSats)
 	})
+
+	t.Run("list and find literal hex text", func(t *testing.T) {
+		t.Parallel()
+
+		db := database.Test(t)
+		require.NoError(t, opreturns.Persist(t.Context(), db, []opreturns.OPReturn{
+			{TxID: "first", Data: []byte("68656c6c6f")},
+			{TxID: "second", Data: []byte("hello")},
+		}))
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+		resp, err := cli.ListOPReturn(t.Context(), &miscv1.ListOPReturnRequest{Search: "68656C6C6F"})
+		require.NoError(t, err)
+		require.Len(t, resp.OpReturns, 1)
+		assert.Equal(t, "first", resp.OpReturns[0].Txid)
+		assert.Equal(t, "68656c6c6f", resp.OpReturns[0].Message)
+	})
 }
 
 // seedOPReturns stores count rows. Row i has height 100+i, a create time i
@@ -202,7 +218,7 @@ func TestService_ListOPReturn_Filter(t *testing.T) {
 			Sort: miscv1.OPReturnSort_OP_RETURN_SORT_MESSAGE, Ascending: true,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"b", "c", "z"}, messages(resp.OpReturns))
+		assert.Equal(t, []string{"7a", "b", "c"}, messages(resp.OpReturns))
 	})
 
 	t.Run("unknown sort is an invalid argument", func(t *testing.T) {

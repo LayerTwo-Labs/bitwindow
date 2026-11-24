@@ -319,12 +319,8 @@ func PruneMempool(ctx context.Context, db *sql.DB, mempoolTxIDs func() ([]string
 	return nil
 }
 
-// OPReturnToReadable returns the data as text when it is printable UTF-8, or as
-// hex text decoded to printable UTF-8. Else it returns the data as hex.
+// OPReturnToReadable returns printable UTF-8 as text and other bytes as hex.
 func OPReturnToReadable(data []byte) string {
-	if decoded, err := hex.DecodeString(string(data)); err == nil && isPrintableText(decoded) {
-		return string(decoded)
-	}
 	if isPrintableText(data) {
 		return string(data)
 	}

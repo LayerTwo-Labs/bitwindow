@@ -611,13 +611,12 @@ func TestOPReturnToReadable(t *testing.T) {
 		in   []byte
 		want string
 	}{
-		{name: "hex of printable text", in: []byte(hex.EncodeToString([]byte("hello"))), want: "hello"},
+		{name: "literal hex text", in: []byte("68656c6c6f"), want: "68656c6c6f"},
 		{name: "printable text", in: []byte("hello world"), want: "hello world"},
 		{name: "binary", in: []byte{0x00, 0xff}, want: "00ff"},
 		{name: "non-ASCII text", in: []byte("Hei på deg, blåbær"), want: "Hei på deg, blåbær"},
 		{name: "emoji", in: []byte("gm 🚀 graffiti"), want: "gm 🚀 graffiti"},
 		{name: "line break", in: []byte("line one\nline two"), want: "line one\nline two"},
-		{name: "hex of non-ASCII text", in: []byte(hex.EncodeToString([]byte("blåbær"))), want: "blåbær"},
 		{name: "invalid UTF-8", in: []byte{'a', 0xc3}, want: "61c3"},
 		{name: "control byte", in: []byte("a\x07b"), want: "610762"},
 	}
