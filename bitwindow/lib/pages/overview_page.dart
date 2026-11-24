@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:fixnum/fixnum.dart';
-import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:bitwindow/env.dart';
 import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
 import 'package:bitwindow/providers/blockchain_provider.dart';
@@ -15,6 +14,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:intl/intl.dart' show Intl;
+import 'package:logger/logger.dart';
+import 'package:sidechain_core/rpcs/stream_supervisor.dart';
 import 'package:sidechain_core/providers/price_provider.dart';
 import 'package:sail_ui/sail_ui.dart';
 
@@ -42,8 +43,8 @@ class FireplaceViewModel extends BaseViewModel {
   final PriceProvider priceProvider = GetIt.I.get<PriceProvider>();
   final BitwindowRPC api = GetIt.I.get<BitwindowRPC>();
   final EnforcerRPC _enforcerRPC = GetIt.I<EnforcerRPC>();
-  SyncProvider get _syncProvider => GetIt.I.get<SyncProvider>();
-  (double, Timestamp?)? _processedTip;
+  late final StreamSupervisor<WatchFireplaceStatsResponse> _statsWatch;
+  late final StreamSubscription<bool> _statsHealth;
 
   bool get loading => _enforcerRPC.initializingBinary;
 
@@ -54,59 +55,70 @@ class FireplaceViewModel extends BaseViewModel {
   FireplaceViewModel() {
     priceProvider.addListener(notifyListeners);
     _enforcerRPC.addListener(notifyListeners);
-    api.addListener(_onConnectionChanged);
-    _syncProvider.addListener(_onSyncChanged);
-    fetchFireplaceStats();
+    _statsWatch = StreamSupervisor<WatchFireplaceStatsResponse>(
+      // A recreated connection replaces api.bitwindowd, so resolve it per call.
+      subscribe: () => api.bitwindowd.watchFireplaceStats().transform(
+        StreamTransformer.fromHandlers(
+          handleError: (error, stackTrace, sink) {
+            _onStatsError(error);
+            sink.addError(error, stackTrace);
+          },
+        ),
+      ),
+      onEvent: applyStatsFrame,
+      onTransportDeath: () {},
+      logger: GetIt.I.get<Logger>(),
+      tag: 'FireplaceViewModel',
+    );
+    _statsHealth = _statsWatch.healthStream.listen(_onStatsHealth);
+    _statsWatch.start();
   }
 
-  /// The last good read, or null before it.
+  /// The stats of the last frame, or null before it.
   GetFireplaceStatsResponse? stats;
 
-  /// Why the last read failed, or null.
-  String? statsError;
+  /// The stream failed, so the stats are missing or not current.
+  bool statsFailed = false;
 
-  void _onConnectionChanged() {
-    if (api.connected) {
-      fetchFireplaceStats();
+  @visibleForTesting
+  void applyStatsFrame(WatchFireplaceStatsResponse frame) {
+    if (frame.heartbeat) {
+      return;
+    }
+    if (frame.stats == stats && !statsFailed) {
+      return;
+    }
+    stats = frame.stats;
+    statsFailed = false;
+    notifyListeners();
+  }
+
+  void _onStatsError(Object error) {
+    if (!isExpectedBootError(error)) {
+      _markStatsFailed();
     }
   }
 
-  /// The stats count the blocks that bitwindowd processed, so only its tip changes them.
-  void _onSyncChanged() {
-    final info = _syncProvider.bitwindowdSyncInfo;
-    final tip = info == null ? null : (info.progressCurrent, info.lastBlockAt);
-    if (tip == null || tip == _processedTip) {
-      return;
+  void _onStatsHealth(bool healthy) {
+    if (!healthy) {
+      _markStatsFailed();
     }
-    _processedTip = tip;
-    fetchFireplaceStats();
   }
 
-  Future<void> fetchFireplaceStats() async {
-    if (!api.connected) {
+  void _markStatsFailed() {
+    if (statsFailed) {
       return;
     }
-    try {
-      final response = await api.bitwindowd.getFireplaceStats();
-      if (response != stats || statsError != null) {
-        stats = response;
-        statsError = null;
-        notifyListeners();
-      }
-    } catch (e) {
-      if (statsError != e.toString()) {
-        statsError = e.toString();
-        notifyListeners();
-      }
-    }
+    statsFailed = true;
+    notifyListeners();
   }
 
   @override
   void dispose() {
     priceProvider.removeListener(notifyListeners);
     _enforcerRPC.removeListener(notifyListeners);
-    api.removeListener(_onConnectionChanged);
-    _syncProvider.removeListener(_onSyncChanged);
+    unawaited(_statsHealth.cancel());
+    unawaited(_statsWatch.dispose());
     super.dispose();
   }
 }
@@ -122,8 +134,8 @@ class FireplaceStats extends StatelessWidget {
         priceLastUpdated: () => model.priceLastUpdated,
         price: model.price,
         priceTitle: model.priceTitle,
-        stats: model.statsError == null ? model.stats : null,
-        failed: model.statsError != null,
+        stats: model.statsFailed ? null : model.stats,
+        failed: model.statsFailed,
         loading: model.loading,
       ),
     );

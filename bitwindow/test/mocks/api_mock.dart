@@ -153,8 +153,8 @@ class MockBitwindowdAPI implements BitwindowAPI {
   }
 
   @override
-  Future<GetFireplaceStatsResponse> getFireplaceStats() {
-    return Future.value(GetFireplaceStatsResponse());
+  Stream<WatchFireplaceStatsResponse> watchFireplaceStats() {
+    return Stream.value(WatchFireplaceStatsResponse(stats: GetFireplaceStatsResponse()));
   }
 
   @override

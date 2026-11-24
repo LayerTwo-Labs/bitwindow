@@ -295,6 +295,25 @@ extension type BitwindowdServiceClient(connect.Transport _transport) {
     );
   }
 
+  /// Sends the stats, then the stats again on each change: a new block, or a
+  /// block or a story that leaves its window.
+  Stream<bitwindowdv1bitwindowd.WatchFireplaceStatsResponse> watchFireplaceStats(
+    googleprotobufempty.Empty input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).server(
+      specs.BitwindowdService.watchFireplaceStats,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// Lists the most recent transactions, both confirmed and unconfirmed.
   Future<bitwindowdv1bitwindowd.ListRecentTransactionsResponse> listRecentTransactions(
     bitwindowdv1bitwindowd.ListRecentTransactionsRequest input, {

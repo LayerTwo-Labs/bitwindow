@@ -40,6 +40,7 @@ abstract class BitwindowdServiceBase extends $pb.GeneratedService {
   $async.Future<$2.ExportLabelsResponse> exportLabels($pb.ServerContext ctx, $1.Empty request);
   $async.Future<$2.ImportLabelsResponse> importLabels($pb.ServerContext ctx, $2.ImportLabelsRequest request);
   $async.Future<$2.GetFireplaceStatsResponse> getFireplaceStats($pb.ServerContext ctx, $1.Empty request);
+  $async.Future<$2.WatchFireplaceStatsResponse> watchFireplaceStats($pb.ServerContext ctx, $1.Empty request);
   $async.Future<$2.ListRecentTransactionsResponse> listRecentTransactions(
       $pb.ServerContext ctx, $2.ListRecentTransactionsRequest request);
   $async.Future<$2.WatchRecentTransactionsResponse> watchRecentTransactions(
@@ -88,6 +89,8 @@ abstract class BitwindowdServiceBase extends $pb.GeneratedService {
       case 'ImportLabels':
         return $2.ImportLabelsRequest();
       case 'GetFireplaceStats':
+        return $1.Empty();
+      case 'WatchFireplaceStats':
         return $1.Empty();
       case 'ListRecentTransactions':
         return $2.ListRecentTransactionsRequest();
@@ -151,6 +154,8 @@ abstract class BitwindowdServiceBase extends $pb.GeneratedService {
         return importLabels(ctx, request as $2.ImportLabelsRequest);
       case 'GetFireplaceStats':
         return getFireplaceStats(ctx, request as $1.Empty);
+      case 'WatchFireplaceStats':
+        return watchFireplaceStats(ctx, request as $1.Empty);
       case 'ListRecentTransactions':
         return listRecentTransactions(ctx, request as $2.ListRecentTransactionsRequest);
       case 'WatchRecentTransactions':

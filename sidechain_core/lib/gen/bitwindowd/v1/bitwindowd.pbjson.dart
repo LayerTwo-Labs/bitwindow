@@ -499,6 +499,21 @@ final $typed_data.Uint8List getFireplaceStatsResponseDescriptor =
         'EoA1ITdHJhbnNhY3Rpb25Db3VudDI0aBIqChFjb2lubmV3c19jb3VudF83ZBgCIAEoA1IPY29p'
         'bm5ld3NDb3VudDdkEiYKD2Jsb2NrX2NvdW50XzI0aBgDIAEoA1INYmxvY2tDb3VudDI0aA==');
 
+@$core.Deprecated('Use watchFireplaceStatsResponseDescriptor instead')
+const WatchFireplaceStatsResponse$json = {
+  '1': 'WatchFireplaceStatsResponse',
+  '2': [
+    {'1': 'stats', '3': 1, '4': 1, '5': 11, '6': '.bitwindowd.v1.GetFireplaceStatsResponse', '10': 'stats'},
+    {'1': 'heartbeat', '3': 2, '4': 1, '5': 8, '10': 'heartbeat'},
+  ],
+};
+
+/// Descriptor for `WatchFireplaceStatsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List watchFireplaceStatsResponseDescriptor =
+    $convert.base64Decode('ChtXYXRjaEZpcmVwbGFjZVN0YXRzUmVzcG9uc2USPgoFc3RhdHMYASABKAsyKC5iaXR3aW5kb3'
+        'dkLnYxLkdldEZpcmVwbGFjZVN0YXRzUmVzcG9uc2VSBXN0YXRzEhwKCWhlYXJ0YmVhdBgCIAEo'
+        'CFIJaGVhcnRiZWF0');
+
 @$core.Deprecated('Use setMempoolWatchRequestDescriptor instead')
 const SetMempoolWatchRequest$json = {
   '1': 'SetMempoolWatchRequest',
@@ -948,6 +963,12 @@ const $core.Map<$core.String, $core.dynamic> BitwindowdServiceBase$json = {
     {'1': 'ImportLabels', '2': '.bitwindowd.v1.ImportLabelsRequest', '3': '.bitwindowd.v1.ImportLabelsResponse'},
     {'1': 'GetFireplaceStats', '2': '.google.protobuf.Empty', '3': '.bitwindowd.v1.GetFireplaceStatsResponse'},
     {
+      '1': 'WatchFireplaceStats',
+      '2': '.google.protobuf.Empty',
+      '3': '.bitwindowd.v1.WatchFireplaceStatsResponse',
+      '6': true
+    },
+    {
       '1': 'ListRecentTransactions',
       '2': '.bitwindowd.v1.ListRecentTransactionsRequest',
       '3': '.bitwindowd.v1.ListRecentTransactionsResponse'
@@ -1003,6 +1024,7 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> Bitwindowd
   '.bitwindowd.v1.ImportLabelsRequest': ImportLabelsRequest$json,
   '.bitwindowd.v1.ImportLabelsResponse': ImportLabelsResponse$json,
   '.bitwindowd.v1.GetFireplaceStatsResponse': GetFireplaceStatsResponse$json,
+  '.bitwindowd.v1.WatchFireplaceStatsResponse': WatchFireplaceStatsResponse$json,
   '.bitwindowd.v1.ListRecentTransactionsRequest': ListRecentTransactionsRequest$json,
   '.bitwindowd.v1.ListRecentTransactionsResponse': ListRecentTransactionsResponse$json,
   '.bitwindowd.v1.RecentTransaction': RecentTransaction$json,
@@ -1055,23 +1077,25 @@ final $typed_data.Uint8List bitwindowdServiceDescriptor =
         'cG9uc2USVwoMSW1wb3J0TGFiZWxzEiIuYml0d2luZG93ZC52MS5JbXBvcnRMYWJlbHNSZXF1ZX'
         'N0GiMuYml0d2luZG93ZC52MS5JbXBvcnRMYWJlbHNSZXNwb25zZRJVChFHZXRGaXJlcGxhY2VT'
         'dGF0cxIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eRooLmJpdHdpbmRvd2QudjEuR2V0RmlyZXBsYW'
-        'NlU3RhdHNSZXNwb25zZRJ1ChZMaXN0UmVjZW50VHJhbnNhY3Rpb25zEiwuYml0d2luZG93ZC52'
-        'MS5MaXN0UmVjZW50VHJhbnNhY3Rpb25zUmVxdWVzdBotLmJpdHdpbmRvd2QudjEuTGlzdFJlY2'
-        'VudFRyYW5zYWN0aW9uc1Jlc3BvbnNlEnkKF1dhdGNoUmVjZW50VHJhbnNhY3Rpb25zEiwuYml0'
-        'd2luZG93ZC52MS5MaXN0UmVjZW50VHJhbnNhY3Rpb25zUmVxdWVzdBouLmJpdHdpbmRvd2Qudj'
-        'EuV2F0Y2hSZWNlbnRUcmFuc2FjdGlvbnNSZXNwb25zZTABElEKCkxpc3RCbG9ja3MSIC5iaXR3'
-        'aW5kb3dkLnYxLkxpc3RCbG9ja3NSZXF1ZXN0GiEuYml0d2luZG93ZC52MS5MaXN0QmxvY2tzUm'
-        'VzcG9uc2USUQoPR2V0TmV0d29ya1N0YXRzEhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5GiYuYml0'
-        'd2luZG93ZC52MS5HZXROZXR3b3JrU3RhdHNSZXNwb25zZRJQCg9TZXRNZW1wb29sV2F0Y2gSJS'
-        '5iaXR3aW5kb3dkLnYxLlNldE1lbXBvb2xXYXRjaFJlcXVlc3QaFi5nb29nbGUucHJvdG9idWYu'
-        'RW1wdHkSQwoRUmVzZXRNZW1wb29sV2F0Y2gSFi5nb29nbGUucHJvdG9idWYuRW1wdHkaFi5nb2'
-        '9nbGUucHJvdG9idWYuRW1wdHkSXQoVR2V0TWVtcG9vbFdhdGNoU3RhdHVzEhYuZ29vZ2xlLnBy'
-        'b3RvYnVmLkVtcHR5GiwuYml0d2luZG93ZC52MS5HZXRNZW1wb29sV2F0Y2hTdGF0dXNSZXNwb2'
-        '5zZRJ4ChdMaXN0TWVtcG9vbFRyYW5zYWN0aW9ucxItLmJpdHdpbmRvd2QudjEuTGlzdE1lbXBv'
-        'b2xUcmFuc2FjdGlvbnNSZXF1ZXN0Gi4uYml0d2luZG93ZC52MS5MaXN0TWVtcG9vbFRyYW5zYW'
-        'N0aW9uc1Jlc3BvbnNlEl0KDkxpc3RCbG9ja1N0YXRzEiQuYml0d2luZG93ZC52MS5MaXN0Qmxv'
-        'Y2tTdGF0c1JlcXVlc3QaJS5iaXR3aW5kb3dkLnYxLkxpc3RCbG9ja1N0YXRzUmVzcG9uc2USYA'
-        'oPTGlzdE1pbmluZ1Bvb2xzEiUuYml0d2luZG93ZC52MS5MaXN0TWluaW5nUG9vbHNSZXF1ZXN0'
-        'GiYuYml0d2luZG93ZC52MS5MaXN0TWluaW5nUG9vbHNSZXNwb25zZRJaCg1VcGRhdGVOZXR3b3'
-        'JrEiMuYml0d2luZG93ZC52MS5VcGRhdGVOZXR3b3JrUmVxdWVzdBokLmJpdHdpbmRvd2QudjEu'
-        'VXBkYXRlTmV0d29ya1Jlc3BvbnNl');
+        'NlU3RhdHNSZXNwb25zZRJbChNXYXRjaEZpcmVwbGFjZVN0YXRzEhYuZ29vZ2xlLnByb3RvYnVm'
+        'LkVtcHR5GiouYml0d2luZG93ZC52MS5XYXRjaEZpcmVwbGFjZVN0YXRzUmVzcG9uc2UwARJ1Ch'
+        'ZMaXN0UmVjZW50VHJhbnNhY3Rpb25zEiwuYml0d2luZG93ZC52MS5MaXN0UmVjZW50VHJhbnNh'
+        'Y3Rpb25zUmVxdWVzdBotLmJpdHdpbmRvd2QudjEuTGlzdFJlY2VudFRyYW5zYWN0aW9uc1Jlc3'
+        'BvbnNlEnkKF1dhdGNoUmVjZW50VHJhbnNhY3Rpb25zEiwuYml0d2luZG93ZC52MS5MaXN0UmVj'
+        'ZW50VHJhbnNhY3Rpb25zUmVxdWVzdBouLmJpdHdpbmRvd2QudjEuV2F0Y2hSZWNlbnRUcmFuc2'
+        'FjdGlvbnNSZXNwb25zZTABElEKCkxpc3RCbG9ja3MSIC5iaXR3aW5kb3dkLnYxLkxpc3RCbG9j'
+        'a3NSZXF1ZXN0GiEuYml0d2luZG93ZC52MS5MaXN0QmxvY2tzUmVzcG9uc2USUQoPR2V0TmV0d2'
+        '9ya1N0YXRzEhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5GiYuYml0d2luZG93ZC52MS5HZXROZXR3'
+        'b3JrU3RhdHNSZXNwb25zZRJQCg9TZXRNZW1wb29sV2F0Y2gSJS5iaXR3aW5kb3dkLnYxLlNldE'
+        '1lbXBvb2xXYXRjaFJlcXVlc3QaFi5nb29nbGUucHJvdG9idWYuRW1wdHkSQwoRUmVzZXRNZW1w'
+        'b29sV2F0Y2gSFi5nb29nbGUucHJvdG9idWYuRW1wdHkaFi5nb29nbGUucHJvdG9idWYuRW1wdH'
+        'kSXQoVR2V0TWVtcG9vbFdhdGNoU3RhdHVzEhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5GiwuYml0'
+        'd2luZG93ZC52MS5HZXRNZW1wb29sV2F0Y2hTdGF0dXNSZXNwb25zZRJ4ChdMaXN0TWVtcG9vbF'
+        'RyYW5zYWN0aW9ucxItLmJpdHdpbmRvd2QudjEuTGlzdE1lbXBvb2xUcmFuc2FjdGlvbnNSZXF1'
+        'ZXN0Gi4uYml0d2luZG93ZC52MS5MaXN0TWVtcG9vbFRyYW5zYWN0aW9uc1Jlc3BvbnNlEl0KDk'
+        'xpc3RCbG9ja1N0YXRzEiQuYml0d2luZG93ZC52MS5MaXN0QmxvY2tTdGF0c1JlcXVlc3QaJS5i'
+        'aXR3aW5kb3dkLnYxLkxpc3RCbG9ja1N0YXRzUmVzcG9uc2USYAoPTGlzdE1pbmluZ1Bvb2xzEi'
+        'UuYml0d2luZG93ZC52MS5MaXN0TWluaW5nUG9vbHNSZXF1ZXN0GiYuYml0d2luZG93ZC52MS5M'
+        'aXN0TWluaW5nUG9vbHNSZXNwb25zZRJaCg1VcGRhdGVOZXR3b3JrEiMuYml0d2luZG93ZC52MS'
+        '5VcGRhdGVOZXR3b3JrUmVxdWVzdBokLmJpdHdpbmRvd2QudjEuVXBkYXRlTmV0d29ya1Jlc3Bv'
+        'bnNl');
