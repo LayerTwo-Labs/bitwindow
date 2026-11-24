@@ -62,8 +62,9 @@ List<WalletTransaction> walletTransactionsFromEntries(
       note: notes[tx.txid] ?? '',
       warningMessage: tx.warningMessage,
       immature: tx.category == 'immature',
+      confirmations: tx.confirmations,
       confirmationTime: Confirmation(
-        height: tx.confirmations,
+        height: tx.blockHeight,
         // Unconfirmed txs have blockTime 0, which would sink them
         // to the bottom of the list (off-screen) until a block
         // lands. Fall back to the wallet tx time so pending txs
@@ -86,7 +87,7 @@ int newestTransactionFirst(WalletTransaction a, WalletTransaction b) {
   if (byTime != 0) {
     return byTime;
   }
-  final byConfirmations = a.confirmationTime.height.compareTo(b.confirmationTime.height);
+  final byConfirmations = a.confirmations.compareTo(b.confirmations);
   if (byConfirmations != 0) {
     return byConfirmations;
   }

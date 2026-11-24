@@ -1,3 +1,4 @@
+import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/widgets.dart';
@@ -77,6 +78,7 @@ void main() {
   setUp(() async {
     await GetIt.I.reset();
     await registerTestDependencies();
+    GetIt.I.registerSingleton<AddressBookProvider>(AddressBookProvider());
   });
 
   tearDown(() async {
@@ -95,6 +97,7 @@ void main() {
     );
     final confirmed = walletpb.WalletTransaction(
       txid: 'ef' * 32,
+      confirmations: 1,
       confirmationTime: walletpb.Confirmation(height: 120, timestamp: stamp(at.subtract(const Duration(days: 1)))),
       receivedSatoshi: Int64(50000000),
     );
@@ -164,6 +167,7 @@ void main() {
     SailStyleValues.phoneLayoutOverride = true;
     final tx = walletpb.WalletTransaction(
       txid: 'ef' * 32,
+      confirmations: 1,
       confirmationTime: walletpb.Confirmation(height: 120, timestamp: Timestamp.fromDateTime(DateTime.utc(2026))),
       receivedSatoshi: Int64(50000000),
     );

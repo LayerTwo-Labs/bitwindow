@@ -2,10 +2,10 @@ import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 
-WalletTransaction _tx({int height = 0, BmmBid? bid, DepositRequest? deposit}) {
+WalletTransaction _tx({int confirmations = 0, BmmBid? bid, DepositRequest? deposit}) {
   return WalletTransaction(
     txid: 'abc',
-    confirmationTime: Confirmation(height: height),
+    confirmations: confirmations,
     bmmBid: bid,
     depositRequest: deposit,
   );
@@ -19,7 +19,7 @@ void main() {
   group('transactionStatus', () {
     test('a plain transaction keeps the two words it always had', () {
       expect(transactionStatus(_tx()), 'Unconfirmed');
-      expect(transactionStatus(_tx(height: 3)), 'Confirmed');
+      expect(transactionStatus(_tx(confirmations: 3)), 'Confirmed');
     });
 
     test('a live bid names the slot it bids for', () {
@@ -33,7 +33,7 @@ void main() {
     test('a deposit request names its slot and whether it confirmed', () {
       final deposit = DepositRequest(slot: 9, destination: 'addr');
       expect(transactionStatus(_tx(deposit: deposit)), 'Deposit · slot 9 · unconfirmed');
-      expect(transactionStatus(_tx(height: 2, deposit: deposit)), 'Deposit · slot 9 · confirmed');
+      expect(transactionStatus(_tx(confirmations: 2, deposit: deposit)), 'Deposit · slot 9 · confirmed');
     });
   });
 
