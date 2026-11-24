@@ -96,6 +96,9 @@ func TestDepositHistoryShowsTheDepositOnly(t *testing.T) {
 		require.Len(t, rows, 2)
 		assert.InDelta(t, -float64(testDepositSats)/1e8, rows[0].Amount, 1e-9)
 		assert.Zero(t, rows[1].Amount)
+		for _, row := range rows {
+			assert.Equal(t, uint32(90), row.BlockHeight)
+		}
 	})
 
 	t.Run("a plain send lists the whole output", func(t *testing.T) {
