@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/api"
 	pb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/orchestrator/v1"
 	rpc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/orchestrator/v1/orchestratorv1connect"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/localauth"
@@ -94,12 +96,30 @@ func TestRunReturnsWhenTheContextEnds(t *testing.T) {
 }
 
 func TestRunReturnsAfterTheShutdownRPC(t *testing.T) {
+	procs := runtime.GOMAXPROCS(1)
+	t.Cleanup(func() { runtime.GOMAXPROCS(procs) })
 	cfg := testConfig(t)
 	done := startRun(t, t.Context(), cfg)
 
 	_, err := orchestratorClient(cfg).Shutdown(t.Context(), &pb.ShutdownRequest{})
 	require.NoError(t, err)
 	awaitRun(t, done)
+	require.FileExists(t, api.HashrateHistoryPath(filepath.Join(cfg.BitwindowDir, cfg.Network)))
+}
+
+func TestRunReturnsTheFinalHistoryWriteError(t *testing.T) {
+	cfg := testConfig(t)
+	done := startRun(t, t.Context(), cfg)
+	path := api.HashrateHistoryPath(filepath.Join(cfg.BitwindowDir, cfg.Network))
+	require.NoError(t, os.Mkdir(path, 0700))
+	_, err := orchestratorClient(cfg).Shutdown(t.Context(), &pb.ShutdownRequest{})
+	require.NoError(t, err)
+	select {
+	case err := <-done:
+		require.ErrorContains(t, err, "write the hashrate history")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Run did not return")
+	}
 }
 
 func TestRunServesAgainInTheSameProcess(t *testing.T) {

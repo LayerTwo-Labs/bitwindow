@@ -87,7 +87,11 @@ type StratumDeps struct {
 // StratumHandler runs the Stratum server for miners on the local network. The
 // server lives on the daemon context, so it keeps running with no client.
 type StratumHandler struct {
-	ctx        context.Context
+	ctx         context.Context
+	cancel      context.CancelFunc
+	historyDone chan struct{}
+	historyErr  error
+
 	network    StratumNetwork
 	settings   StratumSettingsStore
 	payout     func(context.Context) (string, error)
@@ -132,6 +136,7 @@ type stratumRun struct {
 }
 
 func NewStratumHandler(ctx context.Context, deps StratumDeps) *StratumHandler {
+	ctx, cancel := context.WithCancel(ctx)
 	h := &StratumHandler{
 		ctx:        ctx,
 		network:    deps.Network,
@@ -141,6 +146,10 @@ func NewStratumHandler(ctx context.Context, deps StratumDeps) *StratumHandler {
 		holdDaemon: deps.HoldDaemon,
 		history:    stratum.NewHistory(deps.HistoryPath),
 		log:        deps.Log,
+
+		cancel:      cancel,
+		historyDone: make(chan struct{}),
+
 		newNode: func() (stratum.Node, error) {
 			return stratum.NewEnforcerNode(config.EnforcerJSONRPCAddr())
 		},
@@ -156,7 +165,10 @@ func NewStratumHandler(ctx context.Context, deps StratumDeps) *StratumHandler {
 		httpClient: &http.Client{Timeout: poolStatsTimeout},
 		stats:      map[string]poolStatsEntry{},
 	}
-	go h.recordHashrate(ctx)
+	go func() {
+		defer close(h.historyDone)
+		h.historyErr = h.recordHashrate(ctx)
+	}()
 	return h
 }
 
@@ -294,6 +306,14 @@ func (h *StratumHandler) Reset(networkDir string) {
 // HashrateHistoryPath is the file the hashrate chart reads and writes.
 func HashrateHistoryPath(networkDir string) string {
 	return filepath.Join(networkDir, "hashrate_history.json")
+}
+
+// Close stops miners and waits for the final hashrate write.
+func (h *StratumHandler) Close() error {
+	h.cancel()
+	h.Stop()
+	<-h.historyDone
+	return h.historyErr
 }
 
 // Stop stops the server and waits until every connection closes.
@@ -909,7 +929,7 @@ func settingsToProto(s orchestrator.StratumSettings) *pb.MiningSettings {
 
 // recordHashrate samples the total hashrate into the history and writes the
 // buckets to the file.
-func (h *StratumHandler) recordHashrate(ctx context.Context) {
+func (h *StratumHandler) recordHashrate(ctx context.Context) error {
 	sample := time.NewTicker(hashrateSample)
 	defer sample.Stop()
 	flush := time.NewTicker(historyFlush)
@@ -917,10 +937,7 @@ func (h *StratumHandler) recordHashrate(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			if err := h.history.Flush(time.Now()); err != nil {
-				h.log.Warn().Err(err).Msg("stratum: write the hashrate history")
-			}
-			return
+			return h.history.Flush(time.Now())
 		case now := <-sample.C:
 			h.mu.Lock()
 			run := h.run

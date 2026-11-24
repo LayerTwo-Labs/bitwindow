@@ -101,7 +101,7 @@ type Config struct {
 }
 
 // Run serves drivechaind until ctx ends or a shutdown drain completes.
-func Run(ctx context.Context, cfg Config) error {
+func Run(ctx context.Context, cfg Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -537,6 +537,7 @@ func Run(ctx context.Context, cfg Config) error {
 		HoldDaemon:  orch.HoldClients,
 		Log:         log.With().Str("component", "stratum").Logger(),
 	})
+	defer func() { err = errors.Join(err, stratumHandler.Close()) }()
 	walletEngine.OnNetworkReset(stratumHandler.Reset)
 	stratumrpc.RegisterStratumServiceHandler(rpcServer, stratumHandler)
 
