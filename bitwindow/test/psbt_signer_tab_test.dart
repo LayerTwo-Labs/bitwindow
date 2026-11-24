@@ -1,8 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:bitwindow/pages/wallet/psbt_signer_tab.dart';
+import 'package:bitwindow/widgets/airgap_sign_step.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
+import 'package:sail_ui/sail_ui.dart';
 
 import 'test_utils.dart';
 
@@ -27,5 +31,20 @@ void main() {
 
     expect(find.text('Not a valid base64 PSBT'), findsOneWidget);
     expect(find.text('External signer (airgap)'), findsNothing);
+  });
+
+  testWidgets('a PSBT with line breaks opens the signer with the same bytes', (tester) async {
+    final reader = WalletReaderProvider(Directory.systemTemp)..activeWalletId = 'w1';
+    GetIt.I.registerSingleton<WalletReaderProvider>(reader);
+    addTearDown(() => GetIt.I.unregister<WalletReaderProvider>());
+    await tester.pumpSailPage(const PsbtSignerTab());
+
+    final wrapped = '  ${_unsignedPsbt.substring(0, 64)}\r\n${_unsignedPsbt.substring(64)}\n';
+    await tester.enterText(find.byType(EditableText), wrapped);
+    await tester.tap(find.text('Sign with external signer').hitTestable());
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Not a valid base64 PSBT'), findsNothing);
+    expect(tester.widget<AirgapSignStep>(find.byType(AirgapSignStep)).unsignedPsbtBase64, _unsignedPsbt);
   });
 }
