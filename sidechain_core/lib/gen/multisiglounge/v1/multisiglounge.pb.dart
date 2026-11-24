@@ -704,6 +704,7 @@ class MultisigHistoryTx extends $pb.GeneratedMessage {
     $fixnum.Int64? time,
     $core.String? finalHex,
     $core.Iterable<MultisigHistoryInput>? inputs,
+    $fixnum.Int64? feeSats,
   }) {
     final result = MultisigHistoryTx._();
     if (txid != null) result.txid = txid;
@@ -716,6 +717,7 @@ class MultisigHistoryTx extends $pb.GeneratedMessage {
     if (time != null) result.time = time;
     if (finalHex != null) result.finalHex = finalHex;
     if (inputs != null) result.inputs.addAll(inputs);
+    if (feeSats != null) result.feeSats = feeSats;
     return result;
   }
 
@@ -741,6 +743,7 @@ class MultisigHistoryTx extends $pb.GeneratedMessage {
     ..aInt64(8, _omitFieldNames ? '' : 'time')
     ..aOS(9, _omitFieldNames ? '' : 'finalHex')
     ..pPM<MultisigHistoryInput>(10, _omitFieldNames ? '' : 'inputs', subBuilder: MultisigHistoryInput.$_createMessage)
+    ..aInt64(11, _omitFieldNames ? '' : 'feeSats')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -851,6 +854,16 @@ class MultisigHistoryTx extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(10)
   $pb.PbList<MultisigHistoryInput> get inputs => $_getList(9);
+
+  /// Fee in sats when the group paid it.
+  @$pb.TagNumber(11)
+  $fixnum.Int64 get feeSats => $_getI64(10);
+  @$pb.TagNumber(11)
+  set feeSats($fixnum.Int64 value) => $_setInt64(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasFeeSats() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearFeeSats() => $_clearField(11);
 }
 
 class RestoreHistoryResponse extends $pb.GeneratedMessage {

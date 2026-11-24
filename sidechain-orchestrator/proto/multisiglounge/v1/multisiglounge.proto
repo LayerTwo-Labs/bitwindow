@@ -124,6 +124,8 @@ message MultisigHistoryTx {
   int64 time = 8;
   string final_hex = 9;
   repeated MultisigHistoryInput inputs = 10;
+  // Fee in sats when the group paid it.
+  optional int64 fee_sats = 11;
 }
 
 message RestoreHistoryResponse {

@@ -380,13 +380,24 @@ func TestRestoreHistoryE2E(t *testing.T) {
 	resp, err := h.RestoreHistory(ctx, &pb.RestoreHistoryRequest{Group: group})
 	require.NoError(t, err)
 
-	var spend *pb.MultisigHistoryTx
+	var spend, deposit *pb.MultisigHistoryTx
 	for _, tx := range resp.Transactions {
 		if tx.Txid == spendTxid {
 			spend = tx
+		} else if tx.IsDeposit {
+			deposit = tx
 		}
 	}
 	require.NotNil(t, spend, "the broadcast spend must appear in restored history")
+	var coreTx struct {
+		Fee float64 `json:"fee"`
+	}
+	rt.rpcInto(t, "ms_sync", "gettransaction", fmt.Sprintf(`[%q,true]`, spendTxid), &coreTx)
+	fee := btcToSatsInt(-coreTx.Fee)
+	require.Positive(t, fee)
+	require.Equal(t, fee, spend.GetFeeSats())
+	require.NotNil(t, deposit)
+	require.Nil(t, deposit.FeeSats)
 	// Change lands on the group's own receive address, so Core emits a receive row
 	// for this txid too. The restored row must still read as an outgoing 0.5 BTC
 	// payment to dest, not as an inbound deposit of the change.

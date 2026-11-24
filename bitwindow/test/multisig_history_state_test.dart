@@ -148,4 +148,19 @@ void main() {
     expect(tx!.requiredSignatures, 2);
     expect(tx.confirmations, 1);
   });
+  test('restore saves the fee for a new withdrawal and repairs an old fee', () async {
+    final history = _history(_sentTxid, confirmations: 7, status: 'confirmed')..feeSats = Int64(378);
+    lounge.history = [history];
+
+    await MultisigStorage.restoreTransactionHistory(_group);
+    expect(api.stored[_sentTxid]!.fee, closeTo(0.00000378, 1e-12));
+
+    api.stored[_sentTxid]!.fee = 0;
+    await MultisigStorage.restoreTransactionHistory(_group);
+    expect(api.stored[_sentTxid]!.fee, closeTo(0.00000378, 1e-12));
+
+    history.clearFeeSats();
+    await MultisigStorage.restoreTransactionHistory(_group);
+    expect(api.stored[_sentTxid]!.fee, closeTo(0.00000378, 1e-12));
+  });
 }

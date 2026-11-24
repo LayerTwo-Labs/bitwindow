@@ -161,6 +161,10 @@ const MultisigHistoryTx$json = {
     {'1': 'time', '3': 8, '4': 1, '5': 3, '10': 'time'},
     {'1': 'final_hex', '3': 9, '4': 1, '5': 9, '10': 'finalHex'},
     {'1': 'inputs', '3': 10, '4': 3, '5': 11, '6': '.multisiglounge.v1.MultisigHistoryInput', '10': 'inputs'},
+    {'1': 'fee_sats', '3': 11, '4': 1, '5': 3, '9': 0, '10': 'feeSats', '17': true},
+  ],
+  '8': [
+    {'1': '_fee_sats'},
   ],
 };
 
@@ -172,7 +176,8 @@ final $typed_data.Uint8List multisigHistoryTxDescriptor =
         'lybWF0aW9ucxInCg9zaWduYXR1cmVfY291bnQYBiABKA1SDnNpZ25hdHVyZUNvdW50EhYKBnN0'
         'YXR1cxgHIAEoCVIGc3RhdHVzEhIKBHRpbWUYCCABKANSBHRpbWUSGwoJZmluYWxfaGV4GAkgAS'
         'gJUghmaW5hbEhleBI/CgZpbnB1dHMYCiADKAsyJy5tdWx0aXNpZ2xvdW5nZS52MS5NdWx0aXNp'
-        'Z0hpc3RvcnlJbnB1dFIGaW5wdXRz');
+        'Z0hpc3RvcnlJbnB1dFIGaW5wdXRzEh4KCGZlZV9zYXRzGAsgASgDSABSB2ZlZVNhdHOIAQFCCw'
+        'oJX2ZlZV9zYXRz');
 
 @$core.Deprecated('Use restoreHistoryResponseDescriptor instead')
 const RestoreHistoryResponse$json = {

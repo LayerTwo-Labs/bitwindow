@@ -556,9 +556,11 @@ type MultisigHistoryTx struct {
 	// "broadcasted" (0-conf or <6), or "confirmed" (>=6).
 	Status string `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
 	// Block/receive time, seconds since epoch.
-	Time          int64                   `protobuf:"varint,8,opt,name=time,proto3" json:"time,omitempty"`
-	FinalHex      string                  `protobuf:"bytes,9,opt,name=final_hex,json=finalHex,proto3" json:"final_hex,omitempty"`
-	Inputs        []*MultisigHistoryInput `protobuf:"bytes,10,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	Time     int64                   `protobuf:"varint,8,opt,name=time,proto3" json:"time,omitempty"`
+	FinalHex string                  `protobuf:"bytes,9,opt,name=final_hex,json=finalHex,proto3" json:"final_hex,omitempty"`
+	Inputs   []*MultisigHistoryInput `protobuf:"bytes,10,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	// Fee in sats when the group paid it.
+	FeeSats       *int64 `protobuf:"varint,11,opt,name=fee_sats,json=feeSats,proto3,oneof" json:"fee_sats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -661,6 +663,13 @@ func (x *MultisigHistoryTx) GetInputs() []*MultisigHistoryInput {
 		return x.Inputs
 	}
 	return nil
+}
+
+func (x *MultisigHistoryTx) GetFeeSats() int64 {
+	if x != nil && x.FeeSats != nil {
+		return *x.FeeSats
+	}
+	return 0
 }
 
 type RestoreHistoryResponse struct {
@@ -1778,7 +1787,7 @@ const file_multisiglounge_v1_multisiglounge_proto_rawDesc = "" +
 	"\twallet_id\x18\x02 \x01(\tR\bwalletId\">\n" +
 	"\x14MultisigHistoryInput\x12\x12\n" +
 	"\x04txid\x18\x01 \x01(\tR\x04txid\x12\x12\n" +
-	"\x04vout\x18\x02 \x01(\rR\x04vout\"\xe2\x02\n" +
+	"\x04vout\x18\x02 \x01(\rR\x04vout\"\x8f\x03\n" +
 	"\x11MultisigHistoryTx\x12\x12\n" +
 	"\x04txid\x18\x01 \x01(\tR\x04txid\x12\x1f\n" +
 	"\vamount_sats\x18\x02 \x01(\x03R\n" +
@@ -1792,7 +1801,9 @@ const file_multisiglounge_v1_multisiglounge_proto_rawDesc = "" +
 	"\x04time\x18\b \x01(\x03R\x04time\x12\x1b\n" +
 	"\tfinal_hex\x18\t \x01(\tR\bfinalHex\x12?\n" +
 	"\x06inputs\x18\n" +
-	" \x03(\v2'.multisiglounge.v1.MultisigHistoryInputR\x06inputs\"b\n" +
+	" \x03(\v2'.multisiglounge.v1.MultisigHistoryInputR\x06inputs\x12\x1e\n" +
+	"\bfee_sats\x18\v \x01(\x03H\x00R\afeeSats\x88\x01\x01B\v\n" +
+	"\t_fee_sats\"b\n" +
 	"\x16RestoreHistoryResponse\x12H\n" +
 	"\ftransactions\x18\x01 \x03(\v2$.multisiglounge.v1.MultisigHistoryTxR\ftransactions\"\x8a\x01\n" +
 	"\x16SignTransactionRequest\x12\x1f\n" +
@@ -1971,6 +1982,7 @@ func file_multisiglounge_v1_multisiglounge_proto_init() {
 	if File_multisiglounge_v1_multisiglounge_proto != nil {
 		return
 	}
+	file_multisiglounge_v1_multisiglounge_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

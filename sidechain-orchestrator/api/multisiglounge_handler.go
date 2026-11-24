@@ -843,8 +843,14 @@ func (h *MultisigLoungeHandler) RestoreHistory(
 			inputs = append(inputs, &pb.MultisigHistoryInput{Txid: vin.TxID, Vout: uint32(vin.Vout)})
 		}
 
+		var feeSats *int64
+		if walletTx.Fee != nil {
+			fee := btcToSatsInt(-*walletTx.Fee)
+			feeSats = &fee
+		}
 		out = append(out, &pb.MultisigHistoryTx{
 			Txid:           wtx.Txid,
+			FeeSats:        feeSats,
 			AmountSats:     btcToSatsInt(absFloat(net)),
 			IsDeposit:      net > 0,
 			Destination:    destination,
@@ -987,6 +993,7 @@ type walletTxRow struct {
 
 // walletTxData is one wallet transaction as gettransaction gives it.
 type walletTxData struct {
+	Fee     *float64              `json:"fee"`
 	Details []walletTxRow         `json:"details"`
 	Hex     string                `json:"hex"`
 	Decoded wallet.RawTransaction `json:"decoded"`
