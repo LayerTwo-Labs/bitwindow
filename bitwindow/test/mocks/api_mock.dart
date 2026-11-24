@@ -377,11 +377,6 @@ class MockWalletAPI implements WalletAPI {
   }
 
   @override
-  Future<GetUTXODistributionResponse> getUTXODistribution(String walletId, {int maxBuckets = 10}) {
-    return Future.value(GetUTXODistributionResponse());
-  }
-
-  @override
   Future<BumpFeeResponse> bumpFee(String txid) {
     return Future.value(BumpFeeResponse(txid: 'mock_new_txid'));
   }

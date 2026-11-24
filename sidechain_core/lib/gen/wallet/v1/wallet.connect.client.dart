@@ -477,24 +477,6 @@ extension type WalletServiceClient(connect.Transport _transport) {
     );
   }
 
-  /// UTXO Distribution (for chart visualization)
-  Future<walletv1wallet.GetUTXODistributionResponse> getUTXODistribution(
-    walletv1wallet.GetUTXODistributionRequest input, {
-    connect.Headers? headers,
-    connect.AbortSignal? signal,
-    Function(connect.Headers)? onHeader,
-    Function(connect.Headers)? onTrailer,
-  }) {
-    return connect.Client(_transport).unary(
-      specs.WalletService.getUTXODistribution,
-      input,
-      signal: signal,
-      headers: headers,
-      onHeader: onHeader,
-      onTrailer: onTrailer,
-    );
-  }
-
   /// RBF - Replace-By-Fee for unconfirmed transactions
   Future<walletv1wallet.BumpFeeResponse> bumpFee(
     walletv1wallet.BumpFeeRequest input, {

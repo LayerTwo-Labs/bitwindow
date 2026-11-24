@@ -1,4 +1,5 @@
 import 'package:bitwindow/pages/wallet/wallet_utxos.dart';
+import 'package:bitwindow/pages/wallet/widgets/utxo_distribution_chart.dart';
 import 'package:bitwindow/providers/coin_selection_provider.dart';
 import 'package:bitwindow/providers/consolidation_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
@@ -15,6 +16,9 @@ import 'test_utils.dart';
 class _Transactions extends ChangeNotifier implements TransactionProvider {
   @override
   List<UnspentOutput> utxos = [];
+
+  @override
+  String? error;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -119,5 +123,28 @@ void main() {
     double top(int i) => tester.getTopLeft(find.text("m/84'/1'/0'/0/$i")).dy;
     expect(top(0), lessThan(top(2)));
     expect(top(2), lessThan(top(1)));
+  });
+
+  testWidgets('the chart counts the coins the table lists, after each change', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    transactions.utxos = [_coin(1)];
+
+    await tester.pumpSailPage(const Column(children: [Expanded(child: UTXOsTab())]));
+    await tester.pumpAndSettle();
+    final chart = find.byType(UTXODistributionChart);
+    expect(find.descendant(of: chart, matching: find.text('1 UTXO')), findsOneWidget);
+
+    transactions.utxos = [
+      _coin(1),
+      _coin(2),
+      UnspentOutput(output: '${'f' * 64}:0', valueSats: Int64(5000000000), confirmations: 1),
+    ];
+    transactions.notifyListeners();
+    await tester.pumpAndSettle();
+
+    expect(find.descendant(of: chart, matching: find.text('2 UTXOs')), findsOneWidget);
+    expect(find.descendant(of: chart, matching: find.text('1 UTXO')), findsOneWidget);
   });
 }

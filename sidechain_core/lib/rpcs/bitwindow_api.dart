@@ -713,9 +713,6 @@ abstract class WalletAPI {
   // Transaction details (enriched with input values/addresses)
   Future<GetTransactionDetailsResponse> getTransactionDetails(String txid);
 
-  // UTXO distribution for chart visualization
-  Future<GetUTXODistributionResponse> getUTXODistribution(String walletId, {int maxBuckets = 10});
-
   // RBF - Replace-By-Fee for unconfirmed transactions (uses Core's automatic fee estimation)
   Future<BumpFeeResponse> bumpFee(String txid);
 
@@ -1124,19 +1121,6 @@ class _WalletAPILive implements WalletAPI {
   Future<GetTransactionDetailsResponse> getTransactionDetails(String txid) async {
     try {
       final response = await _client.getTransactionDetails(GetTransactionDetailsRequest(txid: txid));
-      return response;
-    } catch (e) {
-      final error = extractConnectException(e);
-      throw WalletException(error);
-    }
-  }
-
-  @override
-  Future<GetUTXODistributionResponse> getUTXODistribution(String walletId, {int maxBuckets = 10}) async {
-    try {
-      final response = await _client.getUTXODistribution(
-        GetUTXODistributionRequest(walletId: walletId, maxBuckets: maxBuckets),
-      );
       return response;
     } catch (e) {
       final error = extractConnectException(e);
