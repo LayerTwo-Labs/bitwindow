@@ -152,3 +152,29 @@ func TestCoreLegacyReceiveSkipsTheBip47Key(t *testing.T) {
 		require.Contains(t, info.ParentDesc, "*", resp.Address)
 	}
 }
+
+func TestCoreReceiveSkipsImmatureCoinbaseAddress(t *testing.T) {
+	node := testharness.New(t, 1).Nodes[0]
+	ctx := t.Context()
+	client := node.WalletClient
+	_, err := client.GenerateWallet(ctx, &pb.GenerateWalletRequest{Name: "Master"})
+	require.NoError(t, err)
+	created, err := client.GenerateWallet(ctx, &pb.GenerateWalletRequest{Name: "Miner"})
+	require.NoError(t, err)
+	request := &pb.GetNewAddressRequest{WalletId: created.WalletId}
+
+	first, err := client.GetNewAddress(ctx, request)
+	require.NoError(t, err)
+	reused, err := client.GetNewAddress(ctx, request)
+	require.NoError(t, err)
+	require.Equal(t, first.Address, reused.Address)
+
+	require.NoError(t, node.MineToAddress(ctx, 1, first.Address))
+	balances, err := node.CoreRPC.GetBalances(ctx, "wallet_"+created.WalletId[:8])
+	require.NoError(t, err)
+	require.Equal(t, float64(50), balances.Immature)
+
+	next, err := client.GetNewAddress(ctx, request)
+	require.NoError(t, err)
+	require.NotEqual(t, first.Address, next.Address)
+}

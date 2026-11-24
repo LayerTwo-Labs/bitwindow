@@ -821,7 +821,7 @@ func (p *CoreBackend) NextReceiveAddress(ctx context.Context, walletID string, k
 	if !ok {
 		return DerivedAddress{}, fmt.Errorf("unsupported address kind %s for the Bitcoin Core backend", kind)
 	}
-	addrs, err := p.rpc.ListReceivedByAddress(ctx, name)
+	addrs, err := p.rpc.listReceivedByAddress(ctx, name, true)
 	if err != nil {
 		return DerivedAddress{}, err
 	}
