@@ -864,6 +864,7 @@ const SweepChequeResponse$json = {
     {'1': 'txid', '3': 1, '4': 1, '5': 9, '10': 'txid'},
     {'1': 'amount_sats', '3': 2, '4': 1, '5': 4, '10': 'amountSats'},
     {'1': 'fee_sat_per_vbyte', '3': 3, '4': 1, '5': 4, '10': 'feeSatPerVbyte'},
+    {'1': 'receive_sats', '3': 4, '4': 1, '5': 4, '10': 'receiveSats'},
   ],
 };
 
@@ -871,7 +872,7 @@ const SweepChequeResponse$json = {
 final $typed_data.Uint8List sweepChequeResponseDescriptor =
     $convert.base64Decode('ChNTd2VlcENoZXF1ZVJlc3BvbnNlEhIKBHR4aWQYASABKAlSBHR4aWQSHwoLYW1vdW50X3NhdH'
         'MYAiABKARSCmFtb3VudFNhdHMSKQoRZmVlX3NhdF9wZXJfdmJ5dGUYAyABKARSDmZlZVNhdFBl'
-        'clZieXRl');
+        'clZieXRlEiEKDHJlY2VpdmVfc2F0cxgEIAEoBFILcmVjZWl2ZVNhdHM=');
 
 @$core.Deprecated('Use deleteChequeRequestDescriptor instead')
 const DeleteChequeRequest$json = {

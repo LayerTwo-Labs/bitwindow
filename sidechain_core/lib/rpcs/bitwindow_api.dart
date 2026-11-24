@@ -734,8 +734,9 @@ abstract class WalletAPI {
 class SweepChequeResult {
   final String txid;
   final int amountSats;
+  final int receiveSats;
 
-  SweepChequeResult({required this.txid, required this.amountSats});
+  SweepChequeResult({required this.txid, required this.amountSats, required this.receiveSats});
 }
 
 /// What a private key holds, and what sweeping it would cost.
@@ -1056,7 +1057,11 @@ class _WalletAPILive implements WalletAPI {
           feeSatPerVbyte: Int64(feeSatPerVbyte),
         ),
       );
-      return SweepChequeResult(txid: response.txid, amountSats: response.amountSats.toInt());
+      return SweepChequeResult(
+        txid: response.txid,
+        amountSats: response.amountSats.toInt(),
+        receiveSats: response.receiveSats.toInt(),
+      );
     } catch (e) {
       final error = extractConnectException(e);
       throw WalletException(error);

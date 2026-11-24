@@ -3622,11 +3622,13 @@ class SweepChequeResponse extends $pb.GeneratedMessage {
     $core.String? txid,
     $fixnum.Int64? amountSats,
     $fixnum.Int64? feeSatPerVbyte,
+    $fixnum.Int64? receiveSats,
   }) {
     final result = SweepChequeResponse._();
     if (txid != null) result.txid = txid;
     if (amountSats != null) result.amountSats = amountSats;
     if (feeSatPerVbyte != null) result.feeSatPerVbyte = feeSatPerVbyte;
+    if (receiveSats != null) result.receiveSats = receiveSats;
     return result;
   }
 
@@ -3646,6 +3648,7 @@ class SweepChequeResponse extends $pb.GeneratedMessage {
     ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'amountSats', $pb.PbFieldType.OU6, defaultOrMaker: $fixnum.Int64.ZERO)
     ..a<$fixnum.Int64>(3, _omitFieldNames ? '' : 'feeSatPerVbyte', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(4, _omitFieldNames ? '' : 'receiveSats', $pb.PbFieldType.OU6, defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3677,6 +3680,7 @@ class SweepChequeResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearTxid() => $_clearField(1);
 
+  /// Total value of the inputs in satoshis.
   @$pb.TagNumber(2)
   $fixnum.Int64 get amountSats => $_getI64(1);
   @$pb.TagNumber(2)
@@ -3696,6 +3700,16 @@ class SweepChequeResponse extends $pb.GeneratedMessage {
   $core.bool hasFeeSatPerVbyte() => $_has(2);
   @$pb.TagNumber(3)
   void clearFeeSatPerVbyte() => $_clearField(3);
+
+  /// Value paid to the destination in satoshis.
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get receiveSats => $_getI64(3);
+  @$pb.TagNumber(4)
+  set receiveSats($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasReceiveSats() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearReceiveSats() => $_clearField(4);
 }
 
 class DeleteChequeRequest extends $pb.GeneratedMessage {

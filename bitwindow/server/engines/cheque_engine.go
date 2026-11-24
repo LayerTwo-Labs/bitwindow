@@ -304,6 +304,7 @@ func (e *ChequeEngine) CheckFunding(ctx context.Context, cheque *cheques.Cheque)
 type ChequeSweep struct {
 	Txid           string
 	AmountSats     uint64
+	ReceiveSats    uint64
 	FeeSatPerVbyte uint64
 }
 
@@ -375,7 +376,12 @@ func (e *ChequeEngine) Sweep(
 		Uint64("amount_sats", totalAmount).
 		Msg("cheque swept successfully")
 
-	return ChequeSweep{Txid: txid, AmountSats: totalAmount, FeeSatPerVbyte: feeSatPerVbyte}, nil
+	return ChequeSweep{
+		Txid:           txid,
+		AmountSats:     totalAmount,
+		ReceiveSats:    uint64(signedTx.TxOut[0].Value),
+		FeeSatPerVbyte: feeSatPerVbyte,
+	}, nil
 }
 
 // SweepFeeRate gives the sweep fee rate in sat/vB: requested, or the 6-block

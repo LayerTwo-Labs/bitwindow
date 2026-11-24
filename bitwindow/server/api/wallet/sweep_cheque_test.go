@@ -1,14 +1,17 @@
 package wallet_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"testing"
 
 	"connectrpc.com/connect/v2"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/wire"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,6 +75,12 @@ func TestSweepChequeOnALockedWallet(t *testing.T) {
 		require.Equal(t, "swept-txid", resp.Txid)
 		require.Equal(t, uint64(100_000), resp.AmountSats)
 		require.Len(t, orchestrator.broadcasts, 1)
+		raw, err := hex.DecodeString(orchestrator.broadcasts[0])
+		require.NoError(t, err)
+		var tx wire.MsgTx
+		require.NoError(t, tx.Deserialize(bytes.NewReader(raw)))
+		require.Len(t, tx.TxOut, 1)
+		require.EqualValues(t, tx.TxOut[0].Value, resp.ReceiveSats)
 	})
 }
 

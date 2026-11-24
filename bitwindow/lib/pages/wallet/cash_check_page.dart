@@ -124,7 +124,7 @@ class _CashCheckPageState extends State<CashCheckPage> {
       await context.router.replace(
         CashCheckSuccessRoute(
           txid: result.txid,
-          amountSats: result.amountSats,
+          amountSats: result.receiveSats,
         ),
       );
     } catch (e) {

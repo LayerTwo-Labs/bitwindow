@@ -1227,6 +1227,7 @@ func (s *Server) SweepCheque(ctx context.Context, c *pb.SweepChequeRequest) (*pb
 	return &pb.SweepChequeResponse{
 		Txid:           sweep.Txid,
 		AmountSats:     sweep.AmountSats,
+		ReceiveSats:    sweep.ReceiveSats,
 		FeeSatPerVbyte: sweep.FeeSatPerVbyte,
 	}, nil
 }

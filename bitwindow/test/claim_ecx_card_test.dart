@@ -49,7 +49,7 @@ class _FakeWalletApi implements WalletAPI {
       throw sweepError!;
     }
     sweptTo = destinationAddress;
-    return SweepChequeResult(txid: 'a' * 64, amountSats: preview.receiveSats);
+    return SweepChequeResult(txid: 'a' * 64, amountSats: preview.amountSats, receiveSats: preview.receiveSats);
   }
 
   @override
