@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -118,6 +119,7 @@ func newTestStratumHandler(t *testing.T, network fakeStratumNetwork, settings *f
 		HistoryPath: filepath.Join(t.TempDir(), "hashrate_history.json"),
 		Log:         zerolog.Nop(),
 	})
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
 	h.newNode = func() (stratum.Node, error) { return unservedNode{}, nil }
 	h.listen = func(uint32) (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") }
 	return h, &addresses
@@ -562,6 +564,27 @@ func TestStratumHandlerPoolBlocks(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, resp.Unavailable, "publishes no block list")
 	})
+}
+
+func TestStratumHandlerClose(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hashrate_history.json")
+	h := NewStratumHandler(t.Context(), StratumDeps{HistoryPath: path, Log: zerolog.Nop()})
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+	h.history.Record(4.2e6, time.Now().Add(-2*time.Minute))
+	closed := make(chan error, 2)
+	for range 2 {
+		go func() { closed <- h.Close() }()
+	}
+	for range 2 {
+		require.NoError(t, <-closed)
+	}
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var points []stratum.Point
+	require.NoError(t, json.Unmarshal(raw, &points))
+	require.Len(t, points, 1)
+	require.Equal(t, 4.2e6, points[0].Hashrate)
+	require.NoError(t, h.Close())
 }
 
 func TestStratumHandlerHashrateHistory(t *testing.T) {
