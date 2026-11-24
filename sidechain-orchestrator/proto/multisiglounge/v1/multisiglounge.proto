@@ -57,9 +57,11 @@ message CreateSpendPsbtRequest {
   GroupData group = 1;
   string wallet_id = 2;
   repeated SpendDestination destinations = 3;
-  // Optional fee rate in sat/vB. 0 lets bitcoind pick (fallback/estimate fee),
-  // matching the current Dart path which passes no explicit fee rate.
+  // Fee rate in sat/vB. 0 uses Core's 6-block estimate, or the relay floor
+  // when Core has no estimate.
   double fee_rate_sat_vb = 4;
+  // Takes the fee from the destination amounts, so a spend of the full balance funds.
+  bool subtract_fee_from_outputs = 5;
 }
 
 message CreateSpendPsbtResponse {
@@ -89,6 +91,7 @@ message MultisigUtxo {
 message SyncGroupResponse {
   int64 confirmed_sats = 1;
   int64 pending_sats = 2;
+  // Number of the coins in confirmed_sats.
   uint32 utxo_count = 3;
   repeated MultisigUtxo utxos = 4;
 }
