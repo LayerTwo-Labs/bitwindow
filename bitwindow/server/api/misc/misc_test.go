@@ -525,6 +525,22 @@ func TestService_Comments(t *testing.T) {
 func TestService_CreateTopic(t *testing.T) {
 	t.Parallel()
 
+	for _, days := range []int32{-1, 256} {
+		t.Run(fmt.Sprintf("reject retention %d", days), func(t *testing.T) {
+			t.Parallel()
+			mockOrch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
+			apitests.ExpectOrchestratorReads(mockOrch)
+			cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(mockOrch)))
+			_, err := cli.CreateTopic(t.Context(), &miscv1.CreateTopicRequest{
+				Topic:         "deadbeef",
+				Name:          "Test Topic",
+				RetentionDays: days,
+			})
+			require.ErrorContains(t, err, "retention days must be between 0 and 255")
+			require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+		})
+	}
+
 	for _, days := range []int32{0, 7, 255} {
 		t.Run(fmt.Sprintf("keep retention %d", days), func(t *testing.T) {
 			t.Parallel()
