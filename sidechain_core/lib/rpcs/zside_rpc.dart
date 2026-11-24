@@ -485,7 +485,7 @@ class ZSideLive extends ZSideRPC {
   Future<List<UnshieldedUTXO>> listUnshieldedUTXOs() async {
     final utxos = await listUTXOs();
     return utxos
-        .where((utxo) => utxo.confirmed && !utxo.withdrawal)
+        .where((utxo) => utxo.confirmed && utxo.spendable && !utxo.withdrawal)
         .map(
           (utxo) => UnshieldedUTXO(
             txid: utxo.outpoint,

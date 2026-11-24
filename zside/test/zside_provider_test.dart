@@ -21,9 +21,13 @@ class _WalletRPC extends MockZSideRPC {
   final Set<String> failShield = {};
   List<UnshieldedUTXO> coins = [];
   List<CoreTransaction> history = [];
+  int coinReads = 0;
 
   @override
-  Future<List<UnshieldedUTXO>> listUnshieldedUTXOs() async => coins;
+  Future<List<UnshieldedUTXO>> listUnshieldedUTXOs() async {
+    coinReads++;
+    return coins;
+  }
 
   @override
   Future<List<CoreTransaction>> listTransactions() async => history;
@@ -48,9 +52,23 @@ class _WalletRPC extends MockZSideRPC {
   }
 }
 
+class _SyncProvider extends SyncProvider {
+  _SyncProvider() : super(startTimer: false);
+
+  void setTip(int height, {required bool enforcer}) {
+    final info = SyncInfo(progressCurrent: height.toDouble(), progressGoal: height.toDouble(), lastBlockAt: null);
+    if (enforcer) {
+      enforcerSyncInfo = info;
+    } else {
+      mainchainSyncInfo = info;
+    }
+    notifyListeners();
+  }
+}
+
 void main() {
   late _WalletRPC rpc;
-  late SyncProvider sync;
+  late _SyncProvider sync;
 
   setUp(() async {
     await GetIt.I.reset();
@@ -58,7 +76,7 @@ void main() {
     GetIt.I.registerSingleton<Logger>(Logger(level: Level.off));
     GetIt.I.registerSingleton<ZSideRPC>(rpc);
     GetIt.I.registerSingleton<BitcoindConnection>(MockBitcoindConnection());
-    sync = SyncProvider(startTimer: false);
+    sync = _SyncProvider();
     GetIt.I.registerSingleton<SyncProvider>(sync);
   });
 
@@ -147,6 +165,31 @@ void main() {
     expect(provider.unshieldedUTXOs.map((u) => u.txid), ['c1']);
     provider.dispose();
   });
+
+  for (final enforcer in [false, true]) {
+    test('a new ${enforcer ? 'enforcer' : 'mainchain'} tip loads mature coins', () async {
+      final provider = ZSideProvider();
+      await pumpEventQueue();
+      expect(provider.unshieldedUTXOs, isEmpty);
+
+      rpc.coins = [
+        UnshieldedUTXO(txid: 'deposit', address: 'a', amount: 1, confirmations: 51, generated: false, raw: 'deposit'),
+      ];
+      sync.setTip(150, enforcer: enforcer);
+      await pumpEventQueue();
+      expect(provider.unshieldedUTXOs.map((coin) => coin.txid), ['deposit']);
+      final reads = rpc.coinReads;
+
+      sync.setTip(150, enforcer: enforcer);
+      await pumpEventQueue();
+      expect(rpc.coinReads, reads);
+
+      provider.dispose();
+      sync.setTip(151, enforcer: enforcer);
+      await pumpEventQueue();
+      expect(rpc.coinReads, reads);
+    });
+  }
 
   test('a new zSide block loads the transaction history again', () async {
     final provider = TransactionsProvider();

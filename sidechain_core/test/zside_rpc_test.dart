@@ -174,6 +174,35 @@ void main() {
     expect(coins.single.txid, 'ab:1');
   });
 
+  test('shield excludes immature coins and keeps mature coins', () async {
+    Map<String, dynamic> coin(Map<String, dynamic> outpoint, bool spendable) => {
+      'outpoint': outpoint,
+      'output': {
+        'address': 'addr',
+        'content': {'Value': 100000000},
+      },
+      'confirmed': true,
+      'spendable': spendable,
+    };
+    transport.answers['/zside.v1.ZSideService/GetWalletUtxos'] = pb.GetWalletUtxosResponse(
+      utxosJson: jsonEncode([
+        coin({'Deposit': 'young:0'}, false),
+        coin({
+          'Coinbase': {'txid': 'young-coinbase', 'vout': 0},
+        }, false),
+        coin({'Deposit': 'mature:0'}, true),
+        coin({
+          'Coinbase': {'txid': 'mature-coinbase', 'vout': 0},
+        }, true),
+      ]),
+    );
+
+    final coins = await rpc.listUnshieldedUTXOs();
+
+    expect(coins.map((coin) => coin.txid), ['mature:0', 'mature-coinbase:0']);
+    expect(coins.map((coin) => coin.amount), [1, 1]);
+  });
+
   test('a node with no pending withdrawal bundle answers null', () async {
     transport.answers['/zside.v1.ZSideService/GetPendingWithdrawalBundle'] = pb.GetPendingWithdrawalBundleResponse(
       bundleJson: 'null',

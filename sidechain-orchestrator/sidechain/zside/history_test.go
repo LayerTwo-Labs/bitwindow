@@ -29,7 +29,7 @@ func historyFrom(t *testing.T, lists walletLists) []*pb.WalletTransaction {
 		"get_wallet_utxos_unconfirmed": orEmpty(lists.utxosUnconfirmed),
 		"get_wallet_stxos_unconfirmed": orEmpty(lists.stxosUnconfirmed),
 	})
-	resp, err := NewHandler(node.JSONRPCProxy).ListWalletTransactions(context.Background(), &pb.ListWalletTransactionsRequest{})
+	resp, err := NewHandler(node.JSONRPCProxy, nil).ListWalletTransactions(context.Background(), &pb.ListWalletTransactionsRequest{})
 	require.NoError(t, err)
 	return resp.Transactions
 }
@@ -132,13 +132,13 @@ func TestHistoryReportsAnUnknownOutpoint(t *testing.T) {
 		"get_wallet_stxos_unconfirmed": []any{},
 	})
 
-	_, err := NewHandler(node.JSONRPCProxy).ListWalletTransactions(context.Background(), &pb.ListWalletTransactionsRequest{})
+	_, err := NewHandler(node.JSONRPCProxy, nil).ListWalletTransactions(context.Background(), &pb.ListWalletTransactionsRequest{})
 	require.ErrorContains(t, err, "unknown kind")
 }
 
 func TestHistoryReportsANodeFault(t *testing.T) {
 	node := nodeServer(t, map[string]any{"get_wallet_utxos": []any{}})
 
-	_, err := NewHandler(node.JSONRPCProxy).ListWalletTransactions(context.Background(), &pb.ListWalletTransactionsRequest{})
+	_, err := NewHandler(node.JSONRPCProxy, nil).ListWalletTransactions(context.Background(), &pb.ListWalletTransactionsRequest{})
 	require.ErrorContains(t, err, "get_wallet_stxos")
 }

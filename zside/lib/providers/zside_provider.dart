@@ -26,6 +26,7 @@ class ZSideProvider extends ChangeNotifier {
   String? error;
 
   bool _isFetching = false;
+  final _tipWatch = SyncedTipWatch();
 
   ZSideProvider() {
     // fetch on launch
@@ -34,10 +35,17 @@ class ZSideProvider extends ChangeNotifier {
     // then refetch every time the block count is updated
     _mainchainRPC.addListener(fetch);
     _rpc.addListener(fetch);
+    _syncProvider.addListener(_onSyncTip);
     _syncProvider.onNewSidechainBlock(ZSide(), _onNewBlock);
   }
 
   void _onNewBlock(int _) => fetch();
+
+  void _onSyncTip() {
+    if (_tipWatch.moved(_syncProvider, synced: true)) {
+      unawaited(fetch());
+    }
+  }
 
   Future<void> fetch() async {
     try {
@@ -190,6 +198,7 @@ class ZSideProvider extends ChangeNotifier {
   void dispose() {
     _mainchainRPC.removeListener(fetch);
     _rpc.removeListener(fetch);
+    _syncProvider.removeListener(_onSyncTip);
     _syncProvider.offNewSidechainBlock(ZSide(), _onNewBlock);
     for (final timer in _timers) {
       timer.cancel();

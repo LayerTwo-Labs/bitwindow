@@ -108,6 +108,25 @@ func TestZSideWallet(t *testing.T) {
 		require.EqualValues(t, depositSats, balance(t).TotalTransparentSats)
 	})
 
+	t.Run("deposit maturity", func(t *testing.T) {
+		require.Zero(t, balance(t).AvailableTransparentSats)
+		coins, err := zside.GetWalletUtxos(ctx, &zpb.GetWalletUtxosRequest{})
+		require.NoError(t, err)
+		require.Contains(t, coins.UtxosJson, `"spendable":false`)
+		_, err = zside.Shield(ctx, &zpb.ShieldRequest{AmountSats: shieldSats, FeeSats: feeSats})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not enough funds")
+
+		mineMainchain(ctx, t, stack.enforcer, 49, stack.mainAddr)
+		waitFor(t, time.Minute, "the mature deposit", func() bool {
+			resp, err := zside.GetBalance(ctx, &zpb.GetBalanceRequest{})
+			return err == nil && resp.AvailableTransparentSats == depositSats
+		})
+		coins, err = zside.GetWalletUtxos(ctx, &zpb.GetWalletUtxosRequest{})
+		require.NoError(t, err)
+		require.Contains(t, coins.UtxosJson, `"spendable":true`)
+	})
+
 	// The wallet spends only confirmed coins, so each transfer gets its own block.
 	t.Run("transparent transfer", func(t *testing.T) {
 		before := balance(t)
@@ -120,7 +139,12 @@ func TestZSideWallet(t *testing.T) {
 		defer dropOnFailure(t, transfer.Txid)
 		transferTxids = append(transferTxids, transfer.Txid)
 		blindMergeMine(t)
-		require.InDelta(t, before.TotalTransparentSats-feeSats, balance(t).TotalTransparentSats, zsideFeeSlack)
+		after := balance(t)
+		require.InDelta(t, before.TotalTransparentSats-feeSats, after.TotalTransparentSats, zsideFeeSlack)
+		require.EqualValues(t, before.AvailableTransparentSats-feeSats, after.AvailableTransparentSats)
+		coins, err := zside.GetWalletUtxos(ctx, &zpb.GetWalletUtxosRequest{})
+		require.NoError(t, err)
+		require.Contains(t, coins.UtxosJson, `"spendable":false`)
 	})
 
 	t.Run("transfer", func(t *testing.T) {
