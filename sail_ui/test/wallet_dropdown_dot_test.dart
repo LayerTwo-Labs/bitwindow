@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 WalletMetadata _wallet(String id, String name) => WalletMetadata(
@@ -35,6 +36,47 @@ void main() {
       ),
     ),
   );
+
+  for (final attention in [false, true]) {
+    testWidgets('a long wallet name fits the closed button with attention $attention', (tester) async {
+      const name = 'O3 isolated test wallet';
+      final wallet = _wallet('a', name);
+      await tester.pumpWidget(
+        SailTheme(
+          data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+          child: MaterialApp(
+            home: Scaffold(
+              body: WalletDropdown(
+                currentWallet: wallet,
+                availableWallets: [wallet],
+                onWalletSelected: (_) {},
+                onCreateWallet: () {},
+                onEditWallet: (_) async {},
+                walletsNeedingAttention: attention ? {'a'} : {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final label = find.text(name);
+      final arrow = find
+          .descendant(
+            of: find.byType(WalletDropdown),
+            matching: find.byWidgetPredicate((widget) => widget is SvgPicture && widget.width == 13),
+          )
+          .last;
+      expect(tester.getRect(label).right, lessThan(tester.getRect(arrow).left));
+
+      await tester.tap(find.byType(WalletDropdown));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit $name'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   // A wallet the user is not in can hold coins to claim, and the picker is the
   // only place that says so.
