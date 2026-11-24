@@ -333,6 +333,8 @@ class _LargeStoryRowState extends State<_LargeStoryRow> {
 
 class CoinNewsLargeViewModel extends BaseViewModel {
   final NewsProvider _newsProvider = GetIt.I.get<NewsProvider>();
+  final ClientSettings _settings = GetIt.I.get<ClientSettings>();
+  late final Future<void> _topicsLoaded;
 
   String leftTopic = 'a1a1a1a1';
   String rightTopic = 'a2a2a2a2';
@@ -342,25 +344,37 @@ class CoinNewsLargeViewModel extends BaseViewModel {
 
   CoinNewsLargeViewModel() {
     _newsProvider.addListener(notifyListeners);
+    _topicsLoaded = _loadTopics();
   }
 
   bool get loading => _newsProvider.loading;
   String? get readError => _newsProvider.readError;
   List<Topic> get topics => _newsProvider.topics;
 
-  void setLeftTopic(String? topic) {
-    if (topic == null) {
-      return;
-    }
-    leftTopic = topic;
+  Future<void> _loadTopics() async {
+    final config = (await _settings.getValue(SelectedTopicsSetting())).value;
+    leftTopic = config.leftTopic ?? leftTopic;
+    rightTopic = config.rightTopic ?? rightTopic;
     notifyListeners();
   }
 
-  void setRightTopic(String? topic) {
+  Future<void> setLeftTopic(String? topic) async {
     if (topic == null) {
       return;
     }
+    await _topicsLoaded;
+    leftTopic = topic;
+    await _settings.mergeValue(SelectedTopicsSetting(), (config) => config.copyWith(leftTopic: topic));
+    notifyListeners();
+  }
+
+  Future<void> setRightTopic(String? topic) async {
+    if (topic == null) {
+      return;
+    }
+    await _topicsLoaded;
     rightTopic = topic;
+    await _settings.mergeValue(SelectedTopicsSetting(), (config) => config.copyWith(rightTopic: topic));
     notifyListeners();
   }
 
@@ -586,11 +600,11 @@ class CoinNewsViewModel extends BaseViewModel {
     final loadedSetting = await _settings.getValue(setting);
     final config = loadedSetting.value;
 
-    if (config.selectedTopics.isEmpty && topics.isNotEmpty) {
+    if (config.selectedTopics == null) {
       // Initialize with all topics if nothing is saved
       _selectedTopicIds = topics.map((topic) => topic.topic).toList();
     } else {
-      _selectedTopicIds = config.selectedTopics;
+      _selectedTopicIds = config.selectedTopics!;
     }
     notifyListeners();
   }
@@ -609,13 +623,7 @@ class CoinNewsViewModel extends BaseViewModel {
   Future<void> setSelectedTopics(List<String> topicIds) async {
     _selectedTopicIds = topicIds;
 
-    // Get current config and update it
-    final currentSetting = await _settings.getValue(SelectedTopicsSetting());
-    final updatedConfig = currentSetting.value.copyWith(selectedTopics: topicIds);
-
-    // Persist the selection
-    final setting = SelectedTopicsSetting(newValue: updatedConfig);
-    await _settings.setValue(setting);
+    await _settings.mergeValue(SelectedTopicsSetting(), (config) => config.copyWith(selectedTopics: topicIds));
 
     notifyListeners();
   }
@@ -685,11 +693,11 @@ List<CoinNews> get dummyData => [
 ];
 
 class TopicsConfigData {
-  final List<String> selectedTopics;
+  final List<String>? selectedTopics;
   final String? leftTopic;
   final String? rightTopic;
 
-  TopicsConfigData({required this.selectedTopics, this.leftTopic, this.rightTopic});
+  TopicsConfigData({this.selectedTopics, this.leftTopic, this.rightTopic});
 
   Map<String, dynamic> toMap() {
     return {'selectedTopics': selectedTopics, 'leftTopic': leftTopic, 'rightTopic': rightTopic};
@@ -697,7 +705,7 @@ class TopicsConfigData {
 
   factory TopicsConfigData.fromMap(Map<String, dynamic> map) {
     return TopicsConfigData(
-      selectedTopics: List<String>.from(map['selectedTopics'] ?? []),
+      selectedTopics: map['selectedTopics'] == null ? null : List<String>.from(map['selectedTopics']),
       leftTopic: map['leftTopic'] as String?,
       rightTopic: map['rightTopic'] as String?,
     );
@@ -719,7 +727,7 @@ class SelectedTopicsSetting extends SettingValue<TopicsConfigData> {
   SelectedTopicsSetting({super.newValue});
 
   @override
-  TopicsConfigData defaultValue() => TopicsConfigData(selectedTopics: []);
+  TopicsConfigData defaultValue() => TopicsConfigData();
 
   @override
   TopicsConfigData? fromJson(String jsonString) {
