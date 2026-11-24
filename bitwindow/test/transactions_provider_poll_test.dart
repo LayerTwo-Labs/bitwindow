@@ -266,7 +266,7 @@ void main() {
     await fetch;
 
     expect(provider.walletTransactions.map((t) => t.txid), ['b', 'a']);
-    expect(provider.walletTransactions.last.confirmationTime.height, 1, reason: 'the read keeps its own rows');
+    expect(provider.walletTransactions.last.confirmations, 1, reason: 'the read keeps its own rows');
   });
 
   test('a merge adds a new tx and changes nothing twice', () {

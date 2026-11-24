@@ -201,6 +201,7 @@ void main() {
       final entry = walletpb.WalletTransaction(
         txid: 'ab' * 32,
         warningMessage: message.value,
+        confirmations: 1,
         confirmationTime: walletpb.Confirmation(height: 6),
         receivedSatoshi: Int64(10000),
       );
@@ -277,7 +278,8 @@ void main() {
     final entry = walletpb.WalletTransaction(
       txid: 'cd' * 32,
       immature: true,
-      confirmationTime: walletpb.Confirmation(height: 10),
+      confirmations: 10,
+      confirmationTime: walletpb.Confirmation(height: 191),
       receivedSatoshi: Int64(312500000),
     );
     await tester.pumpSailPage(TransactionTable(searchWidget: const SizedBox.shrink(), model: _Overview([entry])));

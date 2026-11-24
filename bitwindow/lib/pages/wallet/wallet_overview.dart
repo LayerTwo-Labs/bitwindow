@@ -185,7 +185,7 @@ class OverviewLoadingSkeleton extends StatelessWidget {
 /// Only a transaction that waits for a block can carry a replacement. Whether
 /// this wallet signs its inputs comes from the backend preview, because a
 /// self-send and a consolidation both read as amount zero here.
-bool canBumpFee(WalletTransaction tx) => tx.confirmationTime.height == 0 && !canCancelBid(tx);
+bool canBumpFee(WalletTransaction tx) => tx.confirmations == 0 && !canCancelBid(tx);
 
 /// A lost bid names a mainchain block the chain already built past, so no miner
 /// can take it. A replacement is the only way back to the coins.
@@ -200,13 +200,53 @@ String transactionStatus(WalletTransaction tx) {
     return tx.bmmBid.lost ? 'BMM bid \u00b7 lost' : 'BMM bid \u00b7 slot ${tx.bmmBid.slot}';
   }
   if (tx.hasDepositRequest()) {
-    final state = tx.confirmationTime.height == 0 ? 'unconfirmed' : 'confirmed';
+    final state = tx.confirmations == 0 ? 'unconfirmed' : 'confirmed';
     return 'Deposit \u00b7 slot ${tx.depositRequest.slot} \u00b7 $state';
   }
   if (tx.immature) {
-    return 'Maturing (${tx.confirmationTime.height}/$coinbaseMaturity)';
+    return 'Maturing (${tx.confirmations}/$coinbaseMaturity)';
   }
-  return tx.confirmationTime.height == 0 ? 'Unconfirmed' : 'Confirmed';
+  return tx.confirmations == 0 ? 'Unconfirmed' : 'Confirmed';
+}
+
+/// The history as CSV, one row per transaction.
+String transactionsCsv(List<WalletTransaction> transactions) {
+  final headers = [
+    'Date',
+    'TXID',
+    'Type',
+    'Address',
+    'Label',
+    'Amount (BTC)',
+    'Amount (sats)',
+    'Fee (sats)',
+    'Note',
+    'Block Height',
+  ];
+
+  final rows = <List<String>>[headers];
+
+  for (final tx in transactions) {
+    final netAmount = walletNetSats(tx);
+    final type = netAmount > 0 ? 'Received' : 'Sent';
+    final amountBTC = (netAmount / 100000000).toStringAsFixed(8);
+    final date = DateFormat('yyyy-MM-dd HH:mm:ss').format(tx.confirmationTime.timestamp.toDateTime().toLocal());
+
+    rows.add([
+      date,
+      tx.txid,
+      type,
+      tx.address,
+      tx.addressLabel,
+      amountBTC,
+      netAmount.toString(),
+      tx.feeSats.toString(),
+      tx.note,
+      tx.confirmations == 0 ? '' : tx.confirmationTime.height.toString(),
+    ]);
+  }
+
+  return encodeCsv(rows);
 }
 
 class TransactionTable extends StatefulWidget {
@@ -247,8 +287,8 @@ class _TransactionTableState extends State<TransactionTable> {
           bValue = b.note;
           break;
         case 'status':
-          aValue = a.confirmationTime.height;
-          bValue = b.confirmationTime.height;
+          aValue = a.confirmations;
+          bValue = b.confirmations;
           break;
         case 'amount':
           aValue = walletNetSats(a).abs();
@@ -364,7 +404,7 @@ class _TransactionTableState extends State<TransactionTable> {
                             ],
                             rowBuilder: (context, row, selected) {
                               final entry = entries[row];
-                              final unconfirmed = entry.confirmationTime.height == 0;
+                              final unconfirmed = entry.confirmations == 0;
                               final statusColor = unconfirmed || entry.immature
                                   ? context.sailTheme.colors.orange
                                   : null;
@@ -477,7 +517,7 @@ class _TransactionTableState extends State<TransactionTable> {
                             },
                             contextMenuItems: (rowId) {
                               final entry = entries.firstWhere((e) => e.txid == rowId);
-                              final isUnconfirmed = entry.confirmationTime.height == 0;
+                              final isUnconfirmed = entry.confirmations == 0;
 
                               return [
                                 SailMenuItem(
@@ -597,6 +637,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
           address: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
           addressLabel: 'Main Wallet',
           note: 'Received payment',
+          confirmations: 1,
           confirmationTime: Confirmation(
             height: 800000,
             timestamp: Timestamp.fromDateTime(DateTime(2024)),
@@ -610,6 +651,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
           address: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
           addressLabel: 'Exchange',
           note: 'Sent to exchange',
+          confirmations: 1,
           confirmationTime: Confirmation(
             height: 800001,
             timestamp: Timestamp.fromDateTime(DateTime(2024)),
@@ -623,6 +665,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
           address: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
           addressLabel: 'Mining Pool',
           note: 'Mining reward',
+          confirmations: 1,
           confirmationTime: Confirmation(
             height: 800002,
             timestamp: Timestamp.fromDateTime(DateTime(2024)),
@@ -760,7 +803,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
 
       final defaultFileName = 'bitwindow-transactions-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.csv';
 
-      final csvData = _generateCSV(transactions);
+      final csvData = transactionsCsv(transactions);
 
       final result = await FilePicker.saveFile(
         dialogTitle: 'Export Transactions to CSV',
@@ -889,45 +932,6 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
       log.e('Failed to accelerate (CPFP): $e');
       return 'Failed to accelerate: $e';
     }
-  }
-
-  String _generateCSV(List<WalletTransaction> transactions) {
-    final headers = [
-      'Date',
-      'TXID',
-      'Type',
-      'Address',
-      'Label',
-      'Amount (BTC)',
-      'Amount (sats)',
-      'Fee (sats)',
-      'Note',
-      'Block Height',
-    ];
-
-    final rows = <List<String>>[headers];
-
-    for (final tx in transactions) {
-      final netAmount = walletNetSats(tx);
-      final type = netAmount > 0 ? 'Received' : 'Sent';
-      final amountBTC = (netAmount / 100000000).toStringAsFixed(8);
-      final date = DateFormat('yyyy-MM-dd HH:mm:ss').format(tx.confirmationTime.timestamp.toDateTime().toLocal());
-
-      rows.add([
-        date,
-        tx.txid,
-        type,
-        tx.address,
-        tx.addressLabel,
-        amountBTC,
-        netAmount.toString(),
-        tx.feeSats.toString(),
-        tx.note,
-        tx.confirmationTime.height.toString(),
-      ]);
-    }
-
-    return encodeCsv(rows);
   }
 
   @override

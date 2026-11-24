@@ -72,7 +72,14 @@ void main() {
       _entry('c' * 64, 0, 5000, confirmations: 2),
     ], {});
 
-    expect(rows.map((tx) => tx.confirmationTime.height), [1, 2, 3]);
+    expect(rows.map((tx) => tx.confirmations), [1, 2, 3]);
+  });
+
+  test('a row gives the block height and the confirmations apart', () {
+    final rows = walletTransactionsFromEntries([_entry(_payment, 0, 5000, confirmations: 3)..blockHeight = 102], {});
+
+    expect(rows.single.confirmationTime.height, 102);
+    expect(rows.single.confirmations, 3);
   });
 
   test('a failed parallel read names the read that failed', () async {
