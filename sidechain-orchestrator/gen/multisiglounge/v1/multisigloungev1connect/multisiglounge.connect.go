@@ -36,6 +36,9 @@ const (
 	// MultisigLoungeServiceImportGroupFromTxidProcedure is the procedure name of the
 	// MultisigLoungeService's ImportGroupFromTxid RPC.
 	MultisigLoungeServiceImportGroupFromTxidProcedure = "/multisiglounge.v1.MultisigLoungeService/ImportGroupFromTxid"
+	// MultisigLoungeServiceFindWalletKeysProcedure is the procedure name of the MultisigLoungeService's
+	// FindWalletKeys RPC.
+	MultisigLoungeServiceFindWalletKeysProcedure = "/multisiglounge.v1.MultisigLoungeService/FindWalletKeys"
 	// MultisigLoungeServiceSignTransactionProcedure is the procedure name of the
 	// MultisigLoungeService's SignTransaction RPC.
 	MultisigLoungeServiceSignTransactionProcedure = "/multisiglounge.v1.MultisigLoungeService/SignTransaction"
@@ -80,6 +83,13 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_multisiglounge_v1_multisiglounge_proto.Services().ByName("MultisigLoungeService").Methods().ByName("ImportGroupFromTxid"),
 			Procedure:  MultisigLoungeServiceImportGroupFromTxidProcedure,
+		}
+	})
+	multisigLoungeServiceFindWalletKeysSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_multisiglounge_v1_multisiglounge_proto.Services().ByName("MultisigLoungeService").Methods().ByName("FindWalletKeys"),
+			Procedure:  MultisigLoungeServiceFindWalletKeysProcedure,
 		}
 	})
 	multisigLoungeServiceSignTransactionSpec = sync.OnceValue(func() connect.Spec {
@@ -135,6 +145,8 @@ type MultisigLoungeServiceClient interface {
 	// ImportGroupFromTxid fetches the OP_RETURN at the given txid, decodes the
 	// multisig group, and reports which of the group's keys belong to the wallet.
 	ImportGroupFromTxid(context.Context, *v1.ImportGroupFromTxidRequest) (*v1.ImportGroupFromTxidResponse, error)
+	// FindWalletKeys reports which group keys the selected wallet can derive.
+	FindWalletKeys(context.Context, *v1.FindWalletKeysRequest) (*v1.FindWalletKeysResponse, error)
 	// SignTransaction adds the wallet's signature(s) to a multisig PSBT,
 	// deriving the wallet's keys server-side from its seed. The PSBT must belong
 	// to the group (foreign inputs are rejected).
@@ -178,6 +190,8 @@ type MultisigLoungeServiceHandler interface {
 	// ImportGroupFromTxid fetches the OP_RETURN at the given txid, decodes the
 	// multisig group, and reports which of the group's keys belong to the wallet.
 	ImportGroupFromTxid(context.Context, *v1.ImportGroupFromTxidRequest) (*v1.ImportGroupFromTxidResponse, error)
+	// FindWalletKeys reports which group keys the selected wallet can derive.
+	FindWalletKeys(context.Context, *v1.FindWalletKeysRequest) (*v1.FindWalletKeysResponse, error)
 	// SignTransaction adds the wallet's signature(s) to a multisig PSBT,
 	// deriving the wallet's keys server-side from its seed. The PSBT must belong
 	// to the group (foreign inputs are rejected).
@@ -206,6 +220,7 @@ func RegisterMultisigLoungeServiceHandler(server *connect.Server, svc MultisigLo
 		connect.Method{Spec: multisigLoungeServiceValidatePsbtSpec(), Handler: adapter.validatePsbt},
 		connect.Method{Spec: multisigLoungeServicePublishGroupSpec(), Handler: adapter.publishGroup},
 		connect.Method{Spec: multisigLoungeServiceImportGroupFromTxidSpec(), Handler: adapter.importGroupFromTxid},
+		connect.Method{Spec: multisigLoungeServiceFindWalletKeysSpec(), Handler: adapter.findWalletKeys},
 		connect.Method{Spec: multisigLoungeServiceSignTransactionSpec(), Handler: adapter.signTransaction},
 		connect.Method{Spec: multisigLoungeServiceCombineAndBroadcastSpec(), Handler: adapter.combineAndBroadcast},
 		connect.Method{Spec: multisigLoungeServiceSyncGroupSpec(), Handler: adapter.syncGroup},
@@ -231,6 +246,10 @@ func (UnimplementedMultisigLoungeServiceHandler) PublishGroup(context.Context, *
 
 func (UnimplementedMultisigLoungeServiceHandler) ImportGroupFromTxid(context.Context, *v1.ImportGroupFromTxidRequest) (*v1.ImportGroupFromTxidResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "multisiglounge.v1.MultisigLoungeService.ImportGroupFromTxid is not implemented")
+}
+
+func (UnimplementedMultisigLoungeServiceHandler) FindWalletKeys(context.Context, *v1.FindWalletKeysRequest) (*v1.FindWalletKeysResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "multisiglounge.v1.MultisigLoungeService.FindWalletKeys is not implemented")
 }
 
 func (UnimplementedMultisigLoungeServiceHandler) SignTransaction(context.Context, *v1.SignTransactionRequest) (*v1.SignTransactionResponse, error) {
@@ -284,6 +303,14 @@ func (c *multisigLoungeServiceClient) PublishGroup(ctx context.Context, req *v1.
 func (c *multisigLoungeServiceClient) ImportGroupFromTxid(ctx context.Context, req *v1.ImportGroupFromTxidRequest) (*v1.ImportGroupFromTxidResponse, error) {
 	var res v1.ImportGroupFromTxidResponse
 	if err := c.client.CallUnary(ctx, multisigLoungeServiceImportGroupFromTxidSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *multisigLoungeServiceClient) FindWalletKeys(ctx context.Context, req *v1.FindWalletKeysRequest) (*v1.FindWalletKeysResponse, error) {
+	var res v1.FindWalletKeysResponse
+	if err := c.client.CallUnary(ctx, multisigLoungeServiceFindWalletKeysSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -373,6 +400,18 @@ func (h multisigLoungeServiceHandler) importGroupFromTxid(ctx context.Context, _
 		return err
 	}
 	res, err := h.svc.ImportGroupFromTxid(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h multisigLoungeServiceHandler) findWalletKeys(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.FindWalletKeysRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.FindWalletKeys(ctx, &req)
 	if err != nil {
 		return err
 	}

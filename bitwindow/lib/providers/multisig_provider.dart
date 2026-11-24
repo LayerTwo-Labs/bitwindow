@@ -870,6 +870,22 @@ class MultisigStorage {
     }
   }
 
+  static Future<MultisigGroup> groupForWallet(MultisigGroup group, String walletId) async {
+    final result = await _multisigLounge.findWalletKeys(
+      group: multisigGroupToProto(group),
+      walletId: walletId,
+    );
+    final owned = result.walletKeyIndices.toSet();
+    if (group.keys.indexed.every((entry) => entry.$2.isWallet == owned.contains(entry.$1))) {
+      return group;
+    }
+    return group.copyWith(
+      keys: [
+        for (final (index, key) in group.keys.indexed) key.copyWith(isWallet: owned.contains(index)),
+      ],
+    );
+  }
+
   static Future<void> saveGroups(List<MultisigGroup> groups) async {
     for (final group in groups) {
       await _api.saveGroup(_groupToProto(group));

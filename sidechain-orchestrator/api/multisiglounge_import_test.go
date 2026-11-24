@@ -32,6 +32,46 @@ func TestImportGroupFindsTheWalletKey(t *testing.T) {
 	require.Equal(t, []uint32{0}, resp.WalletKeyIndices)
 }
 
+func TestFindWalletKeysUsesTheSelectedWallet(t *testing.T) {
+	const path = "m/48'/1'/0'/2'"
+	h, firstID, group := newGroupImportHandler(t, path)
+	second, err := h.svc.GenerateWallet("Second", syncTestMnemonic, "cosigner", nil)
+	require.NoError(t, err)
+	xpub, err := wallet.DeriveAccountXpub(second.Master.SeedHex, path, &chaincfg.SigNetParams)
+	require.NoError(t, err)
+	group.Keys = append(group.Keys, wallet.MultisigGroupKey{Xpub: xpub, DerivationPath: path})
+
+	for i, id := range []string{firstID, second.ID} {
+		resp, err := h.FindWalletKeys(t.Context(), &pb.FindWalletKeysRequest{
+			WalletId: id,
+			Group:    groupDataToProto(group),
+		})
+		require.NoError(t, err)
+		require.Equal(t, []uint32{uint32(i)}, resp.WalletKeyIndices)
+	}
+}
+
+func TestFindWalletKeysSkipsAnInvalidExternalPath(t *testing.T) {
+	const path = "m/48'/1'/0'/2'"
+	h, walletID, group := newGroupImportHandler(t, path)
+	second, err := h.svc.GenerateWallet("Second", syncTestMnemonic, "cosigner", nil)
+	require.NoError(t, err)
+	xpub, err := wallet.DeriveAccountXpub(second.Master.SeedHex, path, &chaincfg.SigNetParams)
+	require.NoError(t, err)
+	group.N = 2
+	group.Keys = append([]wallet.MultisigGroupKey{{
+		Xpub:           xpub,
+		DerivationPath: "m/48'//0'",
+	}}, group.Keys...)
+
+	resp, err := h.FindWalletKeys(t.Context(), &pb.FindWalletKeysRequest{
+		WalletId: walletID,
+		Group:    groupDataToProto(group),
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uint32{1}, resp.WalletKeyIndices)
+}
+
 func newGroupImportHandler(t *testing.T, path string) (*MultisigLoungeHandler, string, wallet.MultisigGroupData) {
 	t.Helper()
 	svc := wallet.NewService(t.TempDir(), zerolog.Nop())

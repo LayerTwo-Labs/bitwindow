@@ -4,6 +4,7 @@
 //
 
 import "package:connectrpc/connect.dart" as connect;
+
 import "multisiglounge.pb.dart" as multisigloungev1multisiglounge;
 
 /// MultisigLoungeService builds watch-only multisig descriptors and validates
@@ -49,6 +50,14 @@ abstract final class MultisigLoungeService {
     connect.StreamType.unary,
     multisigloungev1multisiglounge.ImportGroupFromTxidRequest.new,
     multisigloungev1multisiglounge.ImportGroupFromTxidResponse.new,
+  );
+
+  /// FindWalletKeys reports which group keys the selected wallet can derive.
+  static const findWalletKeys = connect.Spec(
+    '/$name/FindWalletKeys',
+    connect.StreamType.unary,
+    multisigloungev1multisiglounge.FindWalletKeysRequest.new,
+    multisigloungev1multisiglounge.FindWalletKeysResponse.new,
   );
 
   /// SignTransaction adds the wallet's signature(s) to a multisig PSBT,

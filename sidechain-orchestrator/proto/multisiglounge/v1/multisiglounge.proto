@@ -24,6 +24,9 @@ service MultisigLoungeService {
   // multisig group, and reports which of the group's keys belong to the wallet.
   rpc ImportGroupFromTxid(ImportGroupFromTxidRequest) returns (ImportGroupFromTxidResponse);
 
+  // FindWalletKeys reports which group keys the selected wallet can derive.
+  rpc FindWalletKeys(FindWalletKeysRequest) returns (FindWalletKeysResponse);
+
   // SignTransaction adds the wallet's signature(s) to a multisig PSBT,
   // deriving the wallet's keys server-side from its seed. The PSBT must belong
   // to the group (foreign inputs are rejected).
@@ -208,6 +211,16 @@ message ImportGroupFromTxidResponse {
   GroupData group = 1;
   // Indices into group.keys that belong to the wallet (derived xpub matches).
   repeated uint32 wallet_key_indices = 2;
+}
+
+message FindWalletKeysRequest {
+  GroupData group = 1;
+  string wallet_id = 2;
+}
+
+message FindWalletKeysResponse {
+  // Indices into the supplied group keys.
+  repeated uint32 wallet_key_indices = 1;
 }
 
 // MultisigKey is one cosigner key in a group.

@@ -4,13 +4,14 @@
 //
 
 import "package:connectrpc/connect.dart" as connect;
+
 import "multisiglounge.pb.dart" as multisigloungev1multisiglounge;
 import "multisiglounge.connect.spec.dart" as specs;
 
 /// MultisigLoungeService builds watch-only multisig descriptors and validates
 /// PSBTs for the BitWindow multisig lounge. Pure stateless logic — no wallet,
 /// no signing, no broadcast.
-extension type MultisigLoungeServiceClient (connect.Transport _transport) {
+extension type MultisigLoungeServiceClient(connect.Transport _transport) {
   /// BuildDescriptors builds the receive (/0/*) and change (/1/*) watch-only
   /// wsh(sortedmulti) descriptors for a multisig group, with checksums.
   Future<multisigloungev1multisiglounge.BuildDescriptorsResponse> buildDescriptors(
@@ -81,6 +82,24 @@ extension type MultisigLoungeServiceClient (connect.Transport _transport) {
   }) {
     return connect.Client(_transport).unary(
       specs.MultisigLoungeService.importGroupFromTxid,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// FindWalletKeys reports which group keys the selected wallet can derive.
+  Future<multisigloungev1multisiglounge.FindWalletKeysResponse> findWalletKeys(
+    multisigloungev1multisiglounge.FindWalletKeysRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.MultisigLoungeService.findWalletKeys,
       input,
       signal: signal,
       headers: headers,

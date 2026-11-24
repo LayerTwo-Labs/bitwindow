@@ -351,6 +351,33 @@ final $typed_data.Uint8List importGroupFromTxidResponseDescriptor =
         'xvdW5nZS52MS5Hcm91cERhdGFSBWdyb3VwEiwKEndhbGxldF9rZXlfaW5kaWNlcxgCIAMoDVIQ'
         'd2FsbGV0S2V5SW5kaWNlcw==');
 
+@$core.Deprecated('Use findWalletKeysRequestDescriptor instead')
+const FindWalletKeysRequest$json = {
+  '1': 'FindWalletKeysRequest',
+  '2': [
+    {'1': 'group', '3': 1, '4': 1, '5': 11, '6': '.multisiglounge.v1.GroupData', '10': 'group'},
+    {'1': 'wallet_id', '3': 2, '4': 1, '5': 9, '10': 'walletId'},
+  ],
+};
+
+/// Descriptor for `FindWalletKeysRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List findWalletKeysRequestDescriptor =
+    $convert.base64Decode('ChVGaW5kV2FsbGV0S2V5c1JlcXVlc3QSMgoFZ3JvdXAYASABKAsyHC5tdWx0aXNpZ2xvdW5nZS'
+        '52MS5Hcm91cERhdGFSBWdyb3VwEhsKCXdhbGxldF9pZBgCIAEoCVIId2FsbGV0SWQ=');
+
+@$core.Deprecated('Use findWalletKeysResponseDescriptor instead')
+const FindWalletKeysResponse$json = {
+  '1': 'FindWalletKeysResponse',
+  '2': [
+    {'1': 'wallet_key_indices', '3': 1, '4': 3, '5': 13, '10': 'walletKeyIndices'},
+  ],
+};
+
+/// Descriptor for `FindWalletKeysResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List findWalletKeysResponseDescriptor =
+    $convert.base64Decode('ChZGaW5kV2FsbGV0S2V5c1Jlc3BvbnNlEiwKEndhbGxldF9rZXlfaW5kaWNlcxgBIAMoDVIQd2'
+        'FsbGV0S2V5SW5kaWNlcw==');
+
 @$core.Deprecated('Use multisigKeyDescriptor instead')
 const MultisigKey$json = {
   '1': 'MultisigKey',
@@ -474,6 +501,11 @@ const $core.Map<$core.String, $core.dynamic> MultisigLoungeServiceBase$json = {
       '3': '.multisiglounge.v1.ImportGroupFromTxidResponse'
     },
     {
+      '1': 'FindWalletKeys',
+      '2': '.multisiglounge.v1.FindWalletKeysRequest',
+      '3': '.multisiglounge.v1.FindWalletKeysResponse'
+    },
+    {
       '1': 'SignTransaction',
       '2': '.multisiglounge.v1.SignTransactionRequest',
       '3': '.multisiglounge.v1.SignTransactionResponse'
@@ -511,6 +543,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> MultisigLo
   '.multisiglounge.v1.PublishGroupResponse': PublishGroupResponse$json,
   '.multisiglounge.v1.ImportGroupFromTxidRequest': ImportGroupFromTxidRequest$json,
   '.multisiglounge.v1.ImportGroupFromTxidResponse': ImportGroupFromTxidResponse$json,
+  '.multisiglounge.v1.FindWalletKeysRequest': FindWalletKeysRequest$json,
+  '.multisiglounge.v1.FindWalletKeysResponse': FindWalletKeysResponse$json,
   '.multisiglounge.v1.SignTransactionRequest': SignTransactionRequest$json,
   '.multisiglounge.v1.SignTransactionResponse': SignTransactionResponse$json,
   '.multisiglounge.v1.CombineAndBroadcastRequest': CombineAndBroadcastRequest$json,
@@ -537,13 +571,15 @@ final $typed_data.Uint8List multisigLoungeServiceDescriptor =
         'BSZXF1ZXN0GicubXVsdGlzaWdsb3VuZ2UudjEuUHVibGlzaEdyb3VwUmVzcG9uc2USdAoTSW1w'
         'b3J0R3JvdXBGcm9tVHhpZBItLm11bHRpc2lnbG91bmdlLnYxLkltcG9ydEdyb3VwRnJvbVR4aW'
         'RSZXF1ZXN0Gi4ubXVsdGlzaWdsb3VuZ2UudjEuSW1wb3J0R3JvdXBGcm9tVHhpZFJlc3BvbnNl'
-        'EmgKD1NpZ25UcmFuc2FjdGlvbhIpLm11bHRpc2lnbG91bmdlLnYxLlNpZ25UcmFuc2FjdGlvbl'
-        'JlcXVlc3QaKi5tdWx0aXNpZ2xvdW5nZS52MS5TaWduVHJhbnNhY3Rpb25SZXNwb25zZRJ0ChND'
-        'b21iaW5lQW5kQnJvYWRjYXN0Ei0ubXVsdGlzaWdsb3VuZ2UudjEuQ29tYmluZUFuZEJyb2FkY2'
-        'FzdFJlcXVlc3QaLi5tdWx0aXNpZ2xvdW5nZS52MS5Db21iaW5lQW5kQnJvYWRjYXN0UmVzcG9u'
-        'c2USVgoJU3luY0dyb3VwEiMubXVsdGlzaWdsb3VuZ2UudjEuU3luY0dyb3VwUmVxdWVzdBokLm'
-        '11bHRpc2lnbG91bmdlLnYxLlN5bmNHcm91cFJlc3BvbnNlEmUKDlJlc3RvcmVIaXN0b3J5Eigu'
-        'bXVsdGlzaWdsb3VuZ2UudjEuUmVzdG9yZUhpc3RvcnlSZXF1ZXN0GikubXVsdGlzaWdsb3VuZ2'
-        'UudjEuUmVzdG9yZUhpc3RvcnlSZXNwb25zZRJoCg9DcmVhdGVTcGVuZFBzYnQSKS5tdWx0aXNp'
-        'Z2xvdW5nZS52MS5DcmVhdGVTcGVuZFBzYnRSZXF1ZXN0GioubXVsdGlzaWdsb3VuZ2UudjEuQ3'
-        'JlYXRlU3BlbmRQc2J0UmVzcG9uc2U=');
+        'EmUKDkZpbmRXYWxsZXRLZXlzEigubXVsdGlzaWdsb3VuZ2UudjEuRmluZFdhbGxldEtleXNSZX'
+        'F1ZXN0GikubXVsdGlzaWdsb3VuZ2UudjEuRmluZFdhbGxldEtleXNSZXNwb25zZRJoCg9TaWdu'
+        'VHJhbnNhY3Rpb24SKS5tdWx0aXNpZ2xvdW5nZS52MS5TaWduVHJhbnNhY3Rpb25SZXF1ZXN0Gi'
+        'oubXVsdGlzaWdsb3VuZ2UudjEuU2lnblRyYW5zYWN0aW9uUmVzcG9uc2USdAoTQ29tYmluZUFu'
+        'ZEJyb2FkY2FzdBItLm11bHRpc2lnbG91bmdlLnYxLkNvbWJpbmVBbmRCcm9hZGNhc3RSZXF1ZX'
+        'N0Gi4ubXVsdGlzaWdsb3VuZ2UudjEuQ29tYmluZUFuZEJyb2FkY2FzdFJlc3BvbnNlElYKCVN5'
+        'bmNHcm91cBIjLm11bHRpc2lnbG91bmdlLnYxLlN5bmNHcm91cFJlcXVlc3QaJC5tdWx0aXNpZ2'
+        'xvdW5nZS52MS5TeW5jR3JvdXBSZXNwb25zZRJlCg5SZXN0b3JlSGlzdG9yeRIoLm11bHRpc2ln'
+        'bG91bmdlLnYxLlJlc3RvcmVIaXN0b3J5UmVxdWVzdBopLm11bHRpc2lnbG91bmdlLnYxLlJlc3'
+        'RvcmVIaXN0b3J5UmVzcG9uc2USaAoPQ3JlYXRlU3BlbmRQc2J0EikubXVsdGlzaWdsb3VuZ2Uu'
+        'djEuQ3JlYXRlU3BlbmRQc2J0UmVxdWVzdBoqLm11bHRpc2lnbG91bmdlLnYxLkNyZWF0ZVNwZW'
+        '5kUHNidFJlc3BvbnNl');

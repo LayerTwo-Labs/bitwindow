@@ -44,6 +44,10 @@ class OrchestratorMultisigLoungeRPC {
     return _client.importGroupFromTxid(mlpb.ImportGroupFromTxidRequest(txid: txid, walletId: walletId));
   }
 
+  Future<mlpb.FindWalletKeysResponse> findWalletKeys({required mlpb.GroupData group, required String walletId}) {
+    return _client.findWalletKeys(mlpb.FindWalletKeysRequest(group: group, walletId: walletId));
+  }
+
   Future<mlpb.SignTransactionResponse> signTransaction({
     required String psbtBase64,
     required mlpb.GroupData group,
