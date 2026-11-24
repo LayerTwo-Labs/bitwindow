@@ -131,6 +131,13 @@ class BlockExplorerDialog extends StatelessWidget {
                   child: SailText.primary13(model.searchError!, color: context.sailTheme.colors.error),
                 ),
               ],
+              if (model.blockchainProvider.blocksError case final error?) ...[
+                SailSpacing(SailStyleValues.padding08),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SailText.primary13('Could not read the blocks: $error', color: context.sailTheme.colors.error),
+                ),
+              ],
               SailSpacing(SailStyleValues.padding16),
               if (phone)
                 Expanded(

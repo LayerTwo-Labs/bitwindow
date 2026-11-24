@@ -314,11 +314,15 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
     }
 
     isLoadingMoreBlocks = true;
+    notifyListeners();
     try {
       final lastBlock = blocks.last;
       final (moreBlocks, hasMore) = await bitwindowd.bitwindowd.listBlocks(
-        startHeight: lastBlock.height - 1,
+        startHeight: lastBlock.height,
+        pageSize: 51,
       );
+
+      blocksError = null;
 
       // Filter out blocks we've already loaded
       final newBlocks = moreBlocks.where((b) => !loadedBlockHeights.contains(b.height)).toList();
@@ -333,9 +337,11 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
       // Sort all blocks by height in descending order (newest to oldest)
       blocks = [...blocks, ...newBlocks]..sort((a, b) => b.height.compareTo(a.height));
       hasMoreBlocks = hasMore;
-      notifyListeners();
+    } catch (error) {
+      blocksError = error.toString();
     } finally {
       isLoadingMoreBlocks = false;
+      notifyListeners();
     }
   }
 

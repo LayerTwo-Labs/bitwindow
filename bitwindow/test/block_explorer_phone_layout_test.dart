@@ -59,6 +59,26 @@ void main() {
     await GetIt.I.reset();
   });
 
+  for (final phone in [false, true]) {
+    testWidgets('a block read error shows on the ${phone ? 'phone' : 'desktop'} explorer', (tester) async {
+      await _pump(tester, phone: phone);
+      final provider = GetIt.I.get<BlockchainProvider>();
+      provider.blocksError = '[unavailable] Core stopped';
+      provider.notifyListeners();
+      await tester.pump();
+
+      expect(find.text('Could not read the blocks: [unavailable] Core stopped'), findsOneWidget);
+      expect(find.text('921847'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      provider.blocksError = null;
+      provider.notifyListeners();
+      await tester.pump();
+
+      expect(find.text('Could not read the blocks: [unavailable] Core stopped'), findsNothing);
+    });
+  }
+
   testWidgets('on a phone the search field spans the card with the buttons under it', (tester) async {
     await _pump(tester, phone: true);
 
