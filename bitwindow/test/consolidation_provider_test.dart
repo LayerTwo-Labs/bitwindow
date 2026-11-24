@@ -22,6 +22,7 @@ UnspentOutput coin(String id, int sats) =>
 class _RecordingWallet extends MockWalletAPI {
   final List<String> frozen = [];
   final List<String> unfrozen = [];
+  final Set<String> held = {};
   Future<void> Function()? onFreeze;
   bool failUnfreeze = false;
   Future<void> Function()? onUnfreeze;
@@ -36,6 +37,7 @@ class _RecordingWallet extends MockWalletAPI {
         throw Exception('the database refused the freeze');
       }
       frozen.add(outpoint);
+      held.add(outpoint);
       await onFreeze?.call();
     }
     if (isFrozen == false) {
@@ -43,6 +45,7 @@ class _RecordingWallet extends MockWalletAPI {
         throw Exception('the database refused the unfreeze');
       }
       unfrozen.add(outpoint);
+      held.remove(outpoint);
       await onUnfreeze?.call();
     }
   }
@@ -58,6 +61,10 @@ class _FakeBitwindow extends MockAPI {
 }
 
 class _FakeWalletRPC implements OrchestratorWalletRPC {
+  _FakeWalletRPC(this.held);
+
+  /// The coins the backend holds frozen. A send refuses each of them.
+  final Set<String> held;
   bool failSend = false;
   bool failAddress = false;
   Future<void> Function()? onSend;
@@ -93,6 +100,11 @@ class _FakeWalletRPC implements OrchestratorWalletRPC {
     if (failSend) {
       throw Exception('node refused the transaction');
     }
+    for (final input in requiredInputs ?? const <UnspentOutput>[]) {
+      if (held.contains(input.output)) {
+        throw Exception('the output ${input.output} is frozen; unfreeze it to spend it');
+      }
+    }
     await onSend?.call();
     sentAmounts.add(destinations.values.first);
     subtractFlags.add(subtractFeeFromAmount);
@@ -105,8 +117,10 @@ class _FakeWalletRPC implements OrchestratorWalletRPC {
 }
 
 class _FakeOrchestrator implements OrchestratorRPC {
+  _FakeOrchestrator(Set<String> held) : wallet = _FakeWalletRPC(held);
+
   @override
-  final _FakeWalletRPC wallet = _FakeWalletRPC();
+  final _FakeWalletRPC wallet;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -175,7 +189,7 @@ void main() {
   setUp(() async {
     await GetIt.I.reset();
     bitwindow = _FakeBitwindow();
-    orchestrator = _FakeOrchestrator();
+    orchestrator = _FakeOrchestrator(bitwindow.recordingWallet.held);
     transactions = _FakeTransactions();
     GetIt.I.registerSingleton<Logger>(Logger());
     GetIt.I.registerSingleton<BitwindowRPC>(bitwindow);
@@ -194,15 +208,16 @@ void main() {
     await GetIt.I.reset();
   });
 
-  test('freezes every coin of a run before it sends the transaction', () async {
+  test('releases the coins of a run for its own send and freezes them again after it', () async {
     final coins = [coin('a', 50000), coin('b', 50000), coin('c', 50000)];
 
     await provider.start(walletId: 'wallet', plan: planOf(coins));
 
-    expect(bitwindow.recordingWallet.frozen, ['a:0', 'b:0', 'c:0']);
-    expect(bitwindow.recordingWallet.unfrozen, isEmpty);
+    expect(bitwindow.recordingWallet.frozen, ['a:0', 'b:0', 'c:0', 'a:0', 'b:0', 'c:0']);
+    expect(bitwindow.recordingWallet.unfrozen, ['a:0', 'b:0', 'c:0']);
     expect(provider.runs.single.status, ConsolidationRunStatus.pending);
     expect(provider.runs.single.txid, 'txid1');
+    expect(provider.runs.single.coinsFrozen, isTrue);
   });
 
   // A queued transaction's coins are already committed. The Send tab must not
@@ -233,7 +248,10 @@ void main() {
     expect(provider.runs.first.status, ConsolidationRunStatus.pending);
     expect(provider.runs.last.status, ConsolidationRunStatus.stopped);
     expect(provider.runs.last.coinsFrozen, isFalse);
-    expect(bitwindow.recordingWallet.unfrozen, hasLength(plan.batches.last.inputs.length));
+    expect(
+      bitwindow.recordingWallet.unfrozen,
+      hasLength(plan.batches.first.inputs.length + plan.batches.last.inputs.length),
+    );
   });
 
   test('subtracts the fee from the one output and adds no other coin', () async {
@@ -278,8 +296,8 @@ void main() {
 
     await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
 
-    expect(bitwindow.recordingWallet.frozen, ['a:0', 'b:0']);
-    expect(bitwindow.recordingWallet.unfrozen, isEmpty);
+    expect(bitwindow.recordingWallet.frozen, ['a:0', 'b:0', 'a:0', 'b:0']);
+    expect(bitwindow.recordingWallet.held, {'a:0', 'b:0'});
     expect(provider.runs.single.status, ConsolidationRunStatus.failed);
     expect(provider.runs.single.error, contains('node refused'));
     expect(provider.runs.single.canUnfreeze, isTrue, reason: 'the user can release them');
@@ -398,7 +416,7 @@ void main() {
 
   // A network change moves the metadata database. Cleanup must not write the
   // old network's outpoints into the new network's database.
-  test('does not unfreeze against the network that replaced the old one', () async {
+  test('does not freeze again against the network that replaced the old one', () async {
     orchestrator.wallet.onSend = () async {
       conf.network = BitcoinNetwork.BITCOIN_NETWORK_REGTEST;
       await provider.onNetworkChanged();
@@ -408,7 +426,7 @@ void main() {
     await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
 
     expect(bitwindow.recordingWallet.frozen, ['a:0', 'b:0']);
-    expect(bitwindow.recordingWallet.unfrozen, isEmpty);
+    expect(bitwindow.recordingWallet.unfrozen, ['a:0', 'b:0'], reason: 'the release for the send ran on the old chain');
     expect(provider.runs, isEmpty);
   });
 
@@ -461,7 +479,7 @@ void main() {
     await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
 
     expect(statusAtSend, ConsolidationRunStatus.sending);
-    expect(frozenAtSend, isTrue, reason: 'the coins are frozen already');
+    expect(frozenAtSend, isFalse, reason: 'the run releases its coins for its own send');
     expect(unfreezableAtSend, isFalse, reason: 'the broadcast can still follow');
   });
 
@@ -693,7 +711,8 @@ void main() {
     final parked = provider.runs.single;
     expect(parked.status, ConsolidationRunStatus.pending);
     expect(parked.txid, 'txid1');
-    expect(parked.canUnfreeze, isTrue, reason: 'the coins have a way back');
+    expect(parked.coinsFrozen, isFalse, reason: 'the new chain database must not get the old outpoints');
+    expect(parked.error, contains('chain changed'));
   });
 
   // The history is bounded. An old consolidation ages out of it, and that is
@@ -783,7 +802,11 @@ void main() {
     expect(queued.status, ConsolidationRunStatus.failed, reason: 'a queued run has no action of its own');
     expect(queued.coinsFrozen, isTrue);
     expect(queued.canUnfreeze, isTrue);
-    expect(bitwindow.recordingWallet.unfrozen, isEmpty, reason: 'no write reached the new chain');
+    expect(
+      bitwindow.recordingWallet.unfrozen,
+      hasLength(plan.batches.first.inputs.length),
+      reason: 'only the release for the first send, on the old chain',
+    );
   });
 
   test('records an address failure the chain change left behind', () async {
@@ -809,5 +832,24 @@ void main() {
       () => provider.start(walletId: 'wallet', plan: planOf([coin('only', 50000)])),
       throwsArgumentError,
     );
+  });
+
+  test('does not broadcast when the wallet changes during the release for the send', () async {
+    bitwindow.recordingWallet.onUnfreeze = () async => walletReader.switchTo('other');
+
+    await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
+
+    expect(orchestrator.wallet.sentAmounts, isEmpty);
+    expect(bitwindow.recordingWallet.held, isEmpty, reason: 'the coins go back to the wallet');
+  });
+
+  test('does not broadcast when the chain changes during the release for the send', () async {
+    bitwindow.recordingWallet.onUnfreeze = () async {
+      conf.network = BitcoinNetwork.BITCOIN_NETWORK_REGTEST;
+    };
+
+    await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
+
+    expect(orchestrator.wallet.sentAmounts, isEmpty);
   });
 }
