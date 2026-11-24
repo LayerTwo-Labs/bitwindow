@@ -671,8 +671,15 @@ func (c *CoreRPCClient) TxIndexReady(ctx context.Context) (bool, error) {
 
 // ListReceivedByAddress returns addresses that have received funds.
 func (c *CoreRPCClient) ListReceivedByAddress(ctx context.Context, walletName string) ([]ReceivedByAddress, error) {
-	// listreceivedbyaddress minconf include_empty include_watchonly
-	result, err := c.call(ctx, walletName, "listreceivedbyaddress", 0, true)
+	return c.listReceivedByAddress(ctx, walletName, false)
+}
+
+func (c *CoreRPCClient) listReceivedByAddress(ctx context.Context, walletName string, includeImmatureCoinbase bool) ([]ReceivedByAddress, error) {
+	params := []any{0, true}
+	if includeImmatureCoinbase {
+		params = append(params, nil, nil, true)
+	}
+	result, err := c.call(ctx, walletName, "listreceivedbyaddress", params...)
 	if err != nil {
 		return nil, err
 	}
