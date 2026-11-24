@@ -61,6 +61,7 @@ const OPReturn$json = {
     {'1': 'vout', '3': 4, '4': 1, '5': 5, '10': 'vout'},
     {'1': 'height', '3': 5, '4': 1, '5': 5, '9': 0, '10': 'height', '17': true},
     {'1': 'create_time', '3': 7, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'createTime'},
+    {'1': 'fee_sats', '3': 8, '4': 1, '5': 3, '10': 'feeSats'},
   ],
   '8': [
     {'1': '_height'},
@@ -72,7 +73,7 @@ final $typed_data.Uint8List oPReturnDescriptor =
     $convert.base64Decode('CghPUFJldHVybhIOCgJpZBgBIAEoA1ICaWQSGAoHbWVzc2FnZRgCIAEoCVIHbWVzc2FnZRISCg'
         'R0eGlkGAMgASgJUgR0eGlkEhIKBHZvdXQYBCABKAVSBHZvdXQSGwoGaGVpZ2h0GAUgASgFSABS'
         'BmhlaWdodIgBARI7CgtjcmVhdGVfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3'
-        'RhbXBSCmNyZWF0ZVRpbWVCCQoHX2hlaWdodA==');
+        'RhbXBSCmNyZWF0ZVRpbWUSGQoIZmVlX3NhdHMYCCABKANSB2ZlZVNhdHNCCQoHX2hlaWdodA==');
 
 @$core.Deprecated('Use broadcastNewsRequestDescriptor instead')
 const BroadcastNewsRequest$json = {

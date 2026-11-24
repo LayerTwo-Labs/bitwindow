@@ -118,13 +118,15 @@ func (x *ListOPReturnResponse) GetOpReturns() []*OPReturn {
 }
 
 type OPReturn struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Txid          string                 `protobuf:"bytes,3,opt,name=txid,proto3" json:"txid,omitempty"`
-	Vout          int32                  `protobuf:"varint,4,opt,name=vout,proto3" json:"vout,omitempty"`
-	Height        *int32                 `protobuf:"varint,5,opt,name=height,proto3,oneof" json:"height,omitempty"`
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Message    string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Txid       string                 `protobuf:"bytes,3,opt,name=txid,proto3" json:"txid,omitempty"`
+	Vout       int32                  `protobuf:"varint,4,opt,name=vout,proto3" json:"vout,omitempty"`
+	Height     *int32                 `protobuf:"varint,5,opt,name=height,proto3,oneof" json:"height,omitempty"`
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Fee of the transaction in satoshis. Zero when the node gave no fee.
+	FeeSats       int64 `protobuf:"varint,8,opt,name=fee_sats,json=feeSats,proto3" json:"fee_sats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -199,6 +201,13 @@ func (x *OPReturn) GetCreateTime() *timestamppb.Timestamp {
 		return x.CreateTime
 	}
 	return nil
+}
+
+func (x *OPReturn) GetFeeSats() int64 {
+	if x != nil {
+		return x.FeeSats
+	}
+	return 0
 }
 
 type BroadcastNewsRequest struct {
@@ -1670,7 +1679,7 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\x12misc/v1/misc.proto\x12\amisc.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"H\n" +
 	"\x14ListOPReturnResponse\x120\n" +
 	"\n" +
-	"op_returns\x18\x01 \x03(\v2\x11.misc.v1.OPReturnR\topReturns\"\xc1\x01\n" +
+	"op_returns\x18\x01 \x03(\v2\x11.misc.v1.OPReturnR\topReturns\"\xdc\x01\n" +
 	"\bOPReturn\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
@@ -1678,7 +1687,8 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\x04vout\x18\x04 \x01(\x05R\x04vout\x12\x1b\n" +
 	"\x06height\x18\x05 \x01(\x05H\x00R\x06height\x88\x01\x01\x12;\n" +
 	"\vcreate_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTimeB\t\n" +
+	"createTime\x12\x19\n" +
+	"\bfee_sats\x18\b \x01(\x03R\afeeSatsB\t\n" +
 	"\a_height\"\xfc\x01\n" +
 	"\x14BroadcastNewsRequest\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x1a\n" +
