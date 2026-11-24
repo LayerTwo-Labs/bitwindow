@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -56,6 +57,7 @@ import (
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/gen/walletpsbt/v1/walletpsbtv1connect"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/miningpools"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/m4"
+	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/opreturns"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/utxometadata"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/walletpsbt"
 	service "github.com/LayerTwo-Labs/sidesail/bitwindow/server/service"
@@ -379,6 +381,7 @@ func (rt *Runtime) Start(parent context.Context) {
 	rt.wg.Add(1)
 	go rt.runZMQ(rt.ctx, log)
 	rt.runEngine("block-wake", rt.runBlockWake, log)
+	rt.runEngine("op-return removals", rt.runOpReturnRemovals, log)
 }
 
 // runBlockWake wakes the block parser on each sync status that drivechaind
@@ -394,6 +397,50 @@ func (rt *Runtime) runBlockWake(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+func (rt *Runtime) runOpReturnRemovals(ctx context.Context) error {
+	client := dial.Mempool(rt.conf.OrchestratorAddr, rt.conf.BitwindowDir())
+	for {
+		if rt.walletEngine.NodeMode().RunsLocalNode(ctx) {
+			err := rt.readOpReturnRemovals(ctx, func(ctx context.Context) (engines.MempoolStream, error) {
+				return client.WatchTransactions(ctx, &mempoolpb.WatchTransactionsRequest{})
+			})
+			if err != nil && ctx.Err() == nil {
+				zerolog.Ctx(ctx).Debug().Err(err).Msg("OP_RETURN removal stream stopped")
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+func (rt *Runtime) readOpReturnRemovals(ctx context.Context, feed engines.MempoolFeed) (err error) {
+	stream, err := feed(ctx)
+	if err != nil {
+		return fmt.Errorf("open the OP_RETURN removal stream: %w", err)
+	}
+	defer func() {
+		if closeErr := stream.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close the OP_RETURN removal stream: %w", closeErr))
+		}
+	}()
+	for {
+		update, err := stream.Receive()
+		if err != nil {
+			return fmt.Errorf("read the OP_RETURN removal stream: %w", err)
+		}
+		for _, change := range update.GetChanges() {
+			if txid := change.GetRemoved(); txid != "" {
+				if err := opreturns.ForgetPending(ctx, rt.db, txid); err != nil {
+					return err
+				}
+			}
 		}
 	}
 }

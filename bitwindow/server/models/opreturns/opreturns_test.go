@@ -504,30 +504,54 @@ func TestBackfillCoinNewsBlockTime(t *testing.T) {
 	assert.WithinDuration(t, syncTime, got("mempool"), time.Second)
 }
 
-// A mempool OP_RETURN that never got mined must stop being listed once
-// it is past the point where any mempool could still be holding it.
-func TestReapExpiredMempool(t *testing.T) {
+func TestForgetPending(t *testing.T) {
+	ctx := t.Context()
+	db := database.Test(t)
+	height := uint32(800000)
+
+	require.NoError(t, Persist(ctx, db, []OPReturn{
+		{TxID: "removed", Vout: 0, Data: []byte{0x01}},
+		{TxID: "removed", Vout: 1, Data: []byte{0x02}},
+		{TxID: "confirmed", Vout: 0, Data: []byte{0x03}, Height: &height},
+		{TxID: "pending", Vout: 0, Data: []byte{0x04}},
+	}))
+
+	before, err := List(ctx, db, 0)
+	require.NoError(t, err)
+	require.Len(t, before, 4)
+	require.NoError(t, ForgetPending(ctx, db, "removed"))
+	require.NoError(t, ForgetPending(ctx, db, "confirmed"))
+
+	after, err := List(ctx, db, 0)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"confirmed", "pending"}, lo.Map(after, func(o OPReturn, _ int) string {
+		return o.TxID
+	}))
+}
+
+func TestPruneMempool(t *testing.T) {
 	ctx := t.Context()
 	db := database.Test(t)
 
 	height := uint32(800000)
-	stale := time.Now().Add(-mempoolExpiry - time.Hour)
-	recent := time.Now().Add(-time.Hour)
+	now := time.Now()
 
 	require.NoError(t, Persist(ctx, db, []OPReturn{
-		{TxID: "expired-mempool", Vout: 0, Data: []byte{0x01}, CreatedAt: &stale},
-		{TxID: "pending-mempool", Vout: 0, Data: []byte{0x02}, CreatedAt: &recent},
-		{TxID: "old-confirmed", Vout: 0, Data: []byte{0x03}, Height: &height, CreatedAt: &stale},
+		{TxID: "replaced", Vout: 0, Data: []byte{0x01}, CreatedAt: &now},
+		{TxID: "pending", Vout: 0, Data: []byte{0x02}, CreatedAt: &now},
+		{TxID: "confirmed", Vout: 0, Data: []byte{0x03}, Height: &height, CreatedAt: &now},
 	}))
 
-	require.NoError(t, ReapExpiredMempool(ctx, db, func() ([]string, error) { return nil, nil }))
+	require.NoError(t, PruneMempool(ctx, db, func() ([]string, error) {
+		return []string{"pending"}, nil
+	}))
 
 	got, err := List(ctx, db, 0)
 	require.NoError(t, err)
 
 	txids := lo.Map(got, func(o OPReturn, _ int) string { return o.TxID })
 	slices.Sort(txids)
-	assert.Equal(t, []string{"old-confirmed", "pending-mempool"}, txids)
+	assert.Equal(t, []string{"confirmed", "pending"}, txids)
 }
 
 func TestPersistConfirmedConflictUpdatesCreateTimeToBlockTime(t *testing.T) {

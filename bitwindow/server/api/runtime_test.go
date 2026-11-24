@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,11 +21,14 @@ import (
 
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/config"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/database"
+	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/engines"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/gen/bitwindowd/v1/bitwindowdv1connect"
+	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/opreturns"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/service"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/tests/mocks"
 	cryptorpc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/crypto/v1/cryptov1connect"
 	validatorrpc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/mainchain/v1/mainchainv1connect"
+	mempoolpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/mempool/v1"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/bitassets"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/bitnames"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/sidechain/coinshift"
@@ -59,6 +63,51 @@ func TestRuntimeCloseClosesTheCoinnewsLog(t *testing.T) {
 
 	_, err = rt.coinnewsLog.WriteString("x")
 	require.ErrorIs(t, err, os.ErrClosed)
+}
+
+func TestReadOpReturnRemovals(t *testing.T) {
+	ctx := t.Context()
+	db := database.Test(t)
+	rt := &Runtime{db: db}
+	require.NoError(t, opreturns.Persist(ctx, db, []opreturns.OPReturn{
+		{TxID: "old", Vout: 0, Data: []byte{1}},
+		{TxID: "replacement", Vout: 0, Data: []byte{2}},
+	}))
+
+	feed := &removalTestFeed{update: &mempoolpb.WatchTransactionsResponse{
+		Changes: []*mempoolpb.Change{
+			{Change: &mempoolpb.Change_Removed{Removed: "old"}},
+			{Change: &mempoolpb.Change_Added{Added: &mempoolpb.Transaction{Txid: "replacement"}}},
+		},
+	}}
+	require.ErrorIs(t, rt.readOpReturnRemovals(ctx, func(context.Context) (engines.MempoolStream, error) {
+		return feed, nil
+	}), io.EOF)
+	assert.True(t, feed.closed)
+
+	rows, err := opreturns.List(ctx, db, 0)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "replacement", rows[0].TxID)
+}
+
+type removalTestFeed struct {
+	update *mempoolpb.WatchTransactionsResponse
+	closed bool
+}
+
+func (f *removalTestFeed) Receive() (*mempoolpb.WatchTransactionsResponse, error) {
+	if f.update == nil {
+		return nil, io.EOF
+	}
+	update := f.update
+	f.update = nil
+	return update, nil
+}
+
+func (f *removalTestFeed) Close() error {
+	f.closed = true
+	return nil
 }
 
 func TestRuntimeCloseStopsTheAddressSync(t *testing.T) {
