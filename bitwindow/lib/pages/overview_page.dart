@@ -1432,11 +1432,13 @@ class _DatePickerField extends StatelessWidget {
       onTap: () async {
         final picked = await showSailDatePicker(
           context: context,
-          initialDate: value ?? DateTime.now(),
+          initialDate: value ?? lastDate ?? DateTime.now(),
           firstDate: firstDate ?? DateTime(2009),
           lastDate: lastDate ?? DateTime.now(),
         );
-        onChanged(picked);
+        if (picked != null) {
+          onChanged(picked);
+        }
       },
       borderRadius: context.sailTheme.chrome.radius,
       child: Container(
