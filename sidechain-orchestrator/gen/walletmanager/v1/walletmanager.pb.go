@@ -1574,7 +1574,7 @@ type WalletMetadata struct {
 	WalletType   WalletType             `protobuf:"varint,3,opt,name=wallet_type,json=walletType,proto3,enum=walletmanager.v1.WalletType" json:"wallet_type,omitempty"`
 	GradientJson string                 `protobuf:"bytes,4,opt,name=gradient_json,json=gradientJson,proto3" json:"gradient_json,omitempty"`
 	CreatedAt    string                 `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // ISO 8601
-	// BIP47 v3 payment code derived from the wallet's master pubkey.
+	// BIP47 v1 payment code of the wallet seed, from m/47'/coin'/0'.
 	// Deterministic per wallet, never changes. Empty for watch-only wallets.
 	Bip47PaymentCode string `protobuf:"bytes,6,opt,name=bip47_payment_code,json=bip47PaymentCode,proto3" json:"bip47_payment_code,omitempty"`
 	// Starter material — populated for the starter wallet only, empty otherwise.
@@ -7187,9 +7187,12 @@ type ExploreSeedRequest struct {
 	Mnemonic   string                 `protobuf:"bytes,1,opt,name=mnemonic,proto3" json:"mnemonic,omitempty"`
 	Passphrase string                 `protobuf:"bytes,2,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
 	// Parent path of the keys, e.g. "m/84'/0'/0'/0". Its purpose picks the address type.
-	BasePath      string `protobuf:"bytes,3,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
-	StartIndex    uint32 `protobuf:"varint,4,opt,name=start_index,json=startIndex,proto3" json:"start_index,omitempty"`
-	Count         uint32 `protobuf:"varint,5,opt,name=count,proto3" json:"count,omitempty"` // at most 100
+	BasePath   string `protobuf:"bytes,3,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
+	StartIndex uint32 `protobuf:"varint,4,opt,name=start_index,json=startIndex,proto3" json:"start_index,omitempty"`
+	Count      uint32 `protobuf:"varint,5,opt,name=count,proto3" json:"count,omitempty"` // at most 100
+	// Explores the seed of this wallet, passphrase included, in place of mnemonic
+	// and passphrase. An empty base_path then takes the receive chain of the wallet.
+	WalletId      string `protobuf:"bytes,6,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7257,6 +7260,13 @@ func (x *ExploreSeedRequest) GetCount() uint32 {
 		return x.Count
 	}
 	return 0
+}
+
+func (x *ExploreSeedRequest) GetWalletId() string {
+	if x != nil {
+		return x.WalletId
+	}
+	return ""
 }
 
 type ExploredKey struct {
@@ -7332,8 +7342,10 @@ type ExploreSeedResponse struct {
 	SeedHex          string                 `protobuf:"bytes,1,opt,name=seed_hex,json=seedHex,proto3" json:"seed_hex,omitempty"`
 	Xprv             string                 `protobuf:"bytes,2,opt,name=xprv,proto3" json:"xprv,omitempty"`
 	Xpub             string                 `protobuf:"bytes,3,opt,name=xpub,proto3" json:"xpub,omitempty"`
-	Bip47PaymentCode string                 `protobuf:"bytes,4,opt,name=bip47_payment_code,json=bip47PaymentCode,proto3" json:"bip47_payment_code,omitempty"` // BIP47 v3, from the master public key
+	Bip47PaymentCode string                 `protobuf:"bytes,4,opt,name=bip47_payment_code,json=bip47PaymentCode,proto3" json:"bip47_payment_code,omitempty"` // BIP47 v1, the same code the wallet gives
 	Keys             []*ExploredKey         `protobuf:"bytes,5,rep,name=keys,proto3" json:"keys,omitempty"`
+	BasePath         string                 `protobuf:"bytes,6,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"` // canonical parent path of keys
+	Mnemonic         string                 `protobuf:"bytes,7,opt,name=mnemonic,proto3" json:"mnemonic,omitempty"`                 // with wallet_id: the mnemonic of the wallet
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -7401,6 +7413,20 @@ func (x *ExploreSeedResponse) GetKeys() []*ExploredKey {
 		return x.Keys
 	}
 	return nil
+}
+
+func (x *ExploreSeedResponse) GetBasePath() string {
+	if x != nil {
+		return x.BasePath
+	}
+	return ""
+}
+
+func (x *ExploreSeedResponse) GetMnemonic() string {
+	if x != nil {
+		return x.Mnemonic
+	}
+	return ""
 }
 
 type GenerateMnemonicRequest struct {
@@ -12093,7 +12119,7 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"originPath\x12\x1e\n" +
 	"\n" +
 	"descriptor\x18\x04 \x01(\tR\n" +
-	"descriptor\"\xa4\x01\n" +
+	"descriptor\"\xc1\x01\n" +
 	"\x12ExploreSeedRequest\x12\x1a\n" +
 	"\bmnemonic\x18\x01 \x01(\tR\bmnemonic\x12\x1e\n" +
 	"\n" +
@@ -12102,19 +12128,22 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\tbase_path\x18\x03 \x01(\tR\bbasePath\x12\x1f\n" +
 	"\vstart_index\x18\x04 \x01(\rR\n" +
 	"startIndex\x12\x14\n" +
-	"\x05count\x18\x05 \x01(\rR\x05count\"l\n" +
+	"\x05count\x18\x05 \x01(\rR\x05count\x12\x1b\n" +
+	"\twallet_id\x18\x06 \x01(\tR\bwalletId\"l\n" +
 	"\vExploredKey\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x03 \x01(\tR\tpublicKey\x12\x10\n" +
-	"\x03wif\x18\x04 \x01(\tR\x03wif\"\xb9\x01\n" +
+	"\x03wif\x18\x04 \x01(\tR\x03wif\"\xf2\x01\n" +
 	"\x13ExploreSeedResponse\x12\x19\n" +
 	"\bseed_hex\x18\x01 \x01(\tR\aseedHex\x12\x12\n" +
 	"\x04xprv\x18\x02 \x01(\tR\x04xprv\x12\x12\n" +
 	"\x04xpub\x18\x03 \x01(\tR\x04xpub\x12,\n" +
 	"\x12bip47_payment_code\x18\x04 \x01(\tR\x10bip47PaymentCode\x121\n" +
-	"\x04keys\x18\x05 \x03(\v2\x1d.walletmanager.v1.ExploredKeyR\x04keys\"\x19\n" +
+	"\x04keys\x18\x05 \x03(\v2\x1d.walletmanager.v1.ExploredKeyR\x04keys\x12\x1b\n" +
+	"\tbase_path\x18\x06 \x01(\tR\bbasePath\x12\x1a\n" +
+	"\bmnemonic\x18\a \x01(\tR\bmnemonic\"\x19\n" +
 	"\x17GenerateMnemonicRequest\"6\n" +
 	"\x18GenerateMnemonicResponse\x12\x1a\n" +
 	"\bmnemonic\x18\x01 \x01(\tR\bmnemonic\"5\n" +

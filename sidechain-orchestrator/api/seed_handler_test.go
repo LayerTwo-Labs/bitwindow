@@ -57,6 +57,49 @@ func TestExploreSeedRejectsAnInvalidMnemonic(t *testing.T) {
 	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 }
 
+func TestExploreSeedOfAWalletUsesItsOwnSeed(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	h := newSeedHandler(t, net)
+	starter, err := h.svc.GenerateWalletWithPath("starter", "", "", 0, "", "", nil)
+	require.NoError(t, err)
+	second, err := h.svc.GenerateWalletWithPath("second", seedHandlerMnemonic, "TREZOR", 1, "", "", nil)
+	require.NoError(t, err)
+
+	out, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: second.ID, Count: 2})
+	require.NoError(t, err)
+	want, err := wallet.ExploreWallet(second, "m/84'/1'/1'/0", 0, 2, net)
+	require.NoError(t, err)
+	require.Equal(t, "m/84'/1'/1'/0", out.BasePath)
+	require.Equal(t, seedHandlerMnemonic, out.Mnemonic)
+	require.Equal(t, second.Master.SeedHex, out.SeedHex)
+	require.Equal(t, want.Keys[0].Address, out.Keys[0].Address)
+	require.Equal(t, want.PaymentCode, out.Bip47PaymentCode)
+
+	plain, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{
+		Mnemonic: seedHandlerMnemonic, BasePath: "m/84'/1'/1'/0", Count: 2,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, plain.Keys[0].Address, out.Keys[0].Address, "the passphrase of the wallet must count")
+	require.Empty(t, plain.Mnemonic)
+
+	first, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: starter.ID, Count: 1})
+	require.NoError(t, err)
+	require.NotEqual(t, first.Keys[0].Address, out.Keys[0].Address)
+}
+
+func TestExploreSeedOfAWalletRefusesBadInput(t *testing.T) {
+	h := newSeedHandler(t, &chaincfg.RegressionNetParams)
+	w, err := h.svc.GenerateWalletWithPath("one", "", "", 0, "", "", nil)
+	require.NoError(t, err)
+
+	_, err = h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: "missing", Count: 1})
+	require.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+	_, err = h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: w.ID, Mnemonic: seedHandlerMnemonic, Count: 1})
+	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	_, err = h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: w.ID, BasePath: "m/x", Count: 1})
+	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+}
+
 func TestGenerateMnemonicGivesTwelveValidWords(t *testing.T) {
 	h := newSeedHandler(t, &chaincfg.MainNetParams)
 

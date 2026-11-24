@@ -2009,6 +2009,7 @@ const ExploreSeedRequest$json = {
     {'1': 'base_path', '3': 3, '4': 1, '5': 9, '10': 'basePath'},
     {'1': 'start_index', '3': 4, '4': 1, '5': 13, '10': 'startIndex'},
     {'1': 'count', '3': 5, '4': 1, '5': 13, '10': 'count'},
+    {'1': 'wallet_id', '3': 6, '4': 1, '5': 9, '10': 'walletId'},
   ],
 };
 
@@ -2016,7 +2017,8 @@ const ExploreSeedRequest$json = {
 final $typed_data.Uint8List exploreSeedRequestDescriptor =
     $convert.base64Decode('ChJFeHBsb3JlU2VlZFJlcXVlc3QSGgoIbW5lbW9uaWMYASABKAlSCG1uZW1vbmljEh4KCnBhc3'
         'NwaHJhc2UYAiABKAlSCnBhc3NwaHJhc2USGwoJYmFzZV9wYXRoGAMgASgJUghiYXNlUGF0aBIf'
-        'CgtzdGFydF9pbmRleBgEIAEoDVIKc3RhcnRJbmRleBIUCgVjb3VudBgFIAEoDVIFY291bnQ=');
+        'CgtzdGFydF9pbmRleBgEIAEoDVIKc3RhcnRJbmRleBIUCgVjb3VudBgFIAEoDVIFY291bnQSGw'
+        'oJd2FsbGV0X2lkGAYgASgJUgh3YWxsZXRJZA==');
 
 @$core.Deprecated('Use exploredKeyDescriptor instead')
 const ExploredKey$json = {
@@ -2043,6 +2045,8 @@ const ExploreSeedResponse$json = {
     {'1': 'xpub', '3': 3, '4': 1, '5': 9, '10': 'xpub'},
     {'1': 'bip47_payment_code', '3': 4, '4': 1, '5': 9, '10': 'bip47PaymentCode'},
     {'1': 'keys', '3': 5, '4': 3, '5': 11, '6': '.walletmanager.v1.ExploredKey', '10': 'keys'},
+    {'1': 'base_path', '3': 6, '4': 1, '5': 9, '10': 'basePath'},
+    {'1': 'mnemonic', '3': 7, '4': 1, '5': 9, '10': 'mnemonic'},
   ],
 };
 
@@ -2051,7 +2055,8 @@ final $typed_data.Uint8List exploreSeedResponseDescriptor =
     $convert.base64Decode('ChNFeHBsb3JlU2VlZFJlc3BvbnNlEhkKCHNlZWRfaGV4GAEgASgJUgdzZWVkSGV4EhIKBHhwcn'
         'YYAiABKAlSBHhwcnYSEgoEeHB1YhgDIAEoCVIEeHB1YhIsChJiaXA0N19wYXltZW50X2NvZGUY'
         'BCABKAlSEGJpcDQ3UGF5bWVudENvZGUSMQoEa2V5cxgFIAMoCzIdLndhbGxldG1hbmFnZXIudj'
-        'EuRXhwbG9yZWRLZXlSBGtleXM=');
+        'EuRXhwbG9yZWRLZXlSBGtleXMSGwoJYmFzZV9wYXRoGAYgASgJUghiYXNlUGF0aBIaCghtbmVt'
+        'b25pYxgHIAEoCVIIbW5lbW9uaWM=');
 
 @$core.Deprecated('Use generateMnemonicRequestDescriptor instead')
 const GenerateMnemonicRequest$json = {

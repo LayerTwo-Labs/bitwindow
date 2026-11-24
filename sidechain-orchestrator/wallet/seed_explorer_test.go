@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -17,6 +18,7 @@ func TestExploreSeedMatchesFrontend(t *testing.T) {
 	require.Equal(t, "xprv9s21ZrQH143K3GJpoapnV8SFfukcVBSfeCficPSGfubmSFDxo1kuHnLisriDvSnRRuL2Qrg5ggqHKNVpxR86QEC8w35uxmGoggxtQTPvfUu", out.Xprv)
 	require.Equal(t, "xpub661MyMwAqRbcFkPHucMnrGNzDwb6teAX1RbKQmqtEF8kK3Z7LZ59qafCjB9eCRLiTVG3uxBxgKvRgbubRhqSKXnGGb1aoaqLrpMBDrVxga8", out.Xpub)
 	require.Equal(t, "PM8TJdJWQ5c9XJUMuNBBaJ7Zq9GnjfYtQk7PJn9n4jt8qdgRFBB9TUkAGGd4mK1VRLekUt3ifC9aGVRLYYmLb9WhsvsUrFin1FUBzEoyPxBnmVExHAjE", out.PaymentCode)
+	require.Equal(t, "m/84'/0'/0'/0", out.BasePath)
 
 	cases := []struct {
 		base string
@@ -96,4 +98,63 @@ func TestExploreSeedGivesTheWalletPaymentCode(t *testing.T) {
 	require.Equal(t, want, out.PaymentCode)
 	_, err = bip47.ParsePaymentCode(out.PaymentCode)
 	require.NoError(t, err)
+}
+
+func explorerTestWallet(passphrase string, account uint32) *WalletData {
+	return &WalletData{
+		ID:           "explored",
+		WalletType:   WalletTypeBitcoinCore,
+		Master:       MasterWallet{Mnemonic: testMnemonic, SeedHex: hex.EncodeToString(MnemonicToSeed(testMnemonic, passphrase))},
+		AccountIndex: account,
+	}
+}
+
+func walletReceiveAddress(t *testing.T, w *WalletData, net *chaincfg.Params, index uint32) string {
+	t.Helper()
+	d, err := DescriptorFor(w, ReceiveKinds(w)[0], net)
+	require.NoError(t, err)
+	ds, _, err := d.DeriveScript(false, index, net)
+	require.NoError(t, err)
+	return ds.address.EncodeAddress()
+}
+
+func TestExploreWalletGivesTheWalletAddresses(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	for _, c := range []struct {
+		name     string
+		w        *WalletData
+		basePath string
+	}{
+		{"standard", explorerTestWallet("", 0), "m/84'/1'/0'/0"},
+		{"passphrase", explorerTestWallet("TREZOR", 0), "m/84'/1'/0'/0"},
+		{"account 2", explorerTestWallet("", 2), "m/84'/1'/2'/0"},
+	} {
+		out, err := ExploreWallet(c.w, "", 3, 2, net)
+		require.NoError(t, err, c.name)
+		require.Equal(t, c.basePath, out.BasePath, c.name)
+		require.Equal(t, c.w.Master.SeedHex, out.SeedHex, c.name)
+		require.Equal(t, walletReceiveAddress(t, c.w, net, 3), out.Keys[0].Address, c.name)
+		require.Equal(t, walletReceiveAddress(t, c.w, net, 4), out.Keys[1].Address, c.name)
+		want, err := Bip47PaymentCodeFromSeed(c.w.Master.SeedHex, net)
+		require.NoError(t, err)
+		require.Equal(t, want, out.PaymentCode, c.name)
+	}
+}
+
+func TestExploreWalletTakesAnOtherPath(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	out, err := ExploreWallet(explorerTestWallet("", 0), "m/86'/1'/0'/1", 0, 1, net)
+	require.NoError(t, err)
+	require.Equal(t, "m/86'/1'/0'/1/0", out.Keys[0].Path)
+	require.Regexp(t, "^bcrt1p", out.Keys[0].Address)
+}
+
+func TestExploreWalletRefusesAWalletWithNoSeed(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	_, err := ExploreWallet(&WalletData{ID: "watch"}, "", 0, 1, net)
+	require.ErrorContains(t, err, "holds no single seed")
+	multisig := explorerTestWallet("", 0)
+	multisig.Multisig = &MultisigWalletData{M: 1, N: 2}
+	_, err = ExploreWallet(multisig, "", 0, 1, net)
+	require.ErrorContains(t, err, "holds no single seed")
 }

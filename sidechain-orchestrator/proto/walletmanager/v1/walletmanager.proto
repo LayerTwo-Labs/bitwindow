@@ -342,7 +342,7 @@ message WalletMetadata {
   WalletType wallet_type = 3;
   string gradient_json = 4;
   string created_at = 5; // ISO 8601
-  // BIP47 v3 payment code derived from the wallet's master pubkey.
+  // BIP47 v1 payment code of the wallet seed, from m/47'/coin'/0'.
   // Deterministic per wallet, never changes. Empty for watch-only wallets.
   string bip47_payment_code = 6;
 
@@ -1022,6 +1022,9 @@ message ExploreSeedRequest {
   string base_path = 3;
   uint32 start_index = 4;
   uint32 count = 5; // at most 100
+  // Explores the seed of this wallet, passphrase included, in place of mnemonic
+  // and passphrase. An empty base_path then takes the receive chain of the wallet.
+  string wallet_id = 6;
 }
 
 message ExploredKey {
@@ -1035,8 +1038,10 @@ message ExploreSeedResponse {
   string seed_hex = 1;
   string xprv = 2;
   string xpub = 3;
-  string bip47_payment_code = 4; // BIP47 v3, from the master public key
+  string bip47_payment_code = 4; // BIP47 v1, the same code the wallet gives
   repeated ExploredKey keys = 5;
+  string base_path = 6; // canonical parent path of keys
+  string mnemonic = 7; // with wallet_id: the mnemonic of the wallet
 }
 
 message GenerateMnemonicRequest {}
