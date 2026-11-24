@@ -46,6 +46,12 @@ class _FakeHDWallet extends ChangeNotifier implements HDWalletProvider {
 }
 
 class _FakeTransactions extends ChangeNotifier implements TransactionProvider {
+  @override
+  String? addressError;
+
+  @override
+  String? error;
+
   _FakeTransactions(this.addressTypes, this.address, this.addressDerivationPath);
 
   @override
