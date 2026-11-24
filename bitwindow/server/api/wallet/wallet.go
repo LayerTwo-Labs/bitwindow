@@ -594,8 +594,7 @@ func (s *Server) CreateSidechainDeposit(ctx context.Context, c *pb.CreateSidecha
 	return &pb.CreateSidechainDepositResponse{Txid: txid}, nil
 }
 
-// addressScanDepth bounds how far along a receive chain a signable address can
-// sit, and how many receive addresses the addressbook sync adds.
+// addressScanDepth limits key lookup per branch and receive-address sync.
 const addressScanDepth = 100
 
 // deriveMessageSigningPrivateKey returns the key behind address, so the

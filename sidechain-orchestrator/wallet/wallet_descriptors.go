@@ -57,9 +57,8 @@ func DescriptorFor(w *WalletData, kind ScriptKind, net *chaincfg.Params) (*Descr
 	}
 }
 
-// SigningKey returns the private key behind one of the first depth receive
-// addresses of each descriptor a wallet derives. A taproot key comes tweaked,
-// because the address commits to the tweaked key.
+// SigningKey returns the key for an address within depth of either branch.
+// A taproot key includes the tweak for its address.
 func SigningKey(w *WalletData, net *chaincfg.Params, address string, depth uint32) (*btcec.PrivateKey, error) {
 	descriptors, err := WalletDescriptors(w, net)
 	if err != nil {
@@ -69,25 +68,27 @@ func SigningKey(w *WalletData, net *chaincfg.Params, address string, depth uint3
 		if len(d.Keys) != 1 {
 			continue
 		}
-		for index := uint32(0); index < depth; index++ {
-			ds, _, err := d.DeriveScript(false, index, net)
-			if err != nil {
-				return nil, err
+		for _, change := range []bool{false, true} {
+			for index := uint32(0); index < depth; index++ {
+				ds, _, err := d.DeriveScript(change, index, net)
+				if err != nil {
+					return nil, err
+				}
+				if ds.address.EncodeAddress() != address {
+					continue
+				}
+				priv, ok, err := deriveChildPrivIfPossible(d.Keys[0].Account, chainIndex(change), index)
+				if err != nil {
+					return nil, err
+				}
+				if !ok {
+					return nil, fmt.Errorf("the wallet holds no private key for address %s", address)
+				}
+				if d.Kind == ScriptTaproot {
+					return txscript.TweakTaprootPrivKey(*priv, []byte{}), nil
+				}
+				return priv, nil
 			}
-			if ds.address.EncodeAddress() != address {
-				continue
-			}
-			priv, ok, err := deriveChildPrivIfPossible(d.Keys[0].Account, 0, index)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				return nil, fmt.Errorf("the wallet holds no private key for address %s", address)
-			}
-			if d.Kind == ScriptTaproot {
-				return txscript.TweakTaprootPrivKey(*priv, []byte{}), nil
-			}
-			return priv, nil
 		}
 	}
 	return nil, fmt.Errorf("address %s is not one of the wallet's first %d receiving addresses", address, depth)

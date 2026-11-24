@@ -12,9 +12,45 @@ import (
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/testharness"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/wallet"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/wallet/bip47"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCoreChangeAddressSigningKey(t *testing.T) {
+	h := testharness.New(t, 1)
+	node := h.Nodes[0]
+	node.FundWallet(t)
+	ctx := t.Context()
+	status, err := node.WalletClient.GetWalletStatus(ctx, &pb.GetWalletStatusRequest{})
+	require.NoError(t, err)
+	walletID := status.ActiveWalletId
+	seed, err := node.WalletClient.GetWalletSeed(ctx, &pb.GetWalletSeedRequest{WalletId: walletID})
+	require.NoError(t, err)
+	w := &wallet.WalletData{Master: wallet.MasterWallet{SeedHex: seed.SeedHex}}
+	params := &chaincfg.RegressionNetParams
+	for _, kind := range []string{"bech32", "bech32m"} {
+		t.Run(kind, func(t *testing.T) {
+			address, err := node.CoreRPC.GetRawChangeAddress(ctx, "wallet_"+walletID[:8], kind)
+			require.NoError(t, err)
+			info, err := node.CoreRPC.GetAddressInfo(ctx, "wallet_"+walletID[:8], address)
+			require.NoError(t, err)
+			require.True(t, info.IsMine)
+			require.True(t, info.IsChange)
+			key, err := wallet.SigningKey(w, params, address, 100)
+			require.NoError(t, err)
+			var derived btcutil.Address
+			if kind == "bech32m" {
+				derived, err = btcutil.NewAddressTaproot(schnorr.SerializePubKey(key.PubKey()), params)
+			} else {
+				derived, err = btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(key.PubKey().SerializeCompressed()), params)
+			}
+			require.NoError(t, err)
+			require.Equal(t, address, derived.EncodeAddress())
+		})
+	}
+}
 
 // The receive table reads the Balance column off this RPC, and the coin list
 // reads listunspent. A user read the two side by side and found every row
