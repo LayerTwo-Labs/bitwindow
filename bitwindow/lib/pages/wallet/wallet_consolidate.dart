@@ -288,7 +288,7 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
             value: '${coin.output.substring(0, 6)}..:${coin.output.split(':').last}',
             copyValue: coin.output,
           ),
-          SailTableCell(value: coin.address, copyValue: coin.address),
+          SailTableCell(value: shortenId(coin.address), copyValue: coin.address, monospace: true),
           SailTableCell(
             value: _isLocked(coin.output)
                 ? 'Locked'

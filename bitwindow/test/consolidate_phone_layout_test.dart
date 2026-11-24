@@ -179,9 +179,16 @@ void main() {
     expect(find.text('1 of 2'), findsOneWidget);
   });
 
-  testWidgets('the Coins card shows a failed read', (tester) async {
+  testWidgets('the desktop Coins card shows the value column, a short address and a failed read', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1024, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await _pump(tester, phone: false);
-    expect(find.textContaining('connection refused'), findsNothing);
+
+    final card = tester.getRect(find.ancestor(of: find.text('Coins').first, matching: find.byType(SailCard)).first);
+    final value = tester.getRect(find.text(GetIt.I<FormatterProvider>().formatSats(4000)).last);
+    expect(value.right, lessThanOrEqualTo(card.right), reason: 'the value column shows in the card');
+    expect(find.text('bcrt1q${'x' * 30}0'), findsNothing);
+    expect(find.text(shortenId('bcrt1q${'x' * 30}0')), findsOneWidget);
 
     (GetIt.I<TransactionProvider>() as _FakeTransactions)
       ..error = 'list unspent: connection refused'
