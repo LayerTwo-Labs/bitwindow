@@ -1,7 +1,9 @@
 import 'package:bitwindow/pages/wallet/wallet_overview.dart';
+import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
+import 'package:sidechain_core/gen/bitwindowd/v1/bitwindowd.pb.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 
 WalletTransaction _tx(String address, {String label = '', int confirmations = 2, int height = 102}) =>
@@ -17,7 +19,31 @@ WalletTransaction _tx(String address, {String label = '', int confirmations = 2,
       ),
     );
 
+AddressBookEntry _book(String label, String address, Direction direction) =>
+    AddressBookEntry(id: Int64(1), label: label, address: address, direction: direction);
+
 void main() {
+  test('a history row shows the address book label of its address', () {
+    final labels = labelsByAddress([
+      _book('salary', 'bcrt1qown', Direction.DIRECTION_RECEIVE),
+      _book('exchange', 'bcrt1qext', Direction.DIRECTION_SEND),
+    ]);
+
+    final rows = withBookLabels([_tx('bcrt1qown'), _tx('bcrt1qext'), _tx('bcrt1qnone', label: 'core')], labels);
+
+    expect(rows.map((tx) => tx.addressLabel), ['salary', 'exchange', 'core']);
+  });
+
+  test('the first label of an address wins, and an empty label is no label', () {
+    final labels = labelsByAddress([
+      _book('', 'bcrt1qown', Direction.DIRECTION_RECEIVE),
+      _book('salary', 'bcrt1qown', Direction.DIRECTION_RECEIVE),
+      _book('other', 'bcrt1qown', Direction.DIRECTION_SEND),
+    ]);
+
+    expect(labels, {'bcrt1qown': 'salary'});
+  });
+
   test('the CSV gives the block height, not the confirmations', () {
     final csv = transactionsCsv([_tx('bcrt1qown'), _tx('bcrt1qown', confirmations: 0)]).split('\r\n');
 

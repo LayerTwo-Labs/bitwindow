@@ -1,3 +1,4 @@
+import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
@@ -84,6 +85,7 @@ void main() {
     GetIt.I.registerSingleton<TransactionProvider>(transactions);
     GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader());
     await registerTestDependencies();
+    GetIt.I.registerSingleton<AddressBookProvider>(AddressBookProvider());
   });
 
   tearDown(() => GetIt.I.reset());
