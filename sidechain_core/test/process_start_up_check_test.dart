@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -103,6 +104,25 @@ void main() {
     await made.start(binary, [], () async {});
 
     expect(elapsed.elapsed, lessThan(startCheckWindow), reason: 'the start waited out the full window');
+  }, skip: Platform.isWindows);
+
+  test('a daemon that dies after its start tells the listeners', () async {
+    final made = manager({BinaryType.BINARY_TYPE_BITWINDOWD: () async => true});
+    final binary = _LocalBitWindow((await script('echo up; echo warn >&2; sleep 30')).path);
+    addTearDown(() => made.kill(binary));
+    await made.start(binary, [], () async {});
+    final pid = made.runningProcesses[binary.name]!.pid;
+
+    final told = Completer<void>();
+    made.addListener(() {
+      if (!made.isRunning(binary) && !told.isCompleted) {
+        told.complete();
+      }
+    });
+    Process.killPid(pid, ProcessSignal.sigkill);
+
+    await told.future.timeout(const Duration(seconds: 5), onTimeout: () => fail('no listener heard of the exit'));
+    expect(made.exited(binary)?.code, -9);
   }, skip: Platform.isWindows);
 
   test('the TCP up check passes only for a port that listens', () async {

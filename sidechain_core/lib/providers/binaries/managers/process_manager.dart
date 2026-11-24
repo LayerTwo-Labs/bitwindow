@@ -60,13 +60,9 @@ class ProcessManager extends ChangeNotifier {
   final Map<String, Timer> _adoptedWatches = {};
   bool _disposed = false;
 
-  final Map<String, Stream<String>> _stdoutStreams = {};
-  final Map<String, Stream<String>> _stderrStreams = {};
   final Map<String, String> _finalErr = {};
   final Map<String, List<String>> _stderrLogs = {}; // Buffer stderr logs for error detection
 
-  Stream<String>? stdout(Binary binary) => _stdoutStreams[binary.name];
-  Stream<String>? stderr(Binary binary) => _stderrStreams[binary.name];
   List<String>? stderrLogs(Binary binary) => _stderrLogs[binary.name];
   bool running(Binary binary) => runningProcesses.containsKey(binary.name);
 
@@ -212,10 +208,6 @@ class ProcessManager extends ChangeNotifier {
 
     // Let output streaming chug in the background
 
-    // Capture stdout and stderr
-    final stdoutController = StreamController<String>();
-    final stderrController = StreamController<String>();
-
     // Track when streams are fully drained so the exit handler can read all output
     final stdoutDone = Completer<void>();
     final stderrDone = Completer<void>();
@@ -228,7 +220,6 @@ class ProcessManager extends ChangeNotifier {
         .transform(systemEncoding.decoder)
         .listen(
           (data) {
-            stdoutController.add(data);
             _finalErr[binary.name] = data;
             if (!isSpam(data) && !writesToSharedLog(binary.type)) {
               log.d('${file.path.split(Platform.pathSeparator).last}: $data');
@@ -246,7 +237,6 @@ class ProcessManager extends ChangeNotifier {
           },
           onDone: () {
             log.d('stdout stream done for ${file.path}');
-            stdoutController.close();
             stdoutDone.complete();
           },
         );
@@ -256,7 +246,6 @@ class ProcessManager extends ChangeNotifier {
         .transform(systemEncoding.decoder)
         .listen(
           (data) {
-            stderrController.add(data);
             // Buffer stderr for error detection later (keep only last 100 lines)
             final buffer = _stderrLogs[binary.name];
             if (buffer != null) {
@@ -283,14 +272,9 @@ class ProcessManager extends ChangeNotifier {
           },
           onDone: () {
             log.d('stderr stream done for ${file.path}');
-            stderrController.close();
             stderrDone.complete();
           },
         );
-
-    // Store the streams for later access
-    _stdoutStreams[binary.name] = stdoutController.stream;
-    _stderrStreams[binary.name] = stderrController.stream;
 
     // By default, this doesn't resolve to anything
     var processExited = Completer<bool>();
@@ -351,11 +335,6 @@ class ProcessManager extends ChangeNotifier {
 
           // Forward to listeners that the process finished.
           _exitTuples[binary.name] = ExitTuple(code: code, message: message);
-          // Close the stream controllers
-          await stdoutController.close();
-          await stderrController.close();
-          _stderrStreams.remove(binary.name);
-          _stdoutStreams.remove(binary.name);
           _finalErr.remove(binary.name);
         } finally {
           _notify();
