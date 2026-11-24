@@ -496,6 +496,43 @@ func TestService_GetChequePrivateKey(t *testing.T) {
 func TestService_SignMessage(t *testing.T) {
 	t.Parallel()
 
+	t.Run("a change address signs its message", func(t *testing.T) {
+		t.Parallel()
+
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t)))
+		for _, purpose := range []uint32{84, 86} {
+			pub := fixtureBranchKey(t, purpose, 1, 3)
+			var address btcutil.Address
+			if purpose == 86 {
+				pub = txscript.ComputeTaprootKeyNoScript(pub)
+				addr, err := btcutil.NewAddressTaproot(schnorr.SerializePubKey(pub), &chaincfg.SigNetParams)
+				require.NoError(t, err)
+				address = addr
+			} else {
+				addr, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pub.SerializeCompressed()), &chaincfg.SigNetParams)
+				require.NoError(t, err)
+				address = addr
+			}
+			const message = "Change address proof\nBjørn æøå"
+			signed, err := cli.SignMessage(t.Context(), &walletv1.SignMessageRequest{
+				WalletId: testWalletID,
+				Address:  address.EncodeAddress(),
+				Message:  message,
+			})
+			require.NoError(t, err)
+			require.Equal(t, hex.EncodeToString(pub.SerializeCompressed()), signed.PublicKey)
+			for _, text := range []string{message, message + " "} {
+				checked, err := cli.VerifyMessage(t.Context(), &walletv1.VerifyMessageRequest{
+					PublicKey: address.EncodeAddress(),
+					Message:   text,
+					Signature: signed.Signature,
+				})
+				require.NoError(t, err)
+				require.Equal(t, text == message, checked.Valid)
+			}
+		}
+	})
+
 	t.Run("a signature verifies without a node", func(t *testing.T) {
 		t.Parallel()
 
@@ -1472,13 +1509,18 @@ func TestListReceiveAddresses(t *testing.T) {
 // fixtureKey walks m/purpose'/1'/0'/0/index of the apitests fixture seed.
 func fixtureKey(t *testing.T, purpose, index uint32) *btcec.PublicKey {
 	t.Helper()
+	return fixtureBranchKey(t, purpose, 0, index)
+}
+
+func fixtureBranchKey(t *testing.T, purpose, branch, index uint32) *btcec.PublicKey {
+	t.Helper()
 
 	seed, err := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f")
 	require.NoError(t, err)
 	key, err := hdkeychain.NewMaster(seed, &chaincfg.SigNetParams)
 	require.NoError(t, err)
 	const h = hdkeychain.HardenedKeyStart
-	for _, child := range []uint32{h + purpose, h + 1, h + 0, 0, index} {
+	for _, child := range []uint32{h + purpose, h + 1, h + 0, branch, index} {
 		key, err = key.Derive(child)
 		require.NoError(t, err)
 	}
