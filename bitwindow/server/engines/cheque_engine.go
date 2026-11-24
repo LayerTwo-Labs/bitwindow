@@ -308,10 +308,9 @@ type ChequeSweep struct {
 	FeeSatPerVbyte uint64
 }
 
-// Sweep sends all coins of a private key to destination. If the key is a
-// cheque of the wallet, the cheque becomes swept.
+// Sweep sends all coins of a private key to the destination and marks its stored cheque as swept.
 func (e *ChequeEngine) Sweep(
-	ctx context.Context, walletID string, wifKey *btcutil.WIF, destination string, feeSatPerVbyte uint64,
+	ctx context.Context, wifKey *btcutil.WIF, destination string, feeSatPerVbyte uint64,
 ) (ChequeSweep, error) {
 	log := zerolog.Ctx(ctx)
 
@@ -327,11 +326,8 @@ func (e *ChequeEngine) Sweep(
 
 	log.Debug().Str("address", source.Address).Str("kind", source.Kind.String()).Msg("sweep cheque: sweeping")
 
-	cheque, err := cheques.GetByAddress(ctx, e.db, walletID, source.Address)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		log.Debug().Str("address", source.Address).Msg("swept key is not a cheque of this wallet")
-	case err != nil:
+	cheque, err := cheques.GetUnsweptByAddress(ctx, e.db, source.Address)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return ChequeSweep{}, connect.NewError(connect.CodeInternal, fmt.Errorf("find cheque at %s: %w", source.Address, err).Error()).WithCause(err)
 	}
 
@@ -363,8 +359,8 @@ func (e *ChequeEngine) Sweep(
 		return ChequeSweep{}, fmt.Errorf("broadcast transaction: %w", err)
 	}
 
-	if cheque != nil && cheque.SweptTxid == nil {
-		if err := cheques.UpdateSwept(ctx, e.db, walletID, cheque.ID, txid); err != nil {
+	if cheque != nil {
+		if err := cheques.UpdateSwept(ctx, e.db, cheque.WalletID, cheque.ID, txid); err != nil {
 			return ChequeSweep{}, connect.NewError(connect.CodeInternal, fmt.Errorf("mark cheque %d swept by %s: %w", cheque.ID, txid, err).Error()).WithCause(err)
 		}
 	}

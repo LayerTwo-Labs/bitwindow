@@ -1219,7 +1219,7 @@ func (s *Server) SweepCheque(ctx context.Context, c *pb.SweepChequeRequest) (*pb
 		return nil, err
 	}
 
-	sweep, err := s.chequeEngine.Sweep(ctx, c.WalletId, wifKey, c.DestinationAddress, c.FeeSatPerVbyte)
+	sweep, err := s.chequeEngine.Sweep(ctx, wifKey, c.DestinationAddress, c.FeeSatPerVbyte)
 	if err != nil {
 		return nil, err
 	}

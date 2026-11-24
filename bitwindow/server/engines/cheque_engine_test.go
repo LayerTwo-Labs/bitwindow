@@ -353,7 +353,7 @@ func TestChequeEngineSweep(t *testing.T) {
 		wif, err := btcutil.DecodeWIF(wifStr)
 		require.NoError(t, err)
 
-		sweep, err := engine.Sweep(t.Context(), chequeWalletID, wif, destination(t), 0)
+		sweep, err := engine.Sweep(t.Context(), wif, destination(t), 0)
 		require.NoError(t, err)
 		assert.Equal(t, "txid", sweep.Txid)
 		assert.Equal(t, uint64(100_000), sweep.AmountSats)
@@ -396,7 +396,7 @@ func TestChequeEngineSweep(t *testing.T) {
 				dest = destination(t)
 			}
 
-			_, err = engine.Sweep(t.Context(), chequeWalletID, wif, dest, tt.feeRate)
+			_, err = engine.Sweep(t.Context(), wif, dest, tt.feeRate)
 			require.ErrorIs(t, err, ErrInvalidSweep)
 			require.ErrorContains(t, err, tt.wantErr)
 			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
@@ -415,7 +415,7 @@ func TestChequeEngineSweep(t *testing.T) {
 		}
 		engine := testChequeEngine(t, chain)
 
-		_, err = engine.Sweep(t.Context(), chequeWalletID, wif, destination(t), 1)
+		_, err = engine.Sweep(t.Context(), wif, destination(t), 1)
 		require.ErrorContains(t, err, "txn-mempool-conflict")
 		assert.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
 	})
@@ -425,7 +425,7 @@ func TestChequeEngineSweep(t *testing.T) {
 
 		engine := testChequeEngine(t, &fakeChain{funded: map[string][]ChequeUTXO{}})
 
-		_, err := engine.Sweep(t.Context(), chequeWalletID, newWIF(t, true), destination(t), 0)
+		_, err := engine.Sweep(t.Context(), newWIF(t, true), destination(t), 0)
 		require.ErrorContains(t, err, "no funds found")
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	})

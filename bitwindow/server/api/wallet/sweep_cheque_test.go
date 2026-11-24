@@ -94,7 +94,7 @@ func TestSweepChequeMarksTheCheque(t *testing.T) {
 	candidates, err := engines.SweepCandidates(wif, &chaincfg.SigNetParams)
 	require.NoError(t, err)
 
-	sweep := func(t *testing.T, db *sql.DB) (*broadcastOrchestrator, error) {
+	sweep := func(t *testing.T, db *sql.DB, walletID string) (*broadcastOrchestrator, error) {
 		orchestrator := &broadcastOrchestrator{fakeOrchestrator: &fakeOrchestrator{
 			address: candidates[0].Address,
 			utxos: []*orchpb.AddressUnspentOutput{{
@@ -105,7 +105,7 @@ func TestSweepChequeMarksTheCheque(t *testing.T) {
 		}}
 		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, db, apitests.WithOrchestrator(orchestrator)))
 		_, err := cli.SweepCheque(t.Context(), &walletv1.SweepChequeRequest{
-			WalletId:           testWalletID,
+			WalletId:           walletID,
 			PrivateKeyWif:      wif.String(),
 			DestinationAddress: candidates[0].Address,
 			FeeSatPerVbyte:     1,
@@ -113,22 +113,27 @@ func TestSweepChequeMarksTheCheque(t *testing.T) {
 		return orchestrator, err
 	}
 
-	t.Run("the cheque reads as swept", func(t *testing.T) {
-		db := database.Test(t)
-		id, err := cheques.Create(t.Context(), db, testWalletID, 0, 100_000, candidates[0].Address)
-		require.NoError(t, err)
+	for _, wallet := range []struct{ name, id string }{
+		{name: "the owner wallet", id: testWalletID},
+		{name: "another wallet", id: "recipient-wallet"},
+	} {
+		t.Run("the cheque reads as swept after a sweep to "+wallet.name, func(t *testing.T) {
+			db := database.Test(t)
+			id, err := cheques.Create(t.Context(), db, testWalletID, 0, 100_000, candidates[0].Address)
+			require.NoError(t, err)
 
-		_, err = sweep(t, db)
-		require.NoError(t, err)
+			_, err = sweep(t, db, wallet.id)
+			require.NoError(t, err)
 
-		cheque, err := cheques.Get(t.Context(), db, testWalletID, id)
-		require.NoError(t, err)
-		require.NotNil(t, cheque.SweptTxid)
-		require.Equal(t, "swept-txid", *cheque.SweptTxid)
-	})
+			cheque, err := cheques.Get(t.Context(), db, testWalletID, id)
+			require.NoError(t, err)
+			require.NotNil(t, cheque.SweptTxid)
+			require.Equal(t, "swept-txid", *cheque.SweptTxid)
+		})
+	}
 
 	t.Run("a key that is no cheque sweeps", func(t *testing.T) {
-		_, err := sweep(t, database.Test(t))
+		_, err := sweep(t, database.Test(t), testWalletID)
 		require.NoError(t, err)
 	})
 
@@ -137,7 +142,7 @@ func TestSweepChequeMarksTheCheque(t *testing.T) {
 		_, err := db.ExecContext(t.Context(), `DROP TABLE cheques`)
 		require.NoError(t, err)
 
-		orchestrator, err := sweep(t, db)
+		orchestrator, err := sweep(t, db, testWalletID)
 		require.Equal(t, connect.CodeInternal, connect.CodeOf(err))
 		require.ErrorContains(t, err, "no such table")
 		assert.Empty(t, orchestrator.broadcasts)

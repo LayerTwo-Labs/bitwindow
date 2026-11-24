@@ -175,6 +175,15 @@ func GetByAddress(ctx context.Context, db *sql.DB, walletID string, address stri
 	return &cheque, nil
 }
 
+func GetUnsweptByAddress(ctx context.Context, db *sql.DB, address string) (*Cheque, error) {
+	query, args := selectCheque.Where(sq.Eq{"address": address, "swept_txid": nil}).MustSql()
+	cheque, err := database.Get[Cheque](ctx, db, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &cheque, nil
+}
+
 func List(ctx context.Context, db *sql.DB, walletID string) ([]Cheque, error) {
 	query, args := selectCheque.Where(sq.Eq{"wallet_id": walletID}).OrderBy("created_at DESC").MustSql()
 	cheques, err := database.Select[Cheque](ctx, db, query, args...)
