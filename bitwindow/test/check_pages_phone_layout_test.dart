@@ -1,15 +1,18 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:bitwindow/pages/wallet/cash_check_page.dart';
 import 'package:bitwindow/pages/wallet/cash_check_success_page.dart';
 import 'package:bitwindow/pages/wallet/check_detail_page.dart';
 import 'package:bitwindow/pages/wallet/create_check_page.dart';
 import 'package:bitwindow/providers/check_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:bitwindow/routing/router.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart' as bwpb;
+import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 
 import 'test_utils.dart';
 
@@ -55,6 +58,10 @@ class _FakeProviders extends ChangeNotifier implements TransactionProvider, Wall
 
 class _FakeOrchestratorWallet implements OrchestratorWalletRPC {
   @override
+  Future<wmpb.GetNewAddressResponse> getNewAddress(String walletId, {wmpb.AddressType? addressType}) async =>
+      wmpb.GetNewAddressResponse(address: _address);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -66,9 +73,33 @@ class _FakeOrchestrator implements OrchestratorRPC {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _FakeBitwindow implements BitwindowRPC {
+class _FakeWalletAPI implements WalletAPI {
+  @override
+  Future<SweepChequeResult> sweepCheque(
+    String walletId,
+    String privateKeyWif,
+    String destinationAddress,
+    int feeSatPerVbyte,
+  ) async => SweepChequeResult(txid: _txid, amountSats: 123456, receiveSats: 123236);
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeBitwindow implements BitwindowRPC {
+  @override
+  final WalletAPI wallet = _FakeWalletAPI();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _CashCheckRouter extends AppRouter {
+  @override
+  List<AutoRoute> get routes => [
+    AutoRoute(path: '/', page: CashCheckRoute.page),
+    AutoRoute(path: '/cash-check-success/:txid', page: CashCheckSuccessRoute.page),
+  ];
 }
 
 void _registerFakes({bool funded = false}) {
@@ -175,6 +206,32 @@ void main() {
   });
 
   group('check cashed', () {
+    for (final size in [const Size(1200, 720), const Size(1024, 700)]) {
+      testWidgets('cash check shows the amount paid at ${size.width.toInt()} px', (tester) async {
+        _registerFakes();
+        final router = _CashCheckRouter();
+        addTearDown(router.dispose);
+        await tester.binding.setSurfaceSize(size);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          SailTheme(
+            data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+            child: MaterialApp.router(routerConfig: router.config()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(EditableText), 'qa-check-key');
+        await tester.tap(find.byWidgetPredicate((widget) => widget is SailButton && widget.label == 'Cash Check'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('0.00123236 ${activeTicker.symbol}'), findsOneWidget);
+        expect(find.text('0.00123456 ${activeTicker.symbol}'), findsNothing);
+      });
+    }
+
     testWidgets('on a phone the amount and the transaction are label and value rows, Done at the right', (
       tester,
     ) async {

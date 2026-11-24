@@ -423,10 +423,13 @@ message SweepChequeRequest {
 
 message SweepChequeResponse {
   string txid = 1;
+  // Total value of the inputs in satoshis.
   uint64 amount_sats = 2;
   // The fee rate the sweep used, so the UI can report an estimate it did not
   // choose.
   uint64 fee_sat_per_vbyte = 3;
+  // Value paid to the destination in satoshis.
+  uint64 receive_sats = 4;
 }
 
 message DeleteChequeRequest {

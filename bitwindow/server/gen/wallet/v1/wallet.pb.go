@@ -2875,14 +2875,17 @@ func (x *SweepChequeRequest) GetFeeSatPerVbyte() uint64 {
 }
 
 type SweepChequeResponse struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Txid       string                 `protobuf:"bytes,1,opt,name=txid,proto3" json:"txid,omitempty"`
-	AmountSats uint64                 `protobuf:"varint,2,opt,name=amount_sats,json=amountSats,proto3" json:"amount_sats,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Txid  string                 `protobuf:"bytes,1,opt,name=txid,proto3" json:"txid,omitempty"`
+	// Total value of the inputs in satoshis.
+	AmountSats uint64 `protobuf:"varint,2,opt,name=amount_sats,json=amountSats,proto3" json:"amount_sats,omitempty"`
 	// The fee rate the sweep used, so the UI can report an estimate it did not
 	// choose.
 	FeeSatPerVbyte uint64 `protobuf:"varint,3,opt,name=fee_sat_per_vbyte,json=feeSatPerVbyte,proto3" json:"fee_sat_per_vbyte,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Value paid to the destination in satoshis.
+	ReceiveSats   uint64 `protobuf:"varint,4,opt,name=receive_sats,json=receiveSats,proto3" json:"receive_sats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SweepChequeResponse) Reset() {
@@ -2932,6 +2935,13 @@ func (x *SweepChequeResponse) GetAmountSats() uint64 {
 func (x *SweepChequeResponse) GetFeeSatPerVbyte() uint64 {
 	if x != nil {
 		return x.FeeSatPerVbyte
+	}
+	return 0
+}
+
+func (x *SweepChequeResponse) GetReceiveSats() uint64 {
+	if x != nil {
+		return x.ReceiveSats
 	}
 	return 0
 }
@@ -4533,12 +4543,13 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12&\n" +
 	"\x0fprivate_key_wif\x18\x02 \x01(\tR\rprivateKeyWif\x12/\n" +
 	"\x13destination_address\x18\x03 \x01(\tR\x12destinationAddress\x12)\n" +
-	"\x11fee_sat_per_vbyte\x18\x04 \x01(\x04R\x0efeeSatPerVbyte\"u\n" +
+	"\x11fee_sat_per_vbyte\x18\x04 \x01(\x04R\x0efeeSatPerVbyte\"\x98\x01\n" +
 	"\x13SweepChequeResponse\x12\x12\n" +
 	"\x04txid\x18\x01 \x01(\tR\x04txid\x12\x1f\n" +
 	"\vamount_sats\x18\x02 \x01(\x04R\n" +
 	"amountSats\x12)\n" +
-	"\x11fee_sat_per_vbyte\x18\x03 \x01(\x04R\x0efeeSatPerVbyte\"B\n" +
+	"\x11fee_sat_per_vbyte\x18\x03 \x01(\x04R\x0efeeSatPerVbyte\x12!\n" +
+	"\freceive_sats\x18\x04 \x01(\x04R\vreceiveSats\"B\n" +
 	"\x13DeleteChequeRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\x03R\x02id\"]\n" +

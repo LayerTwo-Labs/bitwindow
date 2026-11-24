@@ -323,7 +323,7 @@ class MockWalletAPI implements WalletAPI {
     String destinationAddress,
     int feeSatPerVbyte,
   ) {
-    return Future.value(SweepChequeResult(txid: 'mock_txid', amountSats: 100000));
+    return Future.value(SweepChequeResult(txid: 'mock_txid', amountSats: 100000, receiveSats: 99890));
   }
 
   @override
