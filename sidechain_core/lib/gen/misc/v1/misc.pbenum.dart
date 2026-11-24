@@ -14,6 +14,30 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
+class OPReturnSort extends $pb.ProtobufEnum {
+  static const OPReturnSort OP_RETURN_SORT_UNSPECIFIED =
+      OPReturnSort._(0, _omitEnumNames ? '' : 'OP_RETURN_SORT_UNSPECIFIED');
+  static const OPReturnSort OP_RETURN_SORT_TIME = OPReturnSort._(1, _omitEnumNames ? '' : 'OP_RETURN_SORT_TIME');
+  static const OPReturnSort OP_RETURN_SORT_HEIGHT = OPReturnSort._(2, _omitEnumNames ? '' : 'OP_RETURN_SORT_HEIGHT');
+  static const OPReturnSort OP_RETURN_SORT_FEE = OPReturnSort._(3, _omitEnumNames ? '' : 'OP_RETURN_SORT_FEE');
+  static const OPReturnSort OP_RETURN_SORT_TXID = OPReturnSort._(4, _omitEnumNames ? '' : 'OP_RETURN_SORT_TXID');
+  static const OPReturnSort OP_RETURN_SORT_MESSAGE = OPReturnSort._(5, _omitEnumNames ? '' : 'OP_RETURN_SORT_MESSAGE');
+
+  static const $core.List<OPReturnSort> values = <OPReturnSort>[
+    OP_RETURN_SORT_UNSPECIFIED,
+    OP_RETURN_SORT_TIME,
+    OP_RETURN_SORT_HEIGHT,
+    OP_RETURN_SORT_FEE,
+    OP_RETURN_SORT_TXID,
+    OP_RETURN_SORT_MESSAGE,
+  ];
+
+  static final $core.List<OPReturnSort?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 5);
+  static OPReturnSort? valueOf($core.int value) => value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const OPReturnSort._(super.value, super.name);
+}
+
 /// What the user is about to put on chain.
 class NewsAction extends $pb.ProtobufEnum {
   static const NewsAction NEWS_ACTION_UNSPECIFIED = NewsAction._(0, _omitEnumNames ? '' : 'NEWS_ACTION_UNSPECIFIED');

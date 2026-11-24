@@ -6,14 +6,14 @@
 import "package:connectrpc/connect.dart" as connect;
 
 import "misc.pb.dart" as miscv1misc;
+import "misc.connect.spec.dart" as specs;
 
 import "package:protobuf/well_known_types/google/protobuf/empty.pb.dart" as googleprotobufempty;
 
-import "misc.connect.spec.dart" as specs;
-
 extension type MiscServiceClient(connect.Transport _transport) {
+  /// Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
   Future<miscv1misc.ListOPReturnResponse> listOPReturn(
-    googleprotobufempty.Empty input, {
+    miscv1misc.ListOPReturnRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
     Function(connect.Headers)? onHeader,

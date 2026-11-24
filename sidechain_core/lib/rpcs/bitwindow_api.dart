@@ -1316,7 +1316,8 @@ class NewsFeeEstimate {
 }
 
 abstract class MiscAPI {
-  Future<List<OPReturn>> listOPReturns();
+  /// Lists the newest 1000 OP_RETURNs that match the request.
+  Future<List<OPReturn>> listOPReturns(ListOPReturnRequest request);
   Future<List<CoinNews>> listCoinNews();
   Future<List<Topic>> listTopics();
   Future<CreateTopicResponse> createTopic(String topic, String name, {int retentionDays = 7});
@@ -1354,9 +1355,9 @@ class _MiscAPILive implements MiscAPI {
   _MiscAPILive(this._client);
 
   @override
-  Future<List<OPReturn>> listOPReturns() async {
+  Future<List<OPReturn>> listOPReturns(ListOPReturnRequest request) async {
     try {
-      final response = await _client.listOPReturn(Empty());
+      final response = await _client.listOPReturn(request);
       return response.opReturns;
     } catch (e) {
       final error = 'could not list op returns: ${extractConnectException(e)}';
