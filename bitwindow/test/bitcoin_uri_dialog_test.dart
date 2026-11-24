@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:sail_ui/sail_ui.dart';
 
 import 'test_utils.dart';
 
@@ -30,5 +31,19 @@ void main() {
     expect(paragraph.didExceedMaxLines, isFalse);
     expect(paragraph.overflow, isNot(TextOverflow.ellipsis));
     expect(tester.getSize(line).height, greaterThan(tester.getSize(find.text('Amount: 1.2300,0000 BTC')).height));
+  });
+  testWidgets('A malformed URI amount disables Use', (tester) async {
+    await tester.pumpSailPage(const Center(child: BitcoinURIDialog()));
+
+    final input = find.byType(EditableText);
+    final use = find.widgetWithText(SailButton, 'Use');
+    await tester.enterText(input, 'bitcoin:$_address?amount=0.00000001');
+    await tester.pump();
+    expect(tester.widget<SailButton>(use).disabled, isFalse);
+
+    await tester.enterText(input, 'bitcoin:$_address?amount=1=2');
+    await tester.pump();
+    expect(tester.widget<SailButton>(use).disabled, isTrue);
+    expect(find.textContaining('Invalid amount format'), findsOneWidget);
   });
 }

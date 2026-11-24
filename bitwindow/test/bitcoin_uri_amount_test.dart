@@ -24,7 +24,13 @@ void main() {
       expect(BitcoinURI.parse('bitcoin:$_address').amountSats, isNull);
     });
 
-    for (final text in ['-1', 'NaN', 'Infinity', '1e5', '0.123456789', '']) {
+    test('a question mark in the message keeps the amount', () {
+      final uri = BitcoinURI.parse('bitcoin:$_address?message=Invoice?&amount=0.00000001');
+      expect(uri.message, 'Invoice?');
+      expect(uri.amountSats, 1);
+    });
+
+    for (final text in ['-1', 'NaN', 'Infinity', '1e5', '0.123456789', '1=2', '1?2', '']) {
       test('amount="$text" is refused', () {
         expect(() => BitcoinURI.parse('bitcoin:$_address?amount=$text'), throwsFormatException);
       });
