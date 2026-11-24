@@ -730,6 +730,8 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
   bool get loading => _enforcerRPC.initializingBinary;
 
   Timer? _refreshTimer;
+  String? _statsWalletId;
+  int _statsRead = 0;
 
   OverviewViewModel() {
     initChangeTracker();
@@ -740,6 +742,8 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
     _balanceProvider.addListener(_debouncedGetStats);
     _enforcerRPC.addListener(_onChange);
     _addressBook.addListener(_onChange);
+    _statsWalletId = _walletReader.activeWalletId;
+    _walletReader.addListener(_onWalletChanged);
     getStats();
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) => getStats());
   }
@@ -768,7 +772,21 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
     });
   }
 
+  void _onWalletChanged() {
+    final walletId = _walletReader.activeWalletId;
+    if (_statsWalletId == walletId) {
+      return;
+    }
+    _statsWalletId = walletId;
+    stats = null;
+    statsError = null;
+    track('stats', stats);
+    notifyListeners();
+    unawaited(getStats());
+  }
+
   Future<void> getStats() async {
+    final read = ++_statsRead;
     final walletId = _walletReader.activeWalletId;
     if (walletId == null) {
       return;
@@ -776,6 +794,9 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
 
     try {
       final newStats = await _bitwindowRPC.wallet.getStats(walletId);
+      if (read != _statsRead) {
+        return;
+      }
       final errorChanged = statsError != null;
       statsError = null;
       if (track('stats', newStats) || errorChanged) {
@@ -783,6 +804,9 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
         notifyListeners();
       }
     } catch (e) {
+      if (read != _statsRead) {
+        return;
+      }
       if (statsError != e.toString()) {
         statsError = e.toString();
         notifyListeners();
@@ -955,6 +979,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
 
   @override
   void dispose() {
+    _statsRead++;
     _statsTimer?.cancel();
     _refreshTimer?.cancel();
     searchController.removeListener(_onChange);
@@ -964,6 +989,7 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
     _balanceProvider.removeListener(_debouncedGetStats);
     _enforcerRPC.removeListener(_onChange);
     _addressBook.removeListener(_onChange);
+    _walletReader.removeListener(_onWalletChanged);
     super.dispose();
   }
 }
