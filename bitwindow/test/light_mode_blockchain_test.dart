@@ -236,6 +236,47 @@ void main() {
     expect(provider.hasMoreBlocks, isTrue);
   });
 
+  test('pagination includes genesis when the last full page ends at height one', () async {
+    final provider = await boot(wmpb.NodeMode.NODE_MODE_FULL);
+    await pumpEventQueue();
+    rpc.api.pagedTip = 100;
+    provider.clear();
+    await provider.fetch();
+
+    await provider.loadMoreBlocks();
+    await provider.loadMoreBlocks();
+
+    expect(provider.blocks.map((b) => b.height), [for (var h = 100; h >= 0; h--) h]);
+    expect(provider.hasMoreBlocks, isFalse);
+    expect(provider.loadedBlockHeights.length, 101);
+  });
+
+  test('a failed page keeps its rows and shows the error until a good page', () async {
+    final provider = await boot(wmpb.NodeMode.NODE_MODE_FULL);
+    await pumpEventQueue();
+    rpc.api.pagedTip = 100;
+    provider.clear();
+    await provider.fetch();
+    final rows = [...provider.blocks];
+    rpc.api.blockError = connect.ConnectException(connect.Code.unavailable, 'Core stopped');
+    final states = <bool>[];
+    provider.addListener(() => states.add(provider.isLoadingMoreBlocks));
+
+    await provider.loadMoreBlocks();
+
+    expect(provider.blocks, rows);
+    expect(provider.blocksError, contains('Core stopped'));
+    expect(states, [true, false]);
+    expect(provider.hasMoreBlocks, isTrue);
+    expect(provider.isLoadingMoreBlocks, isFalse);
+
+    rpc.api.blockError = null;
+    await provider.loadMoreBlocks();
+
+    expect(provider.blocksError, isNull);
+    expect(provider.blocks.length, greaterThan(rows.length));
+  });
+
   test('a poll drops older blocks a long tip jump cuts off', () async {
     final provider = await boot(wmpb.NodeMode.NODE_MODE_FULL);
     await pumpEventQueue();
