@@ -2817,6 +2817,51 @@ func TestCoreBackendListUnspentShowsAMempoolCoin(t *testing.T) {
 	assert.Equal(t, 0, utxos[0].Confirmations)
 }
 
+// Core's listunspent gives no BIP32 path, so the coin list reads it per address.
+func TestCoreBackendListUnspentGivesEachCoinItsPath(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	fake.handle("listunspent", func(bitcoindCall) (any, string) {
+		return []map[string]any{
+			{"txid": "a", "vout": 0, "address": "bcrt1qfirst", "amount": 1.0, "confirmations": 3, "spendable": true},
+			{"txid": "b", "vout": 1, "address": "bcrt1qfirst", "amount": 2.0, "confirmations": 2, "spendable": true},
+			{"txid": "c", "vout": 0, "address": "bcrt1qsecond", "amount": 3.0, "confirmations": 1, "spendable": true},
+		}, ""
+	})
+	paths := map[string]string{"bcrt1qfirst": "m/84h/1h/0h/0/4", "bcrt1qsecond": "m/84h/1h/0h/1/7"}
+	reads := map[string]int{}
+	fake.handle("getaddressinfo", func(c bitcoindCall) (any, string) {
+		var address string
+		require.NoError(t, json.Unmarshal(c.Params[0], &address))
+		reads[address]++
+		return map[string]any{"address": address, "hdkeypath": paths[address], "ismine": true}, ""
+	})
+
+	for range 2 {
+		utxos, err := backend.ListUnspent(context.Background(), coreID)
+		require.NoError(t, err)
+		require.Len(t, utxos, 3)
+		for _, u := range utxos {
+			assert.Equal(t, paths[u.Address], u.HDPath, u.TxID)
+		}
+	}
+	assert.Equal(t, 1, reads["bcrt1qfirst"], "a path never changes")
+	assert.Equal(t, 1, reads["bcrt1qsecond"], "a path never changes")
+}
+
+// A path that Core cannot read fails the coin list, not a blank column.
+func TestCoreBackendListUnspentReturnsAPathError(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	fake.handle("listunspent", func(bitcoindCall) (any, string) {
+		return []map[string]any{{"txid": "a", "vout": 0, "address": "bcrt1qfirst", "amount": 1.0, "confirmations": 3}}, ""
+	})
+	fake.handle("getaddressinfo", func(bitcoindCall) (any, string) { return nil, "Invalid address" })
+
+	_, err := backend.ListUnspent(context.Background(), coreID)
+	require.ErrorContains(t, err, "read path of bcrt1qfirst")
+}
+
 // Core's listreceivedbyaddress reports gross lifetime receipts, so a spent
 // address read as if it kept the coins. The Balance column carries what an
 // address still holds, while Amount keeps the receipts the BIP47 import window

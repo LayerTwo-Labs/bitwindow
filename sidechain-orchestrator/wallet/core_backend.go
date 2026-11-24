@@ -335,6 +335,11 @@ func (p *CoreBackend) ListUnspent(ctx context.Context, walletID string) ([]UTXO,
 	if err := p.fillReceivedAt(ctx, name, utxos); err != nil {
 		return nil, err
 	}
+	for i := range utxos {
+		if utxos[i].HDPath, err = p.cachedHDPath(ctx, name, utxos[i].Address); err != nil {
+			return nil, err
+		}
+	}
 	return utxos, nil
 }
 
@@ -437,26 +442,36 @@ func (p *CoreBackend) ListReceivedByAddress(ctx context.Context, walletID string
 }
 
 // fillHDPaths sets the BIP32 path of each row. listreceivedbyaddress does not
-// report it, and a path never changes, so each address costs one getaddressinfo.
+// report it.
 func (p *CoreBackend) fillHDPaths(ctx context.Context, name string, rows []ReceivedByAddress) error {
 	for i := range rows {
-		key := name + ":" + rows[i].Address
-		p.spentMu.Lock()
-		path, ok := p.hdPaths[key]
-		p.spentMu.Unlock()
-		if !ok {
-			info, err := p.rpc.GetAddressInfo(ctx, name, rows[i].Address)
-			if err != nil {
-				return fmt.Errorf("read path of %s: %w", rows[i].Address, err)
-			}
-			path = info.HDKeyPath
-			p.spentMu.Lock()
-			p.hdPaths[key] = path
-			p.spentMu.Unlock()
+		path, err := p.cachedHDPath(ctx, name, rows[i].Address)
+		if err != nil {
+			return err
 		}
 		rows[i].HDPath = path
 	}
 	return nil
+}
+
+// cachedHDPath returns the BIP32 path of a wallet address. A path never
+// changes, so each address costs one getaddressinfo.
+func (p *CoreBackend) cachedHDPath(ctx context.Context, name, address string) (string, error) {
+	key := name + ":" + address
+	p.spentMu.Lock()
+	path, ok := p.hdPaths[key]
+	p.spentMu.Unlock()
+	if ok {
+		return path, nil
+	}
+	info, err := p.rpc.GetAddressInfo(ctx, name, address)
+	if err != nil {
+		return "", fmt.Errorf("read path of %s: %w", address, err)
+	}
+	p.spentMu.Lock()
+	p.hdPaths[key] = info.HDKeyPath
+	p.spentMu.Unlock()
+	return info.HDKeyPath, nil
 }
 
 // ReceivedTxIDs implements AddressReceiver.
