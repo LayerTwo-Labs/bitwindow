@@ -1,16 +1,160 @@
 import 'dart:async';
 
 import 'package:bitwindow/pages/wallet/wallet_send.dart';
+import 'package:bitwindow/providers/address_book_provider.dart';
+import 'package:bitwindow/providers/coin_selection_provider.dart';
+import 'package:bitwindow/providers/psbt_draft_provider.dart';
+import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:bitwindow/widgets/grouped_address.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 import 'package:sidechain_core/gen/walletpsbt/v1/walletpsbt.pb.dart';
 
 import 'test_utils.dart';
 
+class _SendViewModel extends SendPageViewModel {
+  @override
+  Future<void> init() async {}
+}
+
+class _Balance implements BalanceProvider {
+  @override
+  double balance = 0;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Transactions extends ChangeNotifier implements TransactionProvider {
+  @override
+  List<UnspentOutput> utxos = [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Coins extends ChangeNotifier implements CoinSelectionProvider {
+  @override
+  Set<String> frozenOutpoints = {};
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Drafts extends ChangeNotifier implements PsbtDraftProvider {
+  @override
+  Set<String> lockedOutpoints = {};
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Settings extends ChangeNotifier implements SettingsProvider {
+  @override
+  BitcoinUnit get bitcoinUnit => BitcoinUnit.btc;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _AddressBook extends ChangeNotifier implements AddressBookProvider {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
+  @override
+  String? get activeWalletId => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Wallet implements OrchestratorWalletRPC {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Orchestrator implements OrchestratorRPC {
+  @override
+  final wallet = _Wallet();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
+  group('onUseAvailableBalance', () {
+    late _Balance balance;
+    late _Transactions transactions;
+    late _Coins coins;
+    late _Drafts drafts;
+    late SendPageViewModel model;
+
+    UnspentOutput coin(String output, int sats) => UnspentOutput(output: output, valueSats: Int64(sats));
+
+    setUp(() async {
+      await GetIt.I.reset();
+      balance = _Balance()..balance = 0.0015;
+      transactions = _Transactions()..utxos = [coin('aa:0', 100000), coin('bb:0', 50000)];
+      coins = _Coins();
+      drafts = _Drafts();
+      GetIt.I.registerSingleton<BalanceProvider>(balance);
+      GetIt.I.registerSingleton<TransactionProvider>(transactions);
+      GetIt.I.registerSingleton<CoinSelectionProvider>(coins);
+      GetIt.I.registerSingleton<PsbtDraftProvider>(drafts);
+      GetIt.I.registerSingleton<SettingsProvider>(_Settings());
+      GetIt.I.registerSingleton<AddressBookProvider>(_AddressBook());
+      GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader());
+      GetIt.I.registerSingleton<OrchestratorRPC>(_Orchestrator());
+      model = _SendViewModel()..selectedConfTarget = null;
+    });
+
+    tearDown(() async {
+      model.dispose();
+      await GetIt.I.reset();
+    });
+
+    test('MAX excludes a frozen coin', () async {
+      coins.frozenOutpoints = {'bb:0'};
+
+      await model.onUseAvailableBalance(0);
+
+      expect(model.recipients.single.amountController.text, '0.00100000');
+      expect(model.recipients.single.subtractFee, isTrue);
+    });
+
+    test('MAX excludes a coin held by a draft', () async {
+      drafts.lockedOutpoints = {'bb:0'};
+
+      await model.onUseAvailableBalance(0);
+
+      expect(model.recipients.single.amountController.text, '0.00100000');
+    });
+
+    test('MAX counts a coin held by both records once', () async {
+      coins.frozenOutpoints = {'bb:0'};
+      drafts.lockedOutpoints = {'bb:0'};
+
+      await model.onUseAvailableBalance(0);
+
+      expect(model.recipients.single.amountController.text, '0.00100000');
+    });
+
+    test('MAX uses the selected coins', () async {
+      coins.frozenOutpoints = {'bb:0'};
+      model.selectedUtxos = [transactions.utxos.first];
+
+      await model.onUseAvailableBalance(0);
+
+      expect(model.recipients.single.amountController.text, '0.00100000');
+    });
+  });
+
   group('buildSignAndSave', () {
     late List<String> saved;
     late List<String> discarded;

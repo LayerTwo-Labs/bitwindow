@@ -1000,7 +1000,7 @@ class SendPageViewModel extends BaseViewModel {
   static List<UnspentOutput> spendableAmong(List<UnspentOutput> utxos, Set<String> held) =>
       utxos.where((u) => !held.contains(u.output)).toList();
 
-  /// The sats the coins of saved transactions hold. MAX leaves them out.
+  /// The value of the held coins, in sats.
   static int lockedSats(List<UnspentOutput> utxos, Set<String> locked) =>
       utxos.where((u) => locked.contains(u.output)).fold(0, (sum, u) => sum + u.valueSats.toInt());
 
@@ -1258,7 +1258,7 @@ class SendPageViewModel extends BaseViewModel {
       final selectedSats = selectedUtxos.fold<int>(0, (sum, utxo) => sum + utxo.valueSats.toInt());
       final availableSats = selectedSats > 0
           ? selectedSats
-          : btcToSatoshi(balanceProvider.balance) - lockedSats(allUtxos, draftProvider.lockedOutpoints);
+          : btcToSatoshi(balanceProvider.balance) - lockedSats(allUtxos, heldOutpoints);
       var otherSats = 0;
       for (var i = 0; i < recipients.length; i++) {
         if (i != index) {
