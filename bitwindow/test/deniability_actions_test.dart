@@ -12,6 +12,9 @@ import 'test_utils.dart';
 
 class _FakeTransactionProvider extends ChangeNotifier implements TransactionProvider {
   @override
+  List<UnspentOutput> utxos = [];
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
@@ -28,6 +31,40 @@ void main() {
   });
 
   tearDown(() => GetIt.I.reset());
+
+  test('Deny All skips coins with a paused denial', () {
+    final paused = UnspentOutput(
+      output: '${'a' * 64}:0',
+      denialInfo: DenialInfo(
+        id: Int64(1),
+        numHops: 3,
+        pausedAt: Timestamp.fromDateTime(DateTime.utc(2026)),
+      ),
+    );
+    final free = UnspentOutput(output: '${'b' * 64}:0');
+    final cancelled = UnspentOutput(
+      output: '${'c' * 64}:0',
+      denialInfo: paused.denialInfo.deepCopy()..cancelTime = Timestamp.fromDateTime(DateTime.utc(2026)),
+    );
+    final change = UnspentOutput(
+      output: '${'d' * 64}:0',
+      denialInfo: paused.denialInfo.deepCopy()..isChange = true,
+    );
+    final scheduled = UnspentOutput(
+      output: '${'e' * 64}:0',
+      denialInfo: DenialInfo(nextExecutionTime: Timestamp.fromDateTime(DateTime.utc(2027))),
+    );
+    final completed = UnspentOutput(
+      output: '${'f' * 64}:0',
+      denialInfo: DenialInfo(numHops: 3, hopsCompleted: 3),
+    );
+    final provider = GetIt.I<TransactionProvider>() as _FakeTransactionProvider;
+    provider.utxos = [paused, free, cancelled, change, scheduled, completed];
+    final model = DeniabilityViewModel();
+    addTearDown(model.dispose);
+
+    expect(model.utxosWithoutDenial, [free, cancelled, change, completed]);
+  });
 
   testWidgets('the Pause and Cancel buttons fit in the Actions column', (tester) async {
     await tester.pumpSailPage(
