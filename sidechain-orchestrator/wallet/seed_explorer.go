@@ -9,7 +9,6 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
@@ -31,7 +30,7 @@ type SeedExplorer struct {
 	SeedHex     string
 	Xprv        string
 	Xpub        string
-	PaymentCode string // BIP47 v3, from the master public key
+	PaymentCode string // BIP47 v1, as the wallet gives it
 	Keys        []ExploredKey
 }
 
@@ -70,9 +69,10 @@ func ExploreSeed(mnemonic, passphrase, basePath string, start, count uint32, net
 	if err != nil {
 		return SeedExplorer{}, fmt.Errorf("neuter master key: %w", err)
 	}
-	masterECPub, err := master.ECPubKey()
+	seedHex := hex.EncodeToString(seed)
+	paymentCode, err := Bip47PaymentCodeFromSeed(seedHex, net)
 	if err != nil {
-		return SeedExplorer{}, fmt.Errorf("master public key: %w", err)
+		return SeedExplorer{}, err
 	}
 
 	parent := master
@@ -95,10 +95,10 @@ func ExploreSeed(mnemonic, passphrase, basePath string, start, count uint32, net
 	}
 
 	return SeedExplorer{
-		SeedHex:     hex.EncodeToString(seed),
+		SeedHex:     seedHex,
 		Xprv:        master.String(),
 		Xpub:        masterPub.String(),
-		PaymentCode: base58.CheckEncode(append([]byte{0x03}, masterECPub.SerializeCompressed()...), 0x22),
+		PaymentCode: paymentCode,
 		Keys:        keys,
 	}, nil
 }

@@ -88,7 +88,7 @@ func TestSeedRPCsOverTheWire(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "xprv9s21ZrQH143K3GJpoapnV8SFfukcVBSfeCficPSGfubmSFDxo1kuHnLisriDvSnRRuL2Qrg5ggqHKNVpxR86QEC8w35uxmGoggxtQTPvfUu", out.Xprv)
-	require.Equal(t, "PD1mf1yi3BKbwH935QwrB1CvhugkodvBtusgCsEVtJrucpMK52841", out.Bip47PaymentCode)
+	require.Equal(t, "PM8TJdJWQ5c9XJUMuNBBaJ7Zq9GnjfYtQk7PJn9n4jt8qdgRFBB9TUkAGGd4mK1VRLekUt3ifC9aGVRLYYmLb9WhsvsUrFin1FUBzEoyPxBnmVExHAjE", out.Bip47PaymentCode)
 	require.Len(t, out.Keys, 1)
 	require.Equal(t, &pb.ExploredKey{
 		Path:      "m/86'/0'/0'/0/0",
