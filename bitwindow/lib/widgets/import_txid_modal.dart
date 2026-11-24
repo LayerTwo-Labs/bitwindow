@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:bitwindow/models/multisig_group.dart';
-import 'package:bitwindow/providers/hd_wallet_provider.dart';
 import 'package:bitwindow/providers/multisig_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -130,7 +129,6 @@ class ImportTxidModal extends StatelessWidget {
 
 class ImportTxidModalViewModel extends BaseViewModel {
   final BitwindowRPC _api = GetIt.I.get<BitwindowRPC>();
-  final HDWalletProvider _hdWallet = GetIt.I.get<HDWalletProvider>();
   Logger get _logger => GetIt.I.get<Logger>();
   OrchestratorMultisigLoungeRPC get _multisigLounge => GetIt.I.get<OrchestratorRPC>().multisigLounge;
   WalletReaderProvider get _walletReader => GetIt.I<WalletReaderProvider>();
@@ -243,10 +241,9 @@ class ImportTxidModalViewModel extends BaseViewModel {
       loadingStatus = 'Validating wallet keys...';
       notifyListeners();
 
-      final walletKeyCount = await _updateWalletKeyStates(multisigData);
-
-      final totalKeys = (multisigData['keys'] as List<dynamic>?)?.length ?? 0;
-      if (walletKeyCount == 0) {
+      final importedGroup = await MultisigStorage.groupForWallet(MultisigGroup.fromJson(multisigData), walletId);
+      final totalKeys = importedGroup.keys.length;
+      if (!importedGroup.keys.any((key) => key.isWallet)) {
         modalError =
             'Cannot import multisig: this wallet cannot derive any of the $totalKeys keys in the group. Import is only allowed if this wallet owns at least one key.';
         return;
@@ -255,7 +252,7 @@ class ImportTxidModalViewModel extends BaseViewModel {
       loadingStatus = 'Saving multisig group...';
       notifyListeners();
 
-      await _saveImportedGroup(multisigData);
+      await _saveImportedGroup(importedGroup);
 
       try {
         loadingStatus = 'Setting up watch wallet...';
@@ -307,53 +304,7 @@ class ImportTxidModalViewModel extends BaseViewModel {
     }
   }
 
-  Future<int> _updateWalletKeyStates(Map<String, dynamic> multisigData) async {
-    int walletKeyCount = 0;
-
-    try {
-      final keys = multisigData['keys'] as List<dynamic>? ?? [];
-
-      if (keys.isEmpty) {
-        return 0;
-      }
-
-      for (int i = 0; i < keys.length; i++) {
-        final keyData = keys[i];
-
-        if (keyData is Map<String, dynamic>) {
-          final keyOwner = keyData['owner'] as String? ?? 'Key ${i + 1}';
-
-          loadingStatus = 'Validating $keyOwner (${i + 1} of ${keys.length})...';
-          notifyListeners();
-
-          keyData['is_wallet'] = false;
-
-          final xpubFromPayload = keyData['xpub'] as String?;
-          final derivationPath = keyData['path'] as String?;
-
-          if (xpubFromPayload != null && derivationPath != null) {
-            try {
-              final derived = await _hdWallet.deriveAccountXpub(derivationPath);
-              if (derived.xpub == xpubFromPayload) {
-                keyData['is_wallet'] = true;
-                walletKeyCount++;
-              }
-            } catch (e) {
-              // Failed to derive key - skip this key
-            }
-          }
-        }
-      }
-    } catch (e) {
-      return 0;
-    }
-
-    return walletKeyCount;
-  }
-
-  Future<void> _saveImportedGroup(Map<String, dynamic> multisigData) async {
-    final importedGroup = MultisigGroup.fromJson(multisigData);
-
+  Future<void> _saveImportedGroup(MultisigGroup importedGroup) async {
     final existingGroups = await MultisigStorage.loadGroups();
 
     final existingIndex = existingGroups.indexWhere((g) => g.id == importedGroup.id);

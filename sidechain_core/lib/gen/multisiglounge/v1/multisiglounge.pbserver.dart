@@ -27,6 +27,7 @@ abstract class MultisigLoungeServiceBase extends $pb.GeneratedService {
   $async.Future<$0.PublishGroupResponse> publishGroup($pb.ServerContext ctx, $0.PublishGroupRequest request);
   $async.Future<$0.ImportGroupFromTxidResponse> importGroupFromTxid(
       $pb.ServerContext ctx, $0.ImportGroupFromTxidRequest request);
+  $async.Future<$0.FindWalletKeysResponse> findWalletKeys($pb.ServerContext ctx, $0.FindWalletKeysRequest request);
   $async.Future<$0.SignTransactionResponse> signTransaction($pb.ServerContext ctx, $0.SignTransactionRequest request);
   $async.Future<$0.CombineAndBroadcastResponse> combineAndBroadcast(
       $pb.ServerContext ctx, $0.CombineAndBroadcastRequest request);
@@ -44,6 +45,8 @@ abstract class MultisigLoungeServiceBase extends $pb.GeneratedService {
         return $0.PublishGroupRequest();
       case 'ImportGroupFromTxid':
         return $0.ImportGroupFromTxidRequest();
+      case 'FindWalletKeys':
+        return $0.FindWalletKeysRequest();
       case 'SignTransaction':
         return $0.SignTransactionRequest();
       case 'CombineAndBroadcast':
@@ -70,6 +73,8 @@ abstract class MultisigLoungeServiceBase extends $pb.GeneratedService {
         return publishGroup(ctx, request as $0.PublishGroupRequest);
       case 'ImportGroupFromTxid':
         return importGroupFromTxid(ctx, request as $0.ImportGroupFromTxidRequest);
+      case 'FindWalletKeys':
+        return findWalletKeys(ctx, request as $0.FindWalletKeysRequest);
       case 'SignTransaction':
         return signTransaction(ctx, request as $0.SignTransactionRequest);
       case 'CombineAndBroadcast':

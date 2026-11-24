@@ -13,7 +13,6 @@ import 'package:bitwindow/widgets/import_txid_modal.dart';
 import 'package:bitwindow/widgets/multisig_key_modal.dart';
 import 'package:bitwindow/widgets/psbt_coordinator_modal.dart';
 import 'package:bitwindow/widgets/sign_preview_modal.dart';
-import 'package:bitwindow/providers/hd_wallet_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -985,7 +984,6 @@ class _MultisigTransactionsTableState extends State<MultisigTransactionsTable> {
 }
 
 class MultisigLoungeViewModel extends BaseViewModel {
-  final HDWalletProvider _hdWalletProvider = GetIt.I.get<HDWalletProvider>();
   final BlockchainProvider _blockchainProvider = GetIt.I.get<BlockchainProvider>();
   final _walletManager = WalletRPCManager();
   final _logger = GetIt.I.get<Logger>();
@@ -1016,10 +1014,6 @@ class MultisigLoungeViewModel extends BaseViewModel {
   MultisigLoungeViewModel();
 
   Future<void> initialize() async {
-    isLoadingGroups = true;
-    isLoadingTransactions = true;
-    notifyListeners();
-
     _transactionListener = _readState;
     TransactionStorage.notifier.addListener(_transactionListener);
 
@@ -1027,18 +1021,7 @@ class MultisigLoungeViewModel extends BaseViewModel {
     _blockchainProvider.addListener(_blockchainListener);
     _blockchainProvider.recentChanged.addListener(_blockchainListener);
 
-    await _readState();
-    if (_disposed) {
-      return;
-    }
-    await _validateAndFixWalletFlags();
-    if (_disposed) {
-      return;
-    }
-
-    isLoadingGroups = false;
-    isLoadingTransactions = false;
-    notifyListeners();
+    await refreshData();
   }
 
   Future<void> refreshData() async {
@@ -1050,6 +1033,15 @@ class MultisigLoungeViewModel extends BaseViewModel {
     notifyListeners();
 
     await _readState();
+    if (_disposed) {
+      return;
+    }
+
+    try {
+      await _refreshWalletKeys();
+    } catch (e) {
+      errorMessage = e.toString();
+    }
     if (_disposed) {
       return;
     }
@@ -1207,148 +1199,29 @@ class MultisigLoungeViewModel extends BaseViewModel {
     }
   }
 
-  Future<void> _validateAndFixWalletFlags() async {
-    try {
-      if (!_hdWalletProvider.isInitialized) {
+  Future<void> _refreshWalletKeys() async {
+    if (errorMessage != null || multisigGroups.isEmpty) {
+      return;
+    }
+    final walletId = GetIt.I.get<WalletReaderProvider>().activeWalletId;
+    if (walletId == null) {
+      return;
+    }
+
+    final changed = <MultisigGroup>[];
+    for (final group in multisigGroups) {
+      final updated = await MultisigStorage.groupForWallet(group, walletId);
+      if (_disposed) {
         return;
       }
-
-      final mnemonic = _hdWalletProvider.mnemonic;
-      if (mnemonic == null) {
-        return;
+      if (updated != group) {
+        changed.add(updated);
       }
-
-      bool groupsUpdated = false;
-      final updatedGroups = <MultisigGroup>[];
-
-      for (final group in multisigGroups) {
-        bool groupUpdated = false;
-        final updatedKeys = <MultisigKey>[];
-
-        for (final key in group.keys) {
-          if (key.isWallet) {
-            updatedKeys.add(key);
-            continue;
-          }
-
-          final walletKeyInfo = await _checkIfKeyBelongsToWallet(key, mnemonic);
-
-          if (walletKeyInfo != null) {
-            updatedKeys.add(
-              key.copyWith(
-                isWallet: true,
-                derivationPath: walletKeyInfo['derivationPath'] ?? key.derivationPath,
-                fingerprint: walletKeyInfo['fingerprint'] ?? key.fingerprint,
-                originPath: walletKeyInfo['originPath'] ?? key.originPath,
-              ),
-            );
-            groupUpdated = true;
-          } else {
-            updatedKeys.add(key);
-          }
-        }
-
-        if (groupUpdated) {
-          final updatedGroup = group.copyWith(keys: updatedKeys);
-          updatedGroups.add(updatedGroup);
-          groupsUpdated = true;
-        } else {
-          updatedGroups.add(group);
-        }
-      }
-
-      if (groupsUpdated) {
-        await MultisigStorage.saveGroups(updatedGroups);
-        if (_disposed) {
-          return;
-        }
-        await _stateManager.refreshData();
-        if (_disposed) {
-          return;
-        }
-
-        for (final group in updatedGroups) {
-          if (group.keys.any((k) => k.isWallet)) {
-            try {
-              await MultisigStorage.restoreTransactionHistory(group);
-              if (_disposed) {
-                return;
-              }
-              await BalanceManager.updateGroupBalance(group);
-              if (_disposed) {
-                return;
-              }
-            } catch (e) {
-              _logger.e('Failed to restore transaction history for group ${group.name}: $e');
-            }
-          }
-        }
-
-        notifyListeners();
-      }
-    } catch (e) {
-      _logger.e('Error validating wallet flags: $e');
     }
-  }
 
-  Future<Map<String, String>?> _checkIfKeyBelongsToWallet(MultisigKey key, String mnemonic) async {
-    try {
-      if (key.derivationPath.isNotEmpty) {
-        final pathMatch = RegExp(r"m/84'/[01]'/(\d+)'").firstMatch(key.derivationPath);
-        if (pathMatch != null) {
-          final accountIndex = int.parse(pathMatch.group(1)!);
-          return await _tryDeriveKeyAtIndex(key, mnemonic, accountIndex);
-        }
-      }
-
-      if (key.owner.startsWith('MyKey')) {
-        final match = RegExp(r'MyKey(\d+)').firstMatch(key.owner);
-        if (match != null) {
-          final keyNumber = int.tryParse(match.group(1) ?? '');
-          if (keyNumber != null) {
-            final accountIndex = 8000 + keyNumber;
-            final result = await _tryDeriveKeyAtIndex(key, mnemonic, accountIndex);
-            if (result != null) {
-              return result;
-            }
-          }
-        }
-      }
-
-      for (int accountIndex = 8000; accountIndex < 8100; accountIndex++) {
-        final result = await _tryDeriveKeyAtIndex(key, mnemonic, accountIndex);
-        if (result != null) {
-          return result;
-        }
-      }
-
-      return null;
-    } catch (e) {
-      _logger.e('Error checking if key belongs to wallet: $e');
-      return null;
-    }
-  }
-
-  Future<Map<String, String>?> _tryDeriveKeyAtIndex(MultisigKey targetKey, String mnemonic, int accountIndex) async {
-    try {
-      final isMainnet = GetIt.I.get<BitcoinConfProvider>().usesMainnetParams;
-      final keyInfo = await _hdWalletProvider.generateWalletXpub(accountIndex, isMainnet);
-
-      if (keyInfo.isEmpty || keyInfo['xpub'] == null) {
-        return null;
-      }
-
-      final derivedXpub = keyInfo['xpub']!;
-      final matches = derivedXpub == targetKey.xpub;
-
-      if (matches) {
-        return keyInfo;
-      }
-
-      return null;
-    } catch (e) {
-      _logger.e('Error deriving key at index $accountIndex: $e');
-      return null;
+    if (changed.isNotEmpty) {
+      await MultisigStorage.saveGroups(changed);
+      await _readState();
     }
   }
 

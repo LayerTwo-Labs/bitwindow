@@ -1722,6 +1722,123 @@ class ImportGroupFromTxidResponse extends $pb.GeneratedMessage {
   $pb.PbList<$core.int> get walletKeyIndices => $_getList(1);
 }
 
+class FindWalletKeysRequest extends $pb.GeneratedMessage {
+  factory FindWalletKeysRequest({
+    GroupData? group,
+    $core.String? walletId,
+  }) {
+    final result = FindWalletKeysRequest._();
+    if (group != null) result.group = group;
+    if (walletId != null) result.walletId = walletId;
+    return result;
+  }
+
+  FindWalletKeysRequest._();
+
+  factory FindWalletKeysRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FindWalletKeysRequest()..mergeFromBuffer(data, registry);
+  factory FindWalletKeysRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FindWalletKeysRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FindWalletKeysRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'multisiglounge.v1'),
+      createEmptyInstance: FindWalletKeysRequest.$_createMessage)
+    ..aOM<GroupData>(1, _omitFieldNames ? '' : 'group', subBuilder: GroupData.$_createMessage)
+    ..aOS(2, _omitFieldNames ? '' : 'walletId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FindWalletKeysRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FindWalletKeysRequest copyWith(void Function(FindWalletKeysRequest) updates) =>
+      super.copyWith((message) => updates(message as FindWalletKeysRequest)) as FindWalletKeysRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use FindWalletKeysRequest() / FindWalletKeysRequest.new instead')
+  static FindWalletKeysRequest create() => FindWalletKeysRequest._();
+  static $pb.GeneratedMessage $_createMessage() => FindWalletKeysRequest._();
+  @$core.override
+  FindWalletKeysRequest createEmptyInstance() => FindWalletKeysRequest._();
+  @$core.pragma('dart2js:noInline')
+  static FindWalletKeysRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<FindWalletKeysRequest>(FindWalletKeysRequest.$_createMessage);
+  static FindWalletKeysRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  GroupData get group => $_getN(0);
+  @$pb.TagNumber(1)
+  set group(GroupData value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasGroup() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearGroup() => $_clearField(1);
+  @$pb.TagNumber(1)
+  GroupData ensureGroup() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $core.String get walletId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set walletId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasWalletId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearWalletId() => $_clearField(2);
+}
+
+class FindWalletKeysResponse extends $pb.GeneratedMessage {
+  factory FindWalletKeysResponse({
+    $core.Iterable<$core.int>? walletKeyIndices,
+  }) {
+    final result = FindWalletKeysResponse._();
+    if (walletKeyIndices != null) result.walletKeyIndices.addAll(walletKeyIndices);
+    return result;
+  }
+
+  FindWalletKeysResponse._();
+
+  factory FindWalletKeysResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FindWalletKeysResponse()..mergeFromBuffer(data, registry);
+  factory FindWalletKeysResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FindWalletKeysResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FindWalletKeysResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'multisiglounge.v1'),
+      createEmptyInstance: FindWalletKeysResponse.$_createMessage)
+    ..p<$core.int>(1, _omitFieldNames ? '' : 'walletKeyIndices', $pb.PbFieldType.KU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FindWalletKeysResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FindWalletKeysResponse copyWith(void Function(FindWalletKeysResponse) updates) =>
+      super.copyWith((message) => updates(message as FindWalletKeysResponse)) as FindWalletKeysResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use FindWalletKeysResponse() / FindWalletKeysResponse.new instead')
+  static FindWalletKeysResponse create() => FindWalletKeysResponse._();
+  static $pb.GeneratedMessage $_createMessage() => FindWalletKeysResponse._();
+  @$core.override
+  FindWalletKeysResponse createEmptyInstance() => FindWalletKeysResponse._();
+  @$core.pragma('dart2js:noInline')
+  static FindWalletKeysResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<FindWalletKeysResponse>(FindWalletKeysResponse.$_createMessage);
+  static FindWalletKeysResponse? _defaultInstance;
+
+  /// Indices into the supplied group keys.
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.int> get walletKeyIndices => $_getList(0);
+}
+
 /// MultisigKey is one cosigner key in a group.
 class MultisigKey extends $pb.GeneratedMessage {
   factory MultisigKey({
@@ -2262,6 +2379,11 @@ class MultisigLoungeServiceApi {
           $pb.ClientContext? ctx, ImportGroupFromTxidRequest request) =>
       _client.invoke<ImportGroupFromTxidResponse>(
           ctx, 'MultisigLoungeService', 'ImportGroupFromTxid', request, ImportGroupFromTxidResponse());
+
+  /// FindWalletKeys reports which group keys the selected wallet can derive.
+  $async.Future<FindWalletKeysResponse> findWalletKeys($pb.ClientContext? ctx, FindWalletKeysRequest request) =>
+      _client.invoke<FindWalletKeysResponse>(
+          ctx, 'MultisigLoungeService', 'FindWalletKeys', request, FindWalletKeysResponse());
 
   /// SignTransaction adds the wallet's signature(s) to a multisig PSBT,
   /// deriving the wallet's keys server-side from its seed. The PSBT must belong

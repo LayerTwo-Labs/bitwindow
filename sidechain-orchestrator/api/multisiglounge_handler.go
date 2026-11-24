@@ -293,7 +293,7 @@ func (h *MultisigLoungeHandler) ImportGroupFromTxid(
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
-	indices, err := h.detectWalletKeys(walletID, groupData)
+	indices, err := h.detectWalletKeys(walletID, groupData, true)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "Cannot derive a group key. Check the derivation path.").WithCause(err)
 	}
@@ -304,7 +304,32 @@ func (h *MultisigLoungeHandler) ImportGroupFromTxid(
 	}, nil
 }
 
-func (h *MultisigLoungeHandler) detectWalletKeys(walletID string, g wallet.MultisigGroupData) ([]uint32, error) {
+func (h *MultisigLoungeHandler) FindWalletKeys(
+	ctx context.Context,
+	req *pb.FindWalletKeysRequest,
+) (*pb.FindWalletKeysResponse, error) {
+	if req.GetGroup() == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errMissingGroup.Error()).WithCause(errMissingGroup)
+	}
+	if err := h.requireEngine(); err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
+	}
+	walletID, err := h.engine.ResolveWalletID(req.GetWalletId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+	}
+	indices, err := h.detectWalletKeys(walletID, protoToGroupData(req.GetGroup()), false)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "Cannot derive a group key. Check the derivation path.").WithCause(err)
+	}
+	return &pb.FindWalletKeysResponse{WalletKeyIndices: indices}, nil
+}
+
+func (h *MultisigLoungeHandler) detectWalletKeys(
+	walletID string,
+	g wallet.MultisigGroupData,
+	requireValidPaths bool,
+) ([]uint32, error) {
 	seedHex := h.walletSeedHex(walletID)
 	if seedHex == "" || h.engine == nil {
 		return nil, nil
@@ -314,6 +339,11 @@ func (h *MultisigLoungeHandler) detectWalletKeys(walletID string, g wallet.Multi
 	for i, k := range g.Keys {
 		derived, err := wallet.DeriveAccountXpub(seedHex, k.DerivationPath, net)
 		if err != nil {
+			if !requireValidPaths {
+				if _, pathErr := wallet.ParseKeystorePath(k.DerivationPath); pathErr != nil {
+					continue
+				}
+			}
 			return nil, fmt.Errorf("derive group key %d: %w", i, err)
 		}
 		if derived == k.Xpub {
