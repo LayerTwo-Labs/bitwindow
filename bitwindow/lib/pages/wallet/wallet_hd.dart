@@ -82,8 +82,8 @@ class _ControlsCard extends StatelessWidget {
                   ),
                   const SizedBox(width: SailStyleValues.padding08),
                   SailButton(
-                    label: model.hideMnemonic ? 'Show' : 'Hide',
-                    onPressed: () async => model.toggleMnemonicVisibility(),
+                    label: model.hideSecrets ? 'Show' : 'Hide',
+                    onPressed: () async => model.toggleSecretVisibility(),
                     variant: ButtonVariant.secondary,
                     small: true,
                   ),
@@ -116,36 +116,26 @@ class _ControlsCard extends StatelessWidget {
           SailColumn(
             spacing: SailStyleValues.padding08,
             children: [
-              for (final item in [
-                {'label': 'BIP47 Payment Code:', 'value': model.bip47PaymentCode},
-                {'label': 'Master Seed:', 'value': model.masterSeed},
-                {'label': 'XPRIV:', 'value': model.xpriv},
-                {'label': 'XPUB:', 'value': model.xpub},
-              ])
+              for (final (label, value, secret) in model._keyRows)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     SizedBox(
                       width: 160,
-                      child: SailText.primary13(item['label']!, bold: true),
+                      child: SailText.primary13('$label:', bold: true),
                     ),
                     Expanded(
                       child: SailText.primary13(
-                        item['value']!.isEmpty ? '' : item['value']!,
+                        model._displayKey(value, secret),
                         monospace: true,
                       ),
                     ),
                     const SizedBox(width: SailStyleValues.padding08),
                     SailButton(
                       label: 'Copy',
-                      onPressed: item['value']!.isEmpty
+                      onPressed: value.isEmpty
                           ? null
-                          : () async => await model.copyToClipboard(
-                              context,
-                              item['value']!,
-                              item['label']!,
-                              secret: item['label'] == 'Master Seed:' || item['label'] == 'XPRIV:',
-                            ),
+                          : () async => await model.copyToClipboard(context, value, label, secret: secret),
                       variant: ButtonVariant.secondary,
                       small: true,
                     ),
@@ -166,22 +156,10 @@ class _MnemonicField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (model.hideMnemonic && model.mnemonicController.text.isNotEmpty) {
-      return Container(
-        height: 36, // Small text field height
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border.all(color: context.sailTheme.colors.divider),
-          borderRadius: context.sailTheme.chrome.radiusSmall,
-          color: context.sailTheme.colors.background,
-        ),
-        child: SailText.primary13('••••••••••••••••••••••••••••••••', monospace: true),
-      );
-    }
     return SailTextField(
       controller: model.mnemonicController,
       hintText: 'Enter mnemonic seed phrase',
+      obscureText: model.hideSecrets,
       size: TextFieldSize.small,
     );
   }
@@ -241,8 +219,8 @@ class _PhoneControlsCard extends StatelessWidget {
                 small: true,
               ),
               SailButton(
-                label: model.hideMnemonic ? 'Show' : 'Hide',
-                onPressed: () async => model.toggleMnemonicVisibility(),
+                label: model.hideSecrets ? 'Show' : 'Hide',
+                onPressed: () async => model.toggleSecretVisibility(),
                 variant: ButtonVariant.secondary,
                 small: true,
               ),
@@ -273,15 +251,10 @@ class _PhoneControlsCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (final (label, value, secret) in [
-                ('BIP47 Payment Code', model.bip47PaymentCode, false),
-                ('Master Seed', model.masterSeed, true),
-                ('XPRIV', model.xpriv, true),
-                ('XPUB', model.xpub, false),
-              ])
+              for (final (label, value, secret) in model._keyRows)
                 SailStackedValueRow(
                   label: label,
-                  value: value,
+                  value: model._displayKey(value, secret),
                   strongLabel: true,
                   action: SailButton(
                     label: 'Copy',
@@ -431,7 +404,7 @@ class HDWalletViewModel extends BaseViewModel {
   String _bip47PaymentCode = '';
   // An answer from an older run, or from before Clear, must not show its keys.
   int _exploreRun = 0;
-  bool _hideMnemonic = false;
+  bool _hideSecrets = true;
   bool _hidePrivateKeys = true;
 
   // The orchestrator explores this wallet by its stored seed, so its passphrase counts.
@@ -446,13 +419,23 @@ class HDWalletViewModel extends BaseViewModel {
   String get xpriv => _xpriv;
   String get xpub => _xpub;
   String get bip47PaymentCode => _bip47PaymentCode;
-  bool get hideMnemonic => _hideMnemonic;
+  bool get hideSecrets => _hideSecrets;
   bool get hidePrivateKeys => _hidePrivateKeys;
   bool get hasMnemonic => mnemonicController.text.trim().isNotEmpty;
   bool get canGoPrevious => _currentPage > 0 && _derivedEntries.isNotEmpty;
   bool get canGoNext => _derivedEntries.isNotEmpty;
   bool get canDeriveAddresses => hasMnemonic && _isValidDerivationPath();
   bool get _exploresWallet => _walletId != null && mnemonicController.text.trim() == _walletMnemonic;
+
+  List<(String, String, bool)> get _keyRows => [
+    ('BIP47 Payment Code', bip47PaymentCode, false),
+    ('Master Seed', masterSeed, true),
+    ('XPRIV', xpriv, true),
+    ('XPUB', xpub, false),
+  ];
+
+  String _displayKey(String value, bool secret) =>
+      secret && hideSecrets && value.isNotEmpty ? '••••••••••••••••••••••••••••••••' : value;
 
   bool _isValidDerivationPath() {
     final path = derivationPathController.text.trim();
@@ -495,6 +478,8 @@ class HDWalletViewModel extends BaseViewModel {
       if (run != _exploreRun || _reader.activeWallet?.id != wallet.id) {
         return;
       }
+      _hideSecrets = true;
+      _hidePrivateKeys = true;
       _walletId = wallet.id;
       _walletMnemonic = explored.mnemonic;
       mnemonicController.text = explored.mnemonic;
@@ -512,7 +497,10 @@ class HDWalletViewModel extends BaseViewModel {
     _errorMessage = null;
 
     try {
-      mnemonicController.text = await _orchestratorWallet.generateMnemonic();
+      final mnemonic = await _orchestratorWallet.generateMnemonic();
+      _hideSecrets = true;
+      _hidePrivateKeys = true;
+      mnemonicController.text = mnemonic;
     } catch (e) {
       _errorMessage = 'Error generating random mnemonic: ${extractConnectException(e)}';
     } finally {
@@ -577,6 +565,8 @@ class HDWalletViewModel extends BaseViewModel {
     _exploreRun++;
     _walletId = null;
     _walletMnemonic = '';
+    _hideSecrets = true;
+    _hidePrivateKeys = true;
     mnemonicController.clear();
     _masterSeed = '';
     _xpriv = '';
@@ -589,8 +579,8 @@ class HDWalletViewModel extends BaseViewModel {
     notifyListeners();
   }
 
-  void toggleMnemonicVisibility() {
-    _hideMnemonic = !_hideMnemonic;
+  void toggleSecretVisibility() {
+    _hideSecrets = !_hideSecrets;
     notifyListeners();
   }
 
