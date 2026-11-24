@@ -1,5 +1,6 @@
 import 'package:bitwindow/pages/wallet/denial_dialog.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -31,6 +32,7 @@ class _FakeOrchestrator implements OrchestratorRPC {
 
 class _RecordingBitwindowd extends MockBitwindowdAPI {
   final List<List<int>?> targetSizes = [];
+  StateError? failure;
 
   @override
   Future<void> createDenial({
@@ -40,6 +42,10 @@ class _RecordingBitwindowd extends MockBitwindowdAPI {
     required int delaySeconds,
     List<int>? targetUtxoSizes,
   }) async {
+    final error = failure;
+    if (error != null) {
+      throw error;
+    }
     targetSizes.add(targetUtxoSizes);
   }
 }
@@ -106,6 +112,26 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('the denial error shows the end of the Core response', (tester) async {
+    final path = 'wallet_${'a' * 48}';
+    api.recorder.failure = StateError(
+      'Post "http://127.0.0.1:19043/wallet/$path": dial tcp 127.0.0.1:19043: connect: connection refused',
+    );
+    await pumpDialog(tester);
+    await tester.tap(find.text('Start'));
+    await tester.pumpAndSettle();
+
+    final message = find.textContaining('connection refused');
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.descendant(of: message, matching: find.byType(RichText)),
+    );
+    final end = paragraph.text.toPlainText().length;
+    final lastWord = paragraph.getBoxesForSelection(TextSelection(baseOffset: end - 7, extentOffset: end));
+
+    expect(lastWord, isNotEmpty);
+    expect(lastWord.last.top, greaterThan(0));
+  });
 
   testWidgets('the dialog offers one target size per hop', (tester) async {
     await pumpDialog(tester);

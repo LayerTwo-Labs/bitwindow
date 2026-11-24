@@ -403,6 +403,7 @@ class _DenialDialogState extends State<DenialDialog> {
             SailText.primary13(
               errorMessage!,
               color: SailTheme.of(context).colors.error,
+              overflow: TextOverflow.clip,
             ),
           ],
         ],
