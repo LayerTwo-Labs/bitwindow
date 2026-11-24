@@ -45,6 +45,7 @@ type WalletTransaction struct {
 	Fee           float64 `json:"fee"`
 	Confirmations int     `json:"confirmations"`
 	BlockTime     int64   `json:"blocktime"`
+	BlockHeight   uint32  `json:"blockheight"`
 	Time          int64   `json:"time"`
 	TimeReceived  int64   `json:"timereceived"`
 	TxID          string  `json:"txid"`

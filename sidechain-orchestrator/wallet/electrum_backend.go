@@ -3441,6 +3441,7 @@ func walletRowsForTx(tx EsploraTx, scan *electrumScan, tip int, txTime int64) []
 				Amount:        -float64(vout.Value-foreignInputSats(tx, scan, vout.ScriptPubKey)) / 1e8,
 				Confirmations: confs,
 				BlockTime:     tx.Status.BlockTime,
+				BlockHeight:   uint32(tx.Status.BlockHeight),
 				Time:          txTime,
 				TxID:          tx.TxID,
 			}
@@ -3465,6 +3466,7 @@ func walletRowsForTx(tx EsploraTx, scan *electrumScan, tip int, txTime int64) []
 				Fee:           -float64(tx.Fee) / 1e8,
 				Confirmations: confs,
 				BlockTime:     tx.Status.BlockTime,
+				BlockHeight:   uint32(tx.Status.BlockHeight),
 				Time:          txTime,
 				TxID:          tx.TxID,
 			})
@@ -3490,6 +3492,7 @@ func walletRowsForTx(tx EsploraTx, scan *electrumScan, tip int, txTime int64) []
 			Vout:          n,
 			Confirmations: confs,
 			BlockTime:     tx.Status.BlockTime,
+			BlockHeight:   uint32(tx.Status.BlockHeight),
 			Time:          txTime,
 			TxID:          tx.TxID,
 		})

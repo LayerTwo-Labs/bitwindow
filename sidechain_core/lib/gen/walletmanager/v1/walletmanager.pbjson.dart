@@ -2140,6 +2140,7 @@ const TransactionEntry$json = {
       '6': '.walletmanager.v1.SidechainDeposit',
       '10': 'sidechainDeposit'
     },
+    {'1': 'block_height', '3': 17, '4': 1, '5': 13, '10': 'blockHeight'},
   ],
 };
 
@@ -2154,7 +2155,8 @@ final $typed_data.Uint8List transactionEntryDescriptor =
         'ZEJ5VHhpZBIbCgl3YWxsZXRfaWQYDSABKAlSCHdhbGxldElkEjEKB2JtbV9iaWQYDiABKAsyGC'
         '53YWxsZXRtYW5hZ2VyLnYxLkJtbUJpZFIGYm1tQmlkEicKD3dhcm5pbmdfbWVzc2FnZRgPIAEo'
         'CVIOd2FybmluZ01lc3NhZ2USTwoRc2lkZWNoYWluX2RlcG9zaXQYECABKAsyIi53YWxsZXRtYW'
-        '5hZ2VyLnYxLlNpZGVjaGFpbkRlcG9zaXRSEHNpZGVjaGFpbkRlcG9zaXQ=');
+        '5hZ2VyLnYxLlNpZGVjaGFpbkRlcG9zaXRSEHNpZGVjaGFpbkRlcG9zaXQSIQoMYmxvY2tfaGVp'
+        'Z2h0GBEgASgNUgtibG9ja0hlaWdodA==');
 
 @$core.Deprecated('Use bmmBidDescriptor instead')
 const BmmBid$json = {

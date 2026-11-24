@@ -9057,6 +9057,7 @@ class TransactionEntry extends $pb.GeneratedMessage {
     BmmBid? bmmBid,
     $core.String? warningMessage,
     SidechainDeposit? sidechainDeposit,
+    $core.int? blockHeight,
   }) {
     final result = TransactionEntry._();
     if (txid != null) result.txid = txid;
@@ -9075,6 +9076,7 @@ class TransactionEntry extends $pb.GeneratedMessage {
     if (bmmBid != null) result.bmmBid = bmmBid;
     if (warningMessage != null) result.warningMessage = warningMessage;
     if (sidechainDeposit != null) result.sidechainDeposit = sidechainDeposit;
+    if (blockHeight != null) result.blockHeight = blockHeight;
     return result;
   }
 
@@ -9106,6 +9108,7 @@ class TransactionEntry extends $pb.GeneratedMessage {
     ..aOM<BmmBid>(14, _omitFieldNames ? '' : 'bmmBid', subBuilder: BmmBid.$_createMessage)
     ..aOS(15, _omitFieldNames ? '' : 'warningMessage')
     ..aOM<SidechainDeposit>(16, _omitFieldNames ? '' : 'sidechainDeposit', subBuilder: SidechainDeposit.$_createMessage)
+    ..aI(17, _omitFieldNames ? '' : 'blockHeight', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9278,6 +9281,16 @@ class TransactionEntry extends $pb.GeneratedMessage {
   void clearSidechainDeposit() => $_clearField(16);
   @$pb.TagNumber(16)
   SidechainDeposit ensureSidechainDeposit() => $_ensure(15);
+
+  /// Height of the block that holds the transaction. 0 when unconfirmed.
+  @$pb.TagNumber(17)
+  $core.int get blockHeight => $_getIZ(16);
+  @$pb.TagNumber(17)
+  set blockHeight($core.int value) => $_setUnsignedInt32(16, value);
+  @$pb.TagNumber(17)
+  $core.bool hasBlockHeight() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearBlockHeight() => $_clearField(17);
 }
 
 /// BmmBid names the BMM request one wallet transaction carries.
