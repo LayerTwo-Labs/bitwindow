@@ -47,7 +47,7 @@ class _PsbtSignerTabState extends State<PsbtSignerTab> {
   }
 
   Future<void> _start(BuildContext context) async {
-    final psbt = _controller.text.trim();
+    final psbt = _controller.text.replaceAll(RegExp(r'\s'), '');
     if (psbt.isEmpty) {
       setState(() => _error = 'Paste an unsigned PSBT first');
       return;
