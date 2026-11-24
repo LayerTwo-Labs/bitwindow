@@ -608,11 +608,14 @@ class OrchestratorWalletRPC {
     );
   }
 
-  /// The master keys of [mnemonic] and [count] child keys under [basePath],
-  /// from [startIndex]. Throws for an invalid mnemonic or path.
+  /// The master keys of [mnemonic], or of the wallet [walletId], and [count]
+  /// child keys under [basePath], from [startIndex]. With [walletId], an empty
+  /// [basePath] takes the receive chain of the wallet. Throws for an invalid
+  /// mnemonic or path.
   Future<wmpb.ExploreSeedResponse> exploreSeed({
-    required String mnemonic,
+    String mnemonic = '',
     String passphrase = '',
+    String walletId = '',
     required String basePath,
     required int startIndex,
     required int count,
@@ -621,6 +624,7 @@ class OrchestratorWalletRPC {
       wmpb.ExploreSeedRequest(
         mnemonic: mnemonic,
         passphrase: passphrase,
+        walletId: walletId,
         basePath: basePath,
         startIndex: startIndex,
         count: count,
