@@ -69,7 +69,8 @@ func TestRemoteSidechainRestartsOwnedOrphans(t *testing.T) {
 			guiEnv["REMOTE_DAEMON_ARGS"] = filepath.Join(t.TempDir(), "gui-args")
 			require.NoError(t, listener.Close())
 			guiName := sidechainGUIProcessName(cfg.Name)
-			guiPID, err := o.process.StartWithOptions(context.Background(), cfg, nil, guiEnv, ProcessStartOptions{
+			guiCfg := remoteTestGUIConfig(t, o, cfg)
+			guiPID, err := o.process.StartWithOptions(context.Background(), guiCfg, nil, guiEnv, ProcessStartOptions{
 				ForceBackend: true,
 				ProcessName:  guiName,
 				PidName:      guiName,
@@ -124,6 +125,15 @@ func TestRemoteSidechainRestartsOwnedOrphans(t *testing.T) {
 			require.True(t, alive(t, guiPID))
 		})
 	}
+}
+
+func remoteTestGUIConfig(t *testing.T, o *Orchestrator, cfg BinaryConfig) BinaryConfig {
+	t.Helper()
+	body, err := os.ReadFile(BinaryPath(o.DataDir, cfg.BinaryName))
+	require.NoError(t, err)
+	cfg.BinaryName = sidechainGUIProcessName(cfg.Name)
+	require.NoError(t, os.WriteFile(BinaryPath(o.DataDir, cfg.BinaryName), body, 0o755))
+	return cfg
 }
 
 func saveRemoteTestEnv(t *testing.T, o *Orchestrator, cfg BinaryConfig, env map[string]string) {

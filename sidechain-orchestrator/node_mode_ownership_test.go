@@ -138,13 +138,20 @@ func TestNodeModeLightStopsOwnedOrphans(t *testing.T) {
 				guiEnv["REMOTE_DAEMON_ARGS"] = filepath.Join(t.TempDir(), "gui-args")
 				require.NoError(t, listener.Close())
 				guiName := sidechainGUIProcessName(name)
-				guiPID, err = o.process.StartWithOptions(context.Background(), cfg, nil, guiEnv, ProcessStartOptions{
+				guiCfg := remoteTestGUIConfig(t, o, cfg)
+				guiPath := BinaryPath(o.DataDir, guiCfg.BinaryName)
+				guiScript, err := os.ReadFile(guiPath)
+				require.NoError(t, err)
+				guiPID, err = o.process.StartWithOptions(context.Background(), guiCfg, nil, guiEnv, ProcessStartOptions{
 					ForceBackend: true,
 					ProcessName:  guiName,
 					PidName:      guiName,
 				})
 				require.NoError(t, err)
 				saveRemoteTestEnv(t, o, cfg, childEnv)
+				savedGUIScript, err := os.ReadFile(guiPath)
+				require.NoError(t, err)
+				require.Equal(t, guiScript, savedGUIScript)
 				t.Cleanup(func() {
 					if o.process.IsRunning(guiName) {
 						require.NoError(t, o.process.Stop(context.Background(), guiName, false))
