@@ -112,27 +112,19 @@
                 "type": "object",
                 "properties": {
                   "block": {
-                    "allOf": [
-                      {
-                        "$ref": "#/components/schemas/Header"
-                      },
-                      {
+                    "type": "object",
+                    "required": [
+                      "header",
+                      "body"
+                    ],
+                    "properties": {
+                      "body": {
                         "$ref": "#/components/schemas/Body"
                       },
-                      {
-                        "type": "object",
-                        "required": [
-                          "height"
-                        ],
-                        "properties": {
-                          "height": {
-                            "type": "integer",
-                            "format": "u-int32",
-                            "minimum": 0
-                          }
-                        }
+                      "header": {
+                        "$ref": "#/components/schemas/Header"
                       }
-                    ]
+                    }
                   },
                   "main_block_hash": {
                     "type": "string"
@@ -277,6 +269,62 @@
         }
       }
     },
+    "create_transfer_many": {
+      "post": {
+        "description": "Create a tx that transfers funds to each address in `dests`,\nwhich maps an address to a value in sats.",
+        "operationId": "create_transfer_many",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dests": {
+                    "type": "object",
+                    "description": "Destinations of a transfer. Each address takes a value in sats.",
+                    "additionalProperties": {
+                      "type": "integer",
+                      "format": "u-int64",
+                      "minimum": 0
+                    },
+                    "propertyNames": {
+                      "type": "string"
+                    }
+                  },
+                  "fee_sats": {
+                    "type": "integer",
+                    "format": "u-int64",
+                    "minimum": 0
+                  },
+                  "memo": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "create_withdrawal": {
       "post": {
         "description": "Creates a tx that initiates a withdrawal to the specified mainchain\naddress",
@@ -326,7 +374,7 @@
     },
     "decrypt_msg": {
       "post": {
-        "description": "Decrypt a message with the specified encryption key corresponding to\nthe specified encryption pubkey.\nReturns a decrypted hex string.",
+        "description": "Decrypt a message with the secret key corresponding to\nthe specified public key.\nReturns a decrypted hex string.",
         "operationId": "decrypt_msg",
         "requestBody": {
           "content": {
@@ -337,9 +385,9 @@
                   "ciphertext": {
                     "type": "string"
                   },
-                  "encryption_pubkey": {
+                  "pubkey": {
                     "type": "string",
-                    "description": "Wrapper around x25519 pubkeys"
+                    "description": "Wrapper around ristretto255 pubkeys"
                   }
                 }
               }
@@ -362,7 +410,7 @@
     },
     "encrypt_msg": {
       "post": {
-        "description": "Encrypt a message to the specified encryption pubkey\nReturns the ciphertext as a hex string.",
+        "description": "Encrypt a message to the specified public key.\nReturns the ciphertext as a hex string.",
         "operationId": "encrypt_msg",
         "requestBody": {
           "content": {
@@ -370,12 +418,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "encryption_pubkey": {
-                    "type": "string",
-                    "description": "Wrapper around x25519 pubkeys"
-                  },
                   "msg": {
                     "type": "string"
+                  },
+                  "pubkey": {
+                    "type": "string",
+                    "description": "Wrapper around ristretto255 pubkeys"
                   }
                 }
               }
@@ -520,13 +568,28 @@
     },
     "get_block": {
       "post": {
-        "description": "Get block data",
+        "description": "Get the block with specified block hash, if it exists",
         "operationId": "get_block",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "string"
+                "type": "object",
+                "properties": {
+                  "block_hash": {
+                    "type": "string"
+                  },
+                  "verbose": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                }
               }
             }
           }
@@ -537,25 +600,55 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
+                  "oneOf": [
                     {
-                      "$ref": "#/components/schemas/Header"
+                      "type": "null"
                     },
                     {
-                      "$ref": "#/components/schemas/Body"
-                    },
-                    {
-                      "type": "object",
-                      "required": [
-                        "height"
-                      ],
-                      "properties": {
-                        "height": {
-                          "type": "integer",
-                          "format": "u-int32",
-                          "minimum": 0
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/Block"
+                        },
+                        {
+                          "$ref": "#/components/schemas/BlockVerbose"
                         }
-                      }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "get_block_hash": {
+      "post": {
+        "description": "Get the block hash at the specified height in the active chain,\nif it exists",
+        "operationId": "get_block_hash",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "integer",
+                "format": "u-int32",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string"
                     }
                   ]
                 }
@@ -649,37 +742,35 @@
         }
       }
     },
-    "get_new_encryption_key": {
+    "get_new_xpubkey": {
       "post": {
-        "description": "Get new encryption key",
-        "operationId": "get_new_encryption_key",
+        "description": "Get new extended public key",
+        "operationId": "get_new_xpubkey",
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string",
-                  "description": "Wrapper around x25519 pubkeys"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "get_new_verifying_key": {
-      "post": {
-        "description": "Get new verifying/signing key",
-        "operationId": "get_new_verifying_key",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "description": "Wrapper around x25519 pubkeys"
+                  "type": "object",
+                  "description": "Encoding for ristretto255 xpubkeys",
+                  "required": [
+                    "pubkey",
+                    "chaincode"
+                  ],
+                  "properties": {
+                    "chaincode": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "format": "u-int8",
+                        "minimum": 0
+                      }
+                    },
+                    "pubkey": {
+                      "$ref": "#/components/schemas/PublicKey"
+                    }
+                  }
                 }
               }
             }
@@ -759,12 +850,12 @@
                           "Coinbase": {
                             "type": "object",
                             "required": [
-                              "merkle_root",
+                              "txid",
                               "vout"
                             ],
                             "properties": {
-                              "merkle_root": {
-                                "$ref": "#/components/schemas/MerkleRoot"
+                              "txid": {
+                                "$ref": "#/components/schemas/CoinbaseTxid"
                               },
                               "vout": {
                                 "type": "integer",
@@ -783,6 +874,42 @@
                         "properties": {
                           "Deposit": {
                             "$ref": "#/components/schemas/bitcoin.OutPoint"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                        "required": [
+                          "UnsuccessfulWithdrawal"
+                        ],
+                        "properties": {
+                          "UnsuccessfulWithdrawal": {
+                            "type": "object",
+                            "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                            "required": [
+                              "m6id",
+                              "height",
+                              "vout"
+                            ],
+                            "properties": {
+                              "height": {
+                                "type": "integer",
+                                "format": "u-int32",
+                                "description": "Sidechain block height at which the outputs were recreated",
+                                "minimum": 0
+                              },
+                              "m6id": {
+                                "$ref": "#/components/schemas/M6id",
+                                "description": "M6ID of the unsuccessful withdrawal bundle"
+                              },
+                              "vout": {
+                                "type": "integer",
+                                "format": "u-int32",
+                                "description": "Index of the spent output within the bundle's spend_utxos",
+                                "minimum": 0
+                              }
+                            }
                           }
                         }
                       }
@@ -867,118 +994,22 @@
                     {
                       "type": "object",
                       "required": [
-                        "inputs",
-                        "outputs",
-                        "memo"
+                        "tx"
                       ],
                       "properties": {
-                        "data": {
+                        "block_hash": {
                           "oneOf": [
                             {
                               "type": "null"
                             },
                             {
-                              "$ref": "#/components/schemas/TransactionData"
+                              "$ref": "#/components/schemas/BlockHash",
+                              "description": "Block hash, if in the active chain"
                             }
                           ]
                         },
-                        "inputs": {
-                          "type": "array",
-                          "items": {
-                            "oneOf": [
-                              {
-                                "type": "object",
-                                "required": [
-                                  "Regular"
-                                ],
-                                "properties": {
-                                  "Regular": {
-                                    "type": "object",
-                                    "required": [
-                                      "txid",
-                                      "vout"
-                                    ],
-                                    "properties": {
-                                      "txid": {
-                                        "$ref": "#/components/schemas/Txid"
-                                      },
-                                      "vout": {
-                                        "type": "integer",
-                                        "format": "u-int32",
-                                        "minimum": 0
-                                      }
-                                    }
-                                  }
-                                }
-                              },
-                              {
-                                "type": "object",
-                                "required": [
-                                  "Coinbase"
-                                ],
-                                "properties": {
-                                  "Coinbase": {
-                                    "type": "object",
-                                    "required": [
-                                      "merkle_root",
-                                      "vout"
-                                    ],
-                                    "properties": {
-                                      "merkle_root": {
-                                        "$ref": "#/components/schemas/MerkleRoot"
-                                      },
-                                      "vout": {
-                                        "type": "integer",
-                                        "format": "u-int32",
-                                        "minimum": 0
-                                      }
-                                    }
-                                  }
-                                }
-                              },
-                              {
-                                "type": "object",
-                                "required": [
-                                  "Deposit"
-                                ],
-                                "properties": {
-                                  "Deposit": {
-                                    "$ref": "#/components/schemas/bitcoin.OutPoint"
-                                  }
-                                }
-                              }
-                            ]
-                          }
-                        },
-                        "memo": {
-                          "type": "string"
-                        },
-                        "outputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "required": [
-                              "address",
-                              "content",
-                              "memo"
-                            ],
-                            "properties": {
-                              "address": {
-                                "$ref": "#/components/schemas/Address"
-                              },
-                              "content": {
-                                "$ref": "#/components/schemas/OutputContent"
-                              },
-                              "memo": {
-                                "type": "array",
-                                "items": {
-                                  "type": "integer",
-                                  "format": "u-int8",
-                                  "minimum": 0
-                                }
-                              }
-                            }
-                          }
+                        "tx": {
+                          "$ref": "#/components/schemas/Transaction"
                         }
                       }
                     }
@@ -1119,37 +1150,35 @@
         }
       }
     },
-    "get_wallet_master_xesk": {
+    "get_wallet_master_xpk": {
       "post": {
-        "description": "Get wallet master XEncryptionSecretKey",
-        "operationId": "get_wallet_master_xesk",
+        "description": "Get wallet master XPublicKey",
+        "operationId": "get_wallet_master_xpk",
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string",
-                  "description": "Wrapper around ed25519 xprivkeys"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "get_wallet_master_xvk": {
-      "post": {
-        "description": "Get wallet master XVerifyingKey",
-        "operationId": "get_wallet_master_xvk",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "description": "Wrapper around ed25519 xpubkeys"
+                  "type": "object",
+                  "description": "Encoding for ristretto255 xpubkeys",
+                  "required": [
+                    "pubkey",
+                    "chaincode"
+                  ],
+                  "properties": {
+                    "chaincode": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "format": "u-int8",
+                        "minimum": 0
+                      }
+                    },
+                    "pubkey": {
+                      "$ref": "#/components/schemas/PublicKey"
+                    }
+                  }
                 }
               }
             }
@@ -1190,6 +1219,52 @@
         }
       }
     },
+    "get_withdrawal_bundle": {
+      "post": {
+        "description": "Get withdrawal bundle by M6id",
+        "operationId": "get_withdrawal_bundle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "info",
+                        "status"
+                      ],
+                      "properties": {
+                        "info": {
+                          "$ref": "#/components/schemas/WithdrawalBundleInfo"
+                        },
+                        "status": {
+                          "$ref": "#/components/schemas/WithdrawalBundleStatus"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "getblockcount": {
       "post": {
         "description": "Get the current block count",
@@ -1203,6 +1278,33 @@
                   "type": "integer",
                   "format": "u-int32",
                   "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidate_block": {
+      "post": {
+        "description": "Invalidate a block, potentially re-orging to a valid ancestor of\nthe current tip.",
+        "operationId": "invalidate_block",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "default": null
                 }
               }
             }
@@ -1487,12 +1589,12 @@
                                       "Coinbase": {
                                         "type": "object",
                                         "required": [
-                                          "merkle_root",
+                                          "txid",
                                           "vout"
                                         ],
                                         "properties": {
-                                          "merkle_root": {
-                                            "$ref": "#/components/schemas/MerkleRoot"
+                                          "txid": {
+                                            "$ref": "#/components/schemas/CoinbaseTxid"
                                           },
                                           "vout": {
                                             "type": "integer",
@@ -1511,6 +1613,42 @@
                                     "properties": {
                                       "Deposit": {
                                         "$ref": "#/components/schemas/bitcoin.OutPoint"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                                    "required": [
+                                      "UnsuccessfulWithdrawal"
+                                    ],
+                                    "properties": {
+                                      "UnsuccessfulWithdrawal": {
+                                        "type": "object",
+                                        "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                                        "required": [
+                                          "m6id",
+                                          "height",
+                                          "vout"
+                                        ],
+                                        "properties": {
+                                          "height": {
+                                            "type": "integer",
+                                            "format": "u-int32",
+                                            "description": "Sidechain block height at which the outputs were recreated",
+                                            "minimum": 0
+                                          },
+                                          "m6id": {
+                                            "$ref": "#/components/schemas/M6id",
+                                            "description": "M6ID of the unsuccessful withdrawal bundle"
+                                          },
+                                          "vout": {
+                                            "type": "integer",
+                                            "format": "u-int32",
+                                            "description": "Index of the spent output within the bundle's spend_utxos",
+                                            "minimum": 0
+                                          }
+                                        }
                                       }
                                     }
                                   }
@@ -1583,17 +1721,6 @@
                             ],
                             "description": "Commitment to arbitrary data"
                           },
-                          "encryption_pubkey": {
-                            "oneOf": [
-                              {
-                                "type": "null"
-                              },
-                              {
-                                "$ref": "#/components/schemas/EncryptionPubKey",
-                                "description": "Optional pubkey used for encryption"
-                              }
-                            ]
-                          },
                           "paymail_fee_sats": {
                             "type": [
                               "integer",
@@ -1602,17 +1729,6 @@
                             "format": "u-int64",
                             "description": "optional minimum paymail fee, in sats",
                             "minimum": 0
-                          },
-                          "signing_pubkey": {
-                            "oneOf": [
-                              {
-                                "type": "null"
-                              },
-                              {
-                                "$ref": "#/components/schemas/VerifyingKey",
-                                "description": "Optional pubkey used for signing messages"
-                              }
-                            ]
                           },
                           "socket_addr_v4": {
                             "type": [
@@ -1627,6 +1743,17 @@
                               "null"
                             ],
                             "description": "Optional ipv6 addr"
+                          },
+                          "xpubkey": {
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "$ref": "#/components/schemas/XPublicKey",
+                                "description": "Optional extended public key"
+                              }
+                            ]
                           }
                         }
                       }
@@ -1647,6 +1774,33 @@
               "application/json": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "remove_from_mempool": {
+      "post": {
+        "description": "Remove a tx from the mempool",
+        "operationId": "remove_from_mempool",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "default": null
                 }
               }
             }
@@ -1730,7 +1884,7 @@
     },
     "sign_arbitrary_msg": {
       "post": {
-        "description": "Sign an arbitrary message with the specified verifying key",
+        "description": "Sign an arbitrary message with the specified public key",
         "operationId": "sign_arbitrary_msg",
         "requestBody": {
           "content": {
@@ -1741,9 +1895,9 @@
                   "msg": {
                     "type": "string"
                   },
-                  "verifying_key": {
+                  "public_key": {
                     "type": "string",
-                    "description": "Wrapper around x25519 pubkeys"
+                    "description": "Wrapper around ristretto255 pubkeys"
                   }
                 }
               }
@@ -1852,100 +2006,14 @@
                       "inputs": {
                         "type": "array",
                         "items": {
-                          "oneOf": [
-                            {
-                              "type": "object",
-                              "required": [
-                                "Regular"
-                              ],
-                              "properties": {
-                                "Regular": {
-                                  "type": "object",
-                                  "required": [
-                                    "txid",
-                                    "vout"
-                                  ],
-                                  "properties": {
-                                    "txid": {
-                                      "$ref": "#/components/schemas/Txid"
-                                    },
-                                    "vout": {
-                                      "type": "integer",
-                                      "format": "u-int32",
-                                      "minimum": 0
-                                    }
-                                  }
-                                }
-                              }
-                            },
-                            {
-                              "type": "object",
-                              "required": [
-                                "Coinbase"
-                              ],
-                              "properties": {
-                                "Coinbase": {
-                                  "type": "object",
-                                  "required": [
-                                    "merkle_root",
-                                    "vout"
-                                  ],
-                                  "properties": {
-                                    "merkle_root": {
-                                      "$ref": "#/components/schemas/MerkleRoot"
-                                    },
-                                    "vout": {
-                                      "type": "integer",
-                                      "format": "u-int32",
-                                      "minimum": 0
-                                    }
-                                  }
-                                }
-                              }
-                            },
-                            {
-                              "type": "object",
-                              "required": [
-                                "Deposit"
-                              ],
-                              "properties": {
-                                "Deposit": {
-                                  "$ref": "#/components/schemas/bitcoin.OutPoint"
-                                }
-                              }
-                            }
-                          ]
+                          "$ref": "#/components/schemas/OutPoint"
                         }
                       },
                       "memo": {
                         "type": "string"
                       },
                       "outputs": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "required": [
-                            "address",
-                            "content",
-                            "memo"
-                          ],
-                          "properties": {
-                            "address": {
-                              "$ref": "#/components/schemas/Address"
-                            },
-                            "content": {
-                              "$ref": "#/components/schemas/OutputContent"
-                            },
-                            "memo": {
-                              "type": "array",
-                              "items": {
-                                "type": "integer",
-                                "format": "u-int8",
-                                "minimum": 0
-                              }
-                            }
-                          }
-                        }
+                        "$ref": "#/components/schemas/Outputs"
                       }
                     }
                   }
@@ -2036,7 +2104,7 @@
     },
     "verify_signature": {
       "post": {
-        "description": "Verify a signature on a message against the specified verifying key.\nReturns `true` if the signature is valid",
+        "description": "Verify a signature on a message against the specified public key.\nReturns `true` if the signature is valid",
         "operationId": "verify_signature",
         "requestBody": {
           "content": {
@@ -2055,12 +2123,12 @@
                   "msg": {
                     "type": "string"
                   },
+                  "public_key": {
+                    "type": "string",
+                    "description": "Wrapper around ristretto255 pubkeys"
+                  },
                   "signature": {
                     "type": "string"
-                  },
-                  "verifying_key": {
-                    "type": "string",
-                    "description": "Wrapper around x25519 pubkeys"
                   }
                 }
               }
@@ -2118,7 +2186,8 @@
             "description": "Plaintext names of the bitnames to be registered as ICANN domains"
           },
           "signature": {
-            "type": "string"
+            "$ref": "#/components/schemas/Signature",
+            "description": "Signature over the batch icann registration tx"
           }
         }
       },
@@ -2132,39 +2201,11 @@
           "commitment",
           "socket_addr_v4",
           "socket_addr_v6",
-          "encryption_pubkey",
-          "signing_pubkey",
+          "xpubkey",
           "paymail_fee_sats"
         ],
         "properties": {
           "commitment": {
-            "oneOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "Delete"
-                ]
-              },
-              {
-                "type": "string",
-                "enum": [
-                  "Retain"
-                ]
-              },
-              {
-                "type": "object",
-                "required": [
-                  "Set"
-                ],
-                "properties": {
-                  "Set": {
-                    "type": "string"
-                  }
-                }
-              }
-            ]
-          },
-          "encryption_pubkey": {
             "oneOf": [
               {
                 "type": "string",
@@ -2215,33 +2256,6 @@
                     "type": "integer",
                     "format": "u-int64",
                     "minimum": 0
-                  }
-                }
-              }
-            ]
-          },
-          "signing_pubkey": {
-            "oneOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "Delete"
-                ]
-              },
-              {
-                "type": "string",
-                "enum": [
-                  "Retain"
-                ]
-              },
-              {
-                "type": "object",
-                "required": [
-                  "Set"
-                ],
-                "properties": {
-                  "Set": {
-                    "type": "string"
                   }
                 }
               }
@@ -2300,6 +2314,51 @@
                 }
               }
             ]
+          },
+          "xpubkey": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Delete"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "Retain"
+                ]
+              },
+              {
+                "type": "object",
+                "required": [
+                  "Set"
+                ],
+                "properties": {
+                  "Set": {
+                    "type": "object",
+                    "description": "Encoding for ristretto255 xpubkeys",
+                    "required": [
+                      "pubkey",
+                      "chaincode"
+                    ],
+                    "properties": {
+                      "chaincode": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "format": "u-int8",
+                          "minimum": 0
+                        }
+                      },
+                      "pubkey": {
+                        "$ref": "#/components/schemas/PublicKey"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
           }
         }
       },
@@ -2312,30 +2371,37 @@
         "minimum": 0
       },
       "Block": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Header"
-          },
-          {
+        "type": "object",
+        "required": [
+          "header",
+          "body"
+        ],
+        "properties": {
+          "body": {
             "$ref": "#/components/schemas/Body"
           },
-          {
-            "type": "object",
-            "required": [
-              "height"
-            ],
-            "properties": {
-              "height": {
-                "type": "integer",
-                "format": "u-int32",
-                "minimum": 0
-              }
-            }
+          "header": {
+            "$ref": "#/components/schemas/Header"
           }
-        ]
+        }
       },
       "BlockHash": {
         "type": "string"
+      },
+      "BlockVerbose": {
+        "type": "object",
+        "required": [
+          "header",
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "$ref": "#/components/schemas/BodyVerbose"
+          },
+          "header": {
+            "$ref": "#/components/schemas/Header"
+          }
+        }
       },
       "Body": {
         "type": "object",
@@ -2352,10 +2418,7 @@
             }
           },
           "coinbase": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Output"
-            }
+            "$ref": "#/components/schemas/Coinbase"
           },
           "transactions": {
             "type": "array",
@@ -2365,9 +2428,53 @@
           }
         }
       },
-      "EncryptionPubKey": {
-        "type": "string",
-        "description": "Wrapper around x25519 pubkeys"
+      "BodyVerbose": {
+        "type": "object",
+        "required": [
+          "coinbase",
+          "transactions",
+          "authorizations"
+        ],
+        "properties": {
+          "authorizations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Authorization"
+            }
+          },
+          "coinbase": {
+            "$ref": "#/components/schemas/Coinbase"
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionVerbose"
+            }
+          }
+        }
+      },
+      "Coinbase": {
+        "type": "object",
+        "required": [
+          "memo",
+          "outputs"
+        ],
+        "properties": {
+          "memo": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "u-int8",
+              "minimum": 0
+            }
+          },
+          "outputs": {
+            "$ref": "#/components/schemas/Outputs"
+          }
+        }
+      },
+      "CoinbaseTxid": {
+        "type": "string"
       },
       "FilledOutput": {
         "type": "object",
@@ -2527,7 +2634,7 @@
         "description": "Reference to a tx input."
       },
       "M6id": {
-        "$ref": "#/components/schemas/bitcoin.OutPoint"
+        "type": "string"
       },
       "MerkleRoot": {
         "type": "string"
@@ -2543,17 +2650,6 @@
             ],
             "description": "Commitment to arbitrary data"
           },
-          "encryption_pubkey": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/EncryptionPubKey",
-                "description": "Optional pubkey used for encryption"
-              }
-            ]
-          },
           "paymail_fee_sats": {
             "type": [
               "integer",
@@ -2562,17 +2658,6 @@
             "format": "u-int64",
             "description": "optional minimum paymail fee, in sats",
             "minimum": 0
-          },
-          "signing_pubkey": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/VerifyingKey",
-                "description": "Optional pubkey used for signing messages"
-              }
-            ]
           },
           "socket_addr_v4": {
             "type": [
@@ -2587,6 +2672,17 @@
               "null"
             ],
             "description": "Optional ipv6 addr"
+          },
+          "xpubkey": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/XPublicKey",
+                "description": "Optional extended public key"
+              }
+            ]
           }
         }
       },
@@ -2626,12 +2722,12 @@
               "Coinbase": {
                 "type": "object",
                 "required": [
-                  "merkle_root",
+                  "txid",
                   "vout"
                 ],
                 "properties": {
-                  "merkle_root": {
-                    "$ref": "#/components/schemas/MerkleRoot"
+                  "txid": {
+                    "$ref": "#/components/schemas/CoinbaseTxid"
                   },
                   "vout": {
                     "type": "integer",
@@ -2650,6 +2746,42 @@
             "properties": {
               "Deposit": {
                 "$ref": "#/components/schemas/bitcoin.OutPoint"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+            "required": [
+              "UnsuccessfulWithdrawal"
+            ],
+            "properties": {
+              "UnsuccessfulWithdrawal": {
+                "type": "object",
+                "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                "required": [
+                  "m6id",
+                  "height",
+                  "vout"
+                ],
+                "properties": {
+                  "height": {
+                    "type": "integer",
+                    "format": "u-int32",
+                    "description": "Sidechain block height at which the outputs were recreated",
+                    "minimum": 0
+                  },
+                  "m6id": {
+                    "$ref": "#/components/schemas/M6id",
+                    "description": "M6ID of the unsuccessful withdrawal bundle"
+                  },
+                  "vout": {
+                    "type": "integer",
+                    "format": "u-int32",
+                    "description": "Index of the spent output within the bundle's spend_utxos",
+                    "minimum": 0
+                  }
+                }
               }
             }
           }
@@ -2717,12 +2849,22 @@
           }
         ]
       },
+      "Outputs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Output"
+        }
+      },
       "PeerConnectionStatus": {
         "type": "string",
         "enum": [
           "Connecting",
           "Connected"
         ]
+      },
+      "PublicKey": {
+        "type": "string",
+        "description": "Wrapper around ristretto255 pubkeys"
       },
       "Signature": {
         "type": "string"
@@ -2764,100 +2906,14 @@
           "inputs": {
             "type": "array",
             "items": {
-              "oneOf": [
-                {
-                  "type": "object",
-                  "required": [
-                    "Regular"
-                  ],
-                  "properties": {
-                    "Regular": {
-                      "type": "object",
-                      "required": [
-                        "txid",
-                        "vout"
-                      ],
-                      "properties": {
-                        "txid": {
-                          "$ref": "#/components/schemas/Txid"
-                        },
-                        "vout": {
-                          "type": "integer",
-                          "format": "u-int32",
-                          "minimum": 0
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": [
-                    "Coinbase"
-                  ],
-                  "properties": {
-                    "Coinbase": {
-                      "type": "object",
-                      "required": [
-                        "merkle_root",
-                        "vout"
-                      ],
-                      "properties": {
-                        "merkle_root": {
-                          "$ref": "#/components/schemas/MerkleRoot"
-                        },
-                        "vout": {
-                          "type": "integer",
-                          "format": "u-int32",
-                          "minimum": 0
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "required": [
-                    "Deposit"
-                  ],
-                  "properties": {
-                    "Deposit": {
-                      "$ref": "#/components/schemas/bitcoin.OutPoint"
-                    }
-                  }
-                }
-              ]
+              "$ref": "#/components/schemas/OutPoint"
             }
           },
           "memo": {
             "type": "string"
           },
           "outputs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "address",
-                "content",
-                "memo"
-              ],
-              "properties": {
-                "address": {
-                  "$ref": "#/components/schemas/Address"
-                },
-                "content": {
-                  "$ref": "#/components/schemas/OutputContent"
-                },
-                "memo": {
-                  "type": "array",
-                  "items": {
-                    "type": "integer",
-                    "format": "u-int8",
-                    "minimum": 0
-                  }
-                }
-              }
-            }
+            "$ref": "#/components/schemas/Outputs"
           }
         }
       },
@@ -2937,6 +2993,29 @@
           }
         ]
       },
+      "TransactionVerbose": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          {
+            "type": "object",
+            "required": [
+              "canonical_bytes"
+            ],
+            "properties": {
+              "canonical_bytes": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "u-int8",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        ]
+      },
       "TxIn": {
         "type": "object",
         "description": "Transaction index",
@@ -2958,9 +3037,313 @@
       "Txid": {
         "type": "string"
       },
-      "VerifyingKey": {
+      "WithdrawalBundle": {
+        "type": "object",
+        "required": [
+          "spend_utxos",
+          "tx"
+        ],
+        "properties": {
+          "spend_utxos": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": false,
+              "prefixItems": [
+                {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "Regular"
+                      ],
+                      "properties": {
+                        "Regular": {
+                          "type": "object",
+                          "required": [
+                            "txid",
+                            "vout"
+                          ],
+                          "properties": {
+                            "txid": {
+                              "$ref": "#/components/schemas/Txid"
+                            },
+                            "vout": {
+                              "type": "integer",
+                              "format": "u-int32",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "Coinbase"
+                      ],
+                      "properties": {
+                        "Coinbase": {
+                          "type": "object",
+                          "required": [
+                            "txid",
+                            "vout"
+                          ],
+                          "properties": {
+                            "txid": {
+                              "$ref": "#/components/schemas/CoinbaseTxid"
+                            },
+                            "vout": {
+                              "type": "integer",
+                              "format": "u-int32",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "Deposit"
+                      ],
+                      "properties": {
+                        "Deposit": {
+                          "$ref": "#/components/schemas/bitcoin.OutPoint"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                      "required": [
+                        "UnsuccessfulWithdrawal"
+                      ],
+                      "properties": {
+                        "UnsuccessfulWithdrawal": {
+                          "type": "object",
+                          "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                          "required": [
+                            "m6id",
+                            "height",
+                            "vout"
+                          ],
+                          "properties": {
+                            "height": {
+                              "type": "integer",
+                              "format": "u-int32",
+                              "description": "Sidechain block height at which the outputs were recreated",
+                              "minimum": 0
+                            },
+                            "m6id": {
+                              "$ref": "#/components/schemas/M6id",
+                              "description": "M6ID of the unsuccessful withdrawal bundle"
+                            },
+                            "vout": {
+                              "type": "integer",
+                              "format": "u-int32",
+                              "description": "Index of the spent output within the bundle's spend_utxos",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "description": "Representation of output that includes asset type",
+                  "required": [
+                    "address",
+                    "content",
+                    "memo"
+                  ],
+                  "properties": {
+                    "address": {
+                      "$ref": "#/components/schemas/Address"
+                    },
+                    "content": {
+                      "$ref": "#/components/schemas/FilledOutputContent"
+                    },
+                    "memo": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "format": "u-int8",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "tx": {
+            "$ref": "#/components/schemas/bitcoin.Transaction"
+          }
+        }
+      },
+      "WithdrawalBundleInfo": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Withdrawal bundle is known",
+            "required": [
+              "Known"
+            ],
+            "properties": {
+              "Known": {
+                "$ref": "#/components/schemas/WithdrawalBundle",
+                "description": "Withdrawal bundle is known"
+              }
+            }
+          },
+          {
+            "type": "string",
+            "description": "Withdrawal bundle is unknown but unconfirmed / failed",
+            "enum": [
+              "Unknown"
+            ]
+          },
+          {
+            "type": "object",
+            "description": "If an unknown withdrawal bundle is confirmed, ALL UTXOs are\nconsidered spent.",
+            "required": [
+              "UnknownConfirmed"
+            ],
+            "properties": {
+              "UnknownConfirmed": {
+                "type": "object",
+                "description": "If an unknown withdrawal bundle is confirmed, ALL UTXOs are\nconsidered spent.",
+                "required": [
+                  "spend_utxos"
+                ],
+                "properties": {
+                  "spend_utxos": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/FilledOutput"
+                    },
+                    "propertyNames": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "Regular"
+                          ],
+                          "properties": {
+                            "Regular": {
+                              "type": "object",
+                              "required": [
+                                "txid",
+                                "vout"
+                              ],
+                              "properties": {
+                                "txid": {
+                                  "$ref": "#/components/schemas/Txid"
+                                },
+                                "vout": {
+                                  "type": "integer",
+                                  "format": "u-int32",
+                                  "minimum": 0
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "Coinbase"
+                          ],
+                          "properties": {
+                            "Coinbase": {
+                              "type": "object",
+                              "required": [
+                                "txid",
+                                "vout"
+                              ],
+                              "properties": {
+                                "txid": {
+                                  "$ref": "#/components/schemas/CoinbaseTxid"
+                                },
+                                "vout": {
+                                  "type": "integer",
+                                  "format": "u-int32",
+                                  "minimum": 0
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "Deposit"
+                          ],
+                          "properties": {
+                            "Deposit": {
+                              "$ref": "#/components/schemas/bitcoin.OutPoint"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                          "required": [
+                            "UnsuccessfulWithdrawal"
+                          ],
+                          "properties": {
+                            "UnsuccessfulWithdrawal": {
+                              "type": "object",
+                              "description": "Created by recreating the outputs of an unsuccessful withdrawal\nbundle (one that failed, or a stale pending bundle that was\ndropped without ever being submitted).",
+                              "required": [
+                                "m6id",
+                                "height",
+                                "vout"
+                              ],
+                              "properties": {
+                                "height": {
+                                  "type": "integer",
+                                  "format": "u-int32",
+                                  "description": "Sidechain block height at which the outputs were recreated",
+                                  "minimum": 0
+                                },
+                                "m6id": {
+                                  "$ref": "#/components/schemas/M6id",
+                                  "description": "M6ID of the unsuccessful withdrawal bundle"
+                                },
+                                "vout": {
+                                  "type": "integer",
+                                  "format": "u-int32",
+                                  "description": "Index of the spent output within the bundle's spend_utxos",
+                                  "minimum": 0
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "description": "Information we have regarding a withdrawal bundle"
+      },
+      "WithdrawalBundleStatus": {
         "type": "string",
-        "description": "Wrapper around x25519 pubkeys"
+        "enum": [
+          "Confirmed",
+          "Dropped",
+          "Failed",
+          "Pending",
+          "Submitted",
+          "SubmittedUnexpected"
+        ]
       },
       "WithdrawalOutputContent": {
         "type": "object",
@@ -2982,6 +3365,27 @@
             "type": "integer",
             "format": "u-int64",
             "minimum": 0
+          }
+        }
+      },
+      "XPublicKey": {
+        "type": "object",
+        "description": "Encoding for ristretto255 xpubkeys",
+        "required": [
+          "pubkey",
+          "chaincode"
+        ],
+        "properties": {
+          "chaincode": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "u-int8",
+              "minimum": 0
+            }
+          },
+          "pubkey": {
+            "$ref": "#/components/schemas/PublicKey"
           }
         }
       },
