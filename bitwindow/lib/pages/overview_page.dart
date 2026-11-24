@@ -263,7 +263,7 @@ class _LatestTransactionTableState extends State<LatestTransactionTable> {
     final phone = SailStyleValues.phoneLayout(context);
     return SailTable(
       getRowId: (index) => entries[index].txid,
-      phoneColumns: const [0, 1, 3],
+      phoneColumns: const [0, 1, 4],
       headerBuilder: (context) => [
         SailTableHeaderCell(
           name: 'Time',
@@ -1538,6 +1538,10 @@ class GraffitiExplorerViewModel extends BaseViewModel {
           aValue = a.height;
           bValue = b.height;
           break;
+        case 'fee':
+          aValue = a.feeSats;
+          bValue = b.feeSats;
+          break;
         case 'txid':
           aValue = a.txid;
           bValue = b.txid;
@@ -1593,7 +1597,7 @@ class GraffitiExplorerViewModel extends BaseViewModel {
 }
 
 class GraffitiTable extends StatelessWidget {
-  static const columns = ['time', 'height', 'txid', 'message'];
+  static const columns = ['time', 'height', 'fee', 'txid', 'message'];
 
   final List<OPReturn> entries;
   final String sortColumn;
@@ -1628,10 +1632,11 @@ class GraffitiTable extends StatelessWidget {
           builder: (context, child) => SailTable(
             backgroundColor: theme.colors.backgroundSecondary,
             getRowId: (index) => entries[index].id.toString(),
-            phoneColumns: const [0, 1, 3],
+            phoneColumns: const [0, 1, 4],
             headerBuilder: (context) => const [
               SailTableHeaderCell(name: 'Time'),
               SailTableHeaderCell(name: 'Height'),
+              SailTableHeaderCell(name: 'Fee'),
               SailTableHeaderCell(name: 'TXID'),
               SailTableHeaderCell(name: 'Message'),
             ],
@@ -1651,7 +1656,8 @@ class GraffitiTable extends StatelessWidget {
                   value: entry.height == 0 ? '-' : entry.height.toString(),
                   width: phone ? _phoneHeightWidth : null,
                 ),
-                SailTableCell(value: entry.txid),
+                SailTableCell(value: entry.feeSats == 0 ? '-' : formatter.formatSats(entry.feeSats.toInt())),
+                SailTableCell(value: shortenId(entry.txid), copyValue: entry.txid, monospace: true),
                 SailTableCell(
                   value: entry.message,
                   width: phone ? phoneMessageWidth : null,

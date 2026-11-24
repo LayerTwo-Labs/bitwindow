@@ -90,7 +90,31 @@ void main() {
     await tapHeader(tester, 'Height');
     expect(messages(tester), ['charlie', 'alpha', 'bravo']);
 
+    await tapHeader(tester, 'Fee');
+    expect(messages(tester), ['alpha', 'bravo', 'charlie']);
+
+    await tapHeader(tester, 'Fee');
+    expect(messages(tester), ['charlie', 'bravo', 'alpha']);
+
     await tapHeader(tester, 'Time');
     expect(messages(tester), ['bravo', 'alpha', 'charlie'], reason: 'time starts newest first');
+  });
+
+  testWidgets('the fee of each graffiti shows, and an unknown fee shows a dash', (tester) async {
+    await pump(tester);
+    final formatter = GetIt.I.get<FormatterProvider>();
+
+    expect(find.text(formatter.formatSats(160)), findsOneWidget);
+    expect(find.text(formatter.formatSats(1092)), findsOneWidget);
+    expect(find.text(formatter.formatSats(0)), findsNothing);
+  });
+
+  testWidgets('the message shows next to a short txid', (tester) async {
+    await pump(tester);
+
+    final message = tester.getRect(find.text('charlie'));
+    final table = tester.getRect(find.byType(GraffitiTable));
+    expect(message.right, lessThanOrEqualTo(table.right));
+    expect(find.text(misc.rows[1].txid), findsNothing);
   });
 }
