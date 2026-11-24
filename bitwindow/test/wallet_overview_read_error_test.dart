@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:fixnum/fixnum.dart';
@@ -13,9 +15,13 @@ import 'test_utils.dart';
 
 class _Stats extends MockWalletAPI {
   Object? failure;
+  Future<GetStatsResponse> Function(String)? read;
 
   @override
   Future<GetStatsResponse> getStats(String walletId) async {
+    if (read != null) {
+      return read!(walletId);
+    }
     if (failure != null) {
       throw failure!;
     }
@@ -66,7 +72,12 @@ class _Orchestrator implements OrchestratorRPC {
 
 class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
   @override
-  String? get activeWalletId => 'qa';
+  String? activeWalletId = 'qa';
+
+  void select(String? id) {
+    activeWalletId = id;
+    notifyListeners();
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -75,20 +86,122 @@ class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
 void main() {
   late _Bitwindow bitwindow;
   late _Transactions transactions;
+  late _WalletReader reader;
 
   setUp(() async {
     await GetIt.I.reset();
     bitwindow = _Bitwindow();
     transactions = _Transactions();
+    reader = _WalletReader();
     GetIt.I.registerSingleton<OrchestratorRPC>(_Orchestrator());
     GetIt.I.registerSingleton<BitwindowRPC>(bitwindow);
     GetIt.I.registerSingleton<TransactionProvider>(transactions);
-    GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader());
+    GetIt.I.registerSingleton<WalletReaderProvider>(reader);
     await registerTestDependencies();
     GetIt.I.registerSingleton<AddressBookProvider>(AddressBookProvider());
   });
 
   tearDown(() => GetIt.I.reset());
+
+  test('a wallet switch clears the previous stats before the next read', () async {
+    final model = OverviewViewModel();
+    addTearDown(model.dispose);
+    await model.getStats();
+    expect(model.stats!.utxosCurrent.toInt(), 6);
+
+    final next = Completer<GetStatsResponse>();
+    bitwindow.wallet.read = (_) => next.future;
+    reader.select('second');
+    expect(model.stats, isNull);
+    next.complete(GetStatsResponse(utxosCurrent: Int64(2)));
+    await Future<void>.delayed(Duration.zero);
+    expect(model.stats!.utxosCurrent.toInt(), 2);
+  });
+
+  test('a late stats answer cannot replace the active wallet stats', () async {
+    final model = OverviewViewModel();
+    addTearDown(model.dispose);
+    await model.getStats();
+    final old = Completer<GetStatsResponse>();
+    bitwindow.wallet.read = (id) => id == 'qa' ? old.future : Future.value(GetStatsResponse(utxosCurrent: Int64(2)));
+    final previous = model.getStats();
+    reader.select('second');
+    await model.getStats();
+    expect(model.stats!.utxosCurrent.toInt(), 2);
+    old.complete(GetStatsResponse(utxosCurrent: Int64(99)));
+    await previous;
+    expect(model.stats!.utxosCurrent.toInt(), 2);
+  });
+
+  test('a late stats error cannot replace the active wallet result', () async {
+    final model = OverviewViewModel();
+    addTearDown(model.dispose);
+    await model.getStats();
+    final old = Completer<GetStatsResponse>();
+    bitwindow.wallet.read = (id) => id == 'qa' ? old.future : Future.value(GetStatsResponse(utxosCurrent: Int64(2)));
+    final previous = model.getStats();
+    reader.select('second');
+    await model.getStats();
+    old.completeError(Exception('old wallet unavailable'));
+    await previous;
+    expect(model.statsError, isNull);
+    expect(model.stats!.utxosCurrent.toInt(), 2);
+  });
+
+  test('no active wallet clears stats and the previous read error', () async {
+    final model = OverviewViewModel();
+    addTearDown(model.dispose);
+    await model.getStats();
+    bitwindow.wallet.failure = Exception('old wallet unavailable');
+    await model.getStats();
+    reader.select(null);
+    await model.getStats();
+    expect(model.stats, isNull);
+    expect(model.statsError, isNull);
+  });
+
+  test('the last stats read keeps its result when an older read ends later', () async {
+    final model = OverviewViewModel();
+    addTearDown(model.dispose);
+    await model.getStats();
+    final old = Completer<GetStatsResponse>();
+    bitwindow.wallet.read = (_) => old.future;
+    final previous = model.getStats();
+    bitwindow.wallet.read = (_) async => GetStatsResponse(utxosCurrent: Int64(2));
+    await model.getStats();
+    old.complete(GetStatsResponse(utxosCurrent: Int64(99)));
+    await previous;
+    expect(model.stats!.utxosCurrent.toInt(), 2);
+  });
+
+  test('a return to the first wallet rejects its old stats read', () async {
+    final model = OverviewViewModel();
+    addTearDown(model.dispose);
+    await model.getStats();
+    final old = Completer<GetStatsResponse>();
+    bitwindow.wallet.read = (_) => old.future;
+    final previous = model.getStats();
+    bitwindow.wallet.read = (_) async => GetStatsResponse(utxosCurrent: Int64(2));
+    reader.select('second');
+    reader.select('qa');
+    await model.getStats();
+    old.complete(GetStatsResponse(utxosCurrent: Int64(99)));
+    await previous;
+    expect(model.stats!.utxosCurrent.toInt(), 2);
+  });
+
+  test('a stats read ends after disposal without a notification', () async {
+    final model = OverviewViewModel();
+    await model.getStats();
+    final next = Completer<GetStatsResponse>();
+    bitwindow.wallet.read = (_) => next.future;
+    final read = model.getStats();
+    model.dispose();
+    next.complete(GetStatsResponse(utxosCurrent: Int64(2)));
+    await expectLater(read, completes);
+    expect(model.stats!.utxosCurrent.toInt(), 6);
+    reader.select('second');
+  });
 
   test('a failed stats read is an error, not the last numbers', () async {
     final model = OverviewViewModel();
