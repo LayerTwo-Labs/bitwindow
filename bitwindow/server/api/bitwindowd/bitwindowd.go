@@ -991,38 +991,46 @@ func (s *Server) ListRecentTransactions(ctx context.Context, c *pb.ListRecentTra
 		return nil, fmt.Errorf("drivechaind: list mempool: %w", err)
 	}
 
-	var transactions []*pb.RecentTransaction
-	for _, tx := range mempoolRes.Transactions {
-		transactions = append(transactions, &pb.RecentTransaction{
-			VirtualSize: tx.Vsize,
-			Time:        tx.Time,
-			Txid:        tx.Txid,
-			FeeSats:     tx.FeeSats,
-		})
-	}
 	info, err := bitcoind.GetBlockchainInfo(ctx, connectv1.NewRequest(&corepb.GetBlockchainInfoRequest{}))
 	if err != nil {
 		return nil, fmt.Errorf("bitcoind: get blockchain info: %w", err)
 	}
 
-	// While Core is in IBD on a populated chain (mainnet / eCash), the
-	// historical block walk below is the single biggest source of cs_main
-	// pressure on this whole codebase: it issues a per-tx
-	// GetRawTransaction for every tx in up to 100 recent blocks. During
-	// IBD that storms Core badly enough to push getblockchaininfo past
-	// its client timeout. The user has nothing useful to look at in that
-	// window anyway — return mempool only and bail.
-	if info.Msg.InitialBlockDownload && config.IsFullChainNetwork(s.config.BitcoinCoreNetwork) {
-		return &pb.ListRecentTransactionsResponse{
-			Transactions: transactions,
-		}, nil
+	var confirmed []*pb.RecentTransaction
+	// Skip the block walk while a full chain sync puts pressure on Core.
+	if !info.Msg.InitialBlockDownload || !config.IsFullChainNetwork(s.config.BitcoinCoreNetwork) {
+		confirmed, err = s.recentConfirmed(ctx, bitcoind, info.Msg.BestBlockHash, count)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	confirmed, err := s.recentConfirmed(ctx, bitcoind, info.Msg.BestBlockHash, count)
-	if err != nil {
-		return nil, err
+	pending := mempoolRes.Transactions
+	confirmedIDs := make(map[string]struct{}, len(confirmed))
+	for _, tx := range confirmed {
+		confirmedIDs[tx.Txid] = struct{}{}
 	}
-	transactions = append(transactions, confirmed...)
+
+	var transactions []*pb.RecentTransaction
+	if slices.ContainsFunc(pending, func(tx *mempoolpb.Transaction) bool {
+		_, found := confirmedIDs[tx.Txid]
+		return found
+	}) {
+		transactions, err = currentMempoolTransactions(ctx, bitcoind, confirmedIDs, count)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		for _, tx := range pending {
+			transactions = append(transactions, &pb.RecentTransaction{
+				VirtualSize: tx.Vsize,
+				Time:        tx.Time,
+				Txid:        tx.Txid,
+				FeeSats:     tx.FeeSats,
+			})
+		}
+	}
+	transactions = append(transactions, confirmed[:min(count, int64(len(confirmed)))]...)
 
 	// Sort by time, newest first
 	slices.SortStableFunc(transactions, func(a, b *pb.RecentTransaction) int {
@@ -1040,8 +1048,32 @@ func (s *Server) ListRecentTransactions(ctx context.Context, c *pb.ListRecentTra
 	}, nil
 }
 
-// recentConfirmed returns the newest count non-coinbase transactions of the
-// chain that ends at tip. The result is shared between calls: treat it as read-only.
+func currentMempoolTransactions(ctx context.Context, bitcoind corerpc.BitcoinServiceClient, confirmedIDs map[string]struct{}, count int64) ([]*pb.RecentTransaction, error) {
+	response, err := bitcoind.GetRawMempool(ctx, connectv1.NewRequest(&corepb.GetRawMempoolRequest{Verbose: true}))
+	if err != nil {
+		return nil, fmt.Errorf("bitcoind: read current mempool: %w", err)
+	}
+	transactions := make([]*pb.RecentTransaction, 0, len(response.Msg.Transactions))
+	for id, entry := range response.Msg.Transactions {
+		if _, confirmed := confirmedIDs[id]; confirmed {
+			continue
+		}
+		fee, err := btcutil.NewAmount(entry.GetFees().GetBase())
+		if err != nil {
+			return nil, fmt.Errorf("fee of %s: %w", id, err)
+		}
+		transactions = append(transactions, &pb.RecentTransaction{
+			Txid: id, VirtualSize: entry.VirtualSize, Time: entry.Time, FeeSats: uint64(fee),
+		})
+	}
+	slices.SortFunc(transactions, func(a, b *pb.RecentTransaction) int {
+		return cmp.Or(cmp.Compare(b.Time.AsTime().Unix(), a.Time.AsTime().Unix()), cmp.Compare(b.Txid, a.Txid))
+	})
+	return transactions[:min(count, int64(len(transactions)))], nil
+}
+
+// recentConfirmed keeps the full last block to remove its stale mempool entries.
+// Treat the shared result as read-only.
 func (s *Server) recentConfirmed(ctx context.Context, bitcoind corerpc.BitcoinServiceClient, tip string, count int64) ([]*pb.RecentTransaction, error) {
 	s.recentTxsMu.Lock()
 	defer s.recentTxsMu.Unlock()
@@ -1059,13 +1091,13 @@ func (s *Server) recentConfirmed(ctx context.Context, bitcoind corerpc.BitcoinSe
 	var txs []*pb.RecentTransaction
 	var tipHeight uint32
 	currentHash := tip
-walkBlocks:
-	for i := 0; i < maxBlocks && currentHash != ""; i++ {
+	for i := 0; i < maxBlocks && currentHash != "" && int64(len(txs)) < count; i++ {
 		// The old tip is an ancestor: its list holds the rest of the walk.
 		if prev != nil && currentHash == prev.tip {
 			lowest := int64(tipHeight) - (maxBlocks - 1)
 			for _, tx := range prev.txs {
-				if int64(len(txs)) >= count || int64(tx.GetConfirmedInBlock()) < lowest {
+				height := tx.GetConfirmedInBlock()
+				if int64(height) < lowest || (int64(len(txs)) >= count && height != txs[len(txs)-1].GetConfirmedInBlock()) {
 					break
 				}
 				txs = append(txs, tx)
@@ -1101,9 +1133,6 @@ walkBlocks:
 				FeeSats:          uint64(fee),
 				ConfirmedInBlock: &blockRes.Msg.Height,
 			})
-			if int64(len(txs)) >= count {
-				break walkBlocks
-			}
 		}
 		currentHash = blockRes.Msg.PreviousBlockHash
 	}
