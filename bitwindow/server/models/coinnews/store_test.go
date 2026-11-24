@@ -356,10 +356,10 @@ func TestStore_Item_RejectsBadTxid(t *testing.T) {
 	}
 }
 
-func TestCountStoriesSince(t *testing.T) {
+func TestStoriesSince(t *testing.T) {
 	t.Parallel()
 	db := database.Test(t)
-	now := time.Now()
+	now := time.Unix(time.Now().Unix(), 0)
 
 	story := func(height uint32, blockTime time.Time, headline string) IndexEnv {
 		p := pos(height, 0, 0)
@@ -367,13 +367,18 @@ func TestCountStoriesSince(t *testing.T) {
 		p.TxID = fmt.Sprintf("%064x", height)
 		return IndexEnv{Pos: p, TypeTag: codec.TypeStory, Msg: &codec.Story{Topic: codec.Topic{1, 2, 3, 4}, Headline: headline}}
 	}
+	window, err := StoriesSince(t.Context(), db, now.Add(-7*24*time.Hour))
+	require.NoError(t, err)
+	require.True(t, window.Oldest().IsZero())
+
 	require.NoError(t, Index(t.Context(), db, story(1, now.Add(-8*24*time.Hour), "Old")))
 	require.NoError(t, Index(t.Context(), db, story(2, now.Add(-time.Hour), "New")))
-	require.NoError(t, Index(t.Context(), db, story(3, now, "   ")))
+	require.NoError(t, Index(t.Context(), db, story(3, now.Add(-2*time.Hour), "   ")))
 
-	count, err := CountStoriesSince(t.Context(), db, now.Add(-7*24*time.Hour))
+	window, err = StoriesSince(t.Context(), db, now.Add(-7*24*time.Hour))
 	require.NoError(t, err)
-	require.Equal(t, int64(1), count)
+	require.Equal(t, int64(1), window.Stories)
+	assert.True(t, now.Add(-time.Hour).Equal(window.Oldest()), "oldest %s", window.Oldest())
 
 	t.Run("compares across a time zone offset", func(t *testing.T) {
 		db := database.Test(t)
@@ -382,12 +387,12 @@ func TestCountStoriesSince(t *testing.T) {
 		require.NoError(t, Index(t.Context(), db, story(1, at.In(oslo), "Before")))
 		require.NoError(t, Index(t.Context(), db, story(2, at.Add(time.Hour), "After")))
 
-		count, err := CountStoriesSince(t.Context(), db, at.Add(30*time.Minute))
+		window, err := StoriesSince(t.Context(), db, at.Add(30*time.Minute))
 		require.NoError(t, err)
-		assert.Equal(t, int64(1), count)
+		assert.Equal(t, int64(1), window.Stories)
 
-		count, err = CountStoriesSince(t.Context(), db, at.Add(30*time.Minute).In(oslo))
+		window, err = StoriesSince(t.Context(), db, at.Add(30*time.Minute).In(oslo))
 		require.NoError(t, err)
-		assert.Equal(t, int64(1), count)
+		assert.Equal(t, int64(1), window.Stories)
 	})
 }

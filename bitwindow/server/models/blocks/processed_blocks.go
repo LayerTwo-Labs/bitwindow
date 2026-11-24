@@ -160,29 +160,35 @@ func GetProcessedBlockAtOrBelow(ctx context.Context, db *sql.DB, height uint32) 
 	return pb, nil
 }
 
-// CountSince returns the number of processed blocks with a block time at or after since.
-func CountSince(ctx context.Context, db *sql.DB, since time.Time) (int64, error) {
-	count, err := database.Get[int64](ctx, db, `
-		SELECT COUNT(*)
-		FROM processed_blocks
-		WHERE datetime(block_time) >= datetime(?)
-	`, since)
-	if err != nil {
-		return 0, fmt.Errorf("count blocks since %s: %w", since, err)
-	}
-	return count, nil
+// Window is the processed blocks with a block time at or after a time.
+type Window struct {
+	Blocks int64 `db:"blocks"`
+	// Transactions counts the non-coinbase transactions.
+	Transactions int64 `db:"transactions"`
+	// OldestUnix is the block time of the oldest block, in Unix seconds.
+	OldestUnix int64 `db:"oldest"`
 }
 
-// TxCountSince returns the number of non-coinbase transactions in the processed
-// blocks with a block time at or after since.
-func TxCountSince(ctx context.Context, db *sql.DB, since time.Time) (int64, error) {
-	count, err := database.Get[int64](ctx, db, `
-		SELECT COALESCE(SUM(json_array_length(txids)) - COUNT(*), 0)
+// Oldest returns the block time of the oldest block, or the zero time for no block.
+func (w Window) Oldest() time.Time {
+	if w.Blocks == 0 {
+		return time.Time{}
+	}
+	return time.Unix(w.OldestUnix, 0)
+}
+
+// WindowSince returns the processed blocks with a block time at or after since.
+// It compares whole seconds.
+func WindowSince(ctx context.Context, db *sql.DB, since time.Time) (Window, error) {
+	window, err := database.Get[Window](ctx, db, `
+		SELECT COUNT(*) AS blocks,
+		       COALESCE(SUM(json_array_length(txids)) - COUNT(*), 0) AS transactions,
+		       COALESCE(CAST(strftime('%s', MIN(datetime(block_time))) AS INTEGER), 0) AS oldest
 		FROM processed_blocks
 		WHERE datetime(block_time) >= datetime(?)
 	`, since)
 	if err != nil {
-		return 0, fmt.Errorf("count transactions since %s: %w", since, err)
+		return Window{}, fmt.Errorf("read blocks since %s: %w", since, err)
 	}
-	return count, nil
+	return window, nil
 }

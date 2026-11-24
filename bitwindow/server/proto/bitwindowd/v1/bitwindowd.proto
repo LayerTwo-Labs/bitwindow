@@ -41,6 +41,9 @@ service BitwindowdService {
   rpc ImportLabels(ImportLabelsRequest) returns (ImportLabelsResponse);
 
   rpc GetFireplaceStats(google.protobuf.Empty) returns (GetFireplaceStatsResponse);
+  // Sends the stats, then the stats again on each change: a new block, or a
+  // block or a story that leaves its window.
+  rpc WatchFireplaceStats(google.protobuf.Empty) returns (stream WatchFireplaceStatsResponse);
 
   // Non-stock Bitcoin Core RPCs
 
@@ -262,6 +265,13 @@ message GetFireplaceStatsResponse {
   int64 transaction_count_24h = 1;
   int64 coinnews_count_7d = 2;
   int64 block_count_24h = 3;
+}
+
+message WatchFireplaceStatsResponse {
+  // Unset in a heartbeat frame.
+  GetFireplaceStatsResponse stats = 1;
+  // True for an idle keepalive frame that carries no stats.
+  bool heartbeat = 2;
 }
 
 message SetMempoolWatchRequest {

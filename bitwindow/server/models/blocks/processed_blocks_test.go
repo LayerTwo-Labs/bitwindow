@@ -89,19 +89,16 @@ func TestProcessedBlocks(t *testing.T) {
 	})
 }
 
-func TestCountSince(t *testing.T) {
+func TestWindowSince(t *testing.T) {
 	t.Parallel()
 	db := database.Test(t)
-	now := time.Now()
+	now := time.Unix(time.Now().Unix(), 0)
 	since := now.Add(-24 * time.Hour)
 
-	count, err := blocks.CountSince(t.Context(), db, since)
+	window, err := blocks.WindowSince(t.Context(), db, since)
 	require.NoError(t, err)
-	require.Zero(t, count)
-
-	txCount, err := blocks.TxCountSince(t.Context(), db, since)
-	require.NoError(t, err)
-	require.Zero(t, txCount)
+	require.Equal(t, blocks.Window{}, window)
+	require.True(t, window.Oldest().IsZero())
 
 	require.NoError(t, blocks.MarkBlocksProcessed(t.Context(), db, []blocks.ProcessedBlock{
 		{Height: 1, Hash: chainhash.Hash{1}, BlockTime: now.Add(-48 * time.Hour), Txids: []chainhash.Hash{{1}, {2}, {3}}},
@@ -109,16 +106,17 @@ func TestCountSince(t *testing.T) {
 		{Height: 3, Hash: chainhash.Hash{3}, BlockTime: now, Txids: []chainhash.Hash{{6}}},
 	}))
 
-	t.Run("CountSince skips older blocks", func(t *testing.T) {
-		count, err := blocks.CountSince(t.Context(), db, since)
+	t.Run("skips older blocks and coinbases", func(t *testing.T) {
+		window, err := blocks.WindowSince(t.Context(), db, since)
 		require.NoError(t, err)
-		require.Equal(t, int64(2), count)
+		assert.Equal(t, int64(2), window.Blocks)
+		assert.Equal(t, int64(1), window.Transactions)
 	})
 
-	t.Run("TxCountSince skips coinbases and older blocks", func(t *testing.T) {
-		count, err := blocks.TxCountSince(t.Context(), db, since)
+	t.Run("names the oldest block in the window", func(t *testing.T) {
+		window, err := blocks.WindowSince(t.Context(), db, since)
 		require.NoError(t, err)
-		require.Equal(t, int64(1), count)
+		assert.True(t, now.Add(-time.Hour).Equal(window.Oldest()), "oldest %s", window.Oldest())
 	})
 
 	t.Run("compares across a time zone offset", func(t *testing.T) {
@@ -127,19 +125,17 @@ func TestCountSince(t *testing.T) {
 		at := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 		require.NoError(t, blocks.MarkBlocksProcessed(t.Context(), db, []blocks.ProcessedBlock{
 			{Height: 1, Hash: chainhash.Hash{1}, BlockTime: at.In(oslo), Txids: []chainhash.Hash{{1}, {2}}},
-			{Height: 2, Hash: chainhash.Hash{2}, BlockTime: at.Add(time.Hour), Txids: []chainhash.Hash{{3}, {4}}},
+			{Height: 2, Hash: chainhash.Hash{2}, BlockTime: at.Add(time.Hour).In(oslo), Txids: []chainhash.Hash{{3}, {4}}},
 		}))
 
-		count, err := blocks.CountSince(t.Context(), db, at.Add(30*time.Minute))
+		window, err := blocks.WindowSince(t.Context(), db, at.Add(30*time.Minute))
 		require.NoError(t, err)
-		assert.Equal(t, int64(1), count)
+		assert.Equal(t, int64(1), window.Blocks)
+		assert.Equal(t, int64(1), window.Transactions)
+		assert.True(t, at.Add(time.Hour).Equal(window.Oldest()), "oldest %s", window.Oldest())
 
-		txCount, err := blocks.TxCountSince(t.Context(), db, at.Add(30*time.Minute))
+		window, err = blocks.WindowSince(t.Context(), db, at.Add(30*time.Minute).In(oslo))
 		require.NoError(t, err)
-		assert.Equal(t, int64(1), txCount)
-
-		count, err = blocks.CountSince(t.Context(), db, at.Add(30*time.Minute).In(oslo))
-		require.NoError(t, err)
-		assert.Equal(t, int64(1), count)
+		assert.Equal(t, int64(1), window.Blocks)
 	})
 }
