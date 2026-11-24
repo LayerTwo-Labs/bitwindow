@@ -1970,6 +1970,9 @@ func TestService_ListRecentTransactions(t *testing.T) {
 					block.Transactions = []*corepb.GetBlockResponse_Transaction{
 						{Txid: "coinbase", Vsize: 100},
 						{Txid: "tx1", Vsize: 141, Fee: 0.00002000},
+						{Txid: "tx2", Vsize: 142, Fee: 0.00003000},
+						{Txid: "tx3", Vsize: 143, Fee: 0.00004000},
+						{Txid: "tx4", Vsize: 144, Fee: 0.00005000},
 					}
 				}
 				return connectv1.NewResponse(block), nil
@@ -1981,17 +1984,35 @@ func TestService_ListRecentTransactions(t *testing.T) {
 			Return(nil, connectv1.NewError(connectv1.CodeUnknown, errors.New("-5: No such mempool transaction. Use -txindex or provide a block hash to enable blockchain transaction queries."))).
 			AnyTimes()
 
-		cli := v1connect.NewBitwindowdServiceClient(apitests.RPC(t, db, apitests.WithBitcoind(mockBitcoind), apitests.WithMempool(&fakeMempool{})))
+		mockBitcoind.EXPECT().GetRawMempool(gomock.Any(), connectv1.NewRequest(&corepb.GetRawMempoolRequest{Verbose: true})).
+			Return(connectv1.NewResponse(&corepb.GetRawMempoolResponse{Transactions: map[string]*corepb.MempoolEntry{
+				"pending":      {Time: timestamppb.New(time.Now().Add(time.Minute)), VirtualSize: 150, Fees: &corepb.MempoolEntry_Fees{Base: 0.00001}},
+				"next_pending": {Time: timestamppb.New(time.Now().Add(30 * time.Second)), VirtualSize: 150, Fees: &corepb.MempoolEntry_Fees{Base: 0.000011}},
+			}}), nil).Times(2)
+
+		mempool := &fakeMempool{txs: []*mempoolpb.Transaction{
+			{Txid: "pending", Vsize: 150, FeeSats: 1000, Time: timestamppb.New(time.Now().Add(time.Minute))},
+			{Txid: "tx4", Vsize: 144, FeeSats: 5000, Time: timestamppb.New(time.Now().Add(time.Minute))},
+			{Txid: "tx3", Vsize: 143, FeeSats: 4000, Time: timestamppb.New(time.Now().Add(time.Minute))},
+			{Txid: "mined_in_parent", Vsize: 150, FeeSats: 1100, Time: timestamppb.New(time.Now().Add(30 * time.Second))},
+		}}
+		cli := v1connect.NewBitwindowdServiceClient(apitests.RPC(t, db, apitests.WithBitcoind(mockBitcoind), apitests.WithMempool(mempool)))
 
 		for range 2 {
-			resp, err := cli.ListRecentTransactions(t.Context(), &v1.ListRecentTransactionsRequest{Count: 10})
+			resp, err := cli.ListRecentTransactions(t.Context(), &v1.ListRecentTransactionsRequest{Count: 3})
 			require.NoError(t, err)
-			require.Len(t, resp.Transactions, 1)
-			assert.Equal(t, "tx1", resp.Transactions[0].Txid)
-			assert.Equal(t, uint32(7), resp.Transactions[0].GetConfirmedInBlock())
-			assert.Equal(t, uint64(2000), resp.Transactions[0].FeeSats)
-			assert.Equal(t, uint32(141), resp.Transactions[0].VirtualSize)
+			require.Len(t, resp.Transactions, 3)
+			assert.Equal(t, "pending", resp.Transactions[0].Txid)
+			assert.Zero(t, resp.Transactions[0].GetConfirmedInBlock())
+			assert.Equal(t, "next_pending", resp.Transactions[1].Txid)
+			assert.Zero(t, resp.Transactions[1].GetConfirmedInBlock())
+			assert.EqualValues(t, 1100, resp.Transactions[1].FeeSats)
+			assert.Equal(t, "tx1", resp.Transactions[2].Txid)
+			assert.Equal(t, uint32(7), resp.Transactions[2].GetConfirmedInBlock())
+			assert.Equal(t, uint64(2000), resp.Transactions[2].FeeSats)
+			assert.Equal(t, uint32(141), resp.Transactions[2].VirtualSize)
 		}
+		assert.Equal(t, []uint32{3, 3}, mempool.counts())
 	})
 
 	t.Run("a new tip reads only the new blocks", func(t *testing.T) {
