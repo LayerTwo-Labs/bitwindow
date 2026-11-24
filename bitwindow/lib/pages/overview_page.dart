@@ -263,7 +263,7 @@ class _LatestTransactionTableState extends State<LatestTransactionTable> {
     final phone = SailStyleValues.phoneLayout(context);
     return SailTable(
       getRowId: (index) => entries[index].txid,
-      phoneColumns: const [0, 1, 4],
+      phoneColumns: const [0, 1, 3],
       headerBuilder: (context) => [
         SailTableHeaderCell(
           name: 'Time',
@@ -1378,6 +1378,8 @@ class GraffitiExplorerView extends StatelessWidget {
                     height: tableHeight,
                     child: GraffitiTable(
                       entries: viewModel.entries,
+                      sortColumn: viewModel.sortColumn,
+                      sortAscending: viewModel.sortAscending,
                       onSort: viewModel.onSort,
                     ),
                   ),
@@ -1477,6 +1479,9 @@ class GraffitiExplorerViewModel extends BaseViewModel {
 
   String _sortColumn = 'time';
   bool _sortAscending = false;
+
+  String get sortColumn => _sortColumn;
+  bool get sortAscending => _sortAscending;
 
   // Date range filter
   DateTime? _fromDate;
@@ -1588,12 +1593,18 @@ class GraffitiExplorerViewModel extends BaseViewModel {
 }
 
 class GraffitiTable extends StatelessWidget {
+  static const columns = ['time', 'height', 'txid', 'message'];
+
   final List<OPReturn> entries;
-  final Function(String) onSort;
+  final String sortColumn;
+  final bool sortAscending;
+  final void Function(String column) onSort;
 
   const GraffitiTable({
     super.key,
     required this.entries,
+    required this.sortColumn,
+    required this.sortAscending,
     required this.onSort,
   });
 
@@ -1618,11 +1629,11 @@ class GraffitiTable extends StatelessWidget {
             backgroundColor: theme.colors.backgroundSecondary,
             getRowId: (index) => entries[index].id.toString(),
             phoneColumns: const [0, 1, 3],
-            headerBuilder: (context) => [
-              SailTableHeaderCell(name: 'Time', onSort: () => onSort('time')),
-              SailTableHeaderCell(name: 'Height', onSort: () => onSort('height')),
-              SailTableHeaderCell(name: 'TXID', onSort: () => onSort('txid')),
-              SailTableHeaderCell(name: 'Message', onSort: () => onSort('message')),
+            headerBuilder: (context) => const [
+              SailTableHeaderCell(name: 'Time'),
+              SailTableHeaderCell(name: 'Height'),
+              SailTableHeaderCell(name: 'TXID'),
+              SailTableHeaderCell(name: 'Message'),
             ],
             rowBuilder: (context, row, selected) {
               final entry = entries[row];
@@ -1650,9 +1661,9 @@ class GraffitiTable extends StatelessWidget {
             },
             rowCount: entries.length,
             emptyPlaceholder: 'No graffiti found',
-            onSort: (columnIndex, ascending) {
-              onSort(['message', 'time', 'height'][columnIndex]);
-            },
+            sortColumnIndex: columns.indexOf(sortColumn),
+            sortAscending: sortAscending,
+            onSort: (columnIndex, ascending) => onSort(columns[columnIndex]),
           ),
         );
       },
