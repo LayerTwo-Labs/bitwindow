@@ -940,13 +940,17 @@ class MultisigStorage {
       final changed = <MultisigTransaction>[];
       for (final tx in resp.transactions) {
         final existingTx = await TransactionStorage.getTransactionByTxid(tx.txid);
+        final fee = tx.hasFeeSats() ? tx.feeSats.toInt() / 100000000.0 : null;
         if (existingTx == null) {
-          changed.add(_historyToTransaction(group, tx));
+          changed.add(_historyToTransaction(group, tx, fee: fee ?? 0));
           continue;
         }
         final status = _historyStatus(tx);
-        if (existingTx.status != status || existingTx.confirmations != tx.confirmations) {
-          changed.add(existingTx.copyWith(status: status, confirmations: tx.confirmations));
+        final restoredFee = fee ?? existingTx.fee;
+        if (existingTx.status != status ||
+            existingTx.confirmations != tx.confirmations ||
+            existingTx.fee != restoredFee) {
+          changed.add(existingTx.copyWith(status: status, confirmations: tx.confirmations, fee: restoredFee));
         }
       }
       await TransactionStorage.saveChangedTransactions(changed);
@@ -958,7 +962,11 @@ class MultisigStorage {
   static TxStatus _historyStatus(mlpb.MultisigHistoryTx tx) =>
       tx.status == 'confirmed' ? TxStatus.confirmed : TxStatus.broadcasted;
 
-  static MultisigTransaction _historyToTransaction(MultisigGroup group, mlpb.MultisigHistoryTx tx) {
+  static MultisigTransaction _historyToTransaction(
+    MultisigGroup group,
+    mlpb.MultisigHistoryTx tx, {
+    required double fee,
+  }) {
     final amount = tx.amountSats.toInt() / 100000000.0;
     final isSigned = tx.signatureCount >= group.m;
     final signedAt = isSigned ? DateTime.fromMillisecondsSinceEpoch(tx.time.toInt() * 1000) : null;
@@ -979,7 +987,7 @@ class MultisigStorage {
       status: _historyStatus(tx),
       type: tx.isDeposit ? TxType.deposit : TxType.withdrawal,
       created: time,
-      fee: 0.0,
+      fee: fee,
       confirmations: tx.confirmations,
       broadcastTime: time,
       finalHex: tx.finalHex.isEmpty ? null : tx.finalHex,
