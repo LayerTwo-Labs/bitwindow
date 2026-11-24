@@ -1491,6 +1491,8 @@ class GraffitiExplorerViewModel extends BaseViewModel {
 
   BitwindowRPC get _api => GetIt.I.get<BitwindowRPC>();
   final BlockchainProvider _blockchain = GetIt.I.get<BlockchainProvider>();
+  final SyncProvider _sync = GetIt.I.get<SyncProvider>();
+  final SyncedTipWatch _tip = SyncedTipWatch();
   final TextEditingController searchController = TextEditingController();
 
   String _sortColumn = 'time';
@@ -1516,8 +1518,15 @@ class GraffitiExplorerViewModel extends BaseViewModel {
   GraffitiExplorerViewModel() {
     _blockchain.addListener(read);
     _blockchain.recentChanged.addListener(read);
+    _sync.addListener(_onSyncChanged);
     searchController.addListener(_onSearchChanged);
     read();
+  }
+
+  void _onSyncChanged() {
+    if (_tip.moved(_sync, synced: _sync.bitwindowdSyncInfo != null)) {
+      read();
+    }
   }
 
   ListOPReturnRequest get request => ListOPReturnRequest(
@@ -1598,6 +1607,7 @@ class GraffitiExplorerViewModel extends BaseViewModel {
     _searchTimer?.cancel();
     _blockchain.removeListener(read);
     _blockchain.recentChanged.removeListener(read);
+    _sync.removeListener(_onSyncChanged);
     searchController.removeListener(_onSearchChanged);
     searchController.dispose();
     super.dispose();
