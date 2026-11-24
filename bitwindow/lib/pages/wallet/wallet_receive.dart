@@ -59,7 +59,7 @@ class ReceiveTab extends StatelessWidget {
                       Expanded(
                         child: SailCard(
                           title: 'Receive ${activeTicker.name} on L1',
-                          error: model.modelError,
+                          error: model.addressError,
                           child: SailColumn(
                             spacing: SailStyleValues.padding16,
                             mainAxisSize: MainAxisSize.min,
@@ -95,7 +95,7 @@ class ReceiveTab extends StatelessWidget {
                                       children: [
                                         SailTextField(
                                           loading: LoadingDetails(
-                                            enabled: model.address.isEmpty,
+                                            enabled: model.address.isEmpty && model.addressError == null,
                                             description: 'Waiting for enforcer to start and wallet to sync..',
                                           ),
                                           controller: TextEditingController(text: model.address),
@@ -155,7 +155,6 @@ class ReceiveTab extends StatelessWidget {
               if (!model.hideBip47)
                 SailCard(
                   title: 'Your BIP47 v3 Payment Code',
-                  error: model.modelError,
                   child: SailColumn(
                     spacing: SailStyleValues.padding16,
                     mainAxisSize: MainAxisSize.min,
@@ -318,6 +317,7 @@ class _ReceiveAddressesTableState extends State<ReceiveAddressesTable> {
 
     return SailCard(
       title: 'Receive Addresses',
+      error: widget.model.listError,
       bottomPadding: false,
       child: Column(
         children: [
@@ -325,7 +325,7 @@ class _ReceiveAddressesTableState extends State<ReceiveAddressesTable> {
             height: 300,
             child: SailSkeletonizer(
               description: 'Waiting for enforcer to start and wallet to sync..',
-              enabled: widget.model.receiveAddresses.isEmpty,
+              enabled: widget.model.receiveAddresses.isEmpty && widget.model.listError == null,
               child: ListenableBuilder(
                 listenable: formatter,
                 builder: (context, child) => SailTable(
@@ -435,10 +435,17 @@ class ReceivePageViewModel extends BaseViewModel {
   final HDWalletProvider _hdWalletProvider = GetIt.I<HDWalletProvider>();
   TransactionProvider get transactionsProvider => GetIt.I<TransactionProvider>();
 
-  @override
-  String? modelError;
-
   String get address => transactionsProvider.address;
+
+  String? get addressError => switch (transactionsProvider.addressError) {
+    final error? => 'Could not get a receive address: $error',
+    null => null,
+  };
+
+  String? get listError => switch (transactionsProvider.error) {
+    final error? => 'Could not read the wallet: $error',
+    null => null,
+  };
   String get addressDerivationPath => transactionsProvider.addressDerivationPath;
   String get bip47PaymentCode => _hdWalletProvider.bip47PaymentCode;
 
@@ -501,17 +508,7 @@ class ReceivePageViewModel extends BaseViewModel {
     super.dispose();
   }
 
-  Future<void> generateNewAddress() async {
-    try {
-      modelError = null;
-      await transactionsProvider.fetch();
-    } catch (e) {
-      if (e.toString() != modelError) {
-        modelError = e.toString();
-        notifyListeners();
-      }
-    }
-  }
+  Future<void> generateNewAddress() => transactionsProvider.fetch();
 
   /// Returns the error to show in the label dialog, or null on success.
   Future<String?> saveLabel(BuildContext context, String address, String label) async {

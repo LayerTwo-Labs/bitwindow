@@ -17,6 +17,7 @@ class _OrchestratorWallet implements OrchestratorWalletRPC {
   int balanceCalls = 0;
   bool failList = false;
   bool failAddress = false;
+  String addressFailure = 'no chain source';
   List<wmpb.TransactionEntry> entries = [];
   Future<void>? unspentHold;
   Future<void>? listHold;
@@ -52,7 +53,7 @@ class _OrchestratorWallet implements OrchestratorWalletRPC {
   Future<wmpb.GetNewAddressResponse> getNewAddress(String walletId, {wmpb.AddressType? addressType}) async {
     addressCalls++;
     if (failAddress) {
-      throw Exception('no chain source');
+      throw Exception(addressFailure);
     }
     return wmpb.GetNewAddressResponse(address: 'wallet-address');
   }
@@ -199,6 +200,37 @@ void main() {
     await pumpEventQueue();
     await ticks(2);
     expect(wallet.addressCalls, 3);
+  });
+
+  test('a failed address read shows its error until a read works', () async {
+    wallet.failAddress = true;
+    await provider.fetch();
+    await pumpEventQueue();
+    expect(provider.addressError, contains('no chain source'));
+
+    wallet.failAddress = false;
+    await provider.fetch();
+    await pumpEventQueue();
+    expect(provider.addressError, isNull);
+    expect(provider.address, 'wallet-address');
+  });
+
+  test('a boot error shows only after the first address', () async {
+    provider.clear();
+    wallet.failAddress = true;
+    wallet.addressFailure = 'connection refused';
+    await provider.fetch();
+    await pumpEventQueue();
+    expect(provider.addressError, isNull, reason: 'the loading hint covers a boot');
+
+    wallet.failAddress = false;
+    await provider.fetch();
+    await pumpEventQueue();
+    wallet.failAddress = true;
+    await provider.fetch();
+    await pumpEventQueue();
+    expect(provider.addressError, contains('connection refused'), reason: 'a node that stops after a read');
+    expect(provider.address, 'wallet-address');
   });
 
   test('a balance change fetches', () async {

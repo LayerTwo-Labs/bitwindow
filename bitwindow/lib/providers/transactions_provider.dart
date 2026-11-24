@@ -156,9 +156,9 @@ class TransactionProvider extends ChangeNotifier implements NetworkScoped {
   String address = '';
   String addressDerivationPath = '';
 
-  /// Last address error printed. A failure that stands, such as a wallet the
-  /// network serves no chain source for, prints one time.
-  String? _loggedAddressError;
+  /// Why the last receive address read failed, or null. A boot error before
+  /// the first address shows nothing, so the loading hint stays.
+  String? addressError;
 
   /// The kind the user picked, or UNSPECIFIED to take the wallet's own. A
   /// wallet on an explicit path derives one kind only, and asking for another
@@ -257,6 +257,7 @@ class TransactionProvider extends ChangeNotifier implements NetworkScoped {
     _pickedAddressType = type;
     address = '';
     addressDerivationPath = '';
+    addressError = null;
     notifyListeners();
     await fetch();
   }
@@ -267,6 +268,7 @@ class TransactionProvider extends ChangeNotifier implements NetworkScoped {
     receiveAddresses = [];
     address = '';
     addressDerivationPath = '';
+    addressError = null;
     _pickedAddressType = wmpb.AddressType.ADDRESS_TYPE_UNSPECIFIED;
     initialized = false;
     error = null;
@@ -460,17 +462,23 @@ class TransactionProvider extends ChangeNotifier implements NetworkScoped {
           addressDerivationPath = v.path;
         },
       );
-      _loggedAddressError = null;
       _addressRead = true;
-      if (changed) {
+      if (changed || addressError != null) {
+        addressError = null;
         notifyListeners();
       }
     } catch (e) {
       _addressRead = false;
-      final text = e.toString();
-      if (!isExpectedBootError(e) && _loggedAddressError != text) {
-        _log.w('TransactionProvider: address fetch failed: $e');
-        _loggedAddressError = text;
+      if (_walletReader.activeWalletId != walletId || addressType != requestedType) {
+        return;
+      }
+      final shown = address.isEmpty && isExpectedBootError(e) ? null : e.toString();
+      if (shown != addressError) {
+        if (shown != null) {
+          _log.w('TransactionProvider: address fetch failed: $shown');
+        }
+        addressError = shown;
+        notifyListeners();
       }
     }
   }

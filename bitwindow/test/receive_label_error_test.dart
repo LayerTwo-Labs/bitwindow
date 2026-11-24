@@ -34,6 +34,12 @@ class _FakeHDWallet extends ChangeNotifier implements HDWalletProvider {
 
 class _FakeTransactions extends ChangeNotifier implements TransactionProvider {
   @override
+  String? addressError;
+
+  @override
+  String? error;
+
+  @override
   List<ReceiveAddress> receiveAddresses = [ReceiveAddress(address: _address)];
 
   @override
