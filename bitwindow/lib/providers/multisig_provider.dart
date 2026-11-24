@@ -159,12 +159,7 @@ class BalanceManager {
 
       final balanceBtc = resp.confirmedSats.toInt() / 100000000.0;
       await MultisigStorage.updateGroupBalance(group.id, balanceBtc, resp.utxoCount);
-
-      try {
-        await MultisigStorage.restoreTransactionHistory(group);
-      } catch (e) {
-        // Failed to refresh history - not critical to the balance update.
-      }
+      await MultisigStorage.restoreTransactionHistory(group);
     });
   }
 
@@ -212,9 +207,18 @@ class MultisigStateManager extends ChangeNotifier {
 
       try {
         _groups = await MultisigStorage.loadGroups();
-        _transactions = await TransactionStorage.loadTransactions();
-        await BalanceManager.updateAllGroupBalances(_groups);
+        Object? syncError;
+        try {
+          await BalanceManager.updateAllGroupBalances(_groups);
+        } catch (e) {
+          syncError = e;
+        }
+        // Read after the sync, which saves new balances and tx states.
         _groups = await MultisigStorage.loadGroups();
+        _transactions = await TransactionStorage.loadTransactions();
+        if (syncError != null) {
+          _setError(syncError.toString());
+        }
       } catch (e) {
         _setError(e.toString());
       } finally {
@@ -411,6 +415,17 @@ class TransactionStorage {
 
   static Future<void> saveTransaction(MultisigTransaction transaction) async {
     await _api.saveTransaction(_transactionToProto(transaction));
+    _notifier.notifyTransactionChange();
+  }
+
+  /// Saves each transaction, then notifies one time, so a batch starts one refresh.
+  static Future<void> saveChangedTransactions(List<MultisigTransaction> transactions) async {
+    if (transactions.isEmpty) {
+      return;
+    }
+    for (final tx in transactions) {
+      await _api.saveTransaction(_transactionToProto(tx));
+    }
     _notifier.notifyTransactionChange();
   }
 
@@ -675,6 +690,7 @@ class TransactionStorage {
           )
           .toList(),
       confirmations: pb.confirmations,
+      requiredSignatures: pb.requiredSignatures,
     );
   }
 
@@ -921,18 +937,26 @@ class MultisigStorage {
         walletId: walletId,
       );
 
+      final changed = <MultisigTransaction>[];
       for (final tx in resp.transactions) {
         final existingTx = await TransactionStorage.getTransactionByTxid(tx.txid);
-        if (existingTx != null) {
+        if (existingTx == null) {
+          changed.add(_historyToTransaction(group, tx));
           continue;
         }
-        await TransactionStorage.saveTransaction(_historyToTransaction(group, tx));
-        TransactionStorage.notifier.notifyTransactionChange();
+        final status = _historyStatus(tx);
+        if (existingTx.status != status || existingTx.confirmations != tx.confirmations) {
+          changed.add(existingTx.copyWith(status: status, confirmations: tx.confirmations));
+        }
       }
+      await TransactionStorage.saveChangedTransactions(changed);
     } catch (e) {
       throw Exception('Transaction history restoration failed: $e');
     }
   }
+
+  static TxStatus _historyStatus(mlpb.MultisigHistoryTx tx) =>
+      tx.status == 'confirmed' ? TxStatus.confirmed : TxStatus.broadcasted;
 
   static MultisigTransaction _historyToTransaction(MultisigGroup group, mlpb.MultisigHistoryTx tx) {
     final amount = tx.amountSats.toInt() / 100000000.0;
@@ -952,7 +976,7 @@ class MultisigStorage {
           .toList(),
       destination: tx.destination,
       amount: amount,
-      status: tx.status == 'confirmed' ? TxStatus.confirmed : TxStatus.broadcasted,
+      status: _historyStatus(tx),
       type: tx.isDeposit ? TxType.deposit : TxType.withdrawal,
       created: time,
       fee: 0.0,
@@ -960,6 +984,7 @@ class MultisigStorage {
       broadcastTime: time,
       finalHex: tx.finalHex.isEmpty ? null : tx.finalHex,
       txid: tx.txid,
+      requiredSignatures: group.m,
     );
   }
 

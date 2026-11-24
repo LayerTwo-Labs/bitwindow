@@ -37,6 +37,7 @@ const CreateSpendPsbtRequest$json = {
     {'1': 'wallet_id', '3': 2, '4': 1, '5': 9, '10': 'walletId'},
     {'1': 'destinations', '3': 3, '4': 3, '5': 11, '6': '.multisiglounge.v1.SpendDestination', '10': 'destinations'},
     {'1': 'fee_rate_sat_vb', '3': 4, '4': 1, '5': 1, '10': 'feeRateSatVb'},
+    {'1': 'subtract_fee_from_outputs', '3': 5, '4': 1, '5': 8, '10': 'subtractFeeFromOutputs'},
   ],
 };
 
@@ -45,7 +46,8 @@ final $typed_data.Uint8List createSpendPsbtRequestDescriptor =
     $convert.base64Decode('ChZDcmVhdGVTcGVuZFBzYnRSZXF1ZXN0EjIKBWdyb3VwGAEgASgLMhwubXVsdGlzaWdsb3VuZ2'
         'UudjEuR3JvdXBEYXRhUgVncm91cBIbCgl3YWxsZXRfaWQYAiABKAlSCHdhbGxldElkEkcKDGRl'
         'c3RpbmF0aW9ucxgDIAMoCzIjLm11bHRpc2lnbG91bmdlLnYxLlNwZW5kRGVzdGluYXRpb25SDG'
-        'Rlc3RpbmF0aW9ucxIlCg9mZWVfcmF0ZV9zYXRfdmIYBCABKAFSDGZlZVJhdGVTYXRWYg==');
+        'Rlc3RpbmF0aW9ucxIlCg9mZWVfcmF0ZV9zYXRfdmIYBCABKAFSDGZlZVJhdGVTYXRWYhI5Chlz'
+        'dWJ0cmFjdF9mZWVfZnJvbV9vdXRwdXRzGAUgASgIUhZzdWJ0cmFjdEZlZUZyb21PdXRwdXRz');
 
 @$core.Deprecated('Use createSpendPsbtResponseDescriptor instead')
 const CreateSpendPsbtResponse$json = {

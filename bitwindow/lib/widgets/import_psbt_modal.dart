@@ -265,6 +265,7 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
               )
               .toList(),
           keyPSBTs: keyPSBTs,
+          requiredSignatures: group.m,
         );
 
         await TransactionStorage.saveTransaction(newTx);

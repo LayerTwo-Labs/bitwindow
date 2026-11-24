@@ -91,12 +91,14 @@ class CreateSpendPsbtRequest extends $pb.GeneratedMessage {
     $core.String? walletId,
     $core.Iterable<SpendDestination>? destinations,
     $core.double? feeRateSatVb,
+    $core.bool? subtractFeeFromOutputs,
   }) {
     final result = CreateSpendPsbtRequest._();
     if (group != null) result.group = group;
     if (walletId != null) result.walletId = walletId;
     if (destinations != null) result.destinations.addAll(destinations);
     if (feeRateSatVb != null) result.feeRateSatVb = feeRateSatVb;
+    if (subtractFeeFromOutputs != null) result.subtractFeeFromOutputs = subtractFeeFromOutputs;
     return result;
   }
 
@@ -116,6 +118,7 @@ class CreateSpendPsbtRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'walletId')
     ..pPM<SpendDestination>(3, _omitFieldNames ? '' : 'destinations', subBuilder: SpendDestination.$_createMessage)
     ..aD(4, _omitFieldNames ? '' : 'feeRateSatVb')
+    ..aOB(5, _omitFieldNames ? '' : 'subtractFeeFromOutputs')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -161,8 +164,8 @@ class CreateSpendPsbtRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   $pb.PbList<SpendDestination> get destinations => $_getList(2);
 
-  /// Optional fee rate in sat/vB. 0 lets bitcoind pick (fallback/estimate fee),
-  /// matching the current Dart path which passes no explicit fee rate.
+  /// Fee rate in sat/vB. 0 uses Core's 6-block estimate, or the relay floor
+  /// when Core has no estimate.
   @$pb.TagNumber(4)
   $core.double get feeRateSatVb => $_getN(3);
   @$pb.TagNumber(4)
@@ -171,6 +174,16 @@ class CreateSpendPsbtRequest extends $pb.GeneratedMessage {
   $core.bool hasFeeRateSatVb() => $_has(3);
   @$pb.TagNumber(4)
   void clearFeeRateSatVb() => $_clearField(4);
+
+  /// Takes the fee from the destination amounts, so a spend of the full balance funds.
+  @$pb.TagNumber(5)
+  $core.bool get subtractFeeFromOutputs => $_getBF(4);
+  @$pb.TagNumber(5)
+  set subtractFeeFromOutputs($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasSubtractFeeFromOutputs() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearSubtractFeeFromOutputs() => $_clearField(5);
 }
 
 class CreateSpendPsbtResponse extends $pb.GeneratedMessage {
@@ -529,6 +542,7 @@ class SyncGroupResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearPendingSats() => $_clearField(2);
 
+  /// Number of the coins in confirmed_sats.
   @$pb.TagNumber(3)
   $core.int get utxoCount => $_getIZ(2);
   @$pb.TagNumber(3)

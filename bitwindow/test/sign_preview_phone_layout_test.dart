@@ -39,6 +39,7 @@ final _tx = MultisigTransaction(
   destination: _destination,
   fee: 0.00000282,
   inputs: const [],
+  requiredSignatures: 2,
 );
 
 Future<void> _pump(WidgetTester tester, {required bool phone}) async {
