@@ -250,6 +250,12 @@ String transactionsCsv(List<WalletTransaction> transactions) {
   return encodeCsv(rows);
 }
 
+/// The address cell of a history row: a short address, and the label where it has one.
+String historyAddressText(WalletTransaction tx) {
+  final address = middleEllipsis(tx.address, keep: 10);
+  return tx.addressLabel.isEmpty ? address : '$address (${tx.addressLabel})';
+}
+
 /// [rows] with the address book label of each address. A row the book holds no label for keeps its own.
 List<WalletTransaction> withBookLabels(List<WalletTransaction> rows, Map<String, String> labels) => [
   for (final tx in rows)
@@ -439,8 +445,8 @@ class _TransactionTableState extends State<TransactionTable> {
                                   copyValue: entry.txid,
                                 ),
                                 SailTableCell(
-                                  value:
-                                      '${entry.address}${entry.addressLabel.isNotEmpty ? ' (${entry.addressLabel})' : ''}',
+                                  value: historyAddressText(entry),
+                                  copyValue: entry.address,
                                 ),
                                 SailTableCell(
                                   value: entry.note,
