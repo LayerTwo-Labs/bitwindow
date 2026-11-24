@@ -64,7 +64,7 @@ var (
 // error that wraps sql.ErrNoRows.
 func Get[T any](ctx context.Context, q Querier, query string, args ...any) (T, error) {
 	var t T
-	res, err := queryRows[T](ctx, q, 2, query, args...)
+	res, err := queryRows[T](ctx, q, 2, nil, query, args...)
 	if err != nil {
 		return t, fmt.Errorf("get %T: %w", t, err)
 	}
@@ -80,7 +80,7 @@ func Get[T any](ctx context.Context, q Querier, query string, args ...any) (T, e
 
 // Select runs the query and scans each row into T.
 func Select[T any](ctx context.Context, q Querier, query string, args ...any) ([]T, error) {
-	res, err := queryRows[T](ctx, q, 0, query, args...)
+	res, err := queryRows[T](ctx, q, 0, nil, query, args...)
 	if err != nil {
 		var t T
 		return nil, fmt.Errorf("select %T: %w", t, err)
@@ -88,8 +88,23 @@ func Select[T any](ctx context.Context, q Querier, query string, args ...any) ([
 	return res, nil
 }
 
-// queryRows reads at most limit rows, or all rows when limit is 0.
-func queryRows[T any](ctx context.Context, q Querier, limit int, query string, args ...any) (res []T, err error) {
+// SelectMatching runs the query and returns the first limit rows for which keep
+// is true. It stops reading at the limit. A limit of 0 returns all such rows.
+func SelectMatching[T any](
+	ctx context.Context, q Querier, limit int, keep func(T) bool, query string, args ...any,
+) ([]T, error) {
+	res, err := queryRows(ctx, q, limit, keep, query, args...)
+	if err != nil {
+		var t T
+		return nil, fmt.Errorf("select %T: %w", t, err)
+	}
+	return res, nil
+}
+
+// queryRows reads at most limit rows, or all rows when limit is 0. A nil keep keeps each row.
+func queryRows[T any](
+	ctx context.Context, q Querier, limit int, keep func(T) bool, query string, args ...any,
+) (res []T, err error) {
 	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -113,6 +128,9 @@ func queryRows[T any](ctx context.Context, q Querier, limit int, query string, a
 		var t T
 		if err := rows.Scan(dest(&t)...); err != nil {
 			return nil, err
+		}
+		if keep != nil && !keep(t) {
+			continue
 		}
 		res = append(res, t)
 		if limit > 0 && len(res) == limit {
