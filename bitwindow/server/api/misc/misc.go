@@ -251,13 +251,7 @@ func (s *Server) CreateTopic(ctx context.Context, req *miscv1.CreateTopicRequest
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
-	// Calculate retention days (default to 7)
-	retentionDays := req.RetentionDays
-	if retentionDays == 0 {
-		retentionDays = 7 // Default to 7 days
-	}
-
-	topicCreationBytes, err := opreturns.EncodeTopicCreationMessageNewFormat(topicID, req.Name, retentionDays)
+	topicCreationBytes, err := opreturns.EncodeTopicCreationMessageNewFormat(topicID, req.Name, req.RetentionDays)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}

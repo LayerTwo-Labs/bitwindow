@@ -525,6 +525,34 @@ func TestService_Comments(t *testing.T) {
 func TestService_CreateTopic(t *testing.T) {
 	t.Parallel()
 
+	for _, days := range []int32{0, 7, 255} {
+		t.Run(fmt.Sprintf("keep retention %d", days), func(t *testing.T) {
+			t.Parallel()
+			mockOrch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
+			apitests.ExpectOrchestratorReads(mockOrch)
+			payloads := make(chan string, 1)
+			mockOrch.EXPECT().SendTransaction(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, req *orchpb.SendTransactionRequest) (*orchpb.SendTransactionResponse, error) {
+					payloads <- req.OpReturnHex
+					return &orchpb.SendTransactionResponse{Txid: "test-txid"}, nil
+				},
+			)
+			cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(mockOrch)))
+			_, err := cli.CreateTopic(t.Context(), &miscv1.CreateTopicRequest{
+				Topic:         "deadbeef",
+				Name:          "Test Topic",
+				RetentionDays: days,
+			})
+			require.NoError(t, err)
+			payload, err := hex.DecodeString(<-payloads)
+			require.NoError(t, err)
+			_, msg, err := coinnews.DecodeMessage(payload)
+			require.NoError(t, err)
+			creation := msg.(*coinnews.TopicCreation)
+			require.EqualValues(t, days, creation.RetentionDays)
+		})
+	}
+
 	t.Run("create topic success", func(t *testing.T) {
 		t.Parallel()
 
