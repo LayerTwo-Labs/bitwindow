@@ -402,6 +402,29 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
       return;
     }
 
+    // The orchestrator refuses to spend a frozen coin, so the run releases its
+    // own coins just before its own broadcast.
+    try {
+      await _setFrozen(run.outpoints, false, expectedChain: chain);
+      run.coinsFrozen = false;
+    } catch (e) {
+      run.status = ConsolidationRunStatus.failed;
+      run.error = 'BitWindow could not release the coins for the send: $e';
+      notifyListeners();
+      return;
+    }
+    if (_chain != chain) {
+      run.status = ConsolidationRunStatus.failed;
+      run.error = 'The chain changed before the send. BitWindow did not send this transaction.';
+      notifyListeners();
+      return;
+    }
+    if (_walletGeneration != walletGeneration) {
+      run.status = ConsolidationRunStatus.stopped;
+      notifyListeners();
+      return;
+    }
+
     try {
       final response = await _wallet.sendTransaction(
         walletId: walletId,
@@ -416,16 +439,34 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
       // action at all: it cannot unfreeze, clear, or start another plan.
       run.txid = response.txid;
       run.status = ConsolidationRunStatus.pending;
-      notifyListeners();
     } catch (e) {
       // A lost reply does not mean a lost transaction. The node may hold it,
-      // so the coins stay frozen and the user releases them on purpose.
+      // so the coins freeze again and the user releases them on purpose.
       run.status = ConsolidationRunStatus.failed;
       run.error =
           '$e\nThe coins stay frozen, because the node may still hold the transaction. '
           'Unfreeze them once you know it does not.';
-      notifyListeners();
     }
+    notifyListeners();
+    await _freezeAgain(run, chain);
+  }
+
+  /// Puts back the freeze a run released for its own broadcast. The coins stay
+  /// frozen until a block holds the transaction.
+  Future<void> _freezeAgain(ConsolidationRun run, String chain) async {
+    if (_chain != chain) {
+      run.error = _joinError(run.error, 'The chain changed before BitWindow could freeze the coins again.');
+      notifyListeners();
+      return;
+    }
+    try {
+      await _setFrozen(run.outpoints, true, expectedChain: chain);
+      run.coinsFrozen = true;
+    } catch (e) {
+      run.error = _joinError(run.error, 'BitWindow could not freeze the coins again: $e');
+      _log.e('consolidation run ${run.index + 1}: freeze after the send: $e');
+    }
+    notifyListeners();
   }
 
   /// Marks a run failed and gives its coins back. Only for a failure before
@@ -484,6 +525,8 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
       _log.e('consolidation run ${run.index + 1}: unfreeze: $e');
     }
   }
+
+  static String _joinError(String? first, String second) => first == null ? second : '$first\n$second';
 
   void _syncConfirmations() {
     // An empty list carries no information. Reading it as "nothing confirms"
