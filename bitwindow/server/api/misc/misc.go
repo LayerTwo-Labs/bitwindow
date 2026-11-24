@@ -228,6 +228,9 @@ func newsPayloadFor(req *miscv1.EstimateNewsFeeRequest) ([]byte, error) {
 
 // CreateTopic implements miscv1connect.MiscServiceHandler.
 func (s *Server) CreateTopic(ctx context.Context, req *miscv1.CreateTopicRequest) (*miscv1.CreateTopicResponse, error) {
+	if req.RetentionDays < 0 || req.RetentionDays > 255 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "retention days must be between 0 and 255")
+	}
 	topicID, err := opreturns.ValidNewsTopicID(req.Topic)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
