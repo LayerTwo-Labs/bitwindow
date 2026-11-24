@@ -32,6 +32,12 @@ class NewsProvider extends ChangeNotifier {
 
   String? topicName(String id) => topics.firstWhereOrNull((t) => t.topic == id)?.name;
 
+  /// True until the first read of news and topics, when no read failed.
+  bool get loading => !initialized && error == null;
+
+  /// Why the last read failed, or null when it worked.
+  String? get readError => error == null ? null : 'Could not read the news. $error';
+
   /// Reads news and topics. A call during a read gets one more read after it,
   /// and completes when that read is done.
   Future<void> fetch() {
@@ -50,7 +56,7 @@ class NewsProvider extends ChangeNotifier {
   }
 
   Future<void> _read() async {
-    error = null;
+    final hadError = error != null;
 
     List<String> errors = [];
     bool dataChanged = false;
@@ -102,6 +108,9 @@ class NewsProvider extends ChangeNotifier {
         error = null;
       }
 
+      notifyListeners();
+    } else if (hadError) {
+      error = null;
       notifyListeners();
     }
   }

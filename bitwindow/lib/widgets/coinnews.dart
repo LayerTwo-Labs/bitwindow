@@ -24,6 +24,7 @@ class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
     return SailCard(
       title: 'Coin News',
       titleTooltip: 'Stay up-to-date on the latest world developments',
+      error: viewModel.readError,
       widgetHeaderEnd: ExtraActionsDropdown(
         title: 'Extra Coin News Actions',
         items: [
@@ -101,6 +102,23 @@ class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The failed read of the news, in red under a card header.
+class NewsReadError extends StatelessWidget {
+  final String message;
+
+  const NewsReadError(this.message, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailText.primary12(
+      message,
+      color: context.sailTheme.colors.error,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -209,6 +227,7 @@ class _LargeColumn extends StatelessWidget {
               ),
             ],
           ),
+          if (viewModel.readError != null) NewsReadError(viewModel.readError!),
           if (stacked)
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: _stackedStoriesHeight),
@@ -325,7 +344,8 @@ class CoinNewsLargeViewModel extends BaseViewModel {
     _newsProvider.addListener(notifyListeners);
   }
 
-  bool get loading => !_newsProvider.initialized;
+  bool get loading => _newsProvider.loading;
+  String? get readError => _newsProvider.readError;
   List<Topic> get topics => _newsProvider.topics;
 
   void setLeftTopic(String? topic) {
@@ -420,9 +440,8 @@ class CoinNewsViewModel extends BaseViewModel {
     notifyListeners();
   }
 
-  bool get loading {
-    return !_newsProvider.initialized;
-  }
+  bool get loading => _newsProvider.loading;
+  String? get readError => _newsProvider.readError;
 
   double get coinnewsHeight {
     switch (pageSize) {
