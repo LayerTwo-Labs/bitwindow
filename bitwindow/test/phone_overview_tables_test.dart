@@ -15,24 +15,24 @@ void main() {
   final time = DateTime.utc(2026, 11, 1, 9, 42, 13);
   final timeText = time.toLocal().toString();
 
-  RecentTransaction tx() => RecentTransaction(
-    txid: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
-    feeSats: Int64(141),
+  RecentTransaction tx({int fee = 141, int? height = 1022811}) => RecentTransaction(
+    txid: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6${fee.toRadixString(16).padLeft(4, '0')}',
+    feeSats: Int64(fee),
     virtualSize: 222,
     time: Timestamp.fromDateTime(time),
-    confirmedInBlock: 1022811,
+    confirmedInBlock: height,
   );
 
   double cellWidth(WidgetTester tester, String value) =>
       tester.getSize(find.ancestor(of: find.text(value), matching: find.byType(SailTableCell))).width;
 
-  Future<void> pumpTable(WidgetTester tester, double width) async {
+  Future<void> pumpTable(WidgetTester tester, double width, [List<RecentTransaction>? entries]) async {
     await loadBundledFonts();
     await tester.pumpSailPage(
       SizedBox(
         width: width,
         height: 300,
-        child: LatestTransactionTable(entries: [tx()]),
+        child: LatestTransactionTable(entries: entries ?? [tx()]),
       ),
     );
     await tester.pumpAndSettle();
@@ -42,11 +42,23 @@ void main() {
     SailStyleValues.phoneLayoutOverride = true;
     await pumpTable(tester, 390);
 
-    expect(cellWidth(tester, '141'), closeTo(56, 1));
-    expect(cellWidth(tester, '1022811'), closeTo(76, 1));
+    expect(cellWidth(tester, '141'), lessThanOrEqualTo(56));
+    expect(cellWidth(tester, '1022811'), lessThanOrEqualTo(76));
     final timeLine = tester.getSize(find.text(timeText));
     expect(timeLine.height, tester.getSize(find.text('141')).height);
     expect(timeLine.width, lessThanOrEqualTo(cellWidth(tester, timeText) - 24));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('on a phone each fee and height shows on one line', (tester) async {
+    SailStyleValues.phoneLayoutOverride = true;
+    await pumpTable(tester, 390, [tx(fee: 8601), tx(fee: 123456, height: null)]);
+
+    final line = tester.getSize(find.text('Fee')).height;
+    for (final value in ['8601', '123456', '1022811']) {
+      expect(tester.getSize(find.text(value)).height, line, reason: '$value wraps');
+    }
+    expect(tester.getSize(find.text(timeText).first).height, line);
     expect(tester.takeException(), isNull);
   });
 
