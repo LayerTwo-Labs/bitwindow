@@ -117,4 +117,21 @@ void main() {
     expect(message.right, lessThanOrEqualTo(table.right));
     expect(find.text(misc.rows[1].txid), findsNothing);
   });
+
+  testWidgets('a failed read shows on the card until a read works', (tester) async {
+    await pump(tester);
+    final news = GetIt.I.get<NewsProvider>();
+
+    misc.failure = Exception('could not list op returns: connection refused');
+    await news.fetch();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('could not list op returns'), findsOneWidget);
+    expect(messages(tester), hasLength(3), reason: 'the old rows stay');
+
+    misc.failure = null;
+    await news.fetch();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('could not list op returns'), findsNothing);
+    expect(find.text('Browse blockchain graffiti and OP_RETURN data'), findsOneWidget);
+  });
 }
