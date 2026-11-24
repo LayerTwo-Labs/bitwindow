@@ -630,3 +630,39 @@ func TestGetByTxID(t *testing.T) {
 		assert.Nil(t, got)
 	})
 }
+
+func TestListTopics_ListsMempoolCreationsAsPending(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	db := database.Test(t)
+
+	mempool := func(txid string, topic TopicID, name string, seen time.Time) {
+		data, err := EncodeTopicCreationMessageNewFormat(topic, name, 9)
+		require.NoError(t, err)
+		require.NoError(t, Persist(ctx, db, []OPReturn{{TxID: txid, Data: data, Fee: 400, CreatedAt: &seen}}))
+	}
+	now := time.Now()
+	fresh := mustTopicID(t, "c0ffee01")
+	mempool(fmt.Sprintf("%064x", 2), fresh, "Second Name", now.Add(time.Second))
+	mempool(fmt.Sprintf("%064x", 1), fresh, "First Name", now)
+	mempool(fmt.Sprintf("%064x", 3), mustTopicID(t, "a1a1a1a1"), "Not US Weekly", now)
+
+	topics, err := ListTopics(ctx, db)
+	require.NoError(t, err)
+
+	pending := lo.Filter(topics, func(tp Topic, _ int) bool { return tp.Topic == fresh })
+	require.Len(t, pending, 1)
+	assert.Equal(t, "First Name", pending[0].Name)
+	assert.False(t, pending[0].Confirmed)
+	assert.Equal(t, fmt.Sprintf("%064x", 1), pending[0].Txid)
+	assert.Equal(t, int32(9), pending[0].RetentionDays)
+
+	usWeekly := lo.Filter(topics, func(tp Topic, _ int) bool { return tp.Topic == mustTopicID(t, "a1a1a1a1") })
+	require.Len(t, usWeekly, 1)
+	assert.Equal(t, "US Weekly", usWeekly[0].Name)
+	assert.True(t, usWeekly[0].Confirmed)
+
+	exists, err := TopicExists(ctx, db, fresh)
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
