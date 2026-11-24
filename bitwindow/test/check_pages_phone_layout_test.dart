@@ -21,9 +21,10 @@ const _txid = 'f3a1c09e5b7d2468ace013579bdf2468ace013579bdf2468ace013579bdf2468'
 const _phone = Size(390, 844);
 
 class _FakeCheckProvider extends ChangeNotifier implements CheckProvider {
-  _FakeCheckProvider({this.funded = false});
+  _FakeCheckProvider({this.funded = false, this.swept = false});
 
   final bool funded;
+  final bool swept;
 
   @override
   Future<bwpb.Cheque?> getCheck(int id) async => bwpb.Cheque(
@@ -31,6 +32,7 @@ class _FakeCheckProvider extends ChangeNotifier implements CheckProvider {
     address: _address,
     expectedAmountSats: Int64(1000000),
     funded: funded,
+    sweptTxid: swept ? _txid : null,
     fundedTxids: funded ? [_txid] : [],
     privateKeyWif: funded ? 'cVt4o7BGAig1UXywgGSmARhxMdzP5qvQsxKkSsc1XEkw3tDTQFpy' : null,
   );
@@ -102,9 +104,9 @@ class _CashCheckRouter extends AppRouter {
   ];
 }
 
-void _registerFakes({bool funded = false}) {
+void _registerFakes({bool funded = false, bool swept = false}) {
   final providers = _FakeProviders();
-  GetIt.I.registerSingleton<CheckProvider>(_FakeCheckProvider(funded: funded));
+  GetIt.I.registerSingleton<CheckProvider>(_FakeCheckProvider(funded: funded, swept: swept));
   GetIt.I.registerSingleton<TransactionProvider>(providers);
   GetIt.I.registerSingleton<WalletReaderProvider>(providers);
   GetIt.I.registerSingleton<OrchestratorRPC>(_FakeOrchestrator());
@@ -203,6 +205,27 @@ void main() {
       expect(find.byType(SailCard), findsNothing);
       expect(tester.getSize(find.widgetWithText(SailButton, 'Fund with Wallet')).width, 400);
     });
+  });
+
+  group('swept check detail', () {
+    for (final (size, funded) in [
+      (const Size(1200, 720), true),
+      (const Size(1024, 700), true),
+      (const Size(1024, 700), false),
+    ]) {
+      testWidgets('shows Swept at ${size.width.toInt()} px with funding record $funded', (tester) async {
+        _registerFakes(funded: funded, swept: true);
+        await _pump(tester, const CheckDetailPage(checkId: 1), phone: false);
+        await tester.binding.setSurfaceSize(size);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Swept'), findsOneWidget);
+        expect(find.text('Fund with Wallet'), findsNothing);
+        expect(find.text('Sweep Check to Wallet'), findsNothing);
+      });
+    }
   });
 
   group('check cashed', () {
