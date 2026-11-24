@@ -1475,107 +1475,106 @@ class _DatePickerField extends StatelessWidget {
 }
 
 class GraffitiExplorerViewModel extends BaseViewModel {
-  final NewsProvider _newsProvider = GetIt.I.get<NewsProvider>();
+  static const searchDelay = Duration(milliseconds: 300);
+
+  static const _sorts = {
+    'time': OPReturnSort.OP_RETURN_SORT_TIME,
+    'height': OPReturnSort.OP_RETURN_SORT_HEIGHT,
+    'fee': OPReturnSort.OP_RETURN_SORT_FEE,
+    'txid': OPReturnSort.OP_RETURN_SORT_TXID,
+    'message': OPReturnSort.OP_RETURN_SORT_MESSAGE,
+  };
+
+  BitwindowRPC get _api => GetIt.I.get<BitwindowRPC>();
+  final BlockchainProvider _blockchain = GetIt.I.get<BlockchainProvider>();
   final TextEditingController searchController = TextEditingController();
 
   String _sortColumn = 'time';
   bool _sortAscending = false;
-
-  String get sortColumn => _sortColumn;
-  bool get sortAscending => _sortAscending;
-  String? get readError => _newsProvider.opReturnsError;
-
-  // Date range filter
   DateTime? _fromDate;
   DateTime? _toDate;
 
+  String _search = '';
+  Timer? _searchTimer;
+  int _reads = 0;
+
+  /// The rows of the last read that worked, in the server order.
+  List<OPReturn> entries = [];
+
+  /// The error of the last read, or null when it worked.
+  String? readError;
+
+  String get sortColumn => _sortColumn;
+  bool get sortAscending => _sortAscending;
   DateTime? get fromDate => _fromDate;
   DateTime? get toDate => _toDate;
 
-  List<OPReturn> get allEntries => _newsProvider.opReturns;
-
-  List<OPReturn> get entries {
-    var filtered = allEntries.where((entry) {
-      // Apply search filter
-      if (searchController.text.isNotEmpty) {
-        final searchLower = searchController.text.toLowerCase();
-        if (!entry.message.toLowerCase().contains(searchLower) && !entry.txid.toLowerCase().contains(searchLower)) {
-          return false;
-        }
-      }
-
-      // Apply date range filter
-      final entryDate = entry.createTime.toDateTime();
-      if (_fromDate != null) {
-        final fromStart = DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day);
-        if (entryDate.isBefore(fromStart)) {
-          return false;
-        }
-      }
-      if (_toDate != null) {
-        final toEnd = DateTime(_toDate!.year, _toDate!.month, _toDate!.day, 23, 59, 59);
-        if (entryDate.isAfter(toEnd)) {
-          return false;
-        }
-      }
-
-      return true;
-    }).toList();
-
-    // Apply sorting
-    filtered.sort((a, b) {
-      dynamic aValue = '';
-      dynamic bValue = '';
-
-      switch (_sortColumn) {
-        case 'message':
-          aValue = a.message;
-          bValue = b.message;
-          break;
-        case 'time':
-          aValue = a.createTime.toDateTime().millisecondsSinceEpoch;
-          bValue = b.createTime.toDateTime().millisecondsSinceEpoch;
-          break;
-        case 'height':
-          aValue = a.height;
-          bValue = b.height;
-          break;
-        case 'fee':
-          aValue = a.feeSats;
-          bValue = b.feeSats;
-          break;
-        case 'txid':
-          aValue = a.txid;
-          bValue = b.txid;
-          break;
-      }
-
-      return _sortAscending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
-    });
-
-    return filtered;
+  GraffitiExplorerViewModel() {
+    _blockchain.addListener(read);
+    _blockchain.recentChanged.addListener(read);
+    searchController.addListener(_onSearchChanged);
+    read();
   }
 
-  GraffitiExplorerViewModel() {
-    _newsProvider.fetch();
-    _newsProvider.addListener(notifyListeners);
-    searchController.addListener(notifyListeners);
+  ListOPReturnRequest get request => ListOPReturnRequest(
+    search: _search,
+    from: _fromDate == null ? null : Timestamp.fromDateTime(_dayStart(_fromDate!)),
+    to: _toDate == null ? null : Timestamp.fromDateTime(_dayStart(_toDate!, plusDays: 1)),
+    sort: _sorts[_sortColumn],
+    ascending: _sortAscending,
+  );
+
+  static DateTime _dayStart(DateTime date, {int plusDays = 0}) => DateTime(date.year, date.month, date.day + plusDays);
+
+  /// Reads the rows for the current filter. Only the newest read changes the rows.
+  Future<void> read() async {
+    final id = ++_reads;
+    try {
+      final rows = await _api.misc.listOPReturns(request);
+      if (id != _reads) {
+        return;
+      }
+      entries = rows;
+      readError = null;
+    } catch (e) {
+      if (id != _reads) {
+        return;
+      }
+      readError = e.toString();
+    }
+    notifyListeners();
+  }
+
+  void _onSearchChanged() {
+    final search = searchController.text.trim();
+    if (search == _search) {
+      return;
+    }
+    _search = search;
+    _searchTimer?.cancel();
+    _searchTimer = Timer(searchDelay, read);
+    notifyListeners();
   }
 
   void setFromDate(DateTime? date) {
     _fromDate = date;
+    read();
     notifyListeners();
   }
 
   void setToDate(DateTime? date) {
     _toDate = date;
+    read();
     notifyListeners();
   }
 
   void clearFilters() {
     _fromDate = null;
     _toDate = null;
+    _search = '';
+    _searchTimer?.cancel();
     searchController.clear();
+    read();
     notifyListeners();
   }
 
@@ -1586,13 +1585,16 @@ class GraffitiExplorerViewModel extends BaseViewModel {
       _sortColumn = column;
       _sortAscending = column != 'time';
     }
+    read();
     notifyListeners();
   }
 
   @override
   void dispose() {
-    _newsProvider.removeListener(notifyListeners);
-    searchController.removeListener(notifyListeners);
+    _searchTimer?.cancel();
+    _blockchain.removeListener(read);
+    _blockchain.recentChanged.removeListener(read);
+    searchController.removeListener(_onSearchChanged);
     searchController.dispose();
     super.dispose();
   }

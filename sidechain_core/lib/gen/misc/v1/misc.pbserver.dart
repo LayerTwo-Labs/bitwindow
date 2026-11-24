@@ -22,7 +22,7 @@ import 'misc.pbjson.dart';
 export 'misc.pb.dart';
 
 abstract class MiscServiceBase extends $pb.GeneratedService {
-  $async.Future<$2.ListOPReturnResponse> listOPReturn($pb.ServerContext ctx, $1.Empty request);
+  $async.Future<$2.ListOPReturnResponse> listOPReturn($pb.ServerContext ctx, $2.ListOPReturnRequest request);
   $async.Future<$2.BroadcastNewsResponse> broadcastNews($pb.ServerContext ctx, $2.BroadcastNewsRequest request);
   $async.Future<$2.CreateTopicResponse> createTopic($pb.ServerContext ctx, $2.CreateTopicRequest request);
   $async.Future<$2.ListTopicsResponse> listTopics($pb.ServerContext ctx, $1.Empty request);
@@ -37,7 +37,7 @@ abstract class MiscServiceBase extends $pb.GeneratedService {
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
       case 'ListOPReturn':
-        return $1.Empty();
+        return $2.ListOPReturnRequest();
       case 'BroadcastNews':
         return $2.BroadcastNewsRequest();
       case 'CreateTopic':
@@ -67,7 +67,7 @@ abstract class MiscServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $core.String methodName, $pb.GeneratedMessage request) {
     switch (methodName) {
       case 'ListOPReturn':
-        return listOPReturn(ctx, request as $1.Empty);
+        return listOPReturn(ctx, request as $2.ListOPReturnRequest);
       case 'BroadcastNews':
         return broadcastNews(ctx, request as $2.BroadcastNewsRequest);
       case 'CreateTopic':

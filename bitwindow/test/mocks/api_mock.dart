@@ -463,7 +463,7 @@ class MockMiscAPI implements MiscAPI {
   }
 
   @override
-  Future<List<OPReturn>> listOPReturns() async {
+  Future<List<OPReturn>> listOPReturns(ListOPReturnRequest request) async {
     return [];
   }
 

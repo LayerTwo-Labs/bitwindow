@@ -12,7 +12,6 @@ class NewsProvider extends ChangeNotifier {
   BitwindowRPC get api => GetIt.I.get<BitwindowRPC>();
   BlockchainProvider get blockchainProvider => GetIt.I.get<BlockchainProvider>();
 
-  List<OPReturn> opReturns = [];
   List<CoinNews> news = [];
   List<Topic> topics = [
     Topic(id: Int64(1), topic: 'a1a1a1a1', name: 'US Weekly'),
@@ -20,9 +19,6 @@ class NewsProvider extends ChangeNotifier {
   ];
   bool initialized = false;
   String? error;
-
-  /// The error of the last OP_RETURN read, or null when it worked.
-  String? opReturnsError;
 
   bool _isFetching = false;
 
@@ -67,20 +63,7 @@ class NewsProvider extends ChangeNotifier {
       errors.add('Topics: ${e.toString()}');
     }
 
-    final previousOPReturnsError = opReturnsError;
-    try {
-      final newOPReturns = await api.misc.listOPReturns();
-      opReturnsError = null;
-      if (!listEquals(opReturns, newOPReturns)) {
-        opReturns = newOPReturns;
-        dataChanged = true;
-      }
-    } catch (e) {
-      opReturnsError = e.toString();
-      errors.add('OP_RETURNs: $opReturnsError');
-    }
-
-    if (dataChanged || errors.isNotEmpty || opReturnsError != previousOPReturnsError) {
+    if (dataChanged || errors.isNotEmpty) {
       if (dataChanged) {
         initialized = true;
       }

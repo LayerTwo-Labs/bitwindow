@@ -187,7 +187,7 @@ class ImportTxidModalViewModel extends BaseViewModel {
       loadingStatus = 'Fetching transaction data...';
       notifyListeners();
 
-      final opReturns = await _api.misc.listOPReturns();
+      final opReturns = await _api.misc.listOPReturns(ListOPReturnRequest());
       final opReturn = opReturns.firstWhere(
         (op) => op.txid == txid,
         orElse: () => throw Exception('No OP_RETURN data found for transaction'),
