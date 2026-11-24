@@ -60,4 +60,12 @@ void main() {
     expect(canBumpFee(_tx('bcrt1qown', confirmations: 0)), isTrue);
     expect(canBumpFee(_tx('bcrt1qown')), isFalse);
   });
+
+  test('the address cell keeps 10 characters at each end, and the label', () {
+    const address = 'bcrt1qhd4cfqjafyun28mpktu3te85pf9njwpu4v5jr5';
+
+    expect(historyAddressText(_tx(address)), 'bcrt1qhd4c…jwpu4v5jr5');
+    expect(historyAddressText(_tx(address, label: 'salary')), 'bcrt1qhd4c…jwpu4v5jr5 (salary)');
+    expect(historyAddressText(_tx('short')), 'short');
+  });
 }
