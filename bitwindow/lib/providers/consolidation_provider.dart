@@ -39,8 +39,8 @@ class ConsolidationRun {
   final int index;
   final List<String> outpoints;
   final int coinCount;
-  final int vbytes;
-  final int outputSats;
+  int vbytes;
+  int outputSats;
 
   ConsolidationRunStatus status;
   String? txid;
@@ -425,6 +425,7 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
       return;
     }
 
+    String? sentTxid;
     try {
       final response = await _wallet.sendTransaction(
         walletId: walletId,
@@ -437,7 +438,8 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
       // Record the result even when the chain or wallet moved. This writes to
       // the run alone, never to a database, and a run parked as sending has no
       // action at all: it cannot unfreeze, clear, or start another plan.
-      run.txid = response.txid;
+      sentTxid = response.txid;
+      run.txid = sentTxid;
       run.status = ConsolidationRunStatus.pending;
     } catch (e) {
       // A lost reply does not mean a lost transaction. The node may hold it,
@@ -449,6 +451,16 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
     }
     notifyListeners();
     await _freezeAgain(run, chain);
+    if (sentTxid != null && _chain == chain) {
+      try {
+        final details = await _wallet.getTransactionDetails(walletId: walletId, txid: sentTxid);
+        run.outputSats = details.totalOutputSats.toInt();
+        run.vbytes = details.vsizeVbytes;
+      } catch (error) {
+        run.error = _joinError(run.error, error.toString());
+      }
+      notifyListeners();
+    }
   }
 
   /// Puts back the freeze a run released for its own broadcast. The coins stay

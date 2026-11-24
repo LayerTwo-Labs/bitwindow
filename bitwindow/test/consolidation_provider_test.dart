@@ -67,12 +67,14 @@ class _FakeWalletRPC implements OrchestratorWalletRPC {
   final Set<String> held;
   bool failSend = false;
   bool failAddress = false;
+  bool failDetails = false;
   Future<void> Function()? onSend;
   Future<void> Function()? onGetNewAddress;
   final List<int> sentAmounts = [];
   final List<bool> subtractFlags = [];
   final List<int> inputCounts = [];
   final List<wmpb.AddressType?> addressTypes = [];
+  final List<(String, String)> detailRequests = [];
 
   @override
   Future<wmpb.GetNewAddressResponse> getNewAddress(String walletId, {wmpb.AddressType? addressType}) async {
@@ -110,6 +112,18 @@ class _FakeWalletRPC implements OrchestratorWalletRPC {
     subtractFlags.add(subtractFeeFromAmount);
     inputCounts.add(requiredInputs?.length ?? 0);
     return wmpb.SendTransactionResponse(txid: 'txid${sentAmounts.length}');
+  }
+
+  @override
+  Future<GetTransactionDetailsResponse> getTransactionDetails({
+    required String walletId,
+    required String txid,
+  }) async {
+    detailRequests.add((walletId, txid));
+    if (failDetails) {
+      throw StateError('Core did not return the transaction');
+    }
+    return GetTransactionDetailsResponse(vsizeVbytes: 177, totalOutputSats: Int64(99823));
   }
 
   @override
@@ -263,6 +277,27 @@ void main() {
     expect(orchestrator.wallet.subtractFlags, [true]);
     expect(orchestrator.wallet.sentAmounts, [plan.batches.single.inputSats]);
     expect(orchestrator.wallet.inputCounts, [2]);
+  });
+
+  test('shows the output and size of the broadcast transaction', () async {
+    final plan = planOf([coin('a', 50000), coin('b', 50000)]);
+
+    await provider.start(walletId: 'wallet', plan: plan);
+
+    expect(provider.runs.single.outputSats, 99823);
+    expect(provider.runs.single.vbytes, 177);
+    expect(orchestrator.wallet.detailRequests, [('wallet', 'txid1')]);
+  });
+
+  test('keeps a broadcast pending when Core cannot return its details', () async {
+    orchestrator.wallet.failDetails = true;
+
+    await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
+
+    final run = provider.runs.single;
+    expect(run.status, ConsolidationRunStatus.pending);
+    expect(run.txid, 'txid1');
+    expect(run.error, contains('Core did not return the transaction'));
   });
 
   // A freeze that fails part way must not leave coins frozen for a
