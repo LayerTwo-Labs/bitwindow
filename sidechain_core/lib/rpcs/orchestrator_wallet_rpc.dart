@@ -490,11 +490,13 @@ class OrchestratorWalletRPC {
     );
   }
 
-  /// Broadcasts a finalized raw transaction over the wallet's chain.
+  /// Broadcasts a finalized raw transaction over the wallet's chain. The
+  /// orchestrator refuses it when it spends a coin the user froze.
   Future<String> broadcastTransaction({
     required String walletId,
     required String txHex,
   }) async {
+    await pushFrozenCoins();
     final response = await _unaryClient.broadcastTransaction(
       wmpb.BroadcastTransactionRequest(walletId: walletId, txHex: txHex),
     );
