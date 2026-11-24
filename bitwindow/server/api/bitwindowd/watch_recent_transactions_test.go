@@ -2,6 +2,7 @@ package bitwindowd_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -21,28 +22,46 @@ import (
 	mempoolrpc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/mempool/v1/mempoolv1connect"
 )
 
-// feedMempool sends an empty snapshot, then one added change per tx on added.
 type feedMempool struct {
 	*fakeMempool
-	added chan *mempoolpb.Transaction
+	changed chan struct{}
+}
+
+func (f *feedMempool) add(tx *mempoolpb.Transaction) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.txs = append([]*mempoolpb.Transaction{tx}, f.txs...)
+	close(f.changed)
+	f.changed = make(chan struct{})
 }
 
 func (f *feedMempool) WatchTransactions(ctx context.Context, _ *mempoolpb.WatchTransactionsRequest, stream mempoolrpc.MempoolServiceWatchTransactionsServerStream) error {
-	if err := stream.Send(&mempoolpb.WatchTransactionsResponse{Snapshot: &mempoolpb.Snapshot{}}); err != nil {
+	f.mu.Lock()
+	snapshot := slices.Clone(f.txs)
+	f.mu.Unlock()
+	if err := stream.Send(&mempoolpb.WatchTransactionsResponse{
+		Snapshot: &mempoolpb.Snapshot{Transactions: snapshot},
+	}); err != nil {
 		return err
 	}
+	count := len(snapshot)
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case tx := <-f.added:
-			f.mu.Lock()
-			f.txs = append([]*mempoolpb.Transaction{tx}, f.txs...)
-			f.mu.Unlock()
+		f.mu.Lock()
+		added := slices.Clone(f.txs[:len(f.txs)-count])
+		count = len(f.txs)
+		changed := f.changed
+		f.mu.Unlock()
+
+		for _, tx := range slices.Backward(added) {
 			change := &mempoolpb.Change{Change: &mempoolpb.Change_Added{Added: tx}}
 			if err := stream.Send(&mempoolpb.WatchTransactionsResponse{Changes: []*mempoolpb.Change{change}}); err != nil {
 				return err
 			}
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-changed:
 		}
 	}
 }
@@ -66,7 +85,7 @@ func TestWatchRecentTransactionsSendsEachNewTx(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	mempool := &feedMempool{fakeMempool: &fakeMempool{}, added: make(chan *mempoolpb.Transaction)}
+	mempool := &feedMempool{fakeMempool: &fakeMempool{}, changed: make(chan struct{})}
 	cli := v1connect.NewBitwindowdServiceClient(apitests.RPC(t, database.Test(t), apitests.WithBitcoind(bitcoind), apitests.WithMempool(mempool)))
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
@@ -79,7 +98,7 @@ func TestWatchRecentTransactionsSendsEachNewTx(t *testing.T) {
 
 	for n, txid := range []string{"tx1", "tx2", "tx3"} {
 		start := time.Now()
-		mempool.added <- &mempoolpb.Transaction{Txid: txid, Vsize: 100, FeeSats: 200, Time: timestamppb.New(time.Unix(int64(10+n), 0))}
+		mempool.add(&mempoolpb.Transaction{Txid: txid, Vsize: 100, FeeSats: 200, Time: timestamppb.New(time.Unix(int64(10+n), 0))})
 		next, err := stream.Receive()
 		require.NoError(t, err)
 		require.False(t, next.GetHeartbeat())
