@@ -798,8 +798,14 @@ func Run(ctx context.Context, cfg Config) error {
 
 // shutdownServer closes the RPC listener, so a next Run in this process can bind it.
 func shutdownServer(srv *http.Server) error {
-	if err := srv.Close(); err != nil {
-		return fmt.Errorf("close RPC server: %w", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := srv.Shutdown(ctx)
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = srv.Close()
+	}
+	if err != nil {
+		return fmt.Errorf("stop RPC server: %w", err)
 	}
 	return nil
 }

@@ -2,8 +2,10 @@ package daemon
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,4 +110,62 @@ func TestRunServesAgainInTheSameProcess(t *testing.T) {
 		cancel()
 		awaitRun(t, done)
 	}
+}
+
+func TestShutdownServerCompletesTheResponse(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "2")
+		_, err := io.WriteString(w, "a")
+		if err != nil {
+			return
+		}
+		w.(http.Flusher).Flush()
+		<-release
+		_, err = io.WriteString(w, "b")
+		if err != nil {
+			return
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	resp, err := srv.Client().Get(srv.URL)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
+
+	done := make(chan error, 1)
+	go func() { done <- shutdownServer(srv.Config) }()
+	select {
+	case err := <-done:
+		t.Fatalf("shutdown returned before the response: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	release <- struct{}{}
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "ab", string(body))
+	awaitRun(t, done)
+}
+
+func TestShutdownServerClosesAnOpenStream(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "2")
+		_, err := io.WriteString(w, "a")
+		if err != nil {
+			return
+		}
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	t.Cleanup(srv.Close)
+	resp, err := srv.Client().Get(srv.URL)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
+
+	done := make(chan error, 1)
+	go func() { done <- shutdownServer(srv.Config) }()
+	awaitRun(t, done)
+	body, err := io.ReadAll(resp.Body)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	require.Equal(t, "a", string(body))
 }
