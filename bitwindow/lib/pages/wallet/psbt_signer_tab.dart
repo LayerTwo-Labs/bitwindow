@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:bitwindow/widgets/airgap_psbt_dialog.dart';
 import 'package:flutter/widgets.dart';
+import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 const _psbtMagic = [0x70, 0x73, 0x62, 0x74, 0xff];
@@ -55,10 +56,15 @@ class _PsbtSignerTabState extends State<PsbtSignerTab> {
       setState(() => _error = 'Not a valid base64 PSBT');
       return;
     }
+    final walletId = GetIt.I.get<WalletReaderProvider>().activeWalletId;
+    if (walletId == null) {
+      setState(() => _error = 'No active wallet');
+      return;
+    }
     setState(() => _error = null);
     await showThemedDialog<bool>(
       context: context,
-      builder: (context) => AirgapPsbtDialog(unsignedPsbtBase64: psbt),
+      builder: (context) => AirgapPsbtDialog(walletId: walletId, unsignedPsbtBase64: psbt),
     );
   }
 
