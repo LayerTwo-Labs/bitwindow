@@ -51,6 +51,11 @@ class WalletDropdown extends StatelessWidget {
                   'wallet_item_${wallet.id}_${wallet.gradient.backgroundSvg}',
                 ),
                 value: wallet.id,
+                triggerChild: _WalletRow(
+                  wallet: wallet,
+                  attention: walletsNeedingAttention.contains(wallet.id),
+                  compact: true,
+                ),
                 child: _WalletRow(
                   wallet: wallet,
                   attention: walletsNeedingAttention.contains(wallet.id),
@@ -137,9 +142,10 @@ class _ActionLabel extends StatelessWidget {
 class _WalletRow extends StatelessWidget {
   final WalletMetadata wallet;
   final bool attention;
+  final bool compact;
   final Future<void> Function()? onEdit;
 
-  const _WalletRow({required this.wallet, required this.attention, required this.onEdit});
+  const _WalletRow({required this.wallet, required this.attention, this.compact = false, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +159,7 @@ class _WalletRow extends StatelessWidget {
           size: 24,
         ),
         const SizedBox(width: 12),
-        SailText.primary13(wallet.name),
+        if (compact) Expanded(child: SailText.primary13(wallet.name, maxLines: 1)) else SailText.primary13(wallet.name),
         if (attention) ...[
           const SizedBox(width: 8),
           Container(
