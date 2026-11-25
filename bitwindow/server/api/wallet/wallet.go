@@ -1024,6 +1024,10 @@ func (s *Server) CreateCheque(ctx context.Context, c *pb.CreateChequeRequest) (*
 		return nil, connect.NewError(connect.CodeInvalidArgument, "wallet_id is required")
 	}
 
+	if c.ExpectedAmountSats == 0 || c.ExpectedAmountSats > btcutil.MaxSatoshi {
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "expected_amount_sats must be from 1 to %d", int64(btcutil.MaxSatoshi))
+	}
+
 	if err := s.requireUnlocked(ctx); err != nil {
 		return nil, err
 	}

@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+const _maxSats = 21000000 * 100000000;
+
 @RoutePage()
 class CreateCheckPage extends StatefulWidget {
   const CreateCheckPage({super.key});
@@ -99,6 +101,10 @@ class _CreateCheckPageState extends State<CreateCheckPage> {
     }
 
     final sats = btcToSatoshi(btcAmount);
+    if (sats > _maxSats) {
+      setState(() => _error = 'Please enter a valid amount');
+      return;
+    }
 
     setState(() {
       _isCreating = true;

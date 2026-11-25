@@ -27,7 +27,7 @@ class _FakeCheckProvider extends ChangeNotifier implements CheckProvider {
   final bool swept;
 
   @override
-  Future<bwpb.Cheque?> getCheck(int id) async => bwpb.Cheque(
+  Future<bwpb.Cheque> getCheck(int id) async => bwpb.Cheque(
     id: Int64(1),
     address: _address,
     expectedAmountSats: Int64(1000000),
@@ -39,9 +39,6 @@ class _FakeCheckProvider extends ChangeNotifier implements CheckProvider {
 
   @override
   List<bwpb.Cheque> get checks => const [];
-
-  @override
-  void startPolling(int checkId, {Duration interval = const Duration(seconds: 5)}) {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -162,6 +159,17 @@ void main() {
         expect(_fontSize(tester, heading), 24);
       });
     }
+  });
+
+  testWidgets('Create Check refuses an amount above the money supply', (tester) async {
+    _registerFakes();
+    await _pump(tester, const CreateCheckPage(), phone: false);
+
+    await tester.enterText(find.byType(TextField), '21000001');
+    await tester.tap(find.text('Create'));
+    await tester.pump();
+
+    expect(find.text('Please enter a valid amount'), findsOneWidget);
   });
 
   group('check details', () {

@@ -410,6 +410,22 @@ func TestService_CreateCheque(t *testing.T) {
 		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 	})
 
+	t.Run("an amount outside the money supply is an invalid argument", func(t *testing.T) {
+		t.Parallel()
+
+		db := database.Test(t)
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, db))
+
+		for _, sats := range []uint64{0, btcutil.MaxSatoshi + 1} {
+			_, err := cli.CreateCheque(t.Context(), &walletv1.CreateChequeRequest{WalletId: testWalletID, ExpectedAmountSats: sats})
+			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), "%d sats", sats)
+		}
+
+		list, err := cheques.List(t.Context(), db, testWalletID)
+		require.NoError(t, err)
+		assert.Empty(t, list)
+	})
+
 	t.Run("a locked wallet refuses", func(t *testing.T) {
 		t.Parallel()
 
