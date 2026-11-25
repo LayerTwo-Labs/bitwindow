@@ -121,15 +121,17 @@ class TransactionStatusManager {
 }
 
 class PSBTValidator {
-  /// Validates a PSBT via orchestrator MultisigLoungeService. requiredSigs is
-  /// the group threshold (m); validation is pure stateless logic backend-side.
-  static Future<mlpb.ValidatePsbtResponse> _validate(String psbtBase64, int requiredSigs) {
-    return _multisigLounge.validatePsbt(psbtBase64: psbtBase64, requiredSigs: requiredSigs);
-  }
-
-  /// Checks if any partial signatures are present on the PSBT.
-  static Future<bool> hasAnySignatures(String psbtBase64, int totalKeysInGroup) async {
-    final res = await _validate(psbtBase64, totalKeysInGroup);
+  /// Checks for partial signatures. If a group is set, each input must use that group.
+  static Future<bool> hasAnySignatures(
+    String psbtBase64,
+    int totalKeysInGroup, {
+    MultisigGroup? group,
+  }) async {
+    final res = await _multisigLounge.validatePsbt(
+      psbtBase64: psbtBase64,
+      requiredSigs: totalKeysInGroup,
+      group: group == null ? null : _groupToLoungeProto(group),
+    );
     if (res.error.isNotEmpty) {
       throw Exception('invalid PSBT: ${res.error}');
     }

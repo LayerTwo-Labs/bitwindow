@@ -1415,6 +1415,7 @@ class MultisigLoungeViewModel extends BaseViewModel {
                               group,
                               'Initial',
                               false,
+                              isInitial: true,
                             ),
                           ),
                         ],
@@ -1698,8 +1699,9 @@ class MultisigLoungeViewModel extends BaseViewModel {
     MultisigTransaction transaction,
     MultisigGroup group,
     String keyOwner,
-    bool isSigned,
-  ) async {
+    bool isSigned, {
+    bool isInitial = false,
+  }) async {
     exportError = null;
     notifyListeners();
     try {
@@ -1722,6 +1724,7 @@ class MultisigLoungeViewModel extends BaseViewModel {
         'psbt': psbtData,
         'is_signed': isSigned,
         'key_owner': keyOwner,
+        if (isInitial) 'is_initial': true,
         'exported_at': DateTime.now().toIso8601String(),
       };
 
