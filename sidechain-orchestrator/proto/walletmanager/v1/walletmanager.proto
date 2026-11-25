@@ -1096,6 +1096,8 @@ message TransactionEntry {
   SidechainDeposit sidechain_deposit = 16;
   // Height of the block that holds the transaction. 0 when unconfirmed.
   uint32 block_height = 17;
+  // The wallet abandoned this transaction.
+  bool abandoned = 18;
 }
 
 // BmmBid names the BMM request one wallet transaction carries.

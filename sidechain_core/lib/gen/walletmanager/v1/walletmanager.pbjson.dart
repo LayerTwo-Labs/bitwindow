@@ -2148,6 +2148,7 @@ const TransactionEntry$json = {
       '10': 'sidechainDeposit'
     },
     {'1': 'block_height', '3': 17, '4': 1, '5': 13, '10': 'blockHeight'},
+    {'1': 'abandoned', '3': 18, '4': 1, '5': 8, '10': 'abandoned'},
   ],
 };
 
@@ -2163,7 +2164,7 @@ final $typed_data.Uint8List transactionEntryDescriptor =
         '53YWxsZXRtYW5hZ2VyLnYxLkJtbUJpZFIGYm1tQmlkEicKD3dhcm5pbmdfbWVzc2FnZRgPIAEo'
         'CVIOd2FybmluZ01lc3NhZ2USTwoRc2lkZWNoYWluX2RlcG9zaXQYECABKAsyIi53YWxsZXRtYW'
         '5hZ2VyLnYxLlNpZGVjaGFpbkRlcG9zaXRSEHNpZGVjaGFpbkRlcG9zaXQSIQoMYmxvY2tfaGVp'
-        'Z2h0GBEgASgNUgtibG9ja0hlaWdodA==');
+        'Z2h0GBEgASgNUgtibG9ja0hlaWdodBIcCglhYmFuZG9uZWQYEiABKAhSCWFiYW5kb25lZA==');
 
 @$core.Deprecated('Use bmmBidDescriptor instead')
 const BmmBid$json = {

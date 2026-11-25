@@ -432,9 +432,12 @@ func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, 
 		if !includeConflicted && (t.Confirmations < 0 || t.ReplacedByTxid) {
 			continue
 		}
-		feeSats, err := btcToSats(math.Abs(t.Fee))
-		if err != nil {
-			return nil, fmt.Errorf("fee of %s: %w", t.Txid, err)
+		var feeSats uint64
+		if !t.Abandoned {
+			feeSats, err = btcToSats(math.Abs(t.Fee))
+			if err != nil {
+				return nil, fmt.Errorf("fee of %s: %w", t.Txid, err)
+			}
 		}
 		row := txRow{
 			txid:       t.Txid,
