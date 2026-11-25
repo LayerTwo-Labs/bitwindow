@@ -192,7 +192,7 @@ func TestDeniability(t *testing.T) {
 		require.ErrorIs(t, Cancel(t.Context(), db, 999, "reason"), ErrNotFound)
 		require.ErrorIs(t, Pause(t.Context(), db, 999), ErrNotFound)
 		require.ErrorIs(t, Resume(t.Context(), db, 999), ErrNotFound)
-		require.ErrorIs(t, Update(t.Context(), db, 999, time.Second, 1, nil, "txid", 0), ErrNotFound)
+		require.ErrorIs(t, Restart(t.Context(), db, Denial{ID: 999}, time.Second, 1, nil, "txid", 0), ErrNotFound)
 	})
 
 	t.Run("Pause of a paused denial and Resume of an active denial return ErrNotFound", func(t *testing.T) {
@@ -297,28 +297,69 @@ func TestDeniability(t *testing.T) {
 		require.Nil(t, found)
 	})
 
-	t.Run("Update", func(t *testing.T) {
+	t.Run("Restart of a cancelled denial runs the hops of the new request", func(t *testing.T) {
 		t.Parallel()
 		db := database.Test(t)
 
-		// Create a denial
 		denial, err := Create(ctx, db, "test-wallet", "txid", 0, 1*time.Hour, 3, nil)
 		require.NoError(t, err)
-		require.NotNil(t, denial)
+		require.NoError(t, Cancel(ctx, db, denial.ID, "cancelled by user"))
 
-		// Update the denial
-		err = Update(ctx, db, denial.ID, 2*time.Second, 1, TargetSizes{500}, "txid", 0)
-		require.NoError(t, err)
+		require.NoError(t, Restart(ctx, db, denial, 2*time.Second, 1, []int64{500}, "txid", 0))
 
-		// Verify the update
 		denial, err = Get(ctx, db, denial.ID)
 		require.NoError(t, err)
 		require.Equal(t, 2*time.Second, denial.DelayDuration)
-		require.Equal(t, int32(4), denial.NumHops) // 3 + 1
+		require.Equal(t, int32(1), denial.NumHops)
 		require.Equal(t, TargetSizes{500}, denial.TargetUTXOSizes)
 	})
 
-	t.Run("Update starts a paused cancelled denial", func(t *testing.T) {
+	t.Run("Restart after one hop keeps that hop and adds the new hops", func(t *testing.T) {
+		t.Parallel()
+		db := database.Test(t)
+
+		denial, err := Create(ctx, db, "test-wallet", "txid", 0, 1*time.Hour, 3, []int64{0, 700, 0})
+		require.NoError(t, err)
+		require.NoError(t, RecordExecution(ctx, db, denial.ID, "txid", 0, "hop-txid", 1))
+		require.NoError(t, Cancel(ctx, db, denial.ID, "cancelled by user"))
+		denial, err = Get(ctx, db, denial.ID)
+		require.NoError(t, err)
+
+		require.NoError(t, Restart(ctx, db, denial, time.Hour, 2, []int64{500, 0}, "hop-txid", 1))
+
+		denial, err = Get(ctx, db, denial.ID)
+		require.NoError(t, err)
+		require.Equal(t, int32(3), denial.NumHops)
+		require.Equal(t, 1, denial.CompletedHops())
+		require.Equal(t, TargetSizes{0, 500, 0}, denial.TargetUTXOSizes)
+	})
+
+	t.Run("Restart starts the delay of the next hop at the restart", func(t *testing.T) {
+		t.Parallel()
+		db := database.Test(t)
+
+		denial, err := Create(ctx, db, "test-wallet", "txid", 0, time.Hour, 1, nil)
+		require.NoError(t, err)
+		old := time.Now().Add(-48 * time.Hour)
+		_, err = db.ExecContext(ctx, `UPDATE denials SET created_at = ?, updated_at = ? WHERE id = ?`, old, old, denial.ID)
+		require.NoError(t, err)
+		require.NoError(t, RecordExecution(ctx, db, denial.ID, "txid", 0, "hop-txid", 1))
+		_, err = db.ExecContext(ctx, `UPDATE executed_denials SET created_at = ? WHERE denial_id = ?`, old, denial.ID)
+		require.NoError(t, err)
+		denial, err = Get(ctx, db, denial.ID)
+		require.NoError(t, err)
+		require.Nil(t, denial.NextExecution)
+
+		before := time.Now()
+		require.NoError(t, Restart(ctx, db, denial, time.Hour, 1, nil, "hop-txid", 1))
+
+		denial, err = Get(ctx, db, denial.ID)
+		require.NoError(t, err)
+		require.NotNil(t, denial.NextExecution)
+		require.True(t, denial.NextExecution.After(before), "next execution %s is before the restart", denial.NextExecution)
+	})
+
+	t.Run("Restart starts a paused cancelled denial", func(t *testing.T) {
 		t.Parallel()
 		db := database.Test(t)
 
@@ -334,7 +375,7 @@ func TestDeniability(t *testing.T) {
 		require.NotNil(t, stopped.CancelReason)
 		require.Nil(t, stopped.NextExecution)
 
-		require.NoError(t, Update(t.Context(), db, denial.ID, time.Minute, 1, nil, "txid", 0))
+		require.NoError(t, Restart(t.Context(), db, stopped, time.Minute, 1, nil, "txid", 0))
 
 		denials, err := List(t.Context(), db)
 		require.NoError(t, err)

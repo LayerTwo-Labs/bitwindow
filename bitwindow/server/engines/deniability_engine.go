@@ -589,7 +589,7 @@ func (e *DeniabilityEngine) chooseDenialStrategy(
 	walletID string,
 ) (map[string]uint64, error) {
 	logger := zerolog.Ctx(ctx)
-	completedHops := len(denial.ExecutedDenials)
+	completedHops := denial.CompletedHops()
 
 	// Target sizes are a sparse array where targetSizes[hopIndex] = amount
 	// A value of 0 means "use random split" for that hop
