@@ -1103,7 +1103,7 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
     if (body.isEmpty || _posting) {
       return;
     }
-    if (!await NewsCost.confirmFirstComment(context)) {
+    if (!await NewsCost.confirmFirstComment(context, body: body)) {
       return;
     }
     if (!mounted) {
@@ -1365,7 +1365,7 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
               const SailSpacing(SailStyleValues.padding08),
               NewsCostTooltip(
                 action: NewsAction.NEWS_ACTION_COMMENT,
-                body: _controller.text,
+                body: _controller,
                 child: SailButton(label: 'Comment', loading: _posting, onPressed: () async => _post()),
               ),
             ],

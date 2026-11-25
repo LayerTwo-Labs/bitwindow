@@ -4,35 +4,25 @@ import 'package:sail_ui/sail_ui.dart';
 
 /// Prices a CoinNews action and warns the user the first time they pay for one.
 class NewsCost {
-  static final Map<String, NewsFeeEstimate> _cache = {};
-
-  /// Estimated cost of the action. Cached per body so a hover costs one call.
-  static Future<NewsFeeEstimate?> estimate(NewsAction action, {String body = ''}) async {
-    final key = '${action.name}:${body.length}';
-    final hit = _cache[key];
-    if (hit != null) {
-      return hit;
-    }
-
+  /// Estimated cost of the action for this body, or null when the server gives none.
+  static Future<NewsFeeEstimate?> estimate(NewsAction action, {required String body}) async {
     try {
-      final estimate = await GetIt.I.get<BitwindowRPC>().misc.estimateNewsFee(action, body: body);
-      _cache[key] = estimate;
-      return estimate;
+      return await GetIt.I.get<BitwindowRPC>().misc.estimateNewsFee(action, body: body);
     } catch (_) {
       // a missing estimate must not block a comment
       return null;
     }
   }
 
-  /// Shows the on-chain warning the first time the user comments.
+  /// Shows the on-chain warning, with the cost of [body], the first time the user comments.
   /// Returns false only when the user backs out.
-  static Future<bool> confirmFirstComment(BuildContext context) async {
+  static Future<bool> confirmFirstComment(BuildContext context, {required String body}) async {
     final settings = GetIt.I.get<ClientSettings>();
     if ((await settings.getValue(CommentWarningSeenSetting())).value) {
       return true;
     }
 
-    final estimate = await NewsCost.estimate(NewsAction.NEWS_ACTION_COMMENT, body: 'x' * 120);
+    final estimate = await NewsCost.estimate(NewsAction.NEWS_ACTION_COMMENT, body: body);
     if (!context.mounted) {
       return false;
     }
@@ -91,13 +81,13 @@ String formatFee(NewsFeeEstimate estimate) {
   return '≈ ${estimate.feeSats} sats  ·  ${estimate.vsize} vB at $rate sat/vB';
 }
 
-/// Wraps a control that spends money, so hovering it reveals the cost.
+/// Wraps a control that spends money, so hovering it reveals the cost of the text in [body].
 class NewsCostTooltip extends StatefulWidget {
   final NewsAction action;
-  final String body;
+  final TextEditingController body;
   final Widget child;
 
-  const NewsCostTooltip({super.key, required this.action, required this.child, this.body = ''});
+  const NewsCostTooltip({super.key, required this.action, required this.body, required this.child});
 
   @override
   State<NewsCostTooltip> createState() => _NewsCostTooltipState();
@@ -105,26 +95,72 @@ class NewsCostTooltip extends StatefulWidget {
 
 class _NewsCostTooltipState extends State<NewsCostTooltip> {
   NewsFeeEstimate? _estimate;
-  bool _asked = false;
+  String? _priced;
+  bool _checking = false;
+  bool _hovered = false;
 
-  Future<void> _load() async {
-    if (_asked) {
+  @override
+  void initState() {
+    super.initState();
+    widget.body.addListener(_price);
+  }
+
+  @override
+  void didUpdateWidget(NewsCostTooltip old) {
+    super.didUpdateWidget(old);
+    if (old.body != widget.body) {
+      old.body.removeListener(_price);
+      widget.body.addListener(_price);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.body.removeListener(_price);
+    super.dispose();
+  }
+
+  Future<void> _price() async {
+    final body = widget.body.text.trim();
+    if (!_hovered || body == _priced) {
       return;
     }
-    _asked = true;
-    final estimate = await NewsCost.estimate(widget.action, body: widget.body);
-    if (!mounted) {
+    _priced = body;
+    if (body.isEmpty) {
+      setState(() {
+        _estimate = null;
+        _checking = false;
+      });
       return;
     }
-    setState(() => _estimate = estimate);
+    setState(() => _checking = true);
+    final estimate = await NewsCost.estimate(widget.action, body: body);
+    if (!mounted || body != _priced) {
+      return;
+    }
+    setState(() {
+      _estimate = estimate;
+      _checking = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final estimate = _estimate;
     return MouseRegion(
-      onEnter: (_) => _load(),
-      child: SailTooltip(message: estimate == null ? 'Checking the fee…' : formatFee(estimate), child: widget.child),
+      onEnter: (_) {
+        _hovered = true;
+        _price();
+      },
+      onExit: (_) => _hovered = false,
+      child: SailTooltip(
+        message: _checking
+            ? 'Checking the fee…'
+            : estimate == null
+            ? ''
+            : formatFee(estimate),
+        child: widget.child,
+      ),
     );
   }
 }
