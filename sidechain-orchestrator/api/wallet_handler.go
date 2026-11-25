@@ -1201,6 +1201,7 @@ func (h *WalletHandler) transactionEntries(ctx context.Context, walletID string,
 			Label:          tx.Label,
 			Fee:            tx.Fee,
 			ReplacedByTxid: tx.Replaced(),
+			Abandoned:      tx.Abandoned,
 			WalletId:       walletID,
 		}
 	})

@@ -7671,7 +7671,9 @@ type TransactionEntry struct {
 	// Set when this install broadcast the transaction as a sidechain deposit request.
 	SidechainDeposit *SidechainDeposit `protobuf:"bytes,16,opt,name=sidechain_deposit,json=sidechainDeposit,proto3" json:"sidechain_deposit,omitempty"`
 	// Height of the block that holds the transaction. 0 when unconfirmed.
-	BlockHeight   uint32 `protobuf:"varint,17,opt,name=block_height,json=blockHeight,proto3" json:"block_height,omitempty"`
+	BlockHeight uint32 `protobuf:"varint,17,opt,name=block_height,json=blockHeight,proto3" json:"block_height,omitempty"`
+	// The wallet abandoned this transaction.
+	Abandoned     bool `protobuf:"varint,18,opt,name=abandoned,proto3" json:"abandoned,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7823,6 +7825,13 @@ func (x *TransactionEntry) GetBlockHeight() uint32 {
 		return x.BlockHeight
 	}
 	return 0
+}
+
+func (x *TransactionEntry) GetAbandoned() bool {
+	if x != nil {
+		return x.Abandoned
+	}
+	return false
 }
 
 // BmmBid names the BMM request one wallet transaction carries.
@@ -12153,7 +12162,7 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1e.walletmanager.v1.MnemonicKindR\x04kind\"L\n" +
 	"\x17ListTransactionsRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\x05R\x05count\"\xc1\x04\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\"\xdf\x04\n" +
 	"\x10TransactionEntry\x12\x12\n" +
 	"\x04txid\x18\x01 \x01(\tR\x04txid\x12\x12\n" +
 	"\x04vout\x18\x02 \x01(\x05R\x04vout\x12\x18\n" +
@@ -12174,7 +12183,8 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\abmm_bid\x18\x0e \x01(\v2\x18.walletmanager.v1.BmmBidR\x06bmmBid\x12'\n" +
 	"\x0fwarning_message\x18\x0f \x01(\tR\x0ewarningMessage\x12O\n" +
 	"\x11sidechain_deposit\x18\x10 \x01(\v2\".walletmanager.v1.SidechainDepositR\x10sidechainDeposit\x12!\n" +
-	"\fblock_height\x18\x11 \x01(\rR\vblockHeight\"{\n" +
+	"\fblock_height\x18\x11 \x01(\rR\vblockHeight\x12\x1c\n" +
+	"\tabandoned\x18\x12 \x01(\bR\tabandoned\"{\n" +
 	"\x06BmmBid\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\rR\x04slot\x12#\n" +
 	"\rcritical_hash\x18\x02 \x01(\tR\fcriticalHash\x12$\n" +

@@ -63,6 +63,18 @@ func TestStatsCountTheRowsOfTheHistory(t *testing.T) {
 		assert.Equal(t, int64(2_820), response.TotalFeesSats)
 	})
 
+	t.Run("an abandoned send counts as a row without a paid fee", func(t *testing.T) {
+		response := coreStats(t, []*orchpb.TransactionEntry{
+			{Txid: "confirmed", Category: "send", AmountSats: -1_000, Fee: -0.00000282, Confirmations: 1},
+			{Txid: "pending", Category: "send", AmountSats: -2_000, Fee: -0.00000282},
+			{Txid: "abandoned", Category: "send", AmountSats: -3_000, Fee: -0.00000416, Abandoned: true},
+			{Txid: "abandoned", Category: "send", AmountSats: -4_000, Fee: -0.00000416, Abandoned: true},
+			{Txid: "abandoned", Category: "receive", AmountSats: 4_000},
+		}, nil)
+		assert.Equal(t, int64(3), response.TransactionCountTotal)
+		assert.Equal(t, int64(564), response.TotalFeesSats)
+	})
+
 	t.Run("unconfirmed change counts as a UTXO", func(t *testing.T) {
 		response := coreStats(t, nil, []*orchpb.UnspentOutput{
 			{Txid: "send", Vout: 1, Address: "bcrt1qchange", AmountSats: 4_949_999_718},

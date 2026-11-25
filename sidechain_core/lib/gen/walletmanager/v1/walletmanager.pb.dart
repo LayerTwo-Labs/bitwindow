@@ -9096,6 +9096,7 @@ class TransactionEntry extends $pb.GeneratedMessage {
     $core.String? warningMessage,
     SidechainDeposit? sidechainDeposit,
     $core.int? blockHeight,
+    $core.bool? abandoned,
   }) {
     final result = TransactionEntry._();
     if (txid != null) result.txid = txid;
@@ -9115,6 +9116,7 @@ class TransactionEntry extends $pb.GeneratedMessage {
     if (warningMessage != null) result.warningMessage = warningMessage;
     if (sidechainDeposit != null) result.sidechainDeposit = sidechainDeposit;
     if (blockHeight != null) result.blockHeight = blockHeight;
+    if (abandoned != null) result.abandoned = abandoned;
     return result;
   }
 
@@ -9147,6 +9149,7 @@ class TransactionEntry extends $pb.GeneratedMessage {
     ..aOS(15, _omitFieldNames ? '' : 'warningMessage')
     ..aOM<SidechainDeposit>(16, _omitFieldNames ? '' : 'sidechainDeposit', subBuilder: SidechainDeposit.$_createMessage)
     ..aI(17, _omitFieldNames ? '' : 'blockHeight', fieldType: $pb.PbFieldType.OU3)
+    ..aOB(18, _omitFieldNames ? '' : 'abandoned')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9329,6 +9332,16 @@ class TransactionEntry extends $pb.GeneratedMessage {
   $core.bool hasBlockHeight() => $_has(16);
   @$pb.TagNumber(17)
   void clearBlockHeight() => $_clearField(17);
+
+  /// The wallet abandoned this transaction.
+  @$pb.TagNumber(18)
+  $core.bool get abandoned => $_getBF(17);
+  @$pb.TagNumber(18)
+  set abandoned($core.bool value) => $_setBool(17, value);
+  @$pb.TagNumber(18)
+  $core.bool hasAbandoned() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearAbandoned() => $_clearField(18);
 }
 
 /// BmmBid names the BMM request one wallet transaction carries.
