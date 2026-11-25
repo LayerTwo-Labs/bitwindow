@@ -62,7 +62,7 @@ class PSBTCoordinatorModal extends StatelessWidget {
                   ),
                 ),
                 SailText.secondary12(
-                  'Transaction fee will be automatically calculated and deducted from the amount.',
+                  'The fee comes from change. If you spend the full balance, it comes from the payment.',
                 ),
                 SailRow(
                   spacing: SailStyleValues.padding12,
