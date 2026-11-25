@@ -6,11 +6,13 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sidechain_core/gen/misc/v1/misc.pb.dart';
+import 'package:sidechain_core/providers/sync_provider.dart';
 import 'package:sidechain_core/rpcs/bitwindow_api.dart';
 
 class NewsProvider extends ChangeNotifier {
   BitwindowRPC get api => GetIt.I.get<BitwindowRPC>();
   BlockchainProvider get blockchainProvider => GetIt.I.get<BlockchainProvider>();
+  SyncProvider get _syncProvider => GetIt.I.get<SyncProvider>();
 
   List<CoinNews> news = [];
   List<Topic> topics = [
@@ -23,11 +25,23 @@ class NewsProvider extends ChangeNotifier {
 
   Future<void>? _fetching;
   bool _fetchAgain = false;
+  SyncInfo? _bitwindowSync;
 
   NewsProvider() {
     blockchainProvider.addListener(fetch);
     blockchainProvider.recentChanged.addListener(fetch);
+    _bitwindowSync = _syncProvider.bitwindowdSyncInfo;
+    _syncProvider.addListener(_onSyncChanged);
     fetch();
+  }
+
+  void _onSyncChanged() {
+    final sync = _syncProvider.bitwindowdSyncInfo;
+    if (_bitwindowSync == sync) {
+      return;
+    }
+    _bitwindowSync = sync;
+    unawaited(fetch());
   }
 
   String? topicName(String id) => topics.firstWhereOrNull((t) => t.topic == id)?.name;
@@ -112,6 +126,7 @@ class NewsProvider extends ChangeNotifier {
   void dispose() {
     blockchainProvider.removeListener(fetch);
     blockchainProvider.recentChanged.removeListener(fetch);
+    _syncProvider.removeListener(_onSyncChanged);
     super.dispose();
   }
 }

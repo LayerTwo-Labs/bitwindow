@@ -29,15 +29,25 @@ class _API extends MockAPI {
   _MiscAPI get misc => fakeMisc;
 }
 
+class _SyncProvider extends SyncProvider {
+  void publish(SyncInfo info) {
+    bitwindowdSyncInfo = info;
+    notifyListeners();
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _API rpc;
+  late _SyncProvider sync;
 
   setUp(() async {
     await GetIt.I.reset();
     rpc = _API();
     GetIt.I.registerSingleton<BitwindowRPC>(rpc);
+    sync = _SyncProvider();
+    GetIt.I.registerSingleton<SyncProvider>(sync);
     await registerTestDependencies();
   });
 
@@ -58,5 +68,18 @@ void main() {
     await first;
 
     expect(provider.news.map((n) => n.headline), ['Broadcast during a read']);
+  });
+
+  test('the news updates after the BitWindow index changes', () async {
+    final provider = NewsProvider();
+    addTearDown(provider.dispose);
+    await pumpEventQueue();
+    expect(provider.news, isEmpty);
+
+    rpc.misc.served = [CoinNews(topic: 'a1a1a1a1', headline: 'Decoded story')];
+    sync.publish(SyncInfo(progressCurrent: 103, progressGoal: 103, lastBlockAt: null));
+    await pumpEventQueue();
+
+    expect(provider.news.map((story) => story.headline), ['Decoded story']);
   });
 }
