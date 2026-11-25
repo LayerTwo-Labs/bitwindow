@@ -285,21 +285,21 @@ func Query(ctx context.Context, db *sql.DB, filter Filter, limit int) ([]OPRetur
 	return opReturns, nil
 }
 
-// PendingState returns the count and newest ID of pending rows.
+// PendingState returns the pending row count and the OP_RETURN insert sequence.
 func PendingState(ctx context.Context, db *sql.DB) (string, error) {
-	var count, newestID int64
+	var count, insertSequence int64
 	err := db.QueryRowContext(ctx, `
-		SELECT COUNT(*), COALESCE(MAX(id), 0)
+		SELECT COUNT(*), COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'op_returns'), 0)
 		FROM op_returns
 		WHERE height IS NULL
-	`).Scan(&count, &newestID)
+	`).Scan(&count, &insertSequence)
 	if err != nil {
 		return "", fmt.Errorf("read pending OP_RETURN state: %w", err)
 	}
-	if count == 0 {
+	if insertSequence == 0 {
 		return "", nil
 	}
-	return fmt.Sprintf("%d:%d", count, newestID), nil
+	return fmt.Sprintf("%d:%d", count, insertSequence), nil
 }
 
 // ForgetPending removes the unconfirmed outputs for a transaction.

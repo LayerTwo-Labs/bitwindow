@@ -689,3 +689,19 @@ func TestListTopics_ListsMempoolCreationsAsPending(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, exists)
 }
+
+func TestPendingStateKeepsAnInsertAfterRemoval(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	db := database.Test(t)
+	before, err := PendingState(ctx, db)
+	require.NoError(t, err)
+
+	require.NoError(t, Persist(ctx, db, []OPReturn{{TxID: "original", Data: []byte("graffiti")}}))
+	require.NoError(t, ForgetPending(ctx, db, "original"))
+
+	after, err := PendingState(ctx, db)
+	require.NoError(t, err)
+	assert.NotEqual(t, before, after)
+}
