@@ -27,6 +27,9 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
   @override
   ({DateTime start, DateTime end})? get dateRange => null;
 
+  @override
+  bool get filtered => false;
+
   final saved = <String, String>{};
   final feeDialog = Completer<void>();
 

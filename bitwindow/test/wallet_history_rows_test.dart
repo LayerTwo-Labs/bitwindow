@@ -117,6 +117,11 @@ void main() {
     );
   });
 
+  test('an empty history names the filter when one hides the rows', () {
+    expect(historyEmptyText(filtered: false), 'No transactions yet');
+    expect(historyEmptyText(filtered: true), 'No transactions match');
+  });
+
   test('the CSV gives every address of a transaction', () {
     final tx = _tx('second')
       ..payments.addAll([TransactionPayment(address: 'second'), TransactionPayment(address: 'first')]);
