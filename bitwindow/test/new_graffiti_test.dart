@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bitwindow/pages/overview_page.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -76,6 +77,35 @@ void main() {
   });
 
   tearDown(() => GetIt.I.reset());
+
+  testWidgets('Broadcast keeps line breaks from a paste', (tester) async {
+    const message = 'Line one\nLine two 🧪';
+    final wallet = _WalletRPC();
+    GetIt.I.registerSingleton<OrchestratorRPC>(_Orchestrator(wallet));
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') {
+        return {'text': message};
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await tester.pumpSailPage(const NewGraffitiView());
+    await tester.tap(field);
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.meta);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
+    await tester.pumpAndSettle();
+    expect(tester.widget<EditableText>(field).controller.text, message);
+
+    wallet.address.complete(wmpb.GetNewAddressResponse(address: 'own-address'));
+    await tester.tap(broadcast);
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+
+    expect(wallet.messages, [message]);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('Broadcast sends the submitted text and keeps the next draft', (tester) async {
     final wallet = _WalletRPC();

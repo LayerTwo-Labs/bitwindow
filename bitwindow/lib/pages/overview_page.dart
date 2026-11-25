@@ -1226,6 +1226,8 @@ class NewGraffitiView extends StatelessWidget {
               controller: viewModel.messageController,
               hintText: 'Enter a message',
               size: TextFieldSize.small,
+              minLines: 1,
+              maxLines: 4,
             ),
             SailButton(
               label: 'Broadcast',
