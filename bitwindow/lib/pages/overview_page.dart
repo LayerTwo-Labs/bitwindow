@@ -1232,6 +1232,25 @@ class NewGraffitiView extends StatelessWidget {
               onPressed: () => viewModel.createGraffiti(context),
               disabled: viewModel.messageController.text.isEmpty,
             ),
+            if (viewModel.graffitiResult case final link?)
+              Semantics(
+                liveRegion: true,
+                child: Wrap(
+                  spacing: SailStyleValues.padding08,
+                  runSpacing: SailStyleValues.padding04,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SailRow(
+                      spacing: SailStyleValues.padding08,
+                      children: [
+                        SailSVG.fromAsset(SailSVGAsset.iconInfo, width: 16, color: context.sailTheme.colors.success),
+                        SailText.primary13(NewGraffitiViewModel._broadcastTitle),
+                      ],
+                    ),
+                    NotificationLinkText(link: link),
+                  ],
+                ),
+              ),
             if (viewModel.graffitiError != null) SailInlineError(viewModel.graffitiError!),
           ],
         );
@@ -1241,11 +1260,13 @@ class NewGraffitiView extends StatelessWidget {
 }
 
 class NewGraffitiViewModel extends BaseViewModel {
+  static const _broadcastTitle = 'Graffiti broadcast';
   final TextEditingController messageController = TextEditingController();
   final OrchestratorWalletRPC _orchestratorWallet = GetIt.I<OrchestratorRPC>().wallet;
   WalletReaderProvider get _walletReader => GetIt.I<WalletReaderProvider>();
 
   String? graffitiError;
+  NotificationLink? graffitiResult;
 
   NewGraffitiViewModel() {
     messageController.addListener(_onMessageChanged);
@@ -1263,6 +1284,7 @@ class NewGraffitiViewModel extends BaseViewModel {
     }
 
     graffitiError = null;
+    graffitiResult = null;
     notifyListeners();
     try {
       final walletId = _walletReader.activeWalletId;
@@ -1279,11 +1301,14 @@ class NewGraffitiViewModel extends BaseViewModel {
       )).txid;
 
       final network = GetIt.I.get<BitcoinConfProvider>().network;
+      final link = NotificationLink(text: 'View transaction', url: mempoolTxUrl(txid, network));
+      graffitiResult = link;
+      notifyListeners();
       GetIt.I.get<NotificationProvider>().add(
-        title: 'Graffiti broadcast',
+        title: _broadcastTitle,
         content: txid,
         dialogType: DialogType.success,
-        links: [NotificationLink(text: 'View transaction', url: mempoolTxUrl(txid, network))],
+        links: [link],
       );
 
       if (!context.mounted || messageController.text != message) {
