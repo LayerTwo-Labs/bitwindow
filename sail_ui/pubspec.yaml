@@ -17,7 +17,7 @@ dependencies:
       url: https://github.com/octobocto/flutter-plugins.git
       ref: 40ab5ebcdf015d25790f8fe7b1928da241d8feb0
       path: packages/desktop_multi_window
-  file_picker: ^13.3.2
+  file_picker: ^13.4.1
   fixnum: ^1.1.1
   flutter:
     sdk: flutter
