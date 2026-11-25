@@ -30,6 +30,39 @@ void main() {
   }
 
   group('SailTooltip', () {
+    testWidgets('shows no bubble for an empty message, and shows it when the message comes', (tester) async {
+      final message = ValueNotifier('');
+      addTearDown(message.dispose);
+      await tester.pumpSailPage(
+        Center(
+          child: ValueListenableBuilder(
+            valueListenable: message,
+            builder: (context, value, _) => SailTooltip(
+              message: value,
+              showDuration: null,
+              child: const SizedBox(width: 40, height: 40),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await hover(tester);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(find.byType(CompositedTransformFollower), findsNothing);
+
+      message.value = 'Rename';
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(find.text('Rename'), findsOneWidget);
+
+      message.value = '';
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(find.byType(CompositedTransformFollower), findsNothing);
+    });
+
     testWidgets('shows only after the wait duration', (tester) async {
       await pump(tester);
       await hover(tester);

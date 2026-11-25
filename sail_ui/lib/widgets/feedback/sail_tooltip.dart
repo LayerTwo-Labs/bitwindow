@@ -7,6 +7,8 @@ enum SailTooltipPosition { above, below, auto }
 
 class SailTooltip extends StatefulWidget {
   final Widget child;
+
+  /// Text of the bubble. An empty message with no title shows no bubble.
   final String message;
 
   /// Bold line above the message. Null leaves the bubble with the message only.
@@ -49,6 +51,9 @@ class _SailTooltipState extends State<SailTooltip> with SingleTickerProviderStat
   final LayerLink _link = LayerLink();
   late final AnimationController _controller;
   bool _placeAbove = false;
+  bool _hovered = false;
+
+  bool get _empty => widget.message.isEmpty && widget.title == null;
 
   @override
   void initState() {
@@ -64,6 +69,12 @@ class _SailTooltipState extends State<SailTooltip> with SingleTickerProviderStat
   void didUpdateWidget(SailTooltip oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.message != widget.message || oldWidget.title != widget.title) {
+      if (_empty) {
+        _scheduleHide();
+      } else if (_entry == null && _hovered && !(_showTimer?.isActive ?? false)) {
+        // The wait is over, so the new message shows at once.
+        WidgetsBinding.instance.addPostFrameCallback((_) => _show());
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => _entry?.markNeedsBuild());
     }
   }
@@ -103,7 +114,7 @@ class _SailTooltipState extends State<SailTooltip> with SingleTickerProviderStat
   }
 
   void _show() {
-    if (!mounted) {
+    if (!mounted || _empty) {
       return;
     }
     if (_entry != null) {
@@ -253,8 +264,14 @@ class _SailTooltipState extends State<SailTooltip> with SingleTickerProviderStat
     return CompositedTransformTarget(
       link: _link,
       child: MouseRegion(
-        onEnter: (_) => _scheduleShow(),
-        onExit: (_) => _scheduleHide(),
+        onEnter: (_) {
+          _hovered = true;
+          _scheduleShow();
+        },
+        onExit: (_) {
+          _hovered = false;
+          _scheduleHide();
+        },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onLongPress: _show,
