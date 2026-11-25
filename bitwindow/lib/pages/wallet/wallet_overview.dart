@@ -132,7 +132,7 @@ const List<String> transactionColumns = ['date', 'txid', 'address', 'note', 'sta
 /// Width of the action column, so its button never widens the table.
 const double bumpFeeColumnWidth = 104;
 
-const _cellPadding = EdgeInsets.symmetric(horizontal: SailStyleValues.padding12);
+const _cellPadding = EdgeInsets.symmetric(horizontal: SailStyleValues.padding08);
 const _phoneCellPadding = EdgeInsets.symmetric(horizontal: SailStyleValues.padding04);
 
 /// The date of a history row on a phone, on one line.
@@ -407,14 +407,17 @@ class _TransactionTableState extends State<TransactionTable> {
                               ),
                               SailTableHeaderCell(
                                 name: 'TXID',
+                                padding: _cellPadding,
                                 onSort: () => onSort('txid'),
                               ),
                               SailTableHeaderCell(
                                 name: 'Address',
+                                padding: _cellPadding,
                                 onSort: () => onSort('address'),
                               ),
                               SailTableHeaderCell(
                                 name: 'Note',
+                                padding: _cellPadding,
                                 onSort: () => onSort('note'),
                               ),
                               SailTableHeaderCell(
@@ -457,14 +460,17 @@ class _TransactionTableState extends State<TransactionTable> {
                                 ),
                                 SailTableCell(
                                   value: '${entry.txid.substring(0, 10)}..',
+                                  padding: _cellPadding,
                                   copyValue: entry.txid,
                                 ),
                                 SailTableCell(
                                   value: historyAddressText(entry),
+                                  padding: _cellPadding,
                                   copyValue: entry.address,
                                 ),
                                 SailTableCell(
                                   value: entry.note,
+                                  padding: _cellPadding,
                                 ),
                                 SailTableCell(
                                   value: transactionStatus(entry),
@@ -541,16 +547,19 @@ class _TransactionTableState extends State<TransactionTable> {
                                       ? 'Bump fee'
                                       : '',
                                   width: bumpFeeColumnWidth,
+                                  padding: _cellPadding,
                                   alignment: Alignment.centerRight,
                                   child: cancellable
                                       ? SailButton(
                                           label: 'Cancel bid',
+                                          loadingLabel: 'Wait',
                                           onPressed: () async => widget.model.cancelBid(context, entry),
                                           insideTable: true,
                                         )
                                       : replaceable
                                       ? SailButton(
                                           label: 'Bump fee',
+                                          loadingLabel: 'Wait',
                                           onPressed: () async => widget.model.openBumpFee(context, entry),
                                           insideTable: true,
                                         )
