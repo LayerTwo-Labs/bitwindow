@@ -37,6 +37,34 @@ void main() {
     }
   });
 
+  group('BitcoinURI address', () {
+    test('white space around a pasted URI is ignored', () {
+      final uri = BitcoinURI.parse('  bitcoin:$_address?amount=1 \n');
+      expect(uri.address, _address);
+      expect(uri.amountSats, 100000000);
+    });
+
+    test('a web link form gives the bare address', () {
+      expect(BitcoinURI.parse('bitcoin://$_address?amount=1').address, _address);
+    });
+
+    for (final address in [' $_address', '$_address#pay', '/$_address', 'bc1q ar0s']) {
+      test('address "$address" is refused', () {
+        expect(
+          () => BitcoinURI.parse('bitcoin:$address'),
+          throwsA(isA<FormatException>().having((e) => e.message, 'message', 'Invalid address')),
+        );
+      });
+    }
+
+    test('a broken percent escape is a format error', () {
+      expect(
+        () => BitcoinURI.parse('bitcoin:$_address?label=%zz'),
+        throwsA(isA<FormatException>().having((e) => e.message, 'message', 'Invalid percent encoding')),
+      );
+    });
+  });
+
   group('amountTextInUnit', () {
     test('sats unit writes whole sats', () {
       expect(amountTextInUnit(100000, BitcoinUnit.sats), '100000');
