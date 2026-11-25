@@ -296,7 +296,7 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
                 : frozen
                 ? 'Frozen'
                 : _coinSelection.getLabel(coin.output),
-            fill: true,
+            columnChars: 12,
           ),
           SailTableCell(value: _formatter.formatSats(coin.valueSats.toInt()), monospace: true),
         ];
