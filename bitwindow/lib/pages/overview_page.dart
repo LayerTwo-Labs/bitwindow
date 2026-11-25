@@ -1512,6 +1512,7 @@ class GraffitiExplorerViewModel extends BaseViewModel {
   String _search = '';
   Timer? _searchTimer;
   int _reads = 0;
+  String? _pendingOpReturnState;
 
   /// The rows of the last read that worked, in the server order.
   List<OPReturn> entries = [];
@@ -1533,7 +1534,10 @@ class GraffitiExplorerViewModel extends BaseViewModel {
   }
 
   void _onSyncChanged() {
-    if (_tip.moved(_sync, synced: _sync.bitwindowdSyncInfo != null)) {
+    final info = _sync.bitwindowdSyncInfo;
+    final previous = _pendingOpReturnState;
+    _pendingOpReturnState = info?.pendingOpReturnState;
+    if (_tip.moved(_sync, synced: info != null) || _pendingOpReturnState != previous) {
       read();
     }
   }

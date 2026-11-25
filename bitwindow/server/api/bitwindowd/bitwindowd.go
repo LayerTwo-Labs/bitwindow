@@ -38,6 +38,7 @@ import (
 	cnstore "github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/coinnews"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/deniability"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/mempooltx"
+	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/opreturns"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/transactions"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/utxometadata"
 	service "github.com/LayerTwo-Labs/sidesail/bitwindow/server/service"
@@ -584,17 +585,23 @@ func (s *Server) GetSyncInfo(ctx context.Context, req *emptypb.Empty) (*pb.GetSy
 		return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 	}
 
+	pending, err := opreturns.PendingState(ctx, s.db)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
+	}
+
 	waitsForCore := engines.WaitsForCore(tip.Msg.InitialBlockDownload, s.config.BitcoinCoreNetwork)
 
 	if processedTip == nil {
 		return &pb.GetSyncInfoResponse{
-			TipBlockHeight:      0,
-			TipBlockTime:        0,
-			TipBlockHash:        "",
-			TipBlockProcessedAt: &timestamppb.Timestamp{},
-			HeaderHeight:        int64(tip.Msg.Headers),
-			SyncProgress:        0,
-			WaitsForCore:        waitsForCore,
+			TipBlockHeight:       0,
+			TipBlockTime:         0,
+			TipBlockHash:         "",
+			TipBlockProcessedAt:  &timestamppb.Timestamp{},
+			HeaderHeight:         int64(tip.Msg.Headers),
+			SyncProgress:         0,
+			WaitsForCore:         waitsForCore,
+			PendingOpReturnState: pending,
 		}, nil
 	}
 
@@ -604,13 +611,14 @@ func (s *Server) GetSyncInfo(ctx context.Context, req *emptypb.Empty) (*pb.GetSy
 	}
 
 	return &pb.GetSyncInfoResponse{
-		TipBlockHeight:      int64(processedTip.Height),
-		TipBlockTime:        processedTip.ProcessedAt.Unix(),
-		TipBlockHash:        processedTip.Hash.String(),
-		TipBlockProcessedAt: timestamppb.New(processedTip.ProcessedAt),
-		SyncProgress:        syncProgress,
-		HeaderHeight:        int64(tip.Msg.Headers),
-		WaitsForCore:        waitsForCore,
+		TipBlockHeight:       int64(processedTip.Height),
+		TipBlockTime:         processedTip.ProcessedAt.Unix(),
+		TipBlockHash:         processedTip.Hash.String(),
+		TipBlockProcessedAt:  timestamppb.New(processedTip.ProcessedAt),
+		SyncProgress:         syncProgress,
+		HeaderHeight:         int64(tip.Msg.Headers),
+		WaitsForCore:         waitsForCore,
+		PendingOpReturnState: pending,
 	}, nil
 }
 

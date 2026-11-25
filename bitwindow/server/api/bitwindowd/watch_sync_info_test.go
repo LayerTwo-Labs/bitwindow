@@ -15,6 +15,7 @@ import (
 
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/database"
 	v1connect "github.com/LayerTwo-Labs/sidesail/bitwindow/server/gen/bitwindowd/v1/bitwindowdv1connect"
+	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/opreturns"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/tests/apitests"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/tests/mocks"
 )
@@ -39,7 +40,7 @@ func TestWatchSyncInfoSendsAChange(t *testing.T) {
 		AnyTimes()
 	bitcoind.EXPECT().
 		GetRawMempool(gomock.Any(), gomock.Any()).
-		Return(&connectv1.Response[corepb.GetRawMempoolResponse]{Msg: &corepb.GetRawMempoolResponse{}}, nil).
+		Return(&connectv1.Response[corepb.GetRawMempoolResponse]{Msg: &corepb.GetRawMempoolResponse{Txids: []string{"first"}}}, nil).
 		AnyTimes()
 	bitcoind.EXPECT().
 		GetBlockHash(gomock.Any(), gomock.Any()).
@@ -64,6 +65,30 @@ func TestWatchSyncInfoSendsAChange(t *testing.T) {
 			continue
 		}
 		assert.Equal(t, int64(101), next.GetInfo().GetHeaderHeight())
-		return
+		break
+	}
+
+	require.NoError(t, opreturns.Persist(ctx, db, []opreturns.OPReturn{{TxID: "first", Data: []byte("message")}}))
+	for {
+		next, err := stream.Receive()
+		require.NoError(t, err)
+		if next.GetHeartbeat() {
+			continue
+		}
+		assert.Equal(t, int64(101), next.GetInfo().GetHeaderHeight())
+		assert.Equal(t, "1:1", next.GetInfo().GetPendingOpReturnState())
+		break
+	}
+
+	require.NoError(t, opreturns.ForgetPending(ctx, db, "first"))
+	for {
+		next, err := stream.Receive()
+		require.NoError(t, err)
+		if next.GetHeartbeat() {
+			continue
+		}
+		assert.Equal(t, int64(101), next.GetInfo().GetHeaderHeight())
+		assert.Empty(t, next.GetInfo().GetPendingOpReturnState())
+		break
 	}
 }

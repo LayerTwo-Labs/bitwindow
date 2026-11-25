@@ -285,6 +285,23 @@ func Query(ctx context.Context, db *sql.DB, filter Filter, limit int) ([]OPRetur
 	return opReturns, nil
 }
 
+// PendingState returns the count and newest ID of pending rows.
+func PendingState(ctx context.Context, db *sql.DB) (string, error) {
+	var count, newestID int64
+	err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*), COALESCE(MAX(id), 0)
+		FROM op_returns
+		WHERE height IS NULL
+	`).Scan(&count, &newestID)
+	if err != nil {
+		return "", fmt.Errorf("read pending OP_RETURN state: %w", err)
+	}
+	if count == 0 {
+		return "", nil
+	}
+	return fmt.Sprintf("%d:%d", count, newestID), nil
+}
+
 // ForgetPending removes the unconfirmed outputs for a transaction.
 func ForgetPending(ctx context.Context, db *sql.DB, txid string) error {
 	result, err := db.ExecContext(ctx, `DELETE FROM op_returns WHERE txid = ? AND height IS NULL`, txid)

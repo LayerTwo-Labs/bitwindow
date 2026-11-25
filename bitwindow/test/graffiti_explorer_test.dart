@@ -222,4 +222,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(misc.requests.length, reads + 1);
   });
+
+  testWidgets('a pending OP_RETURN change refreshes graffiti at the same tip', (tester) async {
+    final sync = GetIt.I.get<SyncProvider>();
+    sync.bitwindowdSyncInfo = SyncInfo(
+      progressCurrent: 104,
+      progressGoal: 104,
+      lastBlockAt: null,
+      pendingOpReturnState: '1:4',
+    );
+    misc.rows = [graffiti(4, 'original', height: 0, feeSats: 190, minute: 4)];
+    await pump(tester);
+    sync.notifyListeners();
+    await tester.pumpAndSettle();
+
+    expect(messages(tester), ['original']);
+    final reads = misc.requests.length;
+    misc.rows = [graffiti(5, 'replacement', height: 0, feeSats: 280, minute: 4)];
+    sync.bitwindowdSyncInfo = SyncInfo(
+      progressCurrent: 104,
+      progressGoal: 104,
+      lastBlockAt: null,
+      pendingOpReturnState: '1:5',
+    );
+    sync.notifyListeners();
+    await tester.pumpAndSettle();
+
+    expect(messages(tester), ['replacement']);
+    expect(misc.requests.length, reads + 1);
+    sync.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(misc.requests.length, reads + 1);
+  });
 }

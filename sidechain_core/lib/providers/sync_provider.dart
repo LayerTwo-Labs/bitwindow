@@ -19,6 +19,7 @@ class SyncInfo {
   final double progressCurrent;
   final double progressGoal;
   final Timestamp? lastBlockAt;
+  final String pendingOpReturnState;
 
   /// Height Core verified from genesis, 0 when it loaded no UTXO snapshot.
   /// Behind a snapshot, progressCurrent reaches the tip long before this does.
@@ -56,6 +57,7 @@ class SyncInfo {
     required this.progressCurrent,
     required this.progressGoal,
     required this.lastBlockAt,
+    this.pendingOpReturnState = '',
     this.verifiedBlocks = 0,
     this.verifiedGoal = 0,
     this.waitsForCore = false,
@@ -72,6 +74,7 @@ class SyncInfo {
         other.progressCurrent == progressCurrent &&
         other.progressGoal == progressGoal &&
         other.lastBlockAt == lastBlockAt &&
+        other.pendingOpReturnState == pendingOpReturnState &&
         other.verifiedBlocks == verifiedBlocks &&
         other.verifiedGoal == verifiedGoal &&
         other.waitsForCore == waitsForCore &&
@@ -84,6 +87,7 @@ class SyncInfo {
     progressCurrent,
     progressGoal,
     lastBlockAt,
+    pendingOpReturnState,
     verifiedBlocks,
     verifiedGoal,
     waitsForCore,
@@ -430,6 +434,7 @@ class SyncProvider extends ChangeNotifier implements NetworkScoped {
       progressGoal: info.headerHeight.toDouble(),
       lastBlockAt: info.tipBlockTime != Int64(0) ? Timestamp(seconds: info.tipBlockTime) : null,
       waitsForCore: info.waitsForCore,
+      pendingOpReturnState: info.pendingOpReturnState,
     );
     if (!_diff(bitwindowdSyncInfo, next) && bitwindowdError == null) {
       return false;

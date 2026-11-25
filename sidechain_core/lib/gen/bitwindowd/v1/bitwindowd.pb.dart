@@ -1091,6 +1091,7 @@ class GetSyncInfoResponse extends $pb.GeneratedMessage {
     $core.double? syncProgress,
     $core.String? startupMessage,
     $core.bool? waitsForCore,
+    $core.String? pendingOpReturnState,
   }) {
     final result = GetSyncInfoResponse._();
     if (tipBlockHeight != null) result.tipBlockHeight = tipBlockHeight;
@@ -1101,6 +1102,7 @@ class GetSyncInfoResponse extends $pb.GeneratedMessage {
     if (syncProgress != null) result.syncProgress = syncProgress;
     if (startupMessage != null) result.startupMessage = startupMessage;
     if (waitsForCore != null) result.waitsForCore = waitsForCore;
+    if (pendingOpReturnState != null) result.pendingOpReturnState = pendingOpReturnState;
     return result;
   }
 
@@ -1124,6 +1126,7 @@ class GetSyncInfoResponse extends $pb.GeneratedMessage {
     ..aD(6, _omitFieldNames ? '' : 'syncProgress')
     ..aOS(7, _omitFieldNames ? '' : 'startupMessage')
     ..aOB(8, _omitFieldNames ? '' : 'waitsForCore')
+    ..aOS(9, _omitFieldNames ? '' : 'pendingOpReturnState')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1226,6 +1229,16 @@ class GetSyncInfoResponse extends $pb.GeneratedMessage {
   $core.bool hasWaitsForCore() => $_has(7);
   @$pb.TagNumber(8)
   void clearWaitsForCore() => $_clearField(8);
+
+  /// Changes when the pending OP_RETURN rows change.
+  @$pb.TagNumber(9)
+  $core.String get pendingOpReturnState => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set pendingOpReturnState($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasPendingOpReturnState() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearPendingOpReturnState() => $_clearField(9);
 }
 
 class WatchSyncInfoResponse extends $pb.GeneratedMessage {
