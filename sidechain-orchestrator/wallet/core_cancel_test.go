@@ -124,7 +124,7 @@ func TestCoreBackendCancelRefusesATransactionWithNoOwnInput(t *testing.T) {
 func TestCoreBackendCancelRefusesAConfirmedTransaction(t *testing.T) {
 	backend, fake, coreID, _, _ := coreCancelFixture(t)
 	fake.handle("getmempoolentry", func(bitcoindCall) (any, string) {
-		return nil, "Transaction not in mempool"
+		return &rpcError{Code: -5, Message: "Transaction not in mempool"}, ""
 	})
 
 	_, err := backend.CancelTransaction(context.Background(), coreID, coreBumpTxid, coreCancelFeeSats)

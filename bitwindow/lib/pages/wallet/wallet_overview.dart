@@ -1008,6 +1008,9 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
       return null;
     } catch (e) {
       log.e('Failed to accelerate (CPFP): $e');
+      if (isExpectedBootError(e)) {
+        return 'Could not accelerate the transaction. Check Daemon Status, then try again.';
+      }
       return 'Failed to accelerate: $e';
     }
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bitwindow/pages/wallet/bump_fee_dialog.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:connectrpc/connect.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,6 +63,23 @@ void main() {
 
   tearDown(() async {
     await GetIt.I.reset();
+  });
+
+  testWidgets('the fee preview points to Daemon Status when Core stops', (tester) async {
+    final orchestrator = _FakeOrchestrator();
+    final wallet = orchestrator.wallet as _FakeWallet;
+    GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
+    GetIt.I.registerSingleton<TransactionProvider>(_FakeTransactions());
+    GetIt.I.registerSingleton<WalletReaderProvider>(_FakeWalletReader());
+
+    await tester.pumpSailPage(const BumpFeeDialog(txid: 'aa'));
+    wallet.replies.single.completeError(
+      ConnectException(Code.failedPrecondition, 'Transaction waits in no mempool: connection refused'),
+    );
+    await tester.pump();
+
+    expect(find.text('Could not read the mempool. Check Daemon Status, then try again.'), findsOneWidget);
+    expect(find.text('Replace transaction'), findsNothing);
   });
 
   testWidgets('a typed rate asks for its preview at once', (tester) async {

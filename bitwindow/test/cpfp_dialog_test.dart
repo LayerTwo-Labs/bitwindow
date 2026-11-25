@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:connectrpc/connect.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -16,11 +17,17 @@ const _parent = 'aa';
 
 class _Wallet implements OrchestratorWalletRPC {
   final rates = <int>[];
+  Object? listError;
 
   @override
-  Future<wmpb.ListUnspentResponse> listUnspent(String walletId) async => wmpb.ListUnspentResponse(
-    utxos: [wmpb.UnspentOutput(txid: _parent, vout: 1, confirmations: 0)],
-  );
+  Future<wmpb.ListUnspentResponse> listUnspent(String walletId) async {
+    if (listError case final error?) {
+      throw error;
+    }
+    return wmpb.ListUnspentResponse(
+      utxos: [wmpb.UnspentOutput(txid: _parent, vout: 1, confirmations: 0)],
+    );
+  }
 
   @override
   Future<wmpb.CreateCpfpResponse> createCpfp({
@@ -110,5 +117,28 @@ void main() {
     expect(transactions.fetches, 1);
     model.dispose();
     await tester.pump(const Duration(seconds: 10));
+  });
+  testWidgets('the Accelerate dialog points to Daemon Status when Core stops', (tester) async {
+    orchestrator.wallet.listError = ConnectException(Code.internal, 'listunspent call: connection refused');
+    final model = OverviewViewModel();
+    final tx = walletpb.WalletTransaction(txid: _parent);
+    await tester.pumpSailPage(
+      Builder(
+        builder: (context) => SailButton(label: 'Open', onPressed: () => model.accelerateCpfp(context, tx)),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.enterText(find.byType(EditableText), '10');
+    await tester.tap(find.text('Accelerate'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('Could not accelerate the transaction. Check Daemon Status, then try again.'), findsOneWidget);
+    expect(find.byType(SailCardEditValues), findsOneWidget);
+    expect(orchestrator.wallet.rates, isEmpty);
+    model.dispose();
   });
 }
