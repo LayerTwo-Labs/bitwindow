@@ -1,6 +1,8 @@
+import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/widgets/coinnews.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 import 'test_utils.dart';
@@ -24,6 +26,36 @@ void main() {
       // CoinNews widget should render
       expect(find.byType(CoinNewsView), findsOneWidget);
     });
+  });
+
+  testWidgets('Coin News uses the singular label for one selected topic', (tester) async {
+    addTearDown(GetIt.I.reset);
+    await registerTestDependencies();
+    final provider = GetIt.I.get<NewsProvider>();
+    await tester.runAsync(provider.fetch);
+    provider.topics = [
+      Topic(topic: 'a1a1a1a1', name: 'US Weekly', confirmed: true),
+      Topic(topic: 'a2a2a2a2', name: 'Japan Weekly', confirmed: true),
+    ];
+    provider.initialized = true;
+
+    await tester.pumpSailPage(
+      ViewModelBuilder<CoinNewsViewModel>.reactive(
+        viewModelBuilder: CoinNewsViewModel.new,
+        builder: (context, model, child) => const CoinNewsView(),
+      ),
+    );
+    expect(find.text('0 topics'), findsOneWidget);
+
+    await tester.tap(find.text('0 topics'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('US Weekly'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 topic'), findsOneWidget);
+
+    await tester.tap(find.text('Japan Weekly'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 topics'), findsOneWidget);
   });
 
   group('UI Component Tests', () {
