@@ -17,12 +17,12 @@ const _txid = 'AB12000000000000000000000000000000000000000000000000000000000000'
 
 class _Misc extends MockMiscAPI {
   final requests = <ListOPReturnRequest>[];
-  String message = 'not a group';
+  String? message = 'not a group';
 
   @override
   Future<List<OPReturn>> listOPReturns(ListOPReturnRequest request) async {
     requests.add(request);
-    return request.search == _txid ? [OPReturn(txid: _txid.toLowerCase(), message: message)] : [];
+    return request.search == _txid && message != null ? [OPReturn(txid: _txid.toLowerCase(), message: message)] : [];
   }
 }
 
@@ -36,6 +36,31 @@ class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
 
 class _Lounge implements OrchestratorMultisigLoungeRPC {
   String? walletId;
+  String? requestedTxid;
+  String? importWalletId;
+  List<int> importedWalletKeys = [1];
+
+  @override
+  Future<lounge.ImportGroupFromTxidResponse> importGroupFromTxid({
+    required String txid,
+    required String walletId,
+  }) async {
+    requestedTxid = txid;
+    importWalletId = walletId;
+    return lounge.ImportGroupFromTxidResponse(
+      group: lounge.GroupData(
+        id: 'qa-group',
+        name: 'Group',
+        m: 2,
+        n: 2,
+        keys: [
+          lounge.GroupKey(owner: 'Alice', xpub: 'alice-key', isWallet: true),
+          lounge.GroupKey(owner: 'Bob', xpub: 'bob-key'),
+        ],
+      ),
+      walletKeyIndices: importedWalletKeys,
+    );
+  }
 
   @override
   Future<lounge.FindWalletKeysResponse> findWalletKeys({
@@ -166,6 +191,52 @@ void main() {
     expect(vm.modalError, isNull);
     expect(orchestrator.multisigLounge.walletId, 'qa');
     expect(api.multisig.groups.first.keys.where((key) => key.isWallet).single.owner, 'Bob');
+  });
+
+  testWidgets('TXID import reads the chain when the index has no match', (tester) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      Builder(
+        builder: (c) {
+          context = c;
+          return const SizedBox();
+        },
+      ),
+    );
+    await tester.pumpWidget(const SizedBox());
+    misc.message = null;
+    final vm = ImportTxidModalViewModel()..txidController.text = _txid;
+    addTearDown(vm.dispose);
+
+    await vm.importFromTxid(context);
+
+    expect(vm.modalError, isNull);
+    expect(orchestrator.multisigLounge.requestedTxid, _txid.toLowerCase());
+    expect(orchestrator.multisigLounge.importWalletId, 'qa');
+    final group = api.multisig.groups.single;
+    expect(group.txid, _txid.toLowerCase());
+    expect(group.keys.where((key) => key.isWallet).single.owner, 'Bob');
+  });
+
+  testWidgets('TXID import rejects a group without a key for the selected wallet', (tester) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      Builder(
+        builder: (c) {
+          context = c;
+          return const SizedBox();
+        },
+      ),
+    );
+    misc.message = null;
+    orchestrator.multisigLounge.importedWalletKeys = [];
+    final vm = ImportTxidModalViewModel()..txidController.text = _txid;
+    addTearDown(vm.dispose);
+
+    await vm.importFromTxid(context);
+
+    expect(vm.modalError, contains('this wallet cannot derive any of the 2 keys'));
+    expect(api.multisig.groups, isEmpty);
   });
 
   testWidgets('the lounge reloads ownership for the selected wallet', (tester) async {

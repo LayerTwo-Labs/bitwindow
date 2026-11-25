@@ -1,4 +1,5 @@
 import 'package:bitwindow/widgets/create_multisig_modal.dart';
+import 'package:sidechain_core/gen/multisiglounge/v1/multisiglounge.pb.dart' as mlpb;
 
 class MultisigGroup {
   final String id;
@@ -43,6 +44,31 @@ class MultisigGroup {
   }) : addresses = addresses ?? {'receive': [], 'change': []},
        utxoDetails = utxoDetails ?? [],
        transactionIds = transactionIds ?? [];
+
+  factory MultisigGroup.fromLoungeProto(mlpb.GroupData group, Set<int> walletKeyIndices) {
+    return MultisigGroup(
+      id: group.id,
+      name: group.name,
+      n: group.n,
+      m: group.m,
+      created: group.created.toInt(),
+      txid: group.txid.isEmpty ? null : group.txid,
+      descriptorReceive: group.descriptorReceive.isEmpty ? null : group.descriptorReceive,
+      descriptorChange: group.descriptorChange.isEmpty ? null : group.descriptorChange,
+      watchWalletName: group.watchWalletName.isEmpty ? null : group.watchWalletName,
+      keys: [
+        for (final (index, key) in group.keys.indexed)
+          MultisigKey(
+            owner: key.owner,
+            xpub: key.xpub,
+            derivationPath: key.derivationPath,
+            fingerprint: key.fingerprint.isEmpty ? null : key.fingerprint,
+            originPath: key.originPath.isEmpty ? null : key.originPath,
+            isWallet: walletKeyIndices.contains(index),
+          ),
+      ],
+    );
+  }
 
   factory MultisigGroup.fromJson(Map<String, dynamic> json) {
     return MultisigGroup(
