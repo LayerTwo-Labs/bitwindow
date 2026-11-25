@@ -134,6 +134,9 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
   ({DateTime start, DateTime end})? get dateRange => null;
 
   @override
+  bool get filtered => false;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

@@ -264,6 +264,9 @@ String transactionsCsv(List<WalletTransaction> transactions) {
   return encodeCsv(rows);
 }
 
+/// What the history says when it shows no row.
+String historyEmptyText({required bool filtered}) => filtered ? 'No transactions match' : 'No transactions yet';
+
 /// The address cell of a history row: a short address, the label where it has
 /// one, and the count of the other addresses.
 String historyAddressText(WalletTransaction tx) {
@@ -638,7 +641,7 @@ class _TransactionTableState extends State<TransactionTable> {
                               ];
                             },
                             rowCount: entries.length,
-                            emptyPlaceholder: 'No transactions yet',
+                            emptyPlaceholder: historyEmptyText(filtered: widget.model.filtered),
                             drawGrid: !phone,
                             resizableColumns: !phone,
                             sortColumnIndex: transactionColumns.indexOf(sortColumn),
@@ -742,6 +745,9 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
       return true;
     }).toList();
   }
+
+  /// A search or a date range hides rows.
+  bool get filtered => normalizeSearchText(searchController.text).isNotEmpty || dateRange != null;
 
   String sortColumn = 'date';
   bool sortAscending = true;
