@@ -587,6 +587,11 @@ message RestoreBackupRequest {
   bytes backup_data = 1;
   // Original filename (used to detect .json vs .zip)
   string filename = 2;
+  // True adds the wallets of the backup to the wallets of this install. False
+  // replaces the wallets of this install.
+  bool keep_wallets = 3;
+  // Password of the backup. Used only with keep_wallets.
+  string password = 4;
 }
 
 message ValidateBackupRequest {
@@ -603,4 +608,6 @@ message ValidateBackupResponse {
   bool has_wallet = 3;
   bool has_multisig = 4;
   bool has_transactions = 5;
+  // True when the wallets of the backup open only with a password.
+  bool encrypted = 6;
 }

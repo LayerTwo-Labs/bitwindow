@@ -1183,13 +1183,16 @@ const RestoreBackupRequest$json = {
   '2': [
     {'1': 'backup_data', '3': 1, '4': 1, '5': 12, '10': 'backupData'},
     {'1': 'filename', '3': 2, '4': 1, '5': 9, '10': 'filename'},
+    {'1': 'keep_wallets', '3': 3, '4': 1, '5': 8, '10': 'keepWallets'},
+    {'1': 'password', '3': 4, '4': 1, '5': 9, '10': 'password'},
   ],
 };
 
 /// Descriptor for `RestoreBackupRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List restoreBackupRequestDescriptor =
     $convert.base64Decode('ChRSZXN0b3JlQmFja3VwUmVxdWVzdBIfCgtiYWNrdXBfZGF0YRgBIAEoDFIKYmFja3VwRGF0YR'
-        'IaCghmaWxlbmFtZRgCIAEoCVIIZmlsZW5hbWU=');
+        'IaCghmaWxlbmFtZRgCIAEoCVIIZmlsZW5hbWUSIQoMa2VlcF93YWxsZXRzGAMgASgIUgtrZWVw'
+        'V2FsbGV0cxIaCghwYXNzd29yZBgEIAEoCVIIcGFzc3dvcmQ=');
 
 @$core.Deprecated('Use validateBackupRequestDescriptor instead')
 const ValidateBackupRequest$json = {
@@ -1214,6 +1217,7 @@ const ValidateBackupResponse$json = {
     {'1': 'has_wallet', '3': 3, '4': 1, '5': 8, '10': 'hasWallet'},
     {'1': 'has_multisig', '3': 4, '4': 1, '5': 8, '10': 'hasMultisig'},
     {'1': 'has_transactions', '3': 5, '4': 1, '5': 8, '10': 'hasTransactions'},
+    {'1': 'encrypted', '3': 6, '4': 1, '5': 8, '10': 'encrypted'},
   ],
 };
 
@@ -1222,7 +1226,7 @@ final $typed_data.Uint8List validateBackupResponseDescriptor =
     $convert.base64Decode('ChZWYWxpZGF0ZUJhY2t1cFJlc3BvbnNlEhQKBXZhbGlkGAEgASgIUgV2YWxpZBIjCg1lcnJvcl'
         '9tZXNzYWdlGAIgASgJUgxlcnJvck1lc3NhZ2USHQoKaGFzX3dhbGxldBgDIAEoCFIJaGFzV2Fs'
         'bGV0EiEKDGhhc19tdWx0aXNpZxgEIAEoCFILaGFzTXVsdGlzaWcSKQoQaGFzX3RyYW5zYWN0aW'
-        '9ucxgFIAEoCFIPaGFzVHJhbnNhY3Rpb25z');
+        '9ucxgFIAEoCFIPaGFzVHJhbnNhY3Rpb25zEhwKCWVuY3J5cHRlZBgGIAEoCFIJZW5jcnlwdGVk');
 
 const $core.Map<$core.String, $core.dynamic> WalletServiceBase$json = {
   '1': 'WalletService',

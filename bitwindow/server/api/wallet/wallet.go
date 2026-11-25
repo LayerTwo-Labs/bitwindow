@@ -1677,6 +1677,17 @@ func (s *Server) RestoreBackup(ctx context.Context, c *pb.RestoreBackupRequest) 
 		return nil, connect.NewError(connect.CodeInvalidArgument, "filename is required")
 	}
 
+	if c.KeepWallets {
+		// The starter wallet stays, so the L1 stack needs no restart.
+		err := s.backupEngine.AddBackup(ctx, c.BackupData, c.Filename, func(walletJSON, encryptionJSON []byte) error {
+			return s.walletEngine.ImportWalletBackup(ctx, walletJSON, encryptionJSON, c.Password)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("restore backup: %w", err)
+		}
+		return &emptypb.Empty{}, nil
+	}
+
 	if err := s.backupEngine.RestoreBackup(ctx, c.BackupData, c.Filename); err != nil {
 		return nil, fmt.Errorf("restore backup: %w", err)
 	}
@@ -1711,5 +1722,6 @@ func (s *Server) ValidateBackup(ctx context.Context, c *pb.ValidateBackupRequest
 		HasWallet:       contents.HasWallet,
 		HasMultisig:     contents.HasMultisig,
 		HasTransactions: contents.HasTransactions,
+		Encrypted:       contents.HasEncryptionMetadata,
 	}, nil
 }

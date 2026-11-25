@@ -4075,7 +4075,12 @@ type RestoreBackupRequest struct {
 	// ZIP or JSON backup file bytes
 	BackupData []byte `protobuf:"bytes,1,opt,name=backup_data,json=backupData,proto3" json:"backup_data,omitempty"`
 	// Original filename (used to detect .json vs .zip)
-	Filename      string `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	Filename string `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	// True adds the wallets of the backup to the wallets of this install. False
+	// replaces the wallets of this install.
+	KeepWallets bool `protobuf:"varint,3,opt,name=keep_wallets,json=keepWallets,proto3" json:"keep_wallets,omitempty"`
+	// Password of the backup. Used only with keep_wallets.
+	Password      string `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4120,6 +4125,20 @@ func (x *RestoreBackupRequest) GetBackupData() []byte {
 func (x *RestoreBackupRequest) GetFilename() string {
 	if x != nil {
 		return x.Filename
+	}
+	return ""
+}
+
+func (x *RestoreBackupRequest) GetKeepWallets() bool {
+	if x != nil {
+		return x.KeepWallets
+	}
+	return false
+}
+
+func (x *RestoreBackupRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
 	}
 	return ""
 }
@@ -4186,8 +4205,10 @@ type ValidateBackupResponse struct {
 	HasWallet       bool `protobuf:"varint,3,opt,name=has_wallet,json=hasWallet,proto3" json:"has_wallet,omitempty"`
 	HasMultisig     bool `protobuf:"varint,4,opt,name=has_multisig,json=hasMultisig,proto3" json:"has_multisig,omitempty"`
 	HasTransactions bool `protobuf:"varint,5,opt,name=has_transactions,json=hasTransactions,proto3" json:"has_transactions,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// True when the wallets of the backup open only with a password.
+	Encrypted     bool `protobuf:"varint,6,opt,name=encrypted,proto3" json:"encrypted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ValidateBackupResponse) Reset() {
@@ -4251,6 +4272,13 @@ func (x *ValidateBackupResponse) GetHasMultisig() bool {
 func (x *ValidateBackupResponse) GetHasTransactions() bool {
 	if x != nil {
 		return x.HasTransactions
+	}
+	return false
+}
+
+func (x *ValidateBackupResponse) GetEncrypted() bool {
+	if x != nil {
+		return x.Encrypted
 	}
 	return false
 }
@@ -4659,22 +4687,25 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	"\x14CreateBackupResponse\x12\x1f\n" +
 	"\vbackup_data\x18\x01 \x01(\fR\n" +
 	"backupData\x12-\n" +
-	"\x12suggested_filename\x18\x02 \x01(\tR\x11suggestedFilename\"S\n" +
+	"\x12suggested_filename\x18\x02 \x01(\tR\x11suggestedFilename\"\x92\x01\n" +
 	"\x14RestoreBackupRequest\x12\x1f\n" +
 	"\vbackup_data\x18\x01 \x01(\fR\n" +
 	"backupData\x12\x1a\n" +
-	"\bfilename\x18\x02 \x01(\tR\bfilename\"T\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\x12!\n" +
+	"\fkeep_wallets\x18\x03 \x01(\bR\vkeepWallets\x12\x1a\n" +
+	"\bpassword\x18\x04 \x01(\tR\bpassword\"T\n" +
 	"\x15ValidateBackupRequest\x12\x1f\n" +
 	"\vbackup_data\x18\x01 \x01(\fR\n" +
 	"backupData\x12\x1a\n" +
-	"\bfilename\x18\x02 \x01(\tR\bfilename\"\xc0\x01\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\"\xde\x01\n" +
 	"\x16ValidateBackupResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x12#\n" +
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12\x1d\n" +
 	"\n" +
 	"has_wallet\x18\x03 \x01(\bR\thasWallet\x12!\n" +
 	"\fhas_multisig\x18\x04 \x01(\bR\vhasMultisig\x12)\n" +
-	"\x10has_transactions\x18\x05 \x01(\bR\x0fhasTransactions*^\n" +
+	"\x10has_transactions\x18\x05 \x01(\bR\x0fhasTransactions\x12\x1c\n" +
+	"\tencrypted\x18\x06 \x01(\bR\tencrypted*^\n" +
 	"\vAddressType\x12\x1c\n" +
 	"\x18ADDRESS_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13ADDRESS_TYPE_SEGWIT\x10\x01\x12\x18\n" +

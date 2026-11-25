@@ -5159,10 +5159,14 @@ class RestoreBackupRequest extends $pb.GeneratedMessage {
   factory RestoreBackupRequest({
     $core.List<$core.int>? backupData,
     $core.String? filename,
+    $core.bool? keepWallets,
+    $core.String? password,
   }) {
     final result = RestoreBackupRequest._();
     if (backupData != null) result.backupData = backupData;
     if (filename != null) result.filename = filename;
+    if (keepWallets != null) result.keepWallets = keepWallets;
+    if (password != null) result.password = password;
     return result;
   }
 
@@ -5180,6 +5184,8 @@ class RestoreBackupRequest extends $pb.GeneratedMessage {
       createEmptyInstance: RestoreBackupRequest.$_createMessage)
     ..a<$core.List<$core.int>>(1, _omitFieldNames ? '' : 'backupData', $pb.PbFieldType.OY)
     ..aOS(2, _omitFieldNames ? '' : 'filename')
+    ..aOB(3, _omitFieldNames ? '' : 'keepWallets')
+    ..aOS(4, _omitFieldNames ? '' : 'password')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5221,6 +5227,27 @@ class RestoreBackupRequest extends $pb.GeneratedMessage {
   $core.bool hasFilename() => $_has(1);
   @$pb.TagNumber(2)
   void clearFilename() => $_clearField(2);
+
+  /// True adds the wallets of the backup to the wallets of this install. False
+  /// replaces the wallets of this install.
+  @$pb.TagNumber(3)
+  $core.bool get keepWallets => $_getBF(2);
+  @$pb.TagNumber(3)
+  set keepWallets($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasKeepWallets() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearKeepWallets() => $_clearField(3);
+
+  /// Password of the backup. Used only with keep_wallets.
+  @$pb.TagNumber(4)
+  $core.String get password => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set password($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPassword() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPassword() => $_clearField(4);
 }
 
 class ValidateBackupRequest extends $pb.GeneratedMessage {
@@ -5298,6 +5325,7 @@ class ValidateBackupResponse extends $pb.GeneratedMessage {
     $core.bool? hasWallet,
     $core.bool? hasMultisig,
     $core.bool? hasTransactions,
+    $core.bool? encrypted,
   }) {
     final result = ValidateBackupResponse._();
     if (valid != null) result.valid = valid;
@@ -5305,6 +5333,7 @@ class ValidateBackupResponse extends $pb.GeneratedMessage {
     if (hasWallet != null) result.hasWallet = hasWallet;
     if (hasMultisig != null) result.hasMultisig = hasMultisig;
     if (hasTransactions != null) result.hasTransactions = hasTransactions;
+    if (encrypted != null) result.encrypted = encrypted;
     return result;
   }
 
@@ -5325,6 +5354,7 @@ class ValidateBackupResponse extends $pb.GeneratedMessage {
     ..aOB(3, _omitFieldNames ? '' : 'hasWallet')
     ..aOB(4, _omitFieldNames ? '' : 'hasMultisig')
     ..aOB(5, _omitFieldNames ? '' : 'hasTransactions')
+    ..aOB(6, _omitFieldNames ? '' : 'encrypted')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5392,6 +5422,16 @@ class ValidateBackupResponse extends $pb.GeneratedMessage {
   $core.bool hasHasTransactions() => $_has(4);
   @$pb.TagNumber(5)
   void clearHasTransactions() => $_clearField(5);
+
+  /// True when the wallets of the backup open only with a password.
+  @$pb.TagNumber(6)
+  $core.bool get encrypted => $_getBF(5);
+  @$pb.TagNumber(6)
+  set encrypted($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasEncrypted() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearEncrypted() => $_clearField(6);
 }
 
 class WalletServiceApi {

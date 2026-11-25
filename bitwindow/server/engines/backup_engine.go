@@ -280,13 +280,55 @@ func (e *BackupEngine) RestoreBackup(ctx context.Context, data []byte, filename 
 	return nil
 }
 
+// AddBackup adds the content of a backup file to this install. addWallets gets
+// the wallet file of the backup and its encryption metadata (nil with no
+// password), and adds the wallets. The wallet files on disk stay as they are.
+func (e *BackupEngine) AddBackup(
+	ctx context.Context, data []byte, filename string,
+	addWallets func(walletJSON, encryptionJSON []byte) error,
+) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if _, err := e.ValidateBackup(ctx, data, filename); err != nil {
+		return fmt.Errorf("validate backup: %w", err)
+	}
+
+	walletJSON := data
+	var encryptionJSON, multisigJSON, txJSON, chequeJSON []byte
+	if strings.ToLower(filepath.Ext(filename)) == ".zip" {
+		var err error
+		walletJSON, encryptionJSON, _, multisigJSON, txJSON, chequeJSON, err = extractZIP(data)
+		if err != nil {
+			return fmt.Errorf("extract zip: %w", err)
+		}
+	}
+
+	if err := snapshotCurrentWallet(e.walletDir); err != nil {
+		return fmt.Errorf("back up the current wallet: %w", err)
+	}
+	return e.importBackupDataThen(ctx, multisig.ImportNewBackupTx, multisigJSON, txJSON, chequeJSON, func() error {
+		return addWallets(walletJSON, encryptionJSON)
+	})
+}
+
 func (e *BackupEngine) importBackupData(ctx context.Context, groups, transactions, chequeJSON []byte) error {
+	return e.importBackupDataThen(ctx, multisig.ImportBackupTx, groups, transactions, chequeJSON, func() error { return nil })
+}
+
+// importBackupDataThen imports the backup rows and keeps them only when then
+// returns no error.
+func (e *BackupEngine) importBackupDataThen(
+	ctx context.Context,
+	importMultisig func(ctx context.Context, tx *sql.Tx, groups, transactions []byte) error,
+	groups, transactions, chequeJSON []byte, then func() error,
+) error {
 	tx, err := e.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin backup import: %w", err)
 	}
 	defer database.SafeDefer(ctx, tx.Rollback)
-	if err := multisig.ImportBackupTx(ctx, tx, groups, transactions); err != nil {
+	if err := importMultisig(ctx, tx, groups, transactions); err != nil {
 		return err
 	}
 	if chequeJSON != nil {
@@ -297,6 +339,9 @@ func (e *BackupEngine) importBackupData(ctx context.Context, groups, transaction
 		if err := cheques.ImportBackupTx(ctx, tx, *backup); err != nil {
 			return err
 		}
+	}
+	if err := then(); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

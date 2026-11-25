@@ -260,6 +260,17 @@ func (e *WalletEngine) IsUnlocked(ctx context.Context) (bool, error) {
 	return resp.State == orchpb.WalletState_WALLET_STATE_UNLOCKED, nil
 }
 
+// ImportWalletBackup adds the wallets of a backup wallet file to the wallets
+// the orchestrator holds.
+func (e *WalletEngine) ImportWalletBackup(ctx context.Context, walletJSON, encryptionJSON []byte, password string) error {
+	_, err := e.orchClient.ImportWalletBackup(ctx, &orchpb.ImportWalletBackupRequest{
+		WalletJson:     walletJSON,
+		EncryptionJson: encryptionJSON,
+		Password:       password,
+	})
+	return err
+}
+
 // IsEncrypted reports whether the orchestrator wallet file has a password.
 func (e *WalletEngine) IsEncrypted(ctx context.Context) (bool, error) {
 	resp, err := e.orchClient.GetWalletStatus(ctx, &orchpb.GetWalletStatusRequest{})
