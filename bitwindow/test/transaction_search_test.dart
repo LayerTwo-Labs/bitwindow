@@ -74,6 +74,21 @@ void main() {
       expect(transactionMatchesSearch(_tx(received: 10000000, sent: 10000000, fee: 423), '-423'), isTrue);
     });
 
+    test('each address and amount of a payment to many matches', () {
+      final tx = _tx(address: 'second', sent: 300050000, fee: 406)
+        ..payments.addAll([
+          TransactionPayment(address: 'second', amountSats: Int64(200000000)),
+          TransactionPayment(address: 'first', amountSats: Int64(100000000)),
+          TransactionPayment(address: 'third', amountSats: Int64(50000)),
+        ]);
+
+      expect(transactionMatchesSearch(tx, 'first'), isTrue);
+      expect(transactionMatchesSearch(tx, 'third'), isTrue);
+      expect(transactionMatchesSearch(tx, '2.00000000'), isTrue);
+      expect(transactionMatchesSearch(tx, '0.00050000'), isTrue);
+      expect(transactionMatchesSearch(tx, 'fourth'), isFalse);
+    });
+
     test('a query does not match across two fields', () {
       final tx = _tx(txid: 'abcd', address: 'efgh');
       expect(transactionMatchesSearch(tx, 'cdef'), isFalse);

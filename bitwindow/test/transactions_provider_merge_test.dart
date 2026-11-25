@@ -52,8 +52,51 @@ void main() {
     expect(rows, hasLength(1));
     expect(rows.single.sentSatoshi, Int64(3000));
     expect(rows.single.feeSats, Int64(200));
-    expect(rows.single.address, 'first');
+    expect(rows.single.address, 'second');
+    expect(rows.single.payments.map((p) => (p.address, p.amountSats.toInt())), [('second', 2000), ('first', 1000)]);
     expect(rows.single.note, 'rent');
+  });
+
+  test('a send names what it pays to others, not its own outputs', () {
+    final rows = walletTransactionsFromEntries([
+      _entry(_payment, 2, -20000, fee: -0.00000344, address: 'own'),
+      _entry(_payment, 2, 20000, address: 'own')..label = 'savings',
+      _entry(_payment, 1, -10000, fee: -0.00000344, address: 'shop'),
+    ], {});
+
+    expect(rows.single.address, 'shop');
+    expect(rows.single.addressLabel, '');
+    expect(rows.single.payments.map((p) => p.address), ['shop']);
+    expect(rows.single.sentSatoshi - rows.single.receivedSatoshi, Int64(10000));
+  });
+
+  test('a transfer inside the wallet names its own output', () {
+    final rows = walletTransactionsFromEntries([
+      _entry(_payment, 1, -50000000, fee: -0.00000282, address: 'own'),
+      _entry(_payment, 1, 50000000, address: 'own')..label = 'savings',
+    ], {});
+
+    expect(rows.single.address, 'own');
+    expect(rows.single.addressLabel, 'savings');
+    expect(rows.single.payments.single.amountSats, Int64(50000000));
+  });
+
+  test('a payment to two wallet addresses names both', () {
+    final rows = walletTransactionsFromEntries([
+      _entry(_payment, 0, 10000000, address: 'first'),
+      _entry(_payment, 1, 20000000, address: 'second'),
+    ], {});
+
+    expect(rows.single.receivedSatoshi, Int64(30000000));
+    expect(rows.single.payments.map((p) => p.address), ['second', 'first']);
+  });
+
+  test('an output with no address is no payment', () {
+    final rows = walletTransactionsFromEntries([_entry(_payment, 0, 0, fee: -0.00000200)..category = 'send'], {});
+
+    expect(rows.single.address, '');
+    expect(rows.single.payments, isEmpty);
+    expect(rows.single.feeSats, Int64(200));
   });
 
   test('a transaction the wallet abandoned gives an abandoned row', () {

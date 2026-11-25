@@ -251,7 +251,7 @@ String transactionsCsv(List<WalletTransaction> transactions) {
       date,
       tx.txid,
       type,
-      tx.address,
+      transactionAddresses(tx).join('; '),
       tx.addressLabel,
       amountBTC,
       netAmount.toString(),
@@ -264,10 +264,13 @@ String transactionsCsv(List<WalletTransaction> transactions) {
   return encodeCsv(rows);
 }
 
-/// The address cell of a history row: a short address, and the label where it has one.
+/// The address cell of a history row: a short address, the label where it has
+/// one, and the count of the other addresses.
 String historyAddressText(WalletTransaction tx) {
   final address = middleEllipsis(tx.address, keep: 10);
-  return tx.addressLabel.isEmpty ? address : '$address (${tx.addressLabel})';
+  final labelled = tx.addressLabel.isEmpty ? address : '$address (${tx.addressLabel})';
+  final others = tx.payments.map((payment) => payment.address).toSet().length - 1;
+  return others > 0 ? '$labelled +$others' : labelled;
 }
 
 /// [rows] with the address book label of each address. A row the book holds no label for keeps its own.
@@ -466,7 +469,7 @@ class _TransactionTableState extends State<TransactionTable> {
                                 SailTableCell(
                                   value: historyAddressText(entry),
                                   padding: _cellPadding,
-                                  copyValue: entry.address,
+                                  copyValue: transactionAddresses(entry).join('\n'),
                                 ),
                                 SailTableCell(
                                   value: entry.note,
