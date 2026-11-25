@@ -60,6 +60,8 @@ ScrollableState _page(WidgetTester tester) => tester
 void main() {
   late _Transactions transactions;
 
+  setUpAll(loadBundledFonts);
+
   setUp(() async {
     await GetIt.I.reset();
     await registerTestDependencies();
@@ -146,6 +148,20 @@ void main() {
 
     expect(find.descendant(of: chart, matching: find.text('2 UTXOs')), findsOneWidget);
     expect(find.descendant(of: chart, matching: find.text('1 UTXO')), findsOneWidget);
+  });
+
+  testWidgets('a long label ends in its column and the path column stays in the card', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final label = 'Salary ${'x' * 80}';
+    transactions.utxos = [_coin(1)..label = label, _coin(2)];
+
+    await tester.pumpSailPage(const Column(children: [Expanded(child: UTXOsTab())]));
+    await tester.pumpAndSettle();
+
+    final card = tester.getRect(find.ancestor(of: find.text('Your UTXOs'), matching: find.byType(SailCard)).first);
+    expect(tester.getRect(find.text("m/84'/1'/0'/0/1")).right, lessThanOrEqualTo(card.right));
+    expect(find.text(label), findsOneWidget);
   });
 
   testWidgets('the UTXO card shows a failed read over the last rows', (tester) async {

@@ -153,6 +153,15 @@ class _UTXOsTabState extends State<UTXOsTab> {
   }
 }
 
+/// The label cell of a coin table. Its first [columnChars] characters size the column, and a longer label ends
+/// with an ellipsis, so it does not push the other columns out.
+SailTableCell coinLabelCell(String label, {bool monospace = false, int columnChars = 24}) => SailTableCell(
+  value: label.characters.take(columnChars).toString(),
+  copyValue: label,
+  monospace: monospace,
+  child: SailText.primary13(label, monospace: monospace, overflow: TextOverflow.ellipsis),
+);
+
 class UTXOTable extends StatefulWidget {
   final List<UnspentOutput> entries;
   final LatestUTXOsViewModel model;
@@ -433,10 +442,7 @@ class _UTXOTableState extends State<UTXOTable> {
                   alignment: Alignment.centerRight,
                   monospace: true,
                 ),
-                SailTableCell(
-                  value: _getLabel(utxo),
-                  monospace: true,
-                ),
+                coinLabelCell(_getLabel(utxo), monospace: true),
                 SailTableCell(
                   value: denialStatusWithHops(utxo),
                   textColor: getDenialColor(context, utxo),
