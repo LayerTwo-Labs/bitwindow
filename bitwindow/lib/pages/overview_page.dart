@@ -531,6 +531,7 @@ class BroadcastNewsView extends StatelessWidget {
                   child: SailText.secondary12(viewModel.feeUnit.symbol),
                 ),
               ),
+              if (viewModel.broadcastError != null) SailInlineError(viewModel.broadcastError!),
               SailRow(
                 spacing: SailStyleValues.padding08,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -548,7 +549,6 @@ class BroadcastNewsView extends StatelessWidget {
                   ),
                 ],
               ),
-              if (viewModel.broadcastError != null) SailInlineError(viewModel.broadcastError!),
             ],
           ),
         );
@@ -682,6 +682,11 @@ class BroadcastNewsViewModel extends BaseViewModel {
     try {
       // Parse fee in user's preferred unit and convert to sats
       final feeSats = feeController.text.isNotEmpty ? parseAmountToSatoshis(feeController.text, feeUnit) : null;
+      if (feeSats != null && feeSats <= 0) {
+        broadcastError = 'Enter a fee greater than zero.';
+        notifyListeners();
+        return;
+      }
 
       await _api.misc.broadcastNews(
         topicId,
