@@ -152,22 +152,30 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
   int get confirmedCount => runs.where((r) => r.status == ConsolidationRunStatus.confirmed).length;
   int get failedCount => runs.where((r) => r.status == ConsolidationRunStatus.failed).length;
 
+  /// Why no new plan can start, or null when one can.
+  ///
+  /// The runs of the last plan carry its transaction ids, its confirmation
+  /// tracking, and its Unfreeze actions. A new plan replaces that list, so
+  /// the old one must settle first.
+  String? get startBlockReason {
+    if (running) {
+      return 'A consolidation runs.';
+    }
+    if (runs.any((r) => r.status == ConsolidationRunStatus.pending || r.coinsFrozen)) {
+      return 'The last consolidation still waits. Let it confirm, or unfreeze its coins, before you start another.';
+    }
+    return null;
+  }
+
   /// Broadcasts every transaction of [plan]. Each run freezes its coins before
   /// the send, and unfreezes them again when the send fails.
   Future<void> start({
     required String walletId,
     required ConsolidationPlan plan,
   }) async {
-    if (running) {
-      throw StateError('a consolidation already runs');
-    }
-    // The runs of the last plan carry its transaction ids, its confirmation
-    // tracking, and its Unfreeze actions. A new plan replaces that list, so
-    // the old one must settle first.
-    if (runs.any((r) => r.status == ConsolidationRunStatus.pending || r.coinsFrozen)) {
-      throw StateError(
-        'the last consolidation still waits. Let it confirm, or unfreeze its coins, before you start another.',
-      );
+    final blocked = startBlockReason;
+    if (blocked != null) {
+      throw StateError(blocked);
     }
     if (plan.isEmpty) {
       throw ArgumentError.value(plan, 'plan', 'holds no transaction');
