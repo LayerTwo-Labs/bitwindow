@@ -95,6 +95,7 @@ void main() {
     addTearDown(model.dispose);
     await nextRead(model, count: 2);
 
+    provider.topics = [...provider.topics, Topic(topic: 'c0ffee01', name: 'New topic')];
     expect(model.selectedTopicIds, isEmpty);
   });
 
@@ -133,6 +134,28 @@ void main() {
     await nextRead(model, count: 2);
 
     expect(model.selectedTopicIds, ['a1a1a1a1']);
+  });
+
+  test('the default selection includes topics that arrive after settings load', () async {
+    await registerTestDependencies();
+    final dir = await Directory.systemTemp.createTemp('coinnews-topics-');
+    addTearDown(() => dir.delete(recursive: true));
+    await useFileStore(dir);
+    final provider = GetIt.I.get<NewsProvider>();
+    provider.topics = [Topic(topic: 'a1a1a1a1', name: 'US Weekly')];
+    provider.initialized = true;
+    Environment.isInTest = false;
+    final model = CoinNewsViewModel();
+    addTearDown(model.dispose);
+    await nextRead(model, count: 2);
+
+    final topic = Topic(topic: 'c0ffee01', name: 'New topic');
+    final story = CoinNews(topic: topic.topic, headline: 'First story');
+    provider.topics = [...provider.topics, topic];
+    provider.news = [story];
+
+    expect(model.selectedTopicIds, ['a1a1a1a1', topic.topic]);
+    expect(model.entries, [story]);
   });
 
   test('a search on a later page shows the matches on page one', () async {
