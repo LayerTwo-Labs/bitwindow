@@ -1249,7 +1249,8 @@ class NewGraffitiViewModel extends BaseViewModel {
   }
 
   Future<void> createGraffiti(BuildContext context) async {
-    if (messageController.text.isEmpty) {
+    final message = messageController.text;
+    if (message.isEmpty) {
       return;
     }
 
@@ -1265,7 +1266,7 @@ class NewGraffitiViewModel extends BaseViewModel {
       final txid = (await _orchestratorWallet.sendTransaction(
         walletId: walletId,
         destinations: {address: 10000}, // 0.0001 BTC
-        opReturnMessage: messageController.text,
+        opReturnMessage: message,
         feeRateSatPerVbyte: 1,
       )).txid;
 
@@ -1277,7 +1278,7 @@ class NewGraffitiViewModel extends BaseViewModel {
         links: [NotificationLink(text: 'View transaction', url: mempoolTxUrl(txid, network))],
       );
 
-      if (!context.mounted) {
+      if (!context.mounted || messageController.text != message) {
         return;
       }
       messageController.clear();
