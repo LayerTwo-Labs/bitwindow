@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -14,10 +16,14 @@ import (
 	connectv1 "connectrpc.com/connect"
 	corepb "github.com/barebitcoin/btc-buf/gen/bitcoin/bitcoind/v1alpha"
 	corerpc "github.com/barebitcoin/btc-buf/gen/bitcoin/bitcoind/v1alpha/bitcoindv1alphaconnect"
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/config"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/database"
@@ -80,7 +86,7 @@ func TestReadOpReturnRemovals(t *testing.T) {
 			{Change: &mempoolpb.Change_Added{Added: &mempoolpb.Transaction{Txid: "replacement"}}},
 		},
 	}}
-	require.ErrorIs(t, rt.readOpReturnRemovals(ctx, func(context.Context) (engines.MempoolStream, error) {
+	require.ErrorIs(t, rt.readOpReturnMempool(ctx, func(context.Context) (engines.MempoolStream, error) {
 		return feed, nil
 	}), io.EOF)
 	assert.True(t, feed.closed)
@@ -89,6 +95,61 @@ func TestReadOpReturnRemovals(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "replacement", rows[0].TxID)
+}
+
+func TestReadOpReturnSnapshot(t *testing.T) {
+	ctx := t.Context()
+	db := database.Test(t)
+	topic, err := opreturns.ValidNewsTopicID("a1a1a1a1")
+	require.NoError(t, err)
+	payload, err := opreturns.EncodeNewsMessageNewFormat(topic, "Offline café", "")
+	require.NoError(t, err)
+	script, err := txscript.NullDataScript(payload)
+	require.NoError(t, err)
+	tx := wire.NewMsgTx(2)
+	tx.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: 1}, nil, nil))
+	tx.AddTxOut(wire.NewTxOut(0, script))
+	txid := tx.TxID()
+	require.NoError(t, opreturns.Persist(ctx, db, []opreturns.OPReturn{
+		{TxID: "old", Vout: 0, Data: payload},
+	}))
+	var raw bytes.Buffer
+	require.NoError(t, tx.Serialize(&raw))
+
+	core := mocks.NewMockBitcoinServiceClient(gomock.NewController(t))
+	core.EXPECT().GetRawTransaction(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *connectv1.Request[corepb.GetRawTransactionRequest]) (*connectv1.Response[corepb.GetRawTransactionResponse], error) {
+			assert.Equal(t, txid, req.Msg.Txid)
+			return connectv1.NewResponse(&corepb.GetRawTransactionResponse{
+				Tx: &corepb.RawTransaction{Data: raw.Bytes()},
+			}), nil
+		})
+	core.EXPECT().GetRawMempool(gomock.Any(), gomock.Any()).
+		Return(connectv1.NewResponse(&corepb.GetRawMempoolResponse{Txids: []string{txid}}), nil)
+	bitcoind := service.New("bitcoind", func(context.Context) (corerpc.BitcoinServiceClient, error) { return core, nil })
+	call := func(_ context.Context, method string, params ...any) (json.RawMessage, error) {
+		assert.Equal(t, "getmempoolentry", method)
+		assert.Equal(t, []any{txid}, params)
+		return json.RawMessage(`{"fees":{"base":0.00001590}}`), nil
+	}
+	rt := &Runtime{db: db, bitcoinEngine: engines.NewBitcoind(bitcoind, nil, db, config.Config{}, nil, nil, nil, nil, call)}
+	entered := time.Unix(1700000000, 0).UTC()
+	feed := &removalTestFeed{update: &mempoolpb.WatchTransactionsResponse{
+		Snapshot: &mempoolpb.Snapshot{
+			Transactions: []*mempoolpb.Transaction{{Txid: txid, Time: timestamppb.New(entered)}},
+		},
+	}}
+	require.ErrorIs(t, rt.readOpReturnMempool(ctx, func(context.Context) (engines.MempoolStream, error) {
+		return feed, nil
+	}), io.EOF)
+	require.True(t, feed.closed)
+	stories, err := opreturns.ListPendingCoinNews(ctx, db)
+	require.NoError(t, err)
+	require.Len(t, stories, 1)
+	assert.Equal(t, txid, stories[0].TxID)
+	assert.Equal(t, "Offline café", stories[0].Headline)
+	assert.Equal(t, btcutil.Amount(1590), stories[0].Fee)
+	assert.True(t, entered.Equal(*stories[0].CreatedAt))
 }
 
 type removalTestFeed struct {

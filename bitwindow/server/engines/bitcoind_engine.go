@@ -35,6 +35,7 @@ import (
 	commonpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/common/v1"
 	validatorpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/mainchain/v1"
 	validatorrpc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/cusf/mainchain/v1/mainchainv1connect"
+	mempoolpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/mempool/v1"
 )
 
 func NewBitcoind(
@@ -764,13 +765,51 @@ func (p *Parser) scannedPayoutBlock(ctx context.Context) (*blocks.ProcessedBlock
 	return p.payoutScanned, nil
 }
 
+// RestoreMempoolSnapshot indexes one snapshot part and prunes after the last part.
+func (p *Parser) RestoreMempoolSnapshot(ctx context.Context, snapshot *mempoolpb.Snapshot) error {
+	for _, tx := range snapshot.GetTransactions() {
+		if err := p.restoreMempoolTransaction(ctx, tx.GetTxid(), tx.GetTime().AsTime()); err != nil {
+			return err
+		}
+	}
+	if snapshot.GetMore() {
+		return nil
+	}
+	return p.pruneMempool(ctx)
+}
+
+func (p *Parser) restoreMempoolTransaction(ctx context.Context, txid string, entered time.Time) error {
+	core, err := p.bitcoind.Get(ctx)
+	if err != nil {
+		return err
+	}
+	raw, err := core.GetRawTransaction(ctx, connect.NewRequest(&corepb.GetRawTransactionRequest{
+		Txid:      txid,
+		Verbosity: corepb.GetRawTransactionRequest_VERBOSITY_RAW_DATA,
+	}))
+	if err != nil {
+		if isTxIndexMiss(err.Error()) {
+			return nil
+		}
+		return fmt.Errorf("read mempool transaction %s: %w", txid, err)
+	}
+	tx, err := decodeTransaction(raw.Msg.GetTx().GetData())
+	if err != nil {
+		return fmt.Errorf("decode mempool transaction %s: %w", txid, err)
+	}
+	return p.indexMempoolTransaction(ctx, tx, entered)
+}
+
 // HandleNewRawTransaction can be called on a brand new transaction
 // from the mempool.
 func (p *Parser) HandleNewRawTransaction(
 	ctx context.Context, tx *wire.MsgTx,
 ) error {
-	now := time.Now()
-	switch err := p.opReturnForTXID(ctx, tx, nil, &now, p.mempoolFee); {
+	return p.indexMempoolTransaction(ctx, tx, time.Now())
+}
+
+func (p *Parser) indexMempoolTransaction(ctx context.Context, tx *wire.MsgTx, entered time.Time) error {
+	switch err := p.opReturnForTXID(ctx, tx, nil, &entered, p.mempoolFee); {
 	case errors.Is(err, errNotInMempool):
 		// Core also publishes each transaction of a new block. The block scan
 		// records those.
