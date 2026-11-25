@@ -504,8 +504,12 @@ func (s *Server) ListComments(ctx context.Context, req *miscv1.ListCommentsReque
 	if err != nil {
 		return nil, fmt.Errorf("list comments: %w", err)
 	}
+	pending, err := opreturns.ListPendingComments(ctx, s.database)
+	if err != nil {
+		return nil, fmt.Errorf("list comments: %w", err)
+	}
 	return &miscv1.ListCommentsResponse{
-		Comments: lo.Map(comments, commentToProto),
+		Comments: lo.Map(cnstore.WithPending(root, comments, pending), commentToProto),
 	}, nil
 }
 
@@ -520,6 +524,7 @@ func commentToProto(c cnstore.Comment, _ int) *miscv1.Comment {
 		ReplyQuote: strings.ToValidUTF8(c.ReplyQuote, ""),
 		CreateTime: timestamppb.New(c.CreatedAt),
 		FeeSats:    c.FeeSats,
+		Pending:    c.Pending,
 	}
 }
 

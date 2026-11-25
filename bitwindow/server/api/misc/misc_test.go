@@ -15,6 +15,7 @@ import (
 	connectv1 "connectrpc.com/connect"
 	"connectrpc.com/connect/v2"
 	corepb "github.com/barebitcoin/btc-buf/gen/bitcoin/bitcoind/v1alpha"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -527,6 +528,39 @@ func TestService_Comments(t *testing.T) {
 		_, err = estimate("  ", "")
 		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 		assert.Contains(t, err.Error(), "body or url")
+	})
+
+	t.Run("list comments includes the comments in the mempool", func(t *testing.T) {
+		t.Parallel()
+		db := database.Test(t)
+		root, err := coinnews.ParseItemID(validItemID)
+		require.NoError(t, err)
+		seen := time.Date(2026, 11, 25, 10, 0, 0, 0, time.UTC)
+		commentTx, replyTx, otherTx := strings.Repeat("a1", 32), strings.Repeat("b2", 32), strings.Repeat("c3", 32)
+		commentID, err := cnstore.ItemIDOf(commentTx, 0)
+		require.NoError(t, err)
+		mined := uint32(100)
+		require.NoError(t, opreturns.Persist(t.Context(), db, []opreturns.OPReturn{
+			{TxID: commentTx, Data: signedComment(t, db, root, "in the mempool"), Fee: 700, CreatedAt: &seen},
+			{TxID: replyTx, Data: signedComment(t, db, commentID, "reply in the mempool"), Fee: 900, CreatedAt: &seen},
+			{TxID: otherTx, Data: signedComment(t, db, coinnews.ItemID{7}, "other story"), Fee: 5000, CreatedAt: &seen},
+			{TxID: strings.Repeat("d4", 32), Data: signedComment(t, db, root, "mined, not indexed"), Height: &mined},
+		}))
+
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+		resp, err := cli.ListComments(t.Context(), &miscv1.ListCommentsRequest{ItemId: validItemID})
+		require.NoError(t, err)
+		require.Len(t, resp.Comments, 2)
+
+		reply, comment := resp.Comments[0], resp.Comments[1]
+		assert.Equal(t, "reply in the mempool", reply.Body)
+		assert.Equal(t, commentID.String(), reply.ParentId)
+		assert.Equal(t, "in the mempool", comment.Body)
+		assert.Equal(t, commentID.String(), comment.ItemId)
+		assert.Equal(t, validItemID, comment.ParentId)
+		assert.Equal(t, int64(700), comment.FeeSats)
+		assert.True(t, comment.Pending)
+		assert.Equal(t, seen, comment.CreateTime.AsTime())
 	})
 
 	t.Run("list comments empty", func(t *testing.T) {
@@ -1369,4 +1403,22 @@ func TestService_VerifyTimestamp(t *testing.T) {
 		assert.NotNil(t, resp.Timestamp)
 		assert.Contains(t, resp.Message, "verified")
 	})
+}
+
+// signedComment encodes a comment on parent, signed by the identity of db.
+func signedComment(t *testing.T, db *sql.DB, parent coinnews.ItemID, body string) []byte {
+	t.Helper()
+	priv, xpk, err := cnstore.LoadOrCreateIdentity(t.Context(), db)
+	require.NoError(t, err)
+	tlvs := []coinnews.TLV{{Tag: coinnews.TLVBody, Value: []byte(body)}}
+	blob, err := coinnews.SerialiseTLVs(tlvs)
+	require.NoError(t, err)
+	digest := coinnews.CommentSigHash(parent, blob)
+	sig, err := schnorr.Sign(priv, digest[:])
+	require.NoError(t, err)
+	comment := coinnews.Comment{Parent: parent, AuthorXPK: xpk, TLVs: tlvs}
+	copy(comment.Sig[:], sig.Serialize())
+	data, err := coinnews.EncodeComment(comment)
+	require.NoError(t, err)
+	return data
 }

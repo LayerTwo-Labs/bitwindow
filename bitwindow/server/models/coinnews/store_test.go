@@ -5,9 +5,12 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,6 +101,83 @@ func TestStore_ListThread_RanksByFee(t *testing.T) {
 	require.Len(t, thread, 3)
 	assert.Equal(t, []string{"dear", "cheap", "unknown"}, lo.Map(thread, func(c Comment, _ int) string { return c.Body }))
 	assert.Equal(t, []int64{2000, 500, 0}, lo.Map(thread, func(c Comment, _ int) int64 { return c.FeeSats }))
+}
+
+// signedComment encodes a comment on parent, signed by the identity of db.
+func signedComment(t *testing.T, db *sql.DB, parent codec.ItemID, body string) []byte {
+	t.Helper()
+	priv, xpk, err := LoadOrCreateIdentity(t.Context(), db)
+	require.NoError(t, err)
+	tlvs := []codec.TLV{{Tag: codec.TLVBody, Value: []byte(body)}}
+	blob, err := codec.SerialiseTLVs(tlvs)
+	require.NoError(t, err)
+	digest := codec.CommentSigHash(parent, blob)
+	sig, err := schnorr.Sign(priv, digest[:])
+	require.NoError(t, err)
+	comment := codec.Comment{Parent: parent, AuthorXPK: xpk, TLVs: tlvs}
+	copy(comment.Sig[:], sig.Serialize())
+	data, err := codec.EncodeComment(comment)
+	require.NoError(t, err)
+	return data
+}
+
+func TestPendingComment(t *testing.T) {
+	t.Parallel()
+	db := database.Test(t)
+	parent := codec.ItemID{1, 2, 3}
+	txid := strings.Repeat("ab", 32)
+	seen := time.Date(2026, 11, 25, 10, 0, 0, 0, time.UTC)
+	data := signedComment(t, db, parent, "hello")
+
+	comment, ok, err := PendingComment(txid, 1, data, 700, seen)
+	require.NoError(t, err)
+	require.True(t, ok)
+	id, err := ItemIDOf(txid, 1)
+	require.NoError(t, err)
+	assert.Equal(t, id.String(), comment.ItemID)
+	assert.Equal(t, parent.String(), comment.ParentID)
+	assert.Equal(t, "hello", comment.Body)
+	assert.Equal(t, int64(700), comment.FeeSats)
+	assert.Equal(t, seen, comment.CreatedAt)
+	assert.True(t, comment.Pending)
+
+	forged := slices.Clone(data)
+	forged[len(forged)-1] ^= 1
+	_, ok, err = PendingComment(txid, 1, forged, 700, seen)
+	require.NoError(t, err)
+	assert.False(t, ok, "a comment with a bad signature")
+
+	_, ok, err = PendingComment(txid, 1, []byte("graffiti"), 700, seen)
+	require.NoError(t, err)
+	assert.False(t, ok, "a payload that is not a comment")
+
+	_, _, err = PendingComment("nothex", 1, data, 700, seen)
+	require.ErrorContains(t, err, "decode txid")
+}
+
+func TestWithPending(t *testing.T) {
+	t.Parallel()
+	root := codec.ItemID{9}
+	confirmed := []Comment{
+		{ItemID: "c1", ParentID: root.String(), FeeSats: 500},
+		{ItemID: "c2", ParentID: "c1", FeeSats: 100},
+	}
+	pending := []Comment{
+		{ItemID: "p-deep", ParentID: "p-reply", FeeSats: 50, Pending: true},
+		{ItemID: "p-reply", ParentID: "c2", FeeSats: 900, Pending: true},
+		{ItemID: "p-root", ParentID: root.String(), FeeSats: 500, Pending: true},
+		{ItemID: "c1", ParentID: root.String(), FeeSats: 500, Pending: true},
+		{ItemID: "p-other", ParentID: "other-story", FeeSats: 5000, Pending: true},
+	}
+
+	thread := WithPending(root, confirmed, pending)
+
+	assert.Equal(t,
+		[]string{"p-reply", "c1", "p-root", "c2", "p-deep"},
+		lo.Map(thread, func(c Comment, _ int) string { return c.ItemID }),
+	)
+	assert.False(t, thread[1].Pending, "the confirmed row wins over its mempool row")
+	assert.Len(t, confirmed, 2)
 }
 
 // itemIDOf returns the most recently inserted item_id in the given cn_*

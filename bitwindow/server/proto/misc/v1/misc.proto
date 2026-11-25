@@ -199,11 +199,14 @@ message Comment {
   string url = 5;
   string lang = 6;
   string reply_quote = 7;
+  // Block time, or the time the mempool got a pending comment.
   google.protobuf.Timestamp create_time = 8;
   reserved 9, 10, 11;
   reserved "upvotes", "downvotes", "score";
   // Fee of the comment's transaction. 0 when unknown.
   int64 fee_sats = 12;
+  // True while the comment's transaction has no block.
+  bool pending = 13;
 }
 
 message ListCommentsResponse {
