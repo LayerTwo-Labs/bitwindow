@@ -531,7 +531,7 @@ func TestOpReturnHandling_ExplorerReadsBothPushes(t *testing.T) {
 	found, err := opreturns.Query(ctx, db, opreturns.Filter{Search: "two pushes"}, 1000)
 	require.NoError(t, err)
 	require.Len(t, found, 1)
-	assert.Equal(t, "O2B TWO PUSHES", string(found[0].Data))
+	assert.Equal(t, "O2B TWO PUSHES", found[0].Message())
 	assert.Equal(t, tx.TxID(), found[0].TxID)
 	assert.Equal(t, btcutil.Amount(1100), found[0].Fee)
 	assert.Equal(t, height, *found[0].Height)
@@ -541,4 +541,37 @@ func TestOpReturnHandling_ExplorerReadsBothPushes(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stored)
 	assert.Equal(t, first, stored.Data)
+}
+
+func TestOpReturnHandling_ExplorerReadsMixedPushes(t *testing.T) {
+	t.Parallel()
+
+	db := database.Test(t)
+	parser := &Parser{db: db}
+	cases := []struct {
+		name   string
+		script string
+		search string
+		want   string
+	}{
+		{"binary suffix", "6a0e4f3242204d49584544205445585402ff02", "mixed text", "O2B MIXED TEXT ff02"},
+		{"leading empty push", "6a000f4f324220414654455220454d505459", "after empty", "O2B AFTER EMPTY"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			script, err := hex.DecodeString(tc.script)
+			require.NoError(t, err)
+			tx := &wire.MsgTx{
+				TxIn:  []*wire.TxIn{{PreviousOutPoint: wire.OutPoint{Hash: chainhash.Hash{1}}}},
+				TxOut: []*wire.TxOut{{PkScript: script}},
+			}
+			require.NoError(t, parser.opReturnForTXID(t.Context(), tx, nil, nil, fixedFee(1200)))
+
+			found, err := opreturns.Query(t.Context(), db, opreturns.Filter{Search: tc.search}, 1000)
+			require.NoError(t, err)
+			require.Len(t, found, 1)
+			assert.Equal(t, tc.want, found[0].Message())
+			assert.Equal(t, tx.TxID(), found[0].TxID)
+		})
+	}
 }

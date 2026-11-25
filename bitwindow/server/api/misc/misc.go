@@ -104,7 +104,7 @@ func opReturnToProto(opReturn opreturns.OPReturn, _ int) *miscv1.OPReturn {
 	}
 	return &miscv1.OPReturn{
 		Id:         opReturn.ID,
-		Message:    opreturns.OPReturnToReadable(opReturn.Data),
+		Message:    opReturn.Message(),
 		Txid:       opReturn.TxID,
 		Vout:       opReturn.Vout,
 		Height:     height,

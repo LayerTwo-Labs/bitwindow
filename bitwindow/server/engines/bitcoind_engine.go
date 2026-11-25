@@ -1047,7 +1047,8 @@ func (p *Parser) handleOpReturns(
 		// Parse the OP_RETURN data correctly, just skip if we're unable
 		// to parse. Lots of strange data on the blockchain!
 		data, ok := parseOPReturnData(txout.PkScript)
-		if !ok {
+		message := explorerOPReturnMessage(txout.PkScript[1:])
+		if !ok && message == nil {
 			continue
 		}
 
@@ -1078,13 +1079,13 @@ func (p *Parser) handleOpReturns(
 		}
 
 		opReturns = append(opReturns, opreturns.OPReturn{
-			TxID:         txid,
-			Data:         data,
-			ExplorerData: explorerOPReturnData(txout.PkScript[1:]),
-			Vout:         int32(vout),
-			Height:       height,
-			Fee:          *txFee,
-			CreatedAt:    createdAt,
+			TxID:            txid,
+			Data:            data,
+			ExplorerMessage: message,
+			Vout:            int32(vout),
+			Height:          height,
+			Fee:             *txFee,
+			CreatedAt:       createdAt,
 		})
 	}
 
@@ -1316,25 +1317,39 @@ func parseOPReturnData(script []byte) ([]byte, bool) {
 	}
 }
 
-func explorerOPReturnData(pushes []byte) []byte {
-	tokenizer := txscript.MakeScriptTokenizer(0, pushes)
-	var data []byte
+func explorerOPReturnMessage(script []byte) *string {
+	tokenizer := txscript.MakeScriptTokenizer(0, script)
+	var pushes [][]byte
 	for tokenizer.Next() {
+		var data []byte
 		switch opcode := tokenizer.Opcode(); {
 		case opcode <= txscript.OP_PUSHDATA4:
-			data = append(data, tokenizer.Data()...)
+			data = tokenizer.Data()
 		case opcode == txscript.OP_1NEGATE:
-			data = append(data, 0x81)
+			data = []byte{0x81}
 		case txscript.IsSmallInt(opcode):
-			data = append(data, byte(txscript.AsSmallInt(opcode)))
+			data = []byte{byte(txscript.AsSmallInt(opcode))}
 		default:
 			return nil
 		}
+		if len(data) > 0 {
+			pushes = append(pushes, data)
+		}
 	}
-	if tokenizer.Err() != nil || tokenizer.OpcodePosition() < 1 {
+	if tokenizer.Err() != nil || tokenizer.OpcodePosition() < 1 || len(pushes) == 0 {
 		return nil
 	}
-	return data
+
+	joined := bytes.Join(pushes, nil)
+	if message := opreturns.OPReturnToReadable(joined); message == string(joined) {
+		return &message
+	}
+	parts := make([]string, len(pushes))
+	for i, push := range pushes {
+		parts[i] = opreturns.OPReturnToReadable(push)
+	}
+	message := strings.Join(parts, " ")
+	return &message
 }
 
 // witnessCommitmentMagic prefixes the coinbase segwit commitment push (BIP141).
