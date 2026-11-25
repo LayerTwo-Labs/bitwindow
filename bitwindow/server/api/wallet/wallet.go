@@ -1307,7 +1307,7 @@ func (s *Server) chequeToPb(ctx context.Context, c *cheques.Cheque, unlocked boo
 		pbCheque.SweptAt = timestamppb.New(*c.SweptAt)
 	}
 
-	if c.IsFunded() && unlocked {
+	if len(c.FundedTxids) > 0 && unlocked {
 		privateKeyWIF, err := s.chequeEngine.ChequePrivateKey(ctx, c)
 		if err != nil {
 			return nil, fmt.Errorf("derive cheque %d private key: %w", c.ID, err)

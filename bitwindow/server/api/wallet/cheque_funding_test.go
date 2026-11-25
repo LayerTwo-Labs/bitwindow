@@ -3,10 +3,13 @@ package wallet_test
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"connectrpc.com/connect/v2"
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -596,4 +599,30 @@ func TestCheckChequeFunding_SweptCheque(t *testing.T) {
 		require.Nil(t, cheque.SweptTxid)
 		require.EqualValues(t, 70_000, *cheque.ActualAmountSats)
 	})
+}
+
+func TestGetCheque_PartlyFundedChequeHoldsItsKey(t *testing.T) {
+	t.Parallel()
+	db := database.Test(t)
+
+	orch := &fakeOrchestrator{seedHex: strings.Repeat("ab", 64), utxos: []*orchpb.AddressUnspentOutput{
+		{Txid: "ba5e0000ba5e0000ba5e0000ba5e0000ba5e0000ba5e0000ba5e0000ba5e0000", ValueSats: 400, Confirmations: 1},
+	}}
+	cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, db, apitests.WithOrchestrator(orch)))
+
+	created, err := cli.CreateCheque(t.Context(), &walletv1.CreateChequeRequest{WalletId: testWalletID, ExpectedAmountSats: 1000})
+	require.NoError(t, err)
+	orch.address = created.Address
+
+	funding, err := cli.CheckChequeFunding(t.Context(), &walletv1.CheckChequeFundingRequest{WalletId: testWalletID, Id: created.Id})
+	require.NoError(t, err)
+	require.False(t, funding.Funded)
+
+	resp, err := cli.GetCheque(t.Context(), &walletv1.GetChequeRequest{WalletId: testWalletID, Id: created.Id})
+	require.NoError(t, err)
+	wif, err := btcutil.DecodeWIF(resp.Cheque.GetPrivateKeyWif())
+	require.NoError(t, err)
+	address, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(wif.SerializePubKey()), &chaincfg.SigNetParams)
+	require.NoError(t, err)
+	require.Equal(t, created.Address, address.EncodeAddress())
 }
