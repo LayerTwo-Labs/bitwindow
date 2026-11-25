@@ -20,6 +20,57 @@ bool denialHasScheduledNextExecution(DenialInfo info) {
   return info.nextExecutionTime.toDateTime().millisecondsSinceEpoch != 0;
 }
 
+enum DenialStatus {
+  none('-'),
+  ongoing('Ongoing'),
+  paused('Paused'),
+  completed('Completed'),
+  cancelled('Cancelled');
+
+  const DenialStatus(this.label);
+
+  final String label;
+}
+
+/// The state of the denial of a UTXO. Each screen reads the state here.
+DenialStatus denialStatus(UnspentOutput utxo) {
+  if (!utxo.hasDenialInfo()) {
+    return DenialStatus.none;
+  }
+  final info = utxo.denialInfo;
+  // A later pause or cancel of the plan does not apply to the change of a hop.
+  if (info.isChange) {
+    return DenialStatus.completed;
+  }
+  if (info.hasCancelTime()) {
+    return DenialStatus.cancelled;
+  }
+  if (info.hasPausedAt()) {
+    return DenialStatus.paused;
+  }
+  return denialHasScheduledNextExecution(info) ? DenialStatus.ongoing : DenialStatus.completed;
+}
+
+/// The denial state of a UTXO with its hops, such as "Paused (1/3)".
+String denialStatusWithHops(UnspentOutput utxo) {
+  final hops = utxo.denialInfo.hopsCompleted;
+  final totalHops = utxo.denialInfo.numHops;
+
+  return switch (denialStatus(utxo)) {
+    DenialStatus.none => '-',
+    DenialStatus.completed => 'Done ($hops)',
+    DenialStatus.cancelled => 'Cancelled ($hops)',
+    DenialStatus.paused => 'Paused ($hops/$totalHops)',
+    DenialStatus.ongoing => 'Active ($hops/$totalHops)',
+  };
+}
+
+/// True when the user can pause, resume or cancel the denial from this UTXO.
+bool denialCanControl(UnspentOutput utxo) {
+  final status = denialStatus(utxo);
+  return !utxo.denialInfo.isChange && (status == DenialStatus.ongoing || status == DenialStatus.paused);
+}
+
 /// Hops of a UTXO as done/total, or '0' when the UTXO has no denial.
 String denialHopsLabel(UnspentOutput utxo) {
   if (!utxo.hasDenialInfo()) {
@@ -259,30 +310,12 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
                         final utxo = utxos[row];
                         final hasDenialInfo = utxo.hasDenialInfo();
 
-                        String status = '-';
+                        final status = denialStatus(utxo);
                         final nextExecution = hasDenialInfo
                             ? denialNextExecutionLabel(utxo.denialInfo, DateTime.now())
                             : '-';
-                        bool canControl = false;
-                        bool isPaused = false;
-                        bool isTip = false;
-
-                        if (hasDenialInfo) {
-                          final hasNext = denialHasScheduledNextExecution(utxo.denialInfo);
-
-                          isPaused = utxo.denialInfo.hasPausedAt();
-                          isTip = !utxo.denialInfo.isChange;
-
-                          status = utxo.denialInfo.hasCancelTime()
-                              ? 'Cancelled'
-                              : isPaused
-                              ? 'Paused'
-                              : !hasNext
-                              ? 'Completed'
-                              : 'Ongoing';
-                          // Only the tip can be controlled (paused/resumed/cancelled)
-                          canControl = isTip && (status == 'Ongoing' || status == 'Paused');
-                        }
+                        final canControl = denialCanControl(utxo);
+                        final isPaused = status == DenialStatus.paused;
 
                         return [
                           SailTableCell(
@@ -302,10 +335,10 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
                                 : null,
                           ),
                           SailTableCell(
-                            value: status,
+                            value: status.label,
                             child: SailTooltip(
                               message: utxo.denialInfo.cancelReason,
-                              child: SailText.primary13(status),
+                              child: SailText.primary13(status.label),
                             ),
                           ),
                           SailTableCell(value: utxo.hasReceivedAt() ? formatDate(utxo.receivedAt.toDateTime()) : '—'),
@@ -399,7 +432,7 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
             a.denialInfo.nextExecutionTime.toDateTime().compareTo(b.denialInfo.nextExecutionTime.toDateTime());
       case 'status':
         return _missingLast(a.hasDenialInfo(), b.hasDenialInfo()) ??
-            _statusKey(a.denialInfo).compareTo(_statusKey(b.denialInfo));
+            denialStatus(a).label.compareTo(denialStatus(b).label);
       case 'timestamp':
         return _missingLast(a.hasReceivedAt(), b.hasReceivedAt()) ??
             a.receivedAt.toDateTime().compareTo(b.receivedAt.toDateTime());
@@ -417,16 +450,6 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
       return 0;
     }
     return aHas ? -1 : 1;
-  }
-
-  String _statusKey(DenialInfo info) {
-    if (info.hasCancelTime()) {
-      return 'Cancelled';
-    }
-    if (info.hasPausedAt()) {
-      return 'Paused';
-    }
-    return denialHasScheduledNextExecution(info) ? 'Ongoing' : 'Completed';
   }
 
   void _showUtxoDetails(BuildContext context, UnspentOutput utxo) {
@@ -501,23 +524,12 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
   }
 
   String _getDeniabilityStatus(UnspentOutput utxo) {
-    if (!utxo.hasDenialInfo()) {
-      return 'No deniability';
-    }
-    if (utxo.denialInfo.hasCancelTime()) {
-      return 'Cancelled';
-    }
-    if (utxo.denialInfo.hasPausedAt()) {
-      return 'Paused';
-    }
-
-    final completedHops = utxo.denialInfo.executions.length;
-    final totalHops = utxo.denialInfo.numHops;
-
-    if (!denialHasScheduledNextExecution(utxo.denialInfo)) {
-      return 'Completed';
-    }
-    return 'Ongoing ($completedHops/$totalHops hops)';
+    final status = denialStatus(utxo);
+    return switch (status) {
+      DenialStatus.none => 'No deniability',
+      DenialStatus.ongoing => 'Ongoing (${utxo.denialInfo.executions.length}/${utxo.denialInfo.numHops} hops)',
+      _ => status.label,
+    };
   }
 }
 
@@ -547,12 +559,8 @@ class _PhoneDenialList extends StatelessWidget {
       itemBuilder: (context, index) {
         final utxo = utxos[index];
         final info = utxo.denialInfo;
-        final isPaused = utxo.hasDenialInfo() && info.hasPausedAt();
-        final canControl =
-            utxo.hasDenialInfo() &&
-            !info.isChange &&
-            !info.hasCancelTime() &&
-            (isPaused || denialHasScheduledNextExecution(info));
+        final isPaused = denialStatus(utxo) == DenialStatus.paused;
+        final canControl = denialCanControl(utxo);
         return SailListRow(
           title: formatter.formatSats(utxo.valueSats.toInt()),
           subtitle: 'Denial ID ${info.id == 0 ? '-' : info.id}',
