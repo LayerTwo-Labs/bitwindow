@@ -681,9 +681,12 @@ class BroadcastNewsViewModel extends BaseViewModel {
     notifyListeners();
     try {
       // Parse fee in user's preferred unit and convert to sats
-      final feeSats = feeController.text.isNotEmpty ? parseAmountToSatoshis(feeController.text, feeUnit) : null;
+      final unit = feeUnit;
+      final feeSats = feeController.text.isNotEmpty ? parseAmountToSatoshis(feeController.text, unit) : null;
       if (feeSats != null && feeSats <= 0) {
-        broadcastError = 'Enter a fee greater than zero.';
+        broadcastError = unit == BitcoinUnit.btc
+            ? 'Enter a fee greater than zero. Use up to 8 decimal places.'
+            : 'Enter a fee greater than zero.';
         notifyListeners();
         return;
       }
