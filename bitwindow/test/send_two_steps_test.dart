@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
+import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 import 'package:sidechain_core/gen/walletpsbt/v1/walletpsbt.pb.dart';
 
 import 'test_utils.dart';
@@ -68,13 +69,27 @@ class _AddressBook extends ChangeNotifier implements AddressBookProvider {
 
 class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
   @override
-  String? get activeWalletId => null;
+  String? get activeWalletId => 'qa-wallet';
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _Wallet implements OrchestratorWalletRPC {
+  @override
+  Future<wmpb.PreviewSendResponse> previewSend({
+    required String walletId,
+    required Map<String, int> destinations,
+    required int feeRateSatPerVbyte,
+    bool subtractFeeFromAmount = false,
+    bool notificationOnly = false,
+    List<UnspentOutput>? requiredInputs,
+  }) async {
+    expect(notificationOnly, isTrue);
+    expect(feeRateSatPerVbyte, 0);
+    return wmpb.PreviewSendResponse(notificationFeeSats: Int64(520));
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -117,6 +132,16 @@ void main() {
     tearDown(() async {
       model.dispose();
       await GetIt.I.reset();
+    });
+
+    test('MAX keeps the BIP47 notification cost with a fixed fee', () async {
+      model.recipients.single.addressController.text = 'PM8TJTLJbPRGxSbc8EJi42Wrr6QbNSaSSVJ5Y3E4pbCYiTHUskHg13935Ubb7q8tx9GVbh2UuRnBc3WSyJHhUrw8KhprKnn9eDznYGieTzFcwQRya4GA';
+      model.feeController.text = '0.00001000';
+
+      await model.onUseAvailableBalance(0);
+
+      expect(model.recipients.single.amountController.text, '0.00148934');
+      expect(model.recipients.single.subtractFee, isTrue);
     });
 
     test('MAX excludes a frozen coin', () async {

@@ -1025,6 +1025,10 @@ func (h *WalletHandler) SendTransaction(ctx context.Context, req *pb.SendTransac
 				"amount to %s is below dust limit (%d sats)", address, dustLimitSats,
 			)
 		}
+		if expansion.notificationTxHex != "" && req.SubtractFeeFromAmount && req.FixedFeeSats > 0 && sats-req.FixedFeeSats < dustLimitSats {
+			h.releaseBip47Index(walletID, expansion)
+			return nil, connect.Errorf(connect.CodeInvalidArgument, "fee %d sats exceeds the payment", req.FixedFeeSats)
+		}
 	}
 
 	sendReq := wallet.SendRequest{
@@ -1049,6 +1053,12 @@ func (h *WalletHandler) SendTransaction(ctx context.Context, req *pb.SendTransac
 	}
 
 	if expansion.notificationTxHex != "" {
+		if sendReq.FixedFeeSats > 0 && len(req.RequiredInputs) == 0 && len(req.RawOutputs) == 0 && len(req.ExternalInputs) == 0 {
+			if err := h.checkFixedBip47Funds(ctx, walletID, sendReq, expansion.notificationCostSats); err != nil {
+				h.releaseBip47Index(walletID, expansion)
+				return nil, err
+			}
+		}
 		notifTxID, err := h.broadcastBip47Notification(ctx, walletID, expansion.recipientCode, expansion.notificationTxHex, req.AllowReplay)
 		if err != nil {
 			// The payment never went out, so its index is still free.
@@ -1104,16 +1114,19 @@ func (h *WalletHandler) PreviewSend(ctx context.Context, req *pb.PreviewSendRequ
 	// of the payment, so the send can pin the coins of both. A wallet with one
 	// coin pays from the notification change, which no preview can pin.
 	if notifies {
-		coins, err := h.unfrozenSpendableCoins(ctx, walletID)
-		if err != nil {
-			return nil, err
-		}
 		coin, feeSats, err := h.bip47NotificationCoin(ctx, walletID, req.FeeRateSatPerVbyte, nil, requiredInputs)
 		if err != nil {
 			return nil, err
 		}
-		notificationCoinSats = int64(math.Round(coin.Amount * 1e8))
 		resp.NotificationFeeSats = feeSats
+		if req.NotificationOnly {
+			return resp, nil
+		}
+		coins, err := h.unfrozenSpendableCoins(ctx, walletID)
+		if err != nil {
+			return nil, err
+		}
+		notificationCoinSats = int64(math.Round(coin.Amount * 1e8))
 		resp.FeeIsEstimate = len(coins) < 2
 		if !resp.FeeIsEstimate {
 			resp.NotificationInput = &pb.UnspentOutput{Txid: coin.TxID, Vout: int32(coin.Vout), AmountSats: notificationCoinSats}
@@ -1121,6 +1134,9 @@ func (h *WalletHandler) PreviewSend(ctx context.Context, req *pb.PreviewSendRequ
 		}
 	}
 
+	if req.NotificationOnly {
+		return resp, nil
+	}
 	preview, err := h.engine.Backend().PreviewSend(ctx, walletID, wallet.SendRequest{
 		DestinationsSats:      destinations,
 		FeeRateSatPerVB:       req.FeeRateSatPerVbyte,

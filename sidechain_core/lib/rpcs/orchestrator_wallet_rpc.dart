@@ -386,6 +386,7 @@ class OrchestratorWalletRPC {
     required Map<String, int> destinations,
     required int feeRateSatPerVbyte,
     bool subtractFeeFromAmount = false,
+    bool notificationOnly = false,
     List<bwpb.UnspentOutput>? requiredInputs,
   }) async {
     await pushFrozenCoins();
@@ -395,6 +396,7 @@ class OrchestratorWalletRPC {
         destinations: destinations.entries.map((e) => MapEntry(e.key, Int64(e.value))),
         feeRateSatPerVbyte: Int64(feeRateSatPerVbyte),
         subtractFeeFromAmount: subtractFeeFromAmount,
+        notificationOnly: notificationOnly,
         requiredInputs: requiredInputs?.map(_mapRequiredInput).toList() ?? [],
       ),
     );

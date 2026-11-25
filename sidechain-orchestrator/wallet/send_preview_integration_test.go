@@ -18,6 +18,7 @@ import (
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/testharness"
 	"github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/wallet/bip47"
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
@@ -389,4 +390,71 @@ func TestCoreBumpFeeAddsACoin(t *testing.T) {
 	require.Equal(t, int64(math.Round(entry.Fees.Base*1e8)), result.Plan.NewFeeSats)
 	require.Equal(t, preview.OldFeeSats, result.Plan.OldFeeSats)
 	require.GreaterOrEqual(t, result.Plan.NewFeeRateSatVb, float64(100))
+}
+
+func TestFixedFeeBip47RejectsAnUnfundedPayment(t *testing.T) {
+	h := testharness.New(t, 1)
+	node := h.Nodes[0]
+	client := node.WalletClient
+	ctx := t.Context()
+	_, err := client.GenerateWallet(ctx, &pb.GenerateWalletRequest{Name: "enforcer"})
+	require.NoError(t, err)
+	funded, err := client.GenerateWallet(ctx, &pb.GenerateWalletRequest{Name: "sender"})
+	require.NoError(t, err)
+	sender := funded.WalletId
+	address, err := client.GetNewAddress(ctx, &pb.GetNewAddressRequest{WalletId: sender})
+	require.NoError(t, err)
+	net := &chaincfg.RegressionNetParams
+	burn, err := btcutil.NewAddressWitnessPubKeyHash(make([]byte, 20), net)
+	require.NoError(t, err)
+	require.NoError(t, node.MineToAddress(ctx, 1, address.Address))
+	require.NoError(t, node.MineToAddress(ctx, 100, burn.EncodeAddress()))
+
+	recipient, err := bip47.PaymentCodeFromSeed(strings.Repeat("ca", 32), net)
+	require.NoError(t, err)
+	coins, err := client.ListUnspent(ctx, &pb.ListUnspentRequest{WalletId: sender})
+	require.NoError(t, err)
+	require.Len(t, coins.Utxos, 1)
+	coin := coins.Utxos[0]
+	code := recipient.Base58()
+	request := &pb.SendTransactionRequest{
+		WalletId: sender, Destinations: map[string]int64{code: coin.AmountSats},
+		FixedFeeSats: 1000, SubtractFeeFromAmount: true,
+	}
+	_, sendErr := client.SendTransaction(ctx, request)
+	id, err := node.CoreRPC.TxSpendingPrevout(ctx, coin.Txid, int(coin.Vout))
+	require.NoError(t, err)
+	require.Empty(t, id)
+	require.ErrorContains(t, sendErr, "insufficient funds")
+
+	request.Destinations[code] = 2000
+	request.FixedFeeSats = 1700
+	_, sendErr = client.SendTransaction(ctx, request)
+	id, err = node.CoreRPC.TxSpendingPrevout(ctx, coin.Txid, int(coin.Vout))
+	require.NoError(t, err)
+	require.Empty(t, id)
+	require.ErrorContains(t, sendErr, "exceeds the payment")
+
+	request.Destinations[code] = coin.AmountSats
+	request.FixedFeeSats = 1000
+
+	probe := &pb.PreviewSendRequest{
+		WalletId: sender, Destinations: map[string]int64{code: 546}, NotificationOnly: true,
+	}
+	preview, err := client.PreviewSend(ctx, probe)
+	require.NoError(t, err)
+	require.EqualValues(t, 520, preview.NotificationFeeSats)
+	require.Zero(t, preview.FeeSats)
+
+	request.Destinations[code] -= preview.NotificationFeeSats + 546
+	payment, err := client.SendTransaction(ctx, request)
+	require.NoError(t, err)
+	tx, err := node.CoreRPC.GetRawTransaction(ctx, payment.Txid)
+	require.NoError(t, err)
+	require.Len(t, tx.Vout, 1)
+	require.Equal(t, coin.AmountSats-2066, int64(math.Round(tx.Vout[0].Value*1e8)))
+
+	preview, err = client.PreviewSend(ctx, probe)
+	require.NoError(t, err)
+	require.Zero(t, preview.NotificationFeeSats)
 }

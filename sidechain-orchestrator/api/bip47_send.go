@@ -31,7 +31,8 @@ type bip47Expansion struct {
 	destinations map[string]int64
 	// notificationTxHex, if non-empty, is the unsigned notification tx (raw
 	// hex) the wallet handler must sign + broadcast BEFORE the payment.
-	notificationTxHex string
+	notificationTxHex    string
+	notificationCostSats int64
 	// recipientCode is the recipient's payment code, used to MarkNotified
 	// after a successful broadcast. Empty when passthrough.
 	recipientCode string
@@ -161,7 +162,7 @@ func (h *WalletHandler) expandBip47Destinations(
 		return expansion, nil
 	}
 
-	rawHex, _, err := h.buildBip47NotificationTx(
+	rawHex, _, costSats, err := h.buildBip47NotificationTx(
 		ctx, walletID, seedHex, result.Recipient, netParams, feeRate, pinnedNotification, paymentInputs,
 	)
 	if err != nil {
@@ -169,6 +170,7 @@ func (h *WalletHandler) expandBip47Destinations(
 		return nil, err
 	}
 	expansion.notificationTxHex = rawHex
+	expansion.notificationCostSats = costSats
 	return expansion, nil
 }
 
@@ -188,6 +190,24 @@ func (h *WalletHandler) resolveSendFeeRate(ctx context.Context, walletID string,
 		return connect.NewError(connect.CodeUnavailable, fmt.Errorf("no fee estimate for the payment: %w", err).Error())
 	}
 	req.FeeRateSatPerVB = int64(math.Ceil(rate))
+	return nil
+}
+
+func (h *WalletHandler) checkFixedBip47Funds(
+	ctx context.Context, walletID string, req wallet.SendRequest, notificationCostSats int64,
+) error {
+	coins, err := h.unfrozenSpendableCoins(ctx, walletID)
+	if err != nil {
+		return err
+	}
+	available := lo.SumBy(coins, func(coin wallet.UTXO) int64 { return int64(math.Round(coin.Amount * 1e8)) }) - notificationCostSats
+	need := lo.Sum(lo.Values(req.DestinationsSats))
+	if !req.SubtractFeeFromAmount {
+		need += req.FixedFeeSats
+	}
+	if need > available {
+		return connect.Errorf(connect.CodeFailedPrecondition, "insufficient funds: need %d sats, have %d sats", need, available)
+	}
 	return nil
 }
 
@@ -348,39 +368,39 @@ func (h *WalletHandler) buildBip47NotificationTx(
 	feeRate int64,
 	pinned *wallet.RequiredInput,
 	exclude []wallet.RequiredInput,
-) (string, string, error) {
+) (string, string, int64, error) {
 	coin, feeSats, err := h.bip47NotificationCoin(ctx, walletID, feeRate, pinned, exclude)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 	picked := &coin
 
 	hdPath, err := h.engine.Backend().AddressHDPath(ctx, walletID, picked.Address)
 	if err != nil {
-		return "", "", connect.NewError(connect.CodeInternal, fmt.Errorf("address hd path: %w", err).Error())
+		return "", "", 0, connect.NewError(connect.CodeInternal, fmt.Errorf("address hd path: %w", err).Error())
 	}
 	if hdPath == "" {
-		return "", "", connect.Errorf(connect.CodeInternal,
+		return "", "", 0, connect.Errorf(connect.CodeInternal,
 			"no HD key path for address %s; cannot derive privkey for BIP47 blinding", picked.Address)
 	}
 
 	desigPriv, err := bip47send.DerivePrivKeyFromHDPath(seedHex, hdPath)
 	if err != nil {
-		return "", "", connect.NewError(connect.CodeInternal, fmt.Errorf("derive designated input privkey: %w", err).Error())
+		return "", "", 0, connect.NewError(connect.CodeInternal, fmt.Errorf("derive designated input privkey: %w", err).Error())
 	}
 
 	notifAddr, err := bip47.DeriveNotificationAddress(recipient, netParams)
 	if err != nil {
-		return "", "", connect.NewError(connect.CodeInternal, fmt.Errorf("recipient notification address: %w", err).Error())
+		return "", "", 0, connect.NewError(connect.CodeInternal, fmt.Errorf("recipient notification address: %w", err).Error())
 	}
 
 	changeAddrStr, err := h.engine.Backend().NextChangeAddress(ctx, walletID)
 	if err != nil {
-		return "", "", connect.NewError(connect.CodeInternal, fmt.Errorf("get change address: %w", err).Error())
+		return "", "", 0, connect.NewError(connect.CodeInternal, fmt.Errorf("get change address: %w", err).Error())
 	}
 	changeAddr, err := btcutil.DecodeAddress(changeAddrStr, netParams)
 	if err != nil {
-		return "", "", connect.NewError(connect.CodeInternal, fmt.Errorf("decode change address: %w", err).Error())
+		return "", "", 0, connect.NewError(connect.CodeInternal, fmt.Errorf("decode change address: %w", err).Error())
 	}
 
 	desig := bip47send.DesignatedInput{
@@ -403,9 +423,9 @@ func (h *WalletHandler) buildBip47NotificationTx(
 		netParams,
 	)
 	if err != nil {
-		return "", "", connect.NewError(connect.CodeInternal, fmt.Errorf("build notification tx: %w", err).Error())
+		return "", "", 0, connect.NewError(connect.CodeInternal, fmt.Errorf("build notification tx: %w", err).Error())
 	}
-	return rawHex, picked.Address, nil
+	return rawHex, picked.Address, feeSats + bip47NotificationDustSats, nil
 }
 
 // broadcastBip47Notification signs and broadcasts the notification tx through

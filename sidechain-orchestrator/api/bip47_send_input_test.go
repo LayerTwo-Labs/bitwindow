@@ -157,7 +157,7 @@ func TestBip47NotificationSupportsNestedSegwit(t *testing.T) {
 	net := &chaincfg.SigNetParams
 	recipient, err := bip47.PaymentCodeFromSeed(strings.Repeat("ab", 32), net)
 	require.NoError(t, err)
-	raw, address, err := h.buildBip47NotificationTx(context.Background(), w.ID, w.Master.SeedHex, recipient, net, 5, nil, nil)
+	raw, address, _, err := h.buildBip47NotificationTx(context.Background(), w.ID, w.Master.SeedHex, recipient, net, 5, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, chain.addr, address)
 	tx := decodeBip47TestTx(t, raw)

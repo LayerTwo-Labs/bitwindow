@@ -5560,6 +5560,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     $core.bool? subtractFeeFromAmount,
     $core.Iterable<UnspentOutput>? requiredInputs,
     $core.bool? allowReplay,
+    $core.bool? notificationOnly,
   }) {
     final result = PreviewSendRequest._();
     if (walletId != null) result.walletId = walletId;
@@ -5568,6 +5569,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     if (subtractFeeFromAmount != null) result.subtractFeeFromAmount = subtractFeeFromAmount;
     if (requiredInputs != null) result.requiredInputs.addAll(requiredInputs);
     if (allowReplay != null) result.allowReplay = allowReplay;
+    if (notificationOnly != null) result.notificationOnly = notificationOnly;
     return result;
   }
 
@@ -5593,6 +5595,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     ..aOB(4, _omitFieldNames ? '' : 'subtractFeeFromAmount')
     ..pPM<UnspentOutput>(5, _omitFieldNames ? '' : 'requiredInputs', subBuilder: UnspentOutput.$_createMessage)
     ..aOB(6, _omitFieldNames ? '' : 'allowReplay')
+    ..aOB(7, _omitFieldNames ? '' : 'notificationOnly')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5656,6 +5659,16 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
   $core.bool hasAllowReplay() => $_has(5);
   @$pb.TagNumber(6)
   void clearAllowReplay() => $_clearField(6);
+
+  /// Price only the first BIP47 notification. A zero rate uses the send default.
+  @$pb.TagNumber(7)
+  $core.bool get notificationOnly => $_getBF(6);
+  @$pb.TagNumber(7)
+  set notificationOnly($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasNotificationOnly() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearNotificationOnly() => $_clearField(7);
 }
 
 class PreviewSendResponse extends $pb.GeneratedMessage {

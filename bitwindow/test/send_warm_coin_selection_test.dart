@@ -16,6 +16,7 @@ class _PreviewWallet implements OrchestratorWalletRPC {
     required Map<String, int> destinations,
     required int feeRateSatPerVbyte,
     bool subtractFeeFromAmount = false,
+    bool notificationOnly = false,
     List<UnspentOutput>? requiredInputs,
   }) async {
     expect(walletId, 'w1');
