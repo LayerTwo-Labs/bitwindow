@@ -163,6 +163,41 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
     }
   }
 
+  Future<bool> _isGroupChange(
+    String address,
+    Map<String, dynamic> output,
+    String watchWallet,
+    Set<String> changeDescriptors,
+  ) async {
+    final info = await bitcoindRpcCall('getaddressinfo', params: [address], wallet: watchWallet);
+    final parentDescriptor = info['parent_desc'] as String?;
+    if (parentDescriptor != null) {
+      return changeDescriptors.contains(parentDescriptor);
+    }
+
+    final derivations = output['bip32_derivs'] as List<dynamic>? ?? [];
+    final indexes = derivations
+        .map((item) => RegExp(r'/1/(\d+)$').firstMatch(item['path'] as String)?.group(1))
+        .whereType<String>()
+        .map(int.parse)
+        .toSet();
+    for (final descriptor in changeDescriptors) {
+      for (final index in indexes) {
+        final addresses = await bitcoindRpcCall(
+          'deriveaddresses',
+          params: [
+            descriptor,
+            [index, index],
+          ],
+        );
+        if ((addresses as List<dynamic>).contains(address)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   Future<void> _importPSBT() async {
     if (_selectedGroupId == null || _txIdController.text.isEmpty || _psbtController.text.isEmpty) {
       setState(() {
@@ -193,10 +228,16 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
         orElse: () => throw Exception('Group not found'),
       );
 
-      final isSigned = await PSBTValidator.hasAnySignatures(cleanPsbt, group.n);
-
-      String? keyOwner = _importedData?['key_owner'];
-      int? derivationIndex = _importedData?['derivation_index'];
+      final String? keyOwner = _importedData?['key_owner'];
+      final int? derivationIndex = _importedData?['derivation_index'];
+      final isInitialExport =
+          _importedData?['is_initial'] == true ||
+          (keyOwner == 'Initial' && !group.keys.any((key) => key.owner == keyOwner));
+      final isSigned = await PSBTValidator.hasAnySignatures(
+        cleanPsbt,
+        group.n,
+        group: isInitialExport ? group : null,
+      );
 
       final txId = _txIdController.text.trim();
 
@@ -209,8 +250,9 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
         throw Exception('key_owner is required in PSBT import data');
       }
 
-      MultisigKey? targetKey = await _findTargetKey(group, keyOwner, derivationIndex);
-      if (targetKey == null) {
+      final isInitialPacket = isInitialExport && !isSigned;
+      final targetKey = isInitialPacket ? null : await _findTargetKey(group, keyOwner, derivationIndex);
+      if (!isInitialPacket && targetKey == null) {
         throw Exception('Could not find or derive key for $keyOwner');
       }
 
@@ -219,16 +261,25 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
         final outputs = tx['vout'] as List<dynamic>;
         final inputs = tx['vin'] as List<dynamic>? ?? [];
 
-        // Summarize every output, not just the first, so a multi-output PSBT
-        // cannot hide a payment to another address behind output 0. Show the
-        // total leaving and all destination addresses.
-        double amount = 0.0;
+        final watchWallet = group.watchWalletName ?? 'multisig_${group.id}';
+        await WalletRPCManager().loadWallet(watchWallet);
+        final walletDescriptors = await bitcoindRpcCall('listdescriptors', wallet: watchWallet);
+        final changeDescriptors = (walletDescriptors['descriptors'] as List<dynamic>)
+            .where((descriptor) => descriptor['active'] == true && descriptor['internal'] == true)
+            .map((descriptor) => descriptor['desc'] as String)
+            .toSet();
+        final outputMetadata = decodedPsbt['outputs'] as List<dynamic>;
+        var amountSats = 0;
         final destinations = <String>[];
-        for (final output in outputs) {
-          final out = output as Map<String, dynamic>;
-          amount += (out['value'] as num?)?.toDouble() ?? 0.0;
+        for (var index = 0; index < outputs.length; index++) {
+          final out = outputs[index] as Map<String, dynamic>;
           final scriptPubKey = out['scriptPubKey'] as Map<String, dynamic>?;
-          destinations.add(scriptPubKey?['address'] as String? ?? 'Unknown');
+          final address = scriptPubKey?['address'] as String?;
+          if (address != null && await _isGroupChange(address, outputMetadata[index], watchWallet, changeDescriptors)) {
+            continue;
+          }
+          amountSats += ((out['value'] as num) * 100000000).round();
+          destinations.add(address ?? 'Unknown');
         }
         final destination = destinations.isEmpty ? 'Unknown' : destinations.join(', ');
 
@@ -250,7 +301,7 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
           status: TxStatus.needsSignatures,
           type: TxType.withdrawal,
           created: DateTime.now(),
-          amount: amount,
+          amount: amountSats / 100000000,
           destination: destination,
           fee: (decodedPsbt['fee'] as num?)?.toDouble() ?? 0.0,
           inputs: inputs
@@ -274,7 +325,7 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
       if (isSigned) {
         await TransactionStorage.addOrUpdateKeyPSBT(
           txId,
-          targetKey.xpub,
+          targetKey!.xpub,
           cleanPsbt,
           true,
         );
@@ -284,7 +335,7 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
         final walletKeys = group.keys.where((k) => k.isWallet).toList();
         allRelevantKeys.addAll(walletKeys);
 
-        if (!targetKey.isWallet && !allRelevantKeys.any((k) => k.xpub == targetKey.xpub)) {
+        if (targetKey != null && !targetKey.isWallet && !allRelevantKeys.any((k) => k.xpub == targetKey.xpub)) {
           allRelevantKeys.add(targetKey);
         }
 
