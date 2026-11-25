@@ -182,66 +182,20 @@ class ImportTxidModalViewModel extends BaseViewModel {
         return;
       }
 
-      loadingStatus = 'Fetching transaction data...';
-      notifyListeners();
-
-      final opReturns = await _api.misc.listOPReturns(ListOPReturnRequest(search: txid));
-      final opReturn = opReturns.firstWhere(
-        (op) => op.txid == txid.toLowerCase(),
-        orElse: () => throw Exception('No OP_RETURN data found for transaction'),
-      );
-
-      loadingStatus = 'Parsing transaction data...';
-      notifyListeners();
-
-      if (!opReturn.message.contains('|')) {
-        modalError = 'Invalid OP_RETURN format - not a BitDrive transaction';
-        return;
-      }
-
-      final parts = opReturn.message.split('|');
-      if (parts.length != 2) {
-        modalError = 'Invalid OP_RETURN format';
-        return;
-      }
-
-      final metadataBytes = base64.decode(parts[0]);
-      if (metadataBytes.length != 9) {
-        modalError = 'Invalid metadata format';
-        return;
-      }
-
-      final metadata = ByteData.view(Uint8List.fromList(metadataBytes).buffer);
-      final flags = metadata.getUint8(0);
-      final isEncrypted = (flags & 0x01) != 0;
-      final isMultisig = (flags & 0x02) != 0; // MULTISIG_FLAG = 0x02
-
-      if (!isMultisig) {
-        modalError = 'Transaction is not marked as multisig';
-        return;
-      }
-
-      if (isEncrypted) {
-        modalError = 'Cannot import encrypted multisig data - encryption key required';
-        return;
-      }
-
-      final contentBytes = base64.decode(parts[1]);
-      final jsonString = utf8.decode(contentBytes);
-      final multisigData = json.decode(jsonString) as Map<String, dynamic>;
-
-      multisigData['txid'] = txid;
-
       final walletId = _walletReader.activeWalletId;
       if (walletId == null) {
         modalError = 'Cannot import multisig: no active wallet. Unlock or select a wallet, then try again.';
         return;
       }
 
-      loadingStatus = 'Validating wallet keys...';
+      loadingStatus = 'Fetching transaction data...';
       notifyListeners();
 
-      final importedGroup = await MultisigStorage.groupForWallet(MultisigGroup.fromJson(multisigData), walletId);
+      final importedGroup = await _findGroup(txid, walletId);
+      if (importedGroup == null) {
+        return;
+      }
+
       final totalKeys = importedGroup.keys.length;
       if (!importedGroup.keys.any((key) => key.isWallet)) {
         modalError =
@@ -260,7 +214,7 @@ class ImportTxidModalViewModel extends BaseViewModel {
 
         final groups = await MultisigStorage.loadGroups();
         final group = groups.firstWhere(
-          (g) => g.id == multisigData['id'],
+          (g) => g.id == importedGroup.id,
           orElse: () => throw Exception('Group not found after import'),
         );
 
@@ -287,7 +241,7 @@ class ImportTxidModalViewModel extends BaseViewModel {
       if (context.mounted) {
         showSailToast(
           context,
-          'Successfully imported multisig: ${multisigData['name'] ?? 'Unknown'}',
+          'Successfully imported multisig: ${importedGroup.name}',
           variant: SailToastVariant.success,
         );
         Navigator.of(context).pop(true);
@@ -302,6 +256,71 @@ class ImportTxidModalViewModel extends BaseViewModel {
       loadingStatus = null; // Ensure loading status is cleared
       notifyListeners();
     }
+  }
+
+  Future<MultisigGroup?> _findGroup(String txid, String walletId) async {
+    final opReturns = await _api.misc.listOPReturns(ListOPReturnRequest(search: txid));
+    final indexed = opReturns.where((op) => op.txid == txid.toLowerCase()).firstOrNull;
+    if (indexed == null) {
+      final result = await _multisigLounge.importGroupFromTxid(txid: txid.toLowerCase(), walletId: walletId);
+      return MultisigGroup.fromLoungeProto(result.group, result.walletKeyIndices.toSet()).copyWith(
+        txid: txid.toLowerCase(),
+      );
+    }
+
+    final group = _decodeIndexedGroup(indexed.message, txid);
+    if (group == null) {
+      return null;
+    }
+
+    loadingStatus = 'Validating wallet keys...';
+    notifyListeners();
+    return MultisigStorage.groupForWallet(group, walletId);
+  }
+
+  MultisigGroup? _decodeIndexedGroup(String message, String txid) {
+    loadingStatus = 'Parsing transaction data...';
+    notifyListeners();
+
+    if (!message.contains('|')) {
+      modalError = 'Invalid OP_RETURN format - not a BitDrive transaction';
+      return null;
+    }
+
+    final parts = message.split('|');
+    if (parts.length != 2) {
+      modalError = 'Invalid OP_RETURN format';
+      return null;
+    }
+
+    final metadataBytes = base64.decode(parts[0]);
+    if (metadataBytes.length != 9) {
+      modalError = 'Invalid metadata format';
+      return null;
+    }
+
+    final metadata = ByteData.view(Uint8List.fromList(metadataBytes).buffer);
+    final flags = metadata.getUint8(0);
+    final isEncrypted = (flags & 0x01) != 0;
+    final isMultisig = (flags & 0x02) != 0; // MULTISIG_FLAG = 0x02
+
+    if (!isMultisig) {
+      modalError = 'Transaction is not marked as multisig';
+      return null;
+    }
+
+    if (isEncrypted) {
+      modalError = 'Cannot import encrypted multisig data - encryption key required';
+      return null;
+    }
+
+    final contentBytes = base64.decode(parts[1]);
+    final jsonString = utf8.decode(contentBytes);
+    final multisigData = json.decode(jsonString) as Map<String, dynamic>;
+
+    multisigData['txid'] = txid;
+
+    return MultisigGroup.fromJson(multisigData);
   }
 
   Future<void> _saveImportedGroup(MultisigGroup importedGroup) async {

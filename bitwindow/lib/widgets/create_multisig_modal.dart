@@ -11,34 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
-import 'package:sidechain_core/gen/multisiglounge/v1/multisiglounge.pb.dart' as mlpb;
 import 'package:sail_ui/sail_ui.dart';
-
-MultisigKey _protoToMultisigKey(mlpb.GroupKey k, {required bool isWallet}) {
-  return MultisigKey(
-    owner: k.owner,
-    xpub: k.xpub,
-    derivationPath: k.derivationPath,
-    fingerprint: k.fingerprint.isEmpty ? null : k.fingerprint,
-    originPath: k.originPath.isEmpty ? null : k.originPath,
-    isWallet: isWallet,
-  );
-}
-
-MultisigGroup _protoToMultisigGroup(mlpb.GroupData g, List<MultisigKey> keys) {
-  return MultisigGroup(
-    id: g.id,
-    name: g.name,
-    n: g.n,
-    m: g.m,
-    keys: keys,
-    created: g.created.toInt(),
-    txid: g.txid.isEmpty ? null : g.txid,
-    descriptorReceive: g.descriptorReceive.isEmpty ? null : g.descriptorReceive,
-    descriptorChange: g.descriptorChange.isEmpty ? null : g.descriptorChange,
-    watchWalletName: g.watchWalletName.isEmpty ? null : g.watchWalletName,
-  );
-}
 
 class MultisigKey {
   final String owner;
@@ -1109,13 +1082,9 @@ class ImportMultisigModalViewModel extends BaseViewModel {
 
       final resp = await _multisigLounge.importGroupFromTxid(txid: txid, walletId: walletId);
 
-      final walletIndices = resp.walletKeyIndices.toSet();
-      processedKeys = resp.group.keys
-          .asMap()
-          .entries
-          .map((e) => _protoToMultisigKey(e.value, isWallet: walletIndices.contains(e.key)))
-          .toList();
-      importedGroup = _protoToMultisigGroup(resp.group, processedKeys!);
+      final group = MultisigGroup.fromLoungeProto(resp.group, resp.walletKeyIndices.toSet());
+      importedGroup = group;
+      processedKeys = group.keys;
 
       hasFoundGroup = true;
     } catch (e) {

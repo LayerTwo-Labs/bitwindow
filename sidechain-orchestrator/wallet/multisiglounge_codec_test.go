@@ -3,6 +3,7 @@ package wallet
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -108,6 +109,15 @@ func TestDecodeRejectsMalformed(t *testing.T) {
 		_, err := DecodeGroupOpReturn(metaB64 + "|" + content)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "multisig flag")
+	})
+	t.Run("encrypted group", func(t *testing.T) {
+		meta := [9]byte{0x03}
+		message, err := EncodeGroupOpReturn(sampleGroupData(), 0)
+		require.NoError(t, err)
+		_, content, ok := strings.Cut(message, "|")
+		require.True(t, ok)
+		_, err = DecodeGroupOpReturn(base64.StdEncoding.EncodeToString(meta[:]) + "|" + content)
+		require.ErrorContains(t, err, "encrypted multisig")
 	})
 }
 

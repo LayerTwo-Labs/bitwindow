@@ -100,6 +100,10 @@ func DecodeGroupOpReturn(message string) (MultisigGroupData, error) {
 		return MultisigGroupData{}, errors.New("OP_RETURN does not have the multisig flag set")
 	}
 
+	if meta[0]&0x01 != 0 {
+		return MultisigGroupData{}, errors.New("encrypted multisig data")
+	}
+
 	content, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
 		return MultisigGroupData{}, fmt.Errorf("decode content base64: %w", err)
