@@ -1308,7 +1308,7 @@ func TestListTransactions(t *testing.T) {
 		require.Len(t, resp.Transactions, 2)
 		pay := resp.Transactions[0]
 		assert.Equal(t, "pay2", pay.Txid)
-		assert.Equal(t, "bcrt1qa", pay.Address)
+		assert.Equal(t, "bcrt1qb", pay.Address)
 		assert.Equal(t, uint64(3_000), pay.SentSatoshi)
 		assert.Equal(t, uint64(0), pay.ReceivedSatoshi)
 		assert.Equal(t, uint64(300), pay.FeeSats)
