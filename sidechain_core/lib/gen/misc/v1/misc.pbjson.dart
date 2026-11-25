@@ -366,6 +366,7 @@ const Comment$json = {
     {'1': 'reply_quote', '3': 7, '4': 1, '5': 9, '10': 'replyQuote'},
     {'1': 'create_time', '3': 8, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'createTime'},
     {'1': 'fee_sats', '3': 12, '4': 1, '5': 3, '10': 'feeSats'},
+    {'1': 'pending', '3': 13, '4': 1, '5': 8, '10': 'pending'},
   ],
   '9': [
     {'1': 9, '2': 10},
@@ -381,8 +382,9 @@ final $typed_data.Uint8List commentDescriptor =
         'BhcmVudElkEhYKBmF1dGhvchgDIAEoCVIGYXV0aG9yEhIKBGJvZHkYBCABKAlSBGJvZHkSEAoD'
         'dXJsGAUgASgJUgN1cmwSEgoEbGFuZxgGIAEoCVIEbGFuZxIfCgtyZXBseV9xdW90ZRgHIAEoCV'
         'IKcmVwbHlRdW90ZRI7CgtjcmVhdGVfdGltZRgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1l'
-        'c3RhbXBSCmNyZWF0ZVRpbWUSGQoIZmVlX3NhdHMYDCABKANSB2ZlZVNhdHNKBAgJEApKBAgKEA'
-        'tKBAgLEAxSB3Vwdm90ZXNSCWRvd252b3Rlc1IFc2NvcmU=');
+        'c3RhbXBSCmNyZWF0ZVRpbWUSGQoIZmVlX3NhdHMYDCABKANSB2ZlZVNhdHMSGAoHcGVuZGluZx'
+        'gNIAEoCFIHcGVuZGluZ0oECAkQCkoECAoQC0oECAsQDFIHdXB2b3Rlc1IJZG93bnZvdGVzUgVz'
+        'Y29yZQ==');
 
 @$core.Deprecated('Use listCommentsResponseDescriptor instead')
 const ListCommentsResponse$json = {

@@ -4,6 +4,7 @@
 package coinnews
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/hex"
@@ -27,6 +28,9 @@ type Comment struct {
 	ReplyQuote string    `db:"reply_quote"`
 	FeeSats    int64     `db:"fee_sats"` // 0 when unknown
 	CreatedAt  time.Time `db:"block_time"`
+	// Pending is true while the comment has no block. CreatedAt is then the
+	// time the mempool got it.
+	Pending bool `db:"-"`
 }
 
 // ListThread returns every Comment transitively rooted at `root` (a
@@ -59,6 +63,74 @@ func ListThread(ctx context.Context, db *sql.DB, root codec.ItemID) ([]Comment, 
 		return nil, fmt.Errorf("coinnews: query thread: %w", err)
 	}
 	return out, nil
+}
+
+// WithPending adds the mempool comments that reply to root, or to a comment of
+// the thread, and ranks the result as ListThread does.
+func WithPending(root codec.ItemID, thread, pending []Comment) []Comment {
+	inThread := map[string]bool{root.String(): true}
+	for _, c := range thread {
+		inThread[c.ItemID] = true
+	}
+	out := slices.Clone(thread)
+	// A reply can come before its pending parent, so read until no comment joins.
+	for joined := true; joined; {
+		joined = false
+		for _, c := range pending {
+			if inThread[c.ItemID] || !inThread[c.ParentID] {
+				continue
+			}
+			inThread[c.ItemID] = true
+			out = append(out, c)
+			joined = true
+		}
+	}
+	slices.SortStableFunc(out, func(a, b Comment) int { return cmp.Compare(b.FeeSats, a.FeeSats) })
+	return out
+}
+
+// PendingComment returns the comment of a mempool output, or false for a
+// payload that is not a comment with a valid signature.
+func PendingComment(txid string, vout uint32, data []byte, feeSats int64, seen time.Time) (Comment, bool, error) {
+	_, msg, err := codec.DecodeMessage(data)
+	if err != nil {
+		return Comment{}, false, nil
+	}
+	c, ok := msg.(*codec.Comment)
+	if !ok || codec.VerifyComment(c) != nil {
+		return Comment{}, false, nil
+	}
+	id, err := ItemIDOf(txid, vout)
+	if err != nil {
+		return Comment{}, false, err
+	}
+	url, body, lang, replyQuote := extractCommentTLV(c.TLVs)
+	return Comment{
+		ItemID:     id.String(),
+		ParentID:   c.Parent.String(),
+		Author:     hex.EncodeToString(c.AuthorXPK[:]),
+		Body:       body,
+		URL:        url,
+		Lang:       lang,
+		ReplyQuote: replyQuote,
+		FeeSats:    feeSats,
+		CreatedAt:  seen,
+		Pending:    true,
+	}, true, nil
+}
+
+// ItemIDOf returns the ItemID of an output (spec §4.1). txid is display hex.
+func ItemIDOf(txid string, vout uint32) (codec.ItemID, error) {
+	raw, err := hex.DecodeString(txid)
+	if err != nil {
+		return codec.ItemID{}, fmt.Errorf("coinnews: decode txid %q: %w", txid, err)
+	}
+	if len(raw) != 32 {
+		return codec.ItemID{}, fmt.Errorf("coinnews: txid %q is %d bytes, want 32", txid, len(raw))
+	}
+	// The spec hashes the txid in natural byte order.
+	slices.Reverse(raw)
+	return codec.ComputeItemID([32]byte(raw), vout), nil
 }
 
 // BlockPos locates an Item in canonical scan order (spec §4.2). It is a value
@@ -162,19 +234,10 @@ func Index(ctx context.Context, db *sql.DB, env IndexEnv) error {
 // Creations — gets a row here so the determinism budget (spec §4.2)
 // can hash a stable items_by_id tuple.
 func registerItem(ctx context.Context, tx *sql.Tx, env IndexEnv) (codec.ItemID, error) {
-	var txidBytes [32]byte
-	raw, err := hex.DecodeString(env.Pos.TxID)
+	id, err := ItemIDOf(env.Pos.TxID, env.Pos.VoutIndex)
 	if err != nil {
-		return codec.ItemID{}, fmt.Errorf("coinnews: decode txid %q: %w", env.Pos.TxID, err)
+		return codec.ItemID{}, err
 	}
-	if len(raw) != 32 {
-		return codec.ItemID{}, fmt.Errorf("coinnews: txid %q is %d bytes, want 32", env.Pos.TxID, len(raw))
-	}
-	// Bitcoin Core gives us txids in display (reversed) hex; reverse
-	// to natural byte order for the SHA-256 input the spec defines.
-	slices.Reverse(raw)
-	copy(txidBytes[:], raw)
-	id := codec.ComputeItemID(txidBytes, env.Pos.VoutIndex)
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT OR IGNORE INTO cn_items

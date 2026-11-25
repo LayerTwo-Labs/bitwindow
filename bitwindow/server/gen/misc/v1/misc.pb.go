@@ -1291,14 +1291,17 @@ type Comment struct {
 	// Hex-encoded 12-byte ItemID of the parent Item.
 	ParentId string `protobuf:"bytes,2,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	// Hex-encoded 32-byte x-only author pubkey (spec §12).
-	Author     string                 `protobuf:"bytes,3,opt,name=author,proto3" json:"author,omitempty"`
-	Body       string                 `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"`
-	Url        string                 `protobuf:"bytes,5,opt,name=url,proto3" json:"url,omitempty"`
-	Lang       string                 `protobuf:"bytes,6,opt,name=lang,proto3" json:"lang,omitempty"`
-	ReplyQuote string                 `protobuf:"bytes,7,opt,name=reply_quote,json=replyQuote,proto3" json:"reply_quote,omitempty"`
+	Author     string `protobuf:"bytes,3,opt,name=author,proto3" json:"author,omitempty"`
+	Body       string `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"`
+	Url        string `protobuf:"bytes,5,opt,name=url,proto3" json:"url,omitempty"`
+	Lang       string `protobuf:"bytes,6,opt,name=lang,proto3" json:"lang,omitempty"`
+	ReplyQuote string `protobuf:"bytes,7,opt,name=reply_quote,json=replyQuote,proto3" json:"reply_quote,omitempty"`
+	// Block time, or the time the mempool got a pending comment.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// Fee of the comment's transaction. 0 when unknown.
-	FeeSats       int64 `protobuf:"varint,12,opt,name=fee_sats,json=feeSats,proto3" json:"fee_sats,omitempty"`
+	FeeSats int64 `protobuf:"varint,12,opt,name=fee_sats,json=feeSats,proto3" json:"fee_sats,omitempty"`
+	// True while the comment's transaction has no block.
+	Pending       bool `protobuf:"varint,13,opt,name=pending,proto3" json:"pending,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1394,6 +1397,13 @@ func (x *Comment) GetFeeSats() int64 {
 		return x.FeeSats
 	}
 	return 0
+}
+
+func (x *Comment) GetPending() bool {
+	if x != nil {
+		return x.Pending
+	}
+	return false
 }
 
 type ListCommentsResponse struct {
@@ -1904,7 +1914,7 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\x13CommentNewsResponse\x12\x12\n" +
 	"\x04txid\x18\x01 \x01(\tR\x04txid\".\n" +
 	"\x13ListCommentsRequest\x12\x17\n" +
-	"\aitem_id\x18\x01 \x01(\tR\x06itemId\"\xb7\x02\n" +
+	"\aitem_id\x18\x01 \x01(\tR\x06itemId\"\xd1\x02\n" +
 	"\aComment\x12\x17\n" +
 	"\aitem_id\x18\x01 \x01(\tR\x06itemId\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x16\n" +
@@ -1916,7 +1926,8 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"replyQuote\x12;\n" +
 	"\vcreate_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12\x19\n" +
-	"\bfee_sats\x18\f \x01(\x03R\afeeSatsJ\x04\b\t\x10\n" +
+	"\bfee_sats\x18\f \x01(\x03R\afeeSats\x12\x18\n" +
+	"\apending\x18\r \x01(\bR\apendingJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\vJ\x04\b\v\x10\fR\aupvotesR\tdownvotesR\x05score\"D\n" +
 	"\x14ListCommentsResponse\x12,\n" +

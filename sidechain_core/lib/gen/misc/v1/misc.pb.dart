@@ -1536,6 +1536,7 @@ class Comment extends $pb.GeneratedMessage {
     $core.String? replyQuote,
     $0.Timestamp? createTime,
     $fixnum.Int64? feeSats,
+    $core.bool? pending,
   }) {
     final result = Comment._();
     if (itemId != null) result.itemId = itemId;
@@ -1547,6 +1548,7 @@ class Comment extends $pb.GeneratedMessage {
     if (replyQuote != null) result.replyQuote = replyQuote;
     if (createTime != null) result.createTime = createTime;
     if (feeSats != null) result.feeSats = feeSats;
+    if (pending != null) result.pending = pending;
     return result;
   }
 
@@ -1569,6 +1571,7 @@ class Comment extends $pb.GeneratedMessage {
     ..aOS(7, _omitFieldNames ? '' : 'replyQuote')
     ..aOM<$0.Timestamp>(8, _omitFieldNames ? '' : 'createTime', subBuilder: $0.Timestamp.$_createMessage)
     ..aInt64(12, _omitFieldNames ? '' : 'feeSats')
+    ..aOB(13, _omitFieldNames ? '' : 'pending')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1657,6 +1660,7 @@ class Comment extends $pb.GeneratedMessage {
   @$pb.TagNumber(7)
   void clearReplyQuote() => $_clearField(7);
 
+  /// Block time, or the time the mempool got a pending comment.
   @$pb.TagNumber(8)
   $0.Timestamp get createTime => $_getN(7);
   @$pb.TagNumber(8)
@@ -1677,6 +1681,16 @@ class Comment extends $pb.GeneratedMessage {
   $core.bool hasFeeSats() => $_has(8);
   @$pb.TagNumber(12)
   void clearFeeSats() => $_clearField(12);
+
+  /// True while the comment's transaction has no block.
+  @$pb.TagNumber(13)
+  $core.bool get pending => $_getBF(9);
+  @$pb.TagNumber(13)
+  set pending($core.bool value) => $_setBool(9, value);
+  @$pb.TagNumber(13)
+  $core.bool hasPending() => $_has(9);
+  @$pb.TagNumber(13)
+  void clearPending() => $_clearField(13);
 }
 
 class ListCommentsResponse extends $pb.GeneratedMessage {

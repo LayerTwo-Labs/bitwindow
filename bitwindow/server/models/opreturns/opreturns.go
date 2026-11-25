@@ -772,6 +772,26 @@ func ListPendingCoinNews(ctx context.Context, db *sql.DB) ([]CoinNews, error) {
 	return out, nil
 }
 
+// ListPendingComments returns the signed comments in the mempool, the first seen first.
+func ListPendingComments(ctx context.Context, db *sql.DB) ([]cnstore.Comment, error) {
+	rows, err := listPendingOPReturns(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("list pending comments: %w", err)
+	}
+
+	var out []cnstore.Comment
+	for _, row := range rows {
+		comment, ok, err := cnstore.PendingComment(row.TxID, uint32(row.Vout), row.Data, int64(row.Fee), lo.FromPtr(row.CreatedAt))
+		if err != nil {
+			return nil, fmt.Errorf("list pending comments: %w", err)
+		}
+		if ok {
+			out = append(out, comment)
+		}
+	}
+	return out, nil
+}
+
 func reassembledTLVs(ctx context.Context, db *sql.DB, itemIDHex string, rawTLV []byte) ([]codec.TLV, error) {
 	raw, err := hex.DecodeString(itemIDHex)
 	if err != nil {
