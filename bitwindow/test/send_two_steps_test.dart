@@ -7,7 +7,7 @@ import 'package:bitwindow/providers/psbt_draft_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:bitwindow/widgets/grouped_address.dart';
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -76,6 +76,24 @@ class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
 }
 
 class _Wallet implements OrchestratorWalletRPC {
+  Map<String, int>? psbtDestinations;
+
+  @override
+  Future<String> createPsbt({
+    required String walletId,
+    required Map<String, int> destinations,
+    int? feeRateSatPerVbyte,
+    int? fixedFeeSats,
+    bool subtractFeeFromAmount = false,
+    String? opReturnMessage,
+    String? opReturnHex,
+    List<UnspentOutput>? requiredInputs,
+    bool allowReplay = false,
+  }) async {
+    psbtDestinations = destinations;
+    return 'unsigned';
+  }
+
   @override
   Future<wmpb.PreviewSendResponse> previewSend({
     required String walletId,
@@ -96,7 +114,7 @@ class _Wallet implements OrchestratorWalletRPC {
 
 class _Orchestrator implements OrchestratorRPC {
   @override
-  final wallet = _Wallet();
+  final _Wallet wallet = _Wallet();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -109,6 +127,7 @@ void main() {
     late _Coins coins;
     late _Drafts drafts;
     late SendPageViewModel model;
+    late _Orchestrator orchestrator;
 
     UnspentOutput coin(String output, int sats) => UnspentOutput(output: output, valueSats: Int64(sats));
 
@@ -125,13 +144,30 @@ void main() {
       GetIt.I.registerSingleton<SettingsProvider>(_Settings());
       GetIt.I.registerSingleton<AddressBookProvider>(_AddressBook());
       GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader());
-      GetIt.I.registerSingleton<OrchestratorRPC>(_Orchestrator());
+      orchestrator = _Orchestrator();
+      GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
       model = _SendViewModel()..selectedConfTarget = null;
     });
 
     tearDown(() async {
       model.dispose();
       await GetIt.I.reset();
+    });
+
+    testWidgets('PSBT creation accepts a recipient address with a newline', (tester) async {
+      const address = 'bcrt1qvx7nwqp6cpqgl33m40fmk55zhh29e849f3uv69';
+      model.recipients.single.addressController.text = '$address\n';
+      model.recipients.single.amountController.text = '0.00013';
+      model.addRecipient();
+      model.recipients.last.addressController.text = address;
+      model.recipients.last.amountController.text = '0.00002';
+      model.feeController.text = '0.00010000';
+      await tester.pumpWidget(const SizedBox());
+
+      final psbt = await model.buildUnsignedPsbtForAirgap(tester.element(find.byType(SizedBox)));
+
+      expect(psbt, 'unsigned');
+      expect(orchestrator.wallet.psbtDestinations, {address: 15000});
     });
 
     test('MAX keeps the BIP47 notification cost with a fixed fee', () async {
