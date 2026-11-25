@@ -103,7 +103,7 @@ class _Orchestrator implements OrchestratorRPC {
 }
 
 void main() {
-  group('onUseAvailableBalance', () {
+  group('SendPageViewModel', () {
     late _Balance balance;
     late _Transactions transactions;
     late _Coins coins;
@@ -177,6 +177,44 @@ void main() {
       await model.onUseAvailableBalance(0);
 
       expect(model.recipients.single.amountController.text, '0.00100000');
+    });
+
+    test('MAX fills the amount when the coin list refreshes during the fee read', () async {
+      model.recipients.single.addressController.text = 'PM8TJTLJbPRGxSbc8EJi42Wrr6QbNSaSSVJ5Y3E4pbCYiTHUskHg13935Ubb7q8tx9GVbh2UuRnBc3WSyJHhUrw8KhprKnn9eDznYGieTzFcwQRya4GA';
+      model.feeController.text = '0.00001000';
+
+      final done = model.onUseAvailableBalance(0);
+      transactions.notifyListeners();
+      await done;
+
+      expect(model.recipients.single.amountController.text, isNotEmpty);
+    });
+
+    test('a new block keeps the picked coins', () {
+      model.onSelectionChanged([transactions.utxos.first]);
+
+      transactions.utxos = [coin('aa:0', 100000)..confirmations = 7, coin('bb:0', 50000)..confirmations = 7];
+      transactions.notifyListeners();
+
+      expect(model.selectedUtxos, [transactions.utxos.first]);
+    });
+
+    test('a spent coin leaves the picked coins', () {
+      model.onSelectionChanged(transactions.utxos);
+
+      transactions.utxos = [coin('bb:0', 50000)..confirmations = 1];
+      transactions.notifyListeners();
+
+      expect(model.selectedUtxos, transactions.utxos);
+    });
+
+    test('a pick from an older coin list selects the coin the wallet holds', () {
+      final older = coin('aa:0', 100000);
+      transactions.utxos = [coin('aa:0', 100000)..confirmations = 3, coin('bb:0', 50000)];
+
+      model.onSelectionChanged([older]);
+
+      expect(model.selectedUtxos, [transactions.utxos.first]);
     });
   });
 
