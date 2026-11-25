@@ -16,7 +16,7 @@ import 'test_utils.dart';
 const _address = 'bcrt1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq';
 
 class _FakeCheckProvider extends ChangeNotifier implements CheckProvider {
-  final reply = Completer<bwpb.Cheque?>();
+  final reply = Completer<bwpb.Cheque>();
 
   @override
   List<bwpb.Cheque> checks = [
@@ -24,10 +24,7 @@ class _FakeCheckProvider extends ChangeNotifier implements CheckProvider {
   ];
 
   @override
-  Future<bwpb.Cheque?> getCheck(int id) => reply.future;
-
-  @override
-  void startPolling(int checkId, {Duration interval = const Duration(seconds: 5)}) {}
+  Future<bwpb.Cheque> getCheck(int id) => reply.future;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -101,5 +98,31 @@ void main() {
     expect(qr.dataModuleStyle.color, dark.colors.text);
     expect(qr.eyeStyle.color, dark.colors.text);
     expect(qr.dataModuleStyle.dataModuleShape, QrDataModuleShape.square);
+  });
+
+  Future<void> pumpFailedRead(WidgetTester tester, Object error) async {
+    final provider = _FakeCheckProvider()..checks = [];
+    GetIt.I.registerSingleton<CheckProvider>(provider);
+    GetIt.I.registerSingleton<TransactionProvider>(_FakeTransactions());
+    GetIt.I.registerSingleton<WalletReaderProvider>(_FakeWalletReader());
+    GetIt.I.registerSingleton<OrchestratorRPC>(_FakeOrchestrator());
+
+    await tester.pumpSailPage(const CheckDetailPage(checkId: 1));
+    provider.reply.completeError(error);
+    await tester.pump();
+    await tester.pump();
+  }
+
+  testWidgets('a failed read shows its error', (tester) async {
+    await pumpFailedRead(tester, WalletException('unavailable: connection refused'));
+
+    expect(find.textContaining('connection refused'), findsOneWidget);
+    expect(find.text('Check not found'), findsNothing);
+  });
+
+  testWidgets('an unknown check shows Check not found', (tester) async {
+    await pumpFailedRead(tester, WalletException('not_found: cheque not found'));
+
+    expect(find.text('Check not found'), findsOneWidget);
   });
 }

@@ -46,11 +46,12 @@ class CheckDetailViewModel extends BaseViewModel {
       notifyListeners();
     }
 
-    _check = await _checkProvider.getCheck(checkId);
-    if (_check == null) {
-      modelError = 'Check not found';
-    } else if (!_check!.funded && _check!.sweptTxid.isEmpty) {
-      _checkProvider.startPolling(checkId);
+    try {
+      _check = await _checkProvider.getCheck(checkId);
+      modelError = null;
+    } catch (e) {
+      _check = null;
+      modelError = e.toString().contains('cheque not found') ? 'Check not found' : 'Failed to load check: $e';
     }
 
     _isLoading = false;
