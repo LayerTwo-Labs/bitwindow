@@ -423,6 +423,14 @@ func (h *WalletHandler) RestoreWalletBackupStream(ctx context.Context, req *pb.R
 	})
 }
 
+func (h *WalletHandler) ImportWalletBackup(ctx context.Context, req *pb.ImportWalletBackupRequest) (*pb.ImportWalletBackupResponse, error) {
+	ids, err := h.svc.ImportWalletBackup(req.WalletJson, req.EncryptionJson, req.Password)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.ImportWalletBackupResponse{WalletIds: ids}, nil
+}
+
 func (h *WalletHandler) CreateWatchOnlyWallet(ctx context.Context, req *pb.CreateWatchOnlyWalletRequest) (*pb.CreateWatchOnlyWalletResponse, error) {
 	if err := h.svc.CreateWatchOnlyWallet(req.Name, req.XpubOrDescriptor, req.GradientJson); err != nil {
 		return nil, rpcError(err)
@@ -752,8 +760,10 @@ func rpcError(err error) error {
 	switch {
 	case errors.Is(err, wallet.ErrIncorrectPassword):
 		return connect.NewError(connect.CodeUnauthenticated, err.Error()).WithCause(err)
-	case errors.Is(err, wallet.ErrNotEncrypted):
+	case errors.Is(err, wallet.ErrNotEncrypted), errors.Is(err, wallet.ErrBackupPasswordRequired):
 		return connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
+	case errors.Is(err, wallet.ErrBackupHasNoNewWallet):
+		return connect.NewError(connect.CodeAlreadyExists, err.Error()).WithCause(err)
 	default:
 		return connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 	}

@@ -151,6 +151,15 @@ abstract final class WalletManagerService {
     walletmanagerv1walletmanager.RestoreWalletBackupProgressResponse.new,
   );
 
+  /// ImportWalletBackup adds the wallets of a backup to the wallets of this
+  /// install. A wallet that is here already stays as it is.
+  static const importWalletBackup = connect.Spec(
+    '/$name/ImportWalletBackup',
+    connect.StreamType.unary,
+    walletmanagerv1walletmanager.ImportWalletBackupRequest.new,
+    walletmanagerv1walletmanager.ImportWalletBackupResponse.new,
+  );
+
   static const createWatchOnlyWallet = connect.Spec(
     '/$name/CreateWatchOnlyWallet',
     connect.StreamType.unary,

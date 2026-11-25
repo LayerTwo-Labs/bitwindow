@@ -49,6 +49,8 @@ abstract class WalletManagerServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.RestoreWalletBackupRequest request);
   $async.Future<$3.RestoreWalletBackupProgressResponse> restoreWalletBackupStream(
       $pb.ServerContext ctx, $3.RestoreWalletBackupRequest request);
+  $async.Future<$3.ImportWalletBackupResponse> importWalletBackup(
+      $pb.ServerContext ctx, $3.ImportWalletBackupRequest request);
   $async.Future<$3.CreateWatchOnlyWalletResponse> createWatchOnlyWallet(
       $pb.ServerContext ctx, $3.CreateWatchOnlyWalletRequest request);
   $async.Future<$3.CreateElectrumWalletResponse> createElectrumWallet(
@@ -176,6 +178,8 @@ abstract class WalletManagerServiceBase extends $pb.GeneratedService {
         return $3.RestoreWalletBackupRequest();
       case 'RestoreWalletBackupStream':
         return $3.RestoreWalletBackupRequest();
+      case 'ImportWalletBackup':
+        return $3.ImportWalletBackupRequest();
       case 'CreateWatchOnlyWallet':
         return $3.CreateWatchOnlyWalletRequest();
       case 'CreateElectrumWallet':
@@ -340,6 +344,8 @@ abstract class WalletManagerServiceBase extends $pb.GeneratedService {
         return restoreWalletBackup(ctx, request as $3.RestoreWalletBackupRequest);
       case 'RestoreWalletBackupStream':
         return restoreWalletBackupStream(ctx, request as $3.RestoreWalletBackupRequest);
+      case 'ImportWalletBackup':
+        return importWalletBackup(ctx, request as $3.ImportWalletBackupRequest);
       case 'CreateWatchOnlyWallet':
         return createWatchOnlyWallet(ctx, request as $3.CreateWatchOnlyWalletRequest);
       case 'CreateElectrumWallet':

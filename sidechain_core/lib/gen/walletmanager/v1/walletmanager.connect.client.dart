@@ -339,6 +339,25 @@ extension type WalletManagerServiceClient(connect.Transport _transport) {
     );
   }
 
+  /// ImportWalletBackup adds the wallets of a backup to the wallets of this
+  /// install. A wallet that is here already stays as it is.
+  Future<walletmanagerv1walletmanager.ImportWalletBackupResponse> importWalletBackup(
+    walletmanagerv1walletmanager.ImportWalletBackupRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.WalletManagerService.importWalletBackup,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   Future<walletmanagerv1walletmanager.CreateWatchOnlyWalletResponse> createWatchOnlyWallet(
     walletmanagerv1walletmanager.CreateWatchOnlyWalletRequest input, {
     connect.Headers? headers,

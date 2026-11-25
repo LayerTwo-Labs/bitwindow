@@ -82,6 +82,9 @@ const (
 	// WalletManagerServiceRestoreWalletBackupStreamProcedure is the procedure name of the
 	// WalletManagerService's RestoreWalletBackupStream RPC.
 	WalletManagerServiceRestoreWalletBackupStreamProcedure = "/walletmanager.v1.WalletManagerService/RestoreWalletBackupStream"
+	// WalletManagerServiceImportWalletBackupProcedure is the procedure name of the
+	// WalletManagerService's ImportWalletBackup RPC.
+	WalletManagerServiceImportWalletBackupProcedure = "/walletmanager.v1.WalletManagerService/ImportWalletBackup"
 	// WalletManagerServiceCreateWatchOnlyWalletProcedure is the procedure name of the
 	// WalletManagerService's CreateWatchOnlyWallet RPC.
 	WalletManagerServiceCreateWatchOnlyWalletProcedure = "/walletmanager.v1.WalletManagerService/CreateWatchOnlyWallet"
@@ -393,6 +396,13 @@ var (
 			StreamType: connect.StreamTypeServer,
 			Schema:     v1.File_walletmanager_v1_walletmanager_proto.Services().ByName("WalletManagerService").Methods().ByName("RestoreWalletBackupStream"),
 			Procedure:  WalletManagerServiceRestoreWalletBackupStreamProcedure,
+		}
+	})
+	walletManagerServiceImportWalletBackupSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_walletmanager_v1_walletmanager_proto.Services().ByName("WalletManagerService").Methods().ByName("ImportWalletBackup"),
+			Procedure:  WalletManagerServiceImportWalletBackupProcedure,
 		}
 	})
 	walletManagerServiceCreateWatchOnlyWalletSpec = sync.OnceValue(func() connect.Spec {
@@ -836,6 +846,9 @@ type WalletManagerServiceClient interface {
 	ListWalletBackups(context.Context, *v1.ListWalletBackupsRequest) (*v1.ListWalletBackupsResponse, error)
 	RestoreWalletBackup(context.Context, *v1.RestoreWalletBackupRequest) (*v1.RestoreWalletBackupResponse, error)
 	RestoreWalletBackupStream(context.Context, *v1.RestoreWalletBackupRequest) (WalletManagerServiceRestoreWalletBackupStreamClientStream, error)
+	// ImportWalletBackup adds the wallets of a backup to the wallets of this
+	// install. A wallet that is here already stays as it is.
+	ImportWalletBackup(context.Context, *v1.ImportWalletBackupRequest) (*v1.ImportWalletBackupResponse, error)
 	CreateWatchOnlyWallet(context.Context, *v1.CreateWatchOnlyWalletRequest) (*v1.CreateWatchOnlyWalletResponse, error)
 	// Create an electrum wallet: keys are generated locally, but no local Bitcoin
 	// Core or enforcer runs. The wallet reads its chain from Esplora.
@@ -1049,6 +1062,9 @@ type WalletManagerServiceHandler interface {
 	ListWalletBackups(context.Context, *v1.ListWalletBackupsRequest) (*v1.ListWalletBackupsResponse, error)
 	RestoreWalletBackup(context.Context, *v1.RestoreWalletBackupRequest) (*v1.RestoreWalletBackupResponse, error)
 	RestoreWalletBackupStream(context.Context, *v1.RestoreWalletBackupRequest, WalletManagerServiceRestoreWalletBackupStreamServerStream) error
+	// ImportWalletBackup adds the wallets of a backup to the wallets of this
+	// install. A wallet that is here already stays as it is.
+	ImportWalletBackup(context.Context, *v1.ImportWalletBackupRequest) (*v1.ImportWalletBackupResponse, error)
 	CreateWatchOnlyWallet(context.Context, *v1.CreateWatchOnlyWalletRequest) (*v1.CreateWatchOnlyWalletResponse, error)
 	// Create an electrum wallet: keys are generated locally, but no local Bitcoin
 	// Core or enforcer runs. The wallet reads its chain from Esplora.
@@ -1190,6 +1206,7 @@ func RegisterWalletManagerServiceHandler(server *connect.Server, svc WalletManag
 		connect.Method{Spec: walletManagerServiceListWalletBackupsSpec(), Handler: adapter.listWalletBackups},
 		connect.Method{Spec: walletManagerServiceRestoreWalletBackupSpec(), Handler: adapter.restoreWalletBackup},
 		connect.Method{Spec: walletManagerServiceRestoreWalletBackupStreamSpec(), Handler: adapter.restoreWalletBackupStream},
+		connect.Method{Spec: walletManagerServiceImportWalletBackupSpec(), Handler: adapter.importWalletBackup},
 		connect.Method{Spec: walletManagerServiceCreateWatchOnlyWalletSpec(), Handler: adapter.createWatchOnlyWallet},
 		connect.Method{Spec: walletManagerServiceCreateElectrumWalletSpec(), Handler: adapter.createElectrumWallet},
 		connect.Method{Spec: walletManagerServiceCreateMultisigWalletSpec(), Handler: adapter.createMultisigWallet},
@@ -1377,6 +1394,10 @@ func (UnimplementedWalletManagerServiceHandler) RestoreWalletBackup(context.Cont
 
 func (UnimplementedWalletManagerServiceHandler) RestoreWalletBackupStream(context.Context, *v1.RestoreWalletBackupRequest, WalletManagerServiceRestoreWalletBackupStreamServerStream) error {
 	return connect.NewError(connect.CodeUnimplemented, "walletmanager.v1.WalletManagerService.RestoreWalletBackupStream is not implemented")
+}
+
+func (UnimplementedWalletManagerServiceHandler) ImportWalletBackup(context.Context, *v1.ImportWalletBackupRequest) (*v1.ImportWalletBackupResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "walletmanager.v1.WalletManagerService.ImportWalletBackup is not implemented")
 }
 
 func (UnimplementedWalletManagerServiceHandler) CreateWatchOnlyWallet(context.Context, *v1.CreateWatchOnlyWalletRequest) (*v1.CreateWatchOnlyWalletResponse, error) {
@@ -1769,6 +1790,14 @@ func (c *walletManagerServiceClient) RestoreWalletBackupStream(ctx context.Conte
 		return WalletManagerServiceRestoreWalletBackupStreamClientStream{}, err
 	}
 	return WalletManagerServiceRestoreWalletBackupStreamClientStream{stream: stream}, nil
+}
+
+func (c *walletManagerServiceClient) ImportWalletBackup(ctx context.Context, req *v1.ImportWalletBackupRequest) (*v1.ImportWalletBackupResponse, error) {
+	var res v1.ImportWalletBackupResponse
+	if err := c.client.CallUnary(ctx, walletManagerServiceImportWalletBackupSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 func (c *walletManagerServiceClient) CreateWatchOnlyWallet(ctx context.Context, req *v1.CreateWatchOnlyWalletRequest) (*v1.CreateWatchOnlyWalletResponse, error) {
@@ -2467,6 +2496,18 @@ func (h walletManagerServiceHandler) restoreWalletBackupStream(ctx context.Conte
 		return err
 	}
 	return h.svc.RestoreWalletBackupStream(ctx, &req, WalletManagerServiceRestoreWalletBackupStreamServerStream{stream: stream})
+}
+
+func (h walletManagerServiceHandler) importWalletBackup(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ImportWalletBackupRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ImportWalletBackup(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
 }
 
 func (h walletManagerServiceHandler) createWatchOnlyWallet(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {

@@ -1935,11 +1935,27 @@ func (s *Service) loadWalletFile() error {
 	// a later write compares against.
 	s.setWalletDigestLocked(data)
 
+	migrated, err := s.normalizeWallets()
+	if err != nil {
+		return err
+	}
+	if migrated {
+		s.log.Info().Msg("migrated the wallet file")
+		if err := s.saveWalletFile(); err != nil {
+			s.log.Warn().Err(err).Msg("save after wallet_type backfill failed")
+		}
+	}
+	s.log.Debug().Int("wallet_count", len(s.wallets)).Str("active_id", s.activeWalletID).Msg("wallet file loaded")
+	return nil
+}
+
+// normalizeWallets brings each loaded wallet to the shape this build stores,
+// and reports whether a wallet changed. Must be called with mu held.
+func (s *Service) normalizeWallets() (bool, error) {
 	// Backfill missing wallet_type for wallets created before the field was
 	// introduced. Anything with a Master.Mnemonic but no type is the original
 	// single-wallet enforcer install; anything without a mnemonic is a
-	// watch-only entry. Saves the file again only when something changed so
-	// we don't churn the disk on every load.
+	// watch-only entry.
 	migrated := false
 	for i := range s.wallets {
 		if s.wallets[i].WalletType != "" {
@@ -1954,7 +1970,7 @@ func (s *Service) loadWalletFile() error {
 	}
 	enforcerMigrated, err := s.migrateEnforcerWallets()
 	if err != nil {
-		return err
+		return false, err
 	}
 	if enforcerMigrated {
 		migrated = true
@@ -1968,14 +1984,7 @@ func (s *Service) loadWalletFile() error {
 	if s.adoptStarterWallet() {
 		migrated = true
 	}
-	if migrated {
-		s.log.Info().Msg("migrated the wallet file")
-		if err := s.saveWalletFile(); err != nil {
-			s.log.Warn().Err(err).Msg("save after wallet_type backfill failed")
-		}
-	}
-	s.log.Debug().Int("wallet_count", len(s.wallets)).Str("active_id", s.activeWalletID).Msg("wallet file loaded")
-	return nil
+	return migrated, nil
 }
 
 // EnforcerAccountPath is the account the enforcer daemon's BDK wallet derived,
