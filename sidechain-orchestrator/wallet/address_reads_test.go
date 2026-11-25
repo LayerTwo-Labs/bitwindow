@@ -73,6 +73,20 @@ func TestAddressUnspentReadsValuesFromTheRawTx(t *testing.T) {
 	require.Equal(t, 11, utxos[0].Confirmations)
 }
 
+func TestAddressUnspentKeepsTheConfirmedHeight(t *testing.T) {
+	f := newAddressUnspentFixture(t)
+	f.serve(EsploraUTXO{
+		TxID: f.prevID, Vout: 0, Value: 150_000,
+		Status: EsploraStatus{Confirmed: true, BlockHeight: 112},
+	})
+
+	utxos, tip, err := f.backend.AddressUnspent(t.Context(), f.address)
+	require.NoError(t, err)
+	require.Len(t, utxos, 1)
+	require.Equal(t, 112, tip)
+	require.Equal(t, 1, utxos[0].Confirmations)
+}
+
 func TestAddressUnspentIgnoresALowServerValue(t *testing.T) {
 	f := newAddressUnspentFixture(t)
 	f.serve(
