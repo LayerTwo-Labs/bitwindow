@@ -4846,12 +4846,14 @@ type PreviewSendRequest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	WalletId              string                 `protobuf:"bytes,1,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`                                                                    // empty = active wallet
 	Destinations          map[string]int64       `protobuf:"bytes,2,rep,name=destinations,proto3" json:"destinations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // address -> satoshis
-	FeeRateSatPerVbyte    int64                  `protobuf:"varint,3,opt,name=fee_rate_sat_per_vbyte,json=feeRateSatPerVbyte,proto3" json:"fee_rate_sat_per_vbyte,omitempty"`                               // must be above 0
+	FeeRateSatPerVbyte    int64                  `protobuf:"varint,3,opt,name=fee_rate_sat_per_vbyte,json=feeRateSatPerVbyte,proto3" json:"fee_rate_sat_per_vbyte,omitempty"`                               // must be above 0 for a payment preview
 	SubtractFeeFromAmount bool                   `protobuf:"varint,4,opt,name=subtract_fee_from_amount,json=subtractFeeFromAmount,proto3" json:"subtract_fee_from_amount,omitempty"`
 	RequiredInputs        []*UnspentOutput       `protobuf:"bytes,5,rep,name=required_inputs,json=requiredInputs,proto3" json:"required_inputs,omitempty"`
 	AllowReplay           bool                   `protobuf:"varint,6,opt,name=allow_replay,json=allowReplay,proto3" json:"allow_replay,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Price only the first BIP47 notification. A zero rate uses the send default.
+	NotificationOnly bool `protobuf:"varint,7,opt,name=notification_only,json=notificationOnly,proto3" json:"notification_only,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PreviewSendRequest) Reset() {
@@ -4922,6 +4924,13 @@ func (x *PreviewSendRequest) GetRequiredInputs() []*UnspentOutput {
 func (x *PreviewSendRequest) GetAllowReplay() bool {
 	if x != nil {
 		return x.AllowReplay
+	}
+	return false
+}
+
+func (x *PreviewSendRequest) GetNotificationOnly() bool {
+	if x != nil {
+		return x.NotificationOnly
 	}
 	return false
 }
@@ -11938,14 +11947,15 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\fsend.outputs\x12,the request must include at least one output\x1aUsize(this.destinations) > 0 || this.op_return_hex != '' || size(this.raw_outputs) > 0\x1a}\n" +
 	"\tsend.fees\x122the request cannot set both fee rate and fixed fee\x1a<this.fee_rate_sat_per_vbyte <= 0 || this.fixed_fee_sats <= 0J\x04\b\b\x10\t\"-\n" +
 	"\x17SendTransactionResponse\x12\x12\n" +
-	"\x04txid\x18\x01 \x01(\tR\x04txid\"\xa8\x03\n" +
+	"\x04txid\x18\x01 \x01(\tR\x04txid\"\xd5\x03\n" +
 	"\x12PreviewSendRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12Z\n" +
 	"\fdestinations\x18\x02 \x03(\v26.walletmanager.v1.PreviewSendRequest.DestinationsEntryR\fdestinations\x122\n" +
 	"\x16fee_rate_sat_per_vbyte\x18\x03 \x01(\x03R\x12feeRateSatPerVbyte\x127\n" +
 	"\x18subtract_fee_from_amount\x18\x04 \x01(\bR\x15subtractFeeFromAmount\x12H\n" +
 	"\x0frequired_inputs\x18\x05 \x03(\v2\x1f.walletmanager.v1.UnspentOutputR\x0erequiredInputs\x12!\n" +
-	"\fallow_replay\x18\x06 \x01(\bR\vallowReplay\x1a?\n" +
+	"\fallow_replay\x18\x06 \x01(\bR\vallowReplay\x12+\n" +
+	"\x11notification_only\x18\a \x01(\bR\x10notificationOnly\x1a?\n" +
 	"\x11DestinationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"\xb8\x02\n" +

@@ -1729,9 +1729,10 @@ class SendPageViewModel extends BaseViewModel {
     int otherSats,
   ) async {
     final rate = _feeRateSatPerVbyte;
-    if (rate == null) {
+    final notificationOnly = rate == null && recipients.length == 1 && sendsNow;
+    if (rate == null && !notificationOnly) {
       return (
-        feeSats: parseAmountToSatoshis(feeController.text.isEmpty ? '0' : feeController.text, currentUnit),
+        feeSats: feeSats,
         availableSats: availableSats,
         notificationKeepBackSats: 0,
       );
@@ -1749,10 +1750,14 @@ class SendPageViewModel extends BaseViewModel {
         final probe = await _orchestratorWallet.previewSend(
           walletId: walletId,
           destinations: _destinationsWith(index: index, sats: dustSats)!,
-          feeRateSatPerVbyte: rate,
+          feeRateSatPerVbyte: rate ?? 0,
           requiredInputs: selectedUtxos,
+          notificationOnly: notificationOnly,
         );
-        final notificationKeepBackSats = notificationKeepBack(probe, coinsSelected: selectedUtxos.isNotEmpty);
+        final notificationFeeSats = probe.notificationFeeSats.toInt();
+        final notificationKeepBackSats = notificationOnly
+            ? (selectedUtxos.isEmpty && notificationFeeSats > 0 ? notificationFeeSats + dustSats : 0)
+            : notificationKeepBack(probe, coinsSelected: selectedUtxos.isNotEmpty);
         if (notificationKeepBackSats > 0 && availableSats - otherSats - notificationKeepBackSats < dustSats) {
           setSendError('The wallet has no coins left for the payment after the BIP47 notification.');
           return null;
@@ -1765,7 +1770,7 @@ class SendPageViewModel extends BaseViewModel {
       final preview = await _orchestratorWallet.previewSend(
         walletId: walletId,
         destinations: _destinationsWith(index: index, sats: dustSats)!,
-        feeRateSatPerVbyte: rate,
+        feeRateSatPerVbyte: rate!,
         requiredInputs: coins,
       );
       return (

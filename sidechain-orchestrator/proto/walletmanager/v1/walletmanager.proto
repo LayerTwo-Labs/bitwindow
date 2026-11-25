@@ -766,10 +766,12 @@ message SendTransactionResponse {
 message PreviewSendRequest {
   string wallet_id = 1;  // empty = active wallet
   map<string, int64> destinations = 2;  // address -> satoshis
-  int64 fee_rate_sat_per_vbyte = 3;  // must be above 0
+  int64 fee_rate_sat_per_vbyte = 3;  // must be above 0 for a payment preview
   bool subtract_fee_from_amount = 4;
   repeated UnspentOutput required_inputs = 5;
   bool allow_replay = 6;
+  // Price only the first BIP47 notification. A zero rate uses the send default.
+  bool notification_only = 7;
 }
 
 message PreviewSendResponse {
