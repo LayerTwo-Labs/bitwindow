@@ -359,6 +359,13 @@ const GetSyncInfoResponse$json = {
     {'1': 'sync_progress', '3': 6, '4': 1, '5': 1, '10': 'syncProgress'},
     {'1': 'startup_message', '3': 7, '4': 1, '5': 9, '10': 'startupMessage'},
     {'1': 'waits_for_core', '3': 8, '4': 1, '5': 8, '10': 'waitsForCore'},
+    {
+      '1': 'pending_op_return_state',
+      '3': 9,
+      '4': 1,
+      '5': 9,
+      '10': 'pendingOpReturnState'
+    },
   ],
 };
 
@@ -370,7 +377,8 @@ final $typed_data.Uint8List getSyncInfoResponseDescriptor =
         'QgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFITdGlwQmxvY2tQcm9jZXNzZWRBdBIj'
         'Cg1oZWFkZXJfaGVpZ2h0GAUgASgDUgxoZWFkZXJIZWlnaHQSIwoNc3luY19wcm9ncmVzcxgGIA'
         'EoAVIMc3luY1Byb2dyZXNzEicKD3N0YXJ0dXBfbWVzc2FnZRgHIAEoCVIOc3RhcnR1cE1lc3Nh'
-        'Z2USJAoOd2FpdHNfZm9yX2NvcmUYCCABKAhSDHdhaXRzRm9yQ29yZQ==');
+        'Z2USJAoOd2FpdHNfZm9yX2NvcmUYCCABKAhSDHdhaXRzRm9yQ29yZRI1ChdwZW5kaW5nX29wX3'
+        'JldHVybl9zdGF0ZRgJIAEoCVIUcGVuZGluZ09wUmV0dXJuU3RhdGU=');
 
 @$core.Deprecated('Use watchSyncInfoResponseDescriptor instead')
 const WatchSyncInfoResponse$json = {

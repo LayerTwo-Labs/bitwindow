@@ -210,6 +210,8 @@ message GetSyncInfoResponse {
   // block download. The height fields stand still, so the UI reports the wait
   // instead of a progress bar at 0%.
   bool waits_for_core = 8;
+  // Changes when the pending OP_RETURN rows change.
+  string pending_op_return_state = 9;
 }
 
 message WatchSyncInfoResponse {
