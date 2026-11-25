@@ -88,7 +88,7 @@ func TestWatchSyncInfoSendsAChange(t *testing.T) {
 			continue
 		}
 		assert.Equal(t, int64(101), next.GetInfo().GetHeaderHeight())
-		assert.Empty(t, next.GetInfo().GetPendingOpReturnState())
+		assert.Equal(t, "0:1", next.GetInfo().GetPendingOpReturnState())
 		break
 	}
 }
