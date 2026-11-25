@@ -727,7 +727,11 @@ abstract class WalletAPI {
 
   // Backup / Restore
   Future<CreateBackupResponse> createBackup();
-  Future<void> restoreBackup(List<int> backupData, String filename);
+
+  /// Restores a backup file. [keepWallets] adds the wallets of the backup to
+  /// the wallets of this install; else the backup replaces them. [password]
+  /// opens an encrypted backup when [keepWallets] is true.
+  Future<void> restoreBackup(List<int> backupData, String filename, {bool keepWallets = false, String password = ''});
   Future<ValidateBackupResponse> validateBackup(List<int> backupData, String filename);
 }
 
@@ -1183,9 +1187,21 @@ class _WalletAPILive implements WalletAPI {
   }
 
   @override
-  Future<void> restoreBackup(List<int> backupData, String filename) async {
+  Future<void> restoreBackup(
+    List<int> backupData,
+    String filename, {
+    bool keepWallets = false,
+    String password = '',
+  }) async {
     try {
-      await _client.restoreBackup(RestoreBackupRequest(backupData: backupData, filename: filename));
+      await _client.restoreBackup(
+        RestoreBackupRequest(
+          backupData: backupData,
+          filename: filename,
+          keepWallets: keepWallets,
+          password: password,
+        ),
+      );
     } catch (e) {
       final error = extractConnectException(e);
       throw WalletException(error);

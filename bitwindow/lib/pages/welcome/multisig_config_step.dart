@@ -1606,9 +1606,10 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
     }
   }
 
-  /// Restores a whole wallet — master seed plus every sidechain wallet — from a
-  /// backup file. Unlike the other sources this doesn't fill a key slot: the
-  /// wallet already exists once the file lands, so it skips the rest of setup.
+  /// Restores the wallets of a backup file. An install with a wallet keeps its
+  /// wallets and gets the wallets of the backup added. Unlike the other sources
+  /// this doesn't fill a key slot: the wallets already exist once the file
+  /// lands, so it skips the rest of setup.
   Future<void> _restoreFromBackup(BuildContext context) async {
     setState(() => _error = null);
     final result = await FilePicker.pickFile(
@@ -1623,7 +1624,17 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
     setState(() => _restoringBackup = true);
     widget.onRestoringChanged?.call(true);
     try {
-      await restoreBitwindowWalletFromFile(File(path));
+      final done = await restoreBitwindowWalletFromFile(
+        File(path),
+        askPassword: (filename) => showBackupPasswordDialog(context, backupName: filename),
+      );
+      if (!done) {
+        if (mounted) {
+          setState(() => _restoringBackup = false);
+          widget.onRestoringChanged?.call(false);
+        }
+        return;
+      }
       final restored = widget.onRestored;
       if (restored != null) {
         await restored();
@@ -1633,7 +1644,8 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Failed to restore from backup file: ${extractConnectException(e)}';
+          _error =
+              'Failed to restore from backup file: ${e is WalletException ? e.message : extractConnectException(e)}';
           _restoringBackup = false;
         });
         widget.onRestoringChanged?.call(false);
