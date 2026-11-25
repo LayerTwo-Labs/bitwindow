@@ -290,13 +290,15 @@ func (s *Server) CreateDenial(
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
 	}
 
-	// List UTXOs based on wallet type
-	var utxoExists bool
+	var (
+		valueSats uint64
+		found     bool
+	)
 	switch activeWallet.WalletType {
 	case engines.WalletTypeBitcoinCore:
-		utxoExists, err = s.checkBitcoinCoreUTXO(ctx, activeWallet.ID, req.Txid, req.Vout)
+		valueSats, found, err = s.bitcoinCoreUTXOValue(ctx, activeWallet.ID, req.Txid, req.Vout)
 	case engines.WalletTypeElectrum:
-		utxoExists, err = s.checkElectrumUTXO(ctx, activeWallet.ID, req.Txid, req.Vout)
+		valueSats, found, err = s.electrumUTXOValue(ctx, activeWallet.ID, req.Txid, req.Vout)
 	default:
 		return nil, connect.Errorf(connect.CodeInternal, "unknown wallet type: %s", activeWallet.WalletType)
 	}
@@ -304,8 +306,13 @@ func (s *Server) CreateDenial(
 		return nil, err
 	}
 
-	if !utxoExists {
+	if !found {
 		err := fmt.Errorf("utxo %s:%d not found in wallet", req.Txid, req.Vout)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+	}
+
+	if need := engines.DenialMinValue(req.NumHops); valueSats < need {
+		err := fmt.Errorf("utxo %s:%d holds %d sats, and %d hops cost %d sats", req.Txid, req.Vout, valueSats, req.NumHops, need)
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
@@ -1313,40 +1320,54 @@ func hashrate(firstChainwork, tipChainwork string, seconds int64) (float64, erro
 	return work / float64(seconds), nil
 }
 
-func (s *Server) checkElectrumUTXO(ctx context.Context, walletID string, txid string, vout uint32) (bool, error) {
+// electrumUTXOValue returns the value of a UTXO of an electrum wallet, and false if the wallet does not hold it.
+func (s *Server) electrumUTXOValue(ctx context.Context, walletID string, txid string, vout uint32) (uint64, bool, error) {
 	utxos, err := s.walletEngine.ListWalletUnspent(ctx, walletID)
 	if err != nil {
-		return false, fmt.Errorf("list electrum utxos: %w", err)
+		return 0, false, fmt.Errorf("list electrum utxos: %w", err)
 	}
 
-	return lo.ContainsBy(utxos, func(utxo *wmpb.UnspentOutput) bool {
+	utxo, found := lo.Find(utxos, func(utxo *wmpb.UnspentOutput) bool {
 		return utxo.Txid == txid && uint32(utxo.Vout) == vout
-	}), nil
+	})
+	if !found {
+		return 0, false, nil
+	}
+	return uint64(utxo.AmountSats), true, nil
 }
 
-// checkBitcoinCoreUTXO checks if a UTXO exists in a Bitcoin Core wallet
-func (s *Server) checkBitcoinCoreUTXO(ctx context.Context, walletID string, txid string, vout uint32) (bool, error) {
+// bitcoinCoreUTXOValue returns the value of a UTXO of a Bitcoin Core wallet, and false if the wallet does not hold it.
+func (s *Server) bitcoinCoreUTXOValue(ctx context.Context, walletID string, txid string, vout uint32) (uint64, bool, error) {
 	walletName, err := s.walletEngine.EnsureBitcoinCoreWallet(ctx, walletID)
 	if err != nil {
-		return false, fmt.Errorf("get wallet name: %w", err)
+		return 0, false, fmt.Errorf("get wallet name: %w", err)
 	}
 
 	bitcoind, err := s.bitcoind.Get(ctx)
 	if err != nil {
-		return false, fmt.Errorf("bitcoind: %w", err)
+		return 0, false, fmt.Errorf("bitcoind: %w", err)
 	}
 
 	utxos, err := bitcoind.ListUnspent(ctx, connectv1.NewRequest(&corepb.ListUnspentRequest{
 		Wallet: walletName,
 	}))
 	if err != nil {
-		return false, fmt.Errorf("list bitcoin core utxos: %w", err)
+		return 0, false, fmt.Errorf("list bitcoin core utxos: %w", err)
 	}
 
-	return lo.ContainsBy(utxos.Msg.Unspent, func(utxo *corepb.UnspentOutput) bool {
+	utxo, found := lo.Find(utxos.Msg.Unspent, func(utxo *corepb.UnspentOutput) bool {
 		return utxo.Txid == txid && utxo.Vout == vout
-	}), nil
+	})
+	if !found {
+		return 0, false, nil
+	}
+	amount, err := btcutil.NewAmount(utxo.Amount)
+	if err != nil {
+		return 0, false, fmt.Errorf("value of %s:%d: %w", txid, vout, err)
+	}
+	return uint64(amount), true, nil
 }
+
 func (s *Server) SetMempoolWatch(ctx context.Context, req *pb.SetMempoolWatchRequest) (*emptypb.Empty, error) {
 	if req.Enabled {
 		if err := s.walletEngine.NodeMode().RequireFullNode(ctx, "mempool watch"); err != nil {
