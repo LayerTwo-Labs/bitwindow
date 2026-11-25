@@ -224,6 +224,9 @@ message WalletTransaction {
   DepositRequest deposit_request = 12;
   // Blocks on top of the transaction, its own block included. 0 when unconfirmed.
   uint32 confirmations = 13;
+  // True when the wallet gave the transaction up. It can never confirm, and
+  // it does not count in the balance.
+  bool abandoned = 14;
 }
 
 // DepositRequest names the sidechain a deposit request pays into.

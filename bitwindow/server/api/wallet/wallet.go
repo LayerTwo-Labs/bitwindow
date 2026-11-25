@@ -446,6 +446,7 @@ func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, 
 			address:    t.Address,
 			label:      t.Label,
 			immature:   t.Category == "immature",
+			abandoned:  t.Abandoned,
 		}
 		if t.Confirmations > 0 {
 			row.confirmations = uint32(t.Confirmations)
@@ -470,6 +471,7 @@ type txRow struct {
 	confirmation  *pb.Confirmation
 	confirmations uint32
 	immature      bool
+	abandoned     bool
 }
 
 // mergeTxRows gives one transaction per txid, in the order of the first row.
@@ -498,6 +500,7 @@ func mergeTxRows(rows []txRow) []*pb.WalletTransaction {
 		// Core repeats the fee on each send row; Electrum puts it on one row.
 		tx.FeeSats = max(tx.FeeSats, r.feeSats)
 		tx.Immature = tx.Immature || r.immature
+		tx.Abandoned = tx.Abandoned || r.abandoned
 	}
 	return out
 }

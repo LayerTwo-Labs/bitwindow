@@ -1236,6 +1236,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     $core.bool? immature,
     DepositRequest? depositRequest,
     $core.int? confirmations,
+    $core.bool? abandoned,
   }) {
     final result = WalletTransaction._();
     if (txid != null) result.txid = txid;
@@ -1251,6 +1252,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     if (immature != null) result.immature = immature;
     if (depositRequest != null) result.depositRequest = depositRequest;
     if (confirmations != null) result.confirmations = confirmations;
+    if (abandoned != null) result.abandoned = abandoned;
     return result;
   }
 
@@ -1280,6 +1282,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     ..aOB(11, _omitFieldNames ? '' : 'immature')
     ..aOM<DepositRequest>(12, _omitFieldNames ? '' : 'depositRequest', subBuilder: DepositRequest.$_createMessage)
     ..aI(13, _omitFieldNames ? '' : 'confirmations', fieldType: $pb.PbFieldType.OU3)
+    ..aOB(14, _omitFieldNames ? '' : 'abandoned')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1429,6 +1432,17 @@ class WalletTransaction extends $pb.GeneratedMessage {
   $core.bool hasConfirmations() => $_has(12);
   @$pb.TagNumber(13)
   void clearConfirmations() => $_clearField(13);
+
+  /// True when the wallet gave the transaction up. It can never confirm, and
+  /// it does not count in the balance.
+  @$pb.TagNumber(14)
+  $core.bool get abandoned => $_getBF(13);
+  @$pb.TagNumber(14)
+  set abandoned($core.bool value) => $_setBool(13, value);
+  @$pb.TagNumber(14)
+  $core.bool hasAbandoned() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearAbandoned() => $_clearField(14);
 }
 
 /// DepositRequest names the sidechain a deposit request pays into.

@@ -1315,6 +1315,26 @@ func TestListTransactions(t *testing.T) {
 		assert.Equal(t, "other", resp.Transactions[1].Txid)
 	})
 
+	t.Run("electrum marks an abandoned send", func(t *testing.T) {
+		t.Parallel()
+
+		orchestrator := &statsOrchestrator{
+			fakeOrchestrator: &fakeOrchestrator{},
+			transactions: []*orchpb.TransactionEntry{
+				{Txid: "dropped", Category: "send", Address: "bcrt1qa", AmountSats: -1_000, Fee: -0.00000300, Abandoned: true},
+				{Txid: "dropped", Category: "send", Address: "bcrt1qb", AmountSats: -2_000},
+				{Txid: "pending", Category: "send", Address: "bcrt1qc", AmountSats: -500, Fee: -0.00000300},
+			},
+		}
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(orchestrator)))
+
+		resp, err := cli.ListTransactions(t.Context(), &walletv1.ListTransactionsRequest{WalletId: testWalletID})
+		require.NoError(t, err)
+		require.Len(t, resp.Transactions, 2)
+		assert.True(t, resp.Transactions[0].Abandoned)
+		assert.False(t, resp.Transactions[1].Abandoned)
+	})
+
 	t.Run("core gives one transaction for a send to two payees", func(t *testing.T) {
 		t.Parallel()
 
