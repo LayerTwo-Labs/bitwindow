@@ -115,13 +115,12 @@ class BottomNav extends StatelessWidget {
         // A phone shows no chain loaders, so only the desktop drops a status that repeats one.
         final statusText =
             statusOverride != null || ((!compact || !allConnected) && (phone || !model.statusRepeatsLoaders));
-        Widget phoneFlex(Widget child) => phone ? Flexible(child: child) : child;
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (!phone) ?modeChip,
-            phoneFlex(
-              InkWell(
+            Flexible(
+              child: InkWell(
                 onTap: () {
                   final override = statusOverride;
                   if (override != null) {
@@ -171,8 +170,8 @@ class BottomNav extends StatelessWidget {
                       ),
                       if (statusText) ...[
                         const SizedBox(width: SailStyleValues.padding08),
-                        phoneFlex(
-                          ConstrainedBox(
+                        Flexible(
+                          child: ConstrainedBox(
                             constraints: BoxConstraints(maxWidth: compact ? 140 : 200),
                             child: statusOverride != null
                                 ? SailText.primary12(
@@ -231,19 +230,6 @@ class BottomNav extends StatelessWidget {
               const SailSpacing(SailStyleValues.padding08),
               ...balanceEndWidgets,
             ],
-            if (!phone) Expanded(child: Container()),
-            if (!phone) ...[
-              Builder(
-                builder: (context) => MiningStatus(
-                  onTap: () => displayConnectionStatusDialog(
-                    context,
-                    additionalConnection,
-                    onlyShowAdditional,
-                  ),
-                ),
-              ),
-              const ElectrumScanStatus(),
-            ],
             if (phone)
               Expanded(
                 child: LayoutBuilder(
@@ -268,7 +254,25 @@ class BottomNav extends StatelessWidget {
                 ),
               )
             else
-              status,
+              Expanded(
+                child: SailRow(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  spacing: SailStyleValues.padding04,
+                  children: [
+                    Builder(
+                      builder: (context) => MiningStatus(
+                        onTap: () => displayConnectionStatusDialog(
+                          context,
+                          additionalConnection,
+                          onlyShowAdditional,
+                        ),
+                      ),
+                    ),
+                    const ElectrumScanStatus(),
+                    Flexible(child: status),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
