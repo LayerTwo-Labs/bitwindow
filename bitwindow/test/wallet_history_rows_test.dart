@@ -98,4 +98,29 @@ void main() {
     expect(historyAddressText(_tx(address, label: 'salary')), 'bcrt1qhd4c…jwpu4v5jr5 (salary)');
     expect(historyAddressText(_tx('short')), 'short');
   });
+
+  test('the address cell counts the other addresses of the transaction', () {
+    final tx = _tx('second', label: 'rent')
+      ..payments.addAll([
+        TransactionPayment(address: 'second', amountSats: Int64(2000)),
+        TransactionPayment(address: 'first', amountSats: Int64(1000)),
+        TransactionPayment(address: 'third', amountSats: Int64(500)),
+      ]);
+
+    expect(historyAddressText(tx), 'second (rent) +2');
+    expect(historyAddressText(_tx('one')..payments.add(TransactionPayment(address: 'one'))), 'one');
+    expect(
+      historyAddressText(
+        _tx('one')..payments.addAll([TransactionPayment(address: 'one'), TransactionPayment(address: 'one')]),
+      ),
+      'one',
+    );
+  });
+
+  test('the CSV gives every address of a transaction', () {
+    final tx = _tx('second')
+      ..payments.addAll([TransactionPayment(address: 'second'), TransactionPayment(address: 'first')]);
+
+    expect(transactionsCsv([tx]).split('\r\n')[1].split(',')[3], 'second; first');
+  });
 }

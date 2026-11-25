@@ -26,6 +26,30 @@ BmmBid _bmmBid(wmpb.BmmBid bid) => BmmBid(
   lost: bid.lost,
 );
 
+/// The outputs a history row is about, the largest first. A send names what it
+/// pays to others. A transfer inside the wallet names its own outputs.
+@visibleForTesting
+List<TransactionPayment> transactionPayments(List<wmpb.TransactionEntry> entries) {
+  String output(wmpb.TransactionEntry e) => '${e.vout}:${e.address}';
+  bool isSend(wmpb.TransactionEntry e) => e.category == 'send' || e.amountSats < Int64.ZERO;
+  final sends = entries.where(isSend).toList();
+  final credits = entries.whereNot(isSend).toList();
+  final credited = credits.map(output).toSet();
+  final toOthers = sends.where((e) => !credited.contains(output(e))).toList();
+  final outputs = sends.isEmpty
+      ? credits
+      : toOthers.isEmpty
+      ? sends
+      : toOthers;
+  return outputs
+      .where((e) => e.address.isNotEmpty)
+      .map((e) => TransactionPayment(address: e.address, amountSats: e.amountSats.abs()))
+      .sorted((a, b) {
+        final byAmount = b.amountSats.compareTo(a.amountSats);
+        return byAmount != 0 ? byAmount : a.address.compareTo(b.address);
+      });
+}
+
 /// One row per txid, newest first. Core gives one entry per output, so the
 /// entries of a txid add up to one transaction.
 @visibleForTesting
@@ -33,53 +57,58 @@ List<WalletTransaction> walletTransactionsFromEntries(
   List<wmpb.TransactionEntry> entries,
   Map<String, String> notes,
 ) {
-  final byTxid = <String, WalletTransaction>{};
   // A replaced or conflicted tx never confirms. Core gives a conflicted
   // tx a negative count, and the unsigned height field cannot hold it.
-  for (final tx in entries.where((tx) => tx.confirmations >= 0 && !tx.replacedByTxid)) {
-    final received = tx.amountSats > Int64.ZERO ? tx.amountSats : Int64.ZERO;
-    final sent = tx.amountSats < Int64.ZERO ? -tx.amountSats : Int64.ZERO;
-    final fee = Int64((tx.fee.abs() * 100000000).round());
-    final merged = byTxid[tx.txid];
-    if (merged != null) {
-      merged
-        ..receivedSatoshi += received
-        ..sentSatoshi += sent
-        ..feeSats = merged.feeSats > fee ? merged.feeSats : fee
-        ..immature = merged.immature || tx.category == 'immature'
-        ..abandoned = merged.abandoned || tx.abandoned;
-      if (merged.warningMessage.isEmpty) {
-        merged.warningMessage = tx.warningMessage;
-      }
-      continue;
+  final byTxid = groupBy(
+    entries.where((tx) => tx.confirmations >= 0 && !tx.replacedByTxid),
+    (tx) => tx.txid,
+  );
+  return byTxid.values.map((group) => _walletTransaction(group, notes[group.first.txid] ?? '')).toList()
+    ..sort(newestTransactionFirst);
+}
+
+WalletTransaction _walletTransaction(List<wmpb.TransactionEntry> entries, String note) {
+  final tx = entries.first;
+  final payments = transactionPayments(entries);
+  final address = payments.firstOrNull?.address ?? '';
+  var received = Int64.ZERO;
+  var sent = Int64.ZERO;
+  var fee = Int64.ZERO;
+  for (final entry in entries) {
+    if (entry.amountSats > Int64.ZERO) {
+      received += entry.amountSats;
+    } else {
+      sent -= entry.amountSats;
     }
-    byTxid[tx.txid] = WalletTransaction(
-      txid: tx.txid,
-      feeSats: fee,
-      receivedSatoshi: received,
-      sentSatoshi: sent,
-      address: tx.hasSidechainDeposit() ? tx.sidechainDeposit.destination : tx.address,
-      addressLabel: tx.label,
-      note: notes[tx.txid] ?? '',
-      warningMessage: tx.warningMessage,
-      immature: tx.category == 'immature',
-      abandoned: tx.abandoned,
-      confirmations: tx.confirmations,
-      confirmationTime: Confirmation(
-        height: tx.blockHeight,
-        // Unconfirmed txs have blockTime 0, which would sink them
-        // to the bottom of the list (off-screen) until a block
-        // lands. Fall back to the wallet tx time so pending txs
-        // sort to the top and show immediately.
-        timestamp: Timestamp(seconds: tx.blockTime != Int64.ZERO ? tx.blockTime : tx.time),
-      ),
-      bmmBid: tx.hasBmmBid() ? _bmmBid(tx.bmmBid) : null,
-      depositRequest: tx.hasSidechainDeposit()
-          ? DepositRequest(slot: tx.sidechainDeposit.slot, destination: tx.sidechainDeposit.destination)
-          : null,
-    );
+    final entryFee = Int64((entry.fee.abs() * 100000000).round());
+    fee = entryFee > fee ? entryFee : fee;
   }
-  return byTxid.values.toList()..sort(newestTransactionFirst);
+  return WalletTransaction(
+    txid: tx.txid,
+    feeSats: fee,
+    receivedSatoshi: received,
+    sentSatoshi: sent,
+    address: tx.hasSidechainDeposit() ? tx.sidechainDeposit.destination : address,
+    addressLabel: entries.firstWhereOrNull((e) => e.address == address && e.label.isNotEmpty)?.label ?? '',
+    payments: payments,
+    note: note,
+    warningMessage: entries.firstWhereOrNull((e) => e.warningMessage.isNotEmpty)?.warningMessage ?? '',
+    immature: entries.any((e) => e.category == 'immature'),
+    abandoned: entries.any((e) => e.abandoned),
+    confirmations: tx.confirmations,
+    confirmationTime: Confirmation(
+      height: tx.blockHeight,
+      // Unconfirmed txs have blockTime 0, which would sink them
+      // to the bottom of the list (off-screen) until a block
+      // lands. Fall back to the wallet tx time so pending txs
+      // sort to the top and show immediately.
+      timestamp: Timestamp(seconds: tx.blockTime != Int64.ZERO ? tx.blockTime : tx.time),
+    ),
+    bmmBid: tx.hasBmmBid() ? _bmmBid(tx.bmmBid) : null,
+    depositRequest: tx.hasSidechainDeposit()
+        ? DepositRequest(slot: tx.sidechainDeposit.slot, destination: tx.sidechainDeposit.destination)
+        : null,
+  );
 }
 
 /// Orders the history newest first. Blocks mined in one second share a time,

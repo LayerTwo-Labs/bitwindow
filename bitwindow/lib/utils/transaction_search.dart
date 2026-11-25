@@ -6,7 +6,7 @@ final RegExp _searchNoise = RegExp(r'[\s,+]');
 
 String normalizeSearchText(String text) => text.toLowerCase().replaceAll(_searchNoise, '');
 
-/// True if the query matches the txid, the address, the net amount or the payment amount of the transaction.
+/// True if the query matches the txid, an address, the net amount or a payment amount of the transaction.
 bool transactionMatchesSearch(WalletTransaction tx, String query) {
   final needle = normalizeSearchText(query);
   if (needle.isEmpty) {
@@ -18,8 +18,8 @@ bool transactionMatchesSearch(WalletTransaction tx, String query) {
 
   final fields = [
     tx.txid,
-    tx.address,
-    for (final satoshi in {net, payment}) ...[
+    ...transactionAddresses(tx),
+    for (final satoshi in {net, payment, ...tx.payments.map((p) => p.amountSats.toInt())}) ...[
       satoshi.toString(),
       satoshiToBTC(satoshi).toStringAsFixed(8),
     ],
