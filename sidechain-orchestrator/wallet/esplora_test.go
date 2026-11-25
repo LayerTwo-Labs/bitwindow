@@ -6,11 +6,53 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
+
+func TestEsploraRefreshesTipForNewlyConfirmedTransaction(t *testing.T) {
+	var tipReads atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body string
+		switch r.URL.Path {
+		case "/blocks/tip/height":
+			if tipReads.Add(1) == 1 {
+				body = "101"
+			} else {
+				body = "103"
+			}
+		case "/tx/aa":
+			body = `{"txid":"aa","status":{"confirmed":true,"block_height":102}}`
+		case "/tx/aa/hex":
+			body = "00"
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		_, err := fmt.Fprint(w, body)
+		if err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewEsploraClient([]string{server.URL}, zerolog.Nop())
+	client.SetMinInterval(0)
+	tip, err := client.TipHeight(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 101, tip)
+
+	chain := esploraChain{client: client}
+	for range 2 {
+		tx, err := chain.GetRawTransaction(t.Context(), "aa")
+		require.NoError(t, err)
+		require.EqualValues(t, 2, tx.Confirmations)
+	}
+	require.EqualValues(t, 2, tipReads.Load())
+}
 
 // TestEsploraAddressTxsPaginationUsesConfirmedCursor verifies AddressTxs
 // paginates by the oldest confirmed tx in a page, not the last element. Esplora
