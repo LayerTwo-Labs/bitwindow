@@ -21,6 +21,7 @@ import (
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/config"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/database"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/blocks"
+	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/opreturns"
 	service "github.com/LayerTwo-Labs/sidesail/bitwindow/server/service"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/tests/mocks"
 )
@@ -222,7 +223,7 @@ func (c servedChain) hash(height uint32) chainhash.Hash {
 }
 
 // tickParser wires a mainnet Parser to a Core that serves chain up to tip.
-func tickParser(t *testing.T, chain servedChain, tip uint32) *Parser {
+func tickParser(t *testing.T, chain servedChain, tip uint32, mempool ...string) *Parser {
 	t.Helper()
 	byHash := map[string]*wire.MsgBlock{}
 	for _, block := range chain {
@@ -267,6 +268,10 @@ func tickParser(t *testing.T, chain servedChain, tip uint32) *Parser {
 			return connect.NewResponse(&corepb.GetBlockResponse{Hex: hex.EncodeToString(buf.Bytes())}), nil
 		}).
 		AnyTimes()
+	core.EXPECT().
+		GetRawMempool(gomock.Any(), gomock.Any()).
+		Return(connect.NewResponse(&corepb.GetRawMempoolResponse{Txids: mempool}), nil).
+		AnyTimes()
 	db := database.Test(t)
 	return &Parser{
 		db:          db,
@@ -297,6 +302,48 @@ func processedHeights(t *testing.T, ctx context.Context, p *Parser) (lowest, hig
 }
 
 func TestHandleBlockTick(t *testing.T) {
+	t.Run("the fork keeps graffiti that returns to the mempool", func(t *testing.T) {
+		ctx := t.Context()
+		old := servedChain{}
+		old.extend(1, 3, 1, chainhash.Hash{})
+
+		p := tickParser(t, old, 2, "returned")
+		markProcessed(t, ctx, p, old, 1, 3)
+		earlier, disconnected := uint32(2), uint32(3)
+		blockTime := old[disconnected].Header.Timestamp
+		require.NoError(t, opreturns.Persist(ctx, p.db, []opreturns.OPReturn{
+			{TxID: "earlier", Height: &earlier, Data: []byte("earlier")},
+			{TxID: "returned", Height: &disconnected, Data: []byte("outer"), Fee: 1471, CreatedAt: &blockTime},
+			{TxID: "returned", Vout: 1, Height: &disconnected, Data: []byte("second"), Fee: 1471, CreatedAt: &blockTime},
+			{TxID: "removed", Height: &disconnected, Data: []byte("removed")},
+			{TxID: "pending", Data: []byte("pending")},
+		}))
+
+		require.NoError(t, p.handleBlockTick(ctx))
+
+		rows, err := opreturns.Query(ctx, p.db, opreturns.Filter{Search: "returned", Ascending: true}, 0)
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+		for i, row := range rows {
+			assert.Nil(t, row.Height)
+			assert.EqualValues(t, 1471, row.Fee)
+			assert.EqualValues(t, i, row.Vout)
+			assert.Equal(t, []string{"outer", "second"}[i], string(row.Data))
+			assert.True(t, row.CreatedAt.After(blockTime))
+		}
+		deleted, err := opreturns.GetByTxID(ctx, p.db, "removed")
+		require.NoError(t, err)
+		assert.Nil(t, deleted)
+		kept, err := opreturns.GetByTxID(ctx, p.db, "earlier")
+		require.NoError(t, err)
+		require.NotNil(t, kept)
+		assert.Equal(t, &earlier, kept.Height)
+		pending, err := opreturns.GetByTxID(ctx, p.db, "pending")
+		require.NoError(t, err)
+		require.NotNil(t, pending)
+		assert.Nil(t, pending.Height)
+	})
+
 	const tip = uint32(2010)
 
 	// The floor of a fresh install at this tip is above the old rows. A replay
