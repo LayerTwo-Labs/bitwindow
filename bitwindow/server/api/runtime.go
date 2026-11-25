@@ -381,7 +381,7 @@ func (rt *Runtime) Start(parent context.Context) {
 	rt.wg.Add(1)
 	go rt.runZMQ(rt.ctx, log)
 	rt.runEngine("block-wake", rt.runBlockWake, log)
-	rt.runEngine("op-return removals", rt.runOpReturnRemovals, log)
+	rt.runEngine("pending OP_RETURNs", rt.runOpReturnMempool, log)
 }
 
 // runBlockWake wakes the block parser on each sync status that drivechaind
@@ -401,15 +401,15 @@ func (rt *Runtime) runBlockWake(ctx context.Context) error {
 	}
 }
 
-func (rt *Runtime) runOpReturnRemovals(ctx context.Context) error {
+func (rt *Runtime) runOpReturnMempool(ctx context.Context) error {
 	client := dial.Mempool(rt.conf.OrchestratorAddr, rt.conf.BitwindowDir())
 	for {
 		if rt.walletEngine.NodeMode().RunsLocalNode(ctx) {
-			err := rt.readOpReturnRemovals(ctx, func(ctx context.Context) (engines.MempoolStream, error) {
+			err := rt.readOpReturnMempool(ctx, func(ctx context.Context) (engines.MempoolStream, error) {
 				return client.WatchTransactions(ctx, &mempoolpb.WatchTransactionsRequest{})
 			})
 			if err != nil && ctx.Err() == nil {
-				zerolog.Ctx(ctx).Debug().Err(err).Msg("OP_RETURN removal stream stopped")
+				zerolog.Ctx(ctx).Debug().Err(err).Msg("OP_RETURN mempool stream stopped")
 			}
 		}
 		select {
@@ -420,20 +420,25 @@ func (rt *Runtime) runOpReturnRemovals(ctx context.Context) error {
 	}
 }
 
-func (rt *Runtime) readOpReturnRemovals(ctx context.Context, feed engines.MempoolFeed) (err error) {
+func (rt *Runtime) readOpReturnMempool(ctx context.Context, feed engines.MempoolFeed) (err error) {
 	stream, err := feed(ctx)
 	if err != nil {
-		return fmt.Errorf("open the OP_RETURN removal stream: %w", err)
+		return fmt.Errorf("open the OP_RETURN mempool stream: %w", err)
 	}
 	defer func() {
 		if closeErr := stream.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("close the OP_RETURN removal stream: %w", closeErr))
+			err = errors.Join(err, fmt.Errorf("close the OP_RETURN mempool stream: %w", closeErr))
 		}
 	}()
 	for {
 		update, err := stream.Receive()
 		if err != nil {
-			return fmt.Errorf("read the OP_RETURN removal stream: %w", err)
+			return fmt.Errorf("read the OP_RETURN mempool stream: %w", err)
+		}
+		if snapshot := update.GetSnapshot(); snapshot != nil {
+			if err := rt.bitcoinEngine.RestoreMempoolSnapshot(ctx, snapshot); err != nil {
+				return err
+			}
 		}
 		for _, change := range update.GetChanges() {
 			if txid := change.GetRemoved(); txid != "" {
