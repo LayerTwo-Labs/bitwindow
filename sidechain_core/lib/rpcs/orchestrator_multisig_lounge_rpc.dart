@@ -44,6 +44,15 @@ class OrchestratorMultisigLoungeRPC {
     return _client.importGroupFromTxid(mlpb.ImportGroupFromTxidRequest(txid: txid, walletId: walletId));
   }
 
+  Future<mlpb.DeriveWalletKeyResponse> deriveWalletKey({
+    required String walletId,
+    required String derivationPath,
+  }) {
+    return _client.deriveWalletKey(
+      mlpb.DeriveWalletKeyRequest(walletId: walletId, derivationPath: derivationPath),
+    );
+  }
+
   Future<mlpb.FindWalletKeysResponse> findWalletKeys({required mlpb.GroupData group, required String walletId}) {
     return _client.findWalletKeys(mlpb.FindWalletKeysRequest(group: group, walletId: walletId));
   }

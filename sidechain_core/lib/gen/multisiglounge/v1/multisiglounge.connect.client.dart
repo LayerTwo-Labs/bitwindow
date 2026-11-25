@@ -90,6 +90,24 @@ extension type MultisigLoungeServiceClient(connect.Transport _transport) {
     );
   }
 
+  /// DeriveWalletKey derives a cosigner public key from the selected wallet.
+  Future<multisigloungev1multisiglounge.DeriveWalletKeyResponse> deriveWalletKey(
+    multisigloungev1multisiglounge.DeriveWalletKeyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.MultisigLoungeService.deriveWalletKey,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// FindWalletKeys reports which group keys the selected wallet can derive.
   Future<multisigloungev1multisiglounge.FindWalletKeysResponse> findWalletKeys(
     multisigloungev1multisiglounge.FindWalletKeysRequest input, {

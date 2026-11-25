@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
-import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
+import 'package:sidechain_core/gen/multisiglounge/v1/multisiglounge.pb.dart' as mlpb;
 
 const _mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
@@ -24,19 +24,13 @@ class _FakeConf extends ChangeNotifier implements BitcoinConfProvider {
 
 String _xpubFor(String path) => 'xpub-for-$path';
 
-class _FakeWallet implements OrchestratorWalletRPC {
+class _Lounge implements OrchestratorMultisigLoungeRPC {
   @override
-  Future<wmpb.DeriveKeystoreResponse> deriveKeystore({
-    String? mnemonic,
-    String? passphrase,
-    wmpb.HardwareDeviceSelector? device,
-    String? rawKey,
-    String scriptType = '',
-    bool multisig = false,
-    int account = 0,
-    String derivationPath = '',
-  }) async => wmpb.DeriveKeystoreResponse(
-    xpub: _xpubFor(derivationPath),
+  Future<mlpb.DeriveWalletKeyResponse> deriveWalletKey({
+    required String walletId,
+    required String derivationPath,
+  }) async => mlpb.DeriveWalletKeyResponse(
+    xpub: walletId == 'enf' ? _xpubFor(derivationPath) : '$walletId:$derivationPath',
     fingerprint: '73c5da0a',
     originPath: derivationPath.substring(2),
   );
@@ -47,7 +41,7 @@ class _FakeWallet implements OrchestratorWalletRPC {
 
 class _FakeOrchestrator implements OrchestratorRPC {
   @override
-  final OrchestratorWalletRPC wallet = _FakeWallet();
+  final OrchestratorMultisigLoungeRPC multisigLounge = _Lounge();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -58,7 +52,7 @@ class _FixedIndexHDWallet extends HDWalletProvider {
   Future<int> getNextAccountIndex([Set<int>? additionalUsedIndices]) async => 8000;
 }
 
-Future<MultisigKeyModalViewModel> _generateKey({required bool mainnet}) async {
+Future<MultisigKeyModalViewModel> _generateKey({required bool mainnet, String walletId = 'enf'}) async {
   GetIt.I.registerSingleton<BitcoinConfProvider>(_FakeConf(mainnet));
   final hd = _FixedIndexHDWallet();
   GetIt.I.registerSingleton<HDWalletProvider>(hd);
@@ -76,8 +70,19 @@ Future<MultisigKeyModalViewModel> _generateKey({required bool mainnet}) async {
       createdAt: DateTime.utc(2026, 1, 1),
       walletType: BinaryType.BINARY_TYPE_ENFORCER,
     ),
+    WalletData(
+      version: 1,
+      master: MasterWallet(mnemonic: '', seedHex: '', masterKey: '', chainCode: ''),
+      l1: L1Wallet(mnemonic: ''),
+      sidechains: const [],
+      id: 'recipient',
+      name: 'Recipient',
+      gradient: WalletGradient.fromWalletId('recipient'),
+      createdAt: DateTime.utc(2026, 1, 2),
+      walletType: BinaryType.BINARY_TYPE_BITCOIND,
+    ),
   ];
-  reader.activeWalletId = 'enf';
+  reader.activeWalletId = walletId;
   reader.notifyListeners();
   for (int i = 0; i < 20 && !hd.isInitialized; i++) {
     await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -118,6 +123,12 @@ void main() {
 
     expect(model.keyInfo!['path'], "m/84'/1'/8000'");
     expect(model.keyInfo!['xpub'], _xpubFor("m/84'/1'/8000'"));
+  });
+
+  test('Get Key uses the selected wallet with a different starter wallet', () async {
+    final model = await _generateKey(mainnet: false, walletId: 'recipient');
+
+    expect(model.keyInfo!['xpub'], "recipient:m/84'/1'/8000'");
   });
 
   test('manual key fields refresh the save action', () {

@@ -114,10 +114,6 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
 
   Future<String?> _getDerivedXpubAtPath(int derivationIndex) async {
     try {
-      if (!_hdWallet.isInitialized) {
-        await _hdWallet.init();
-      }
-
       final isMainnet = GetIt.I.get<BitcoinConfProvider>().usesMainnetParams;
       final keyInfo = await _hdWallet.generateWalletXpub(derivationIndex, isMainnet);
 
@@ -129,10 +125,6 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
 
   Future<MultisigKey?> _rederiveAndStoreMissingKey(int derivationIndex, String keyOwner) async {
     try {
-      if (!_hdWallet.isInitialized) {
-        await _hdWallet.init();
-      }
-
       final isMainnet = GetIt.I.get<BitcoinConfProvider>().usesMainnetParams;
 
       final keyInfo = await _hdWallet.generateWalletXpub(derivationIndex, isMainnet);

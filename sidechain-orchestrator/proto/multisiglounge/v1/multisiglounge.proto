@@ -24,6 +24,9 @@ service MultisigLoungeService {
   // multisig group, and reports which of the group's keys belong to the wallet.
   rpc ImportGroupFromTxid(ImportGroupFromTxidRequest) returns (ImportGroupFromTxidResponse);
 
+  // DeriveWalletKey derives a cosigner public key from the selected wallet.
+  rpc DeriveWalletKey(DeriveWalletKeyRequest) returns (DeriveWalletKeyResponse);
+
   // FindWalletKeys reports which group keys the selected wallet can derive.
   rpc FindWalletKeys(FindWalletKeysRequest) returns (FindWalletKeysResponse);
 
@@ -133,6 +136,18 @@ message MultisigHistoryTx {
 
 message RestoreHistoryResponse {
   repeated MultisigHistoryTx transactions = 1;
+}
+
+message DeriveWalletKeyRequest {
+  string wallet_id = 1;
+  string derivation_path = 2;
+}
+
+message DeriveWalletKeyResponse {
+  string xpub = 1;
+  string fingerprint = 2;
+  // Account path without the leading "m/".
+  string origin_path = 3;
 }
 
 message SignTransactionRequest {
