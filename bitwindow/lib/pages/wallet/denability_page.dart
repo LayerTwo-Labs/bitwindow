@@ -112,7 +112,7 @@ class DeniabilityTab extends StatelessWidget {
           viewModelBuilder: () => DeniabilityViewModel(),
           onViewModelReady: (model) => WidgetsBinding.instance.addPostFrameCallback((_) => model.postInit()),
           builder: (context, model, child) {
-            final error = model.error('deniability');
+            final error = model.actionError ?? model.error('deniability');
             final phone = SailStyleValues.phoneLayout(context);
 
             return SailColumn(
@@ -648,30 +648,24 @@ class DeniabilityViewModel extends BaseViewModel {
     );
   }
 
-  void cancelDenial(Int64 id) async {
-    try {
-      await api.bitwindowd.cancelDenial(id);
-      await transactionProvider.fetch();
-    } catch (e) {
-      setError(e.toString());
-    }
-  }
+  /// Why the last pause, resume or cancel failed, or null.
+  String? actionError;
 
-  void pauseDenial(Int64 id) async {
-    try {
-      await api.bitwindowd.pauseDenial(id);
-      await transactionProvider.fetch();
-    } catch (e) {
-      setError(e.toString());
-    }
-  }
+  Future<void> cancelDenial(Int64 id) => _act(() => api.bitwindowd.cancelDenial(id));
 
-  void resumeDenial(Int64 id) async {
+  Future<void> pauseDenial(Int64 id) => _act(() => api.bitwindowd.pauseDenial(id));
+
+  Future<void> resumeDenial(Int64 id) => _act(() => api.bitwindowd.resumeDenial(id));
+
+  // A failed action reads the list again, because the row that failed can be old.
+  Future<void> _act(Future<void> Function() action) async {
     try {
-      await api.bitwindowd.resumeDenial(id);
-      await transactionProvider.fetch();
+      await action();
+      actionError = null;
     } catch (e) {
-      setError(e.toString());
+      actionError = e.toString();
     }
+    notifyListeners();
+    await transactionProvider.fetch();
   }
 }
