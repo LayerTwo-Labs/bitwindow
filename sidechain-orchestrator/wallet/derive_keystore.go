@@ -62,15 +62,10 @@ func DeriveKeystore(
 			return DerivedKeystore{}, merr
 		}
 		seedHex := hex.EncodeToString(MnemonicToSeed(mnemonic, src.Passphrase))
-		xpub, xerr := DeriveAccountXpub(seedHex, path, net)
-		if xerr != nil {
-			return DerivedKeystore{}, xerr
+		out, err = DerivePublicAccount(seedHex, path, net)
+		if err != nil {
+			return DerivedKeystore{}, err
 		}
-		fp, ferr := seedMasterFingerprint(seedHex, net)
-		if ferr != nil {
-			return DerivedKeystore{}, ferr
-		}
-		out = DerivedKeystore{Xpub: xpub, Fingerprint: fp, OriginPath: originPath}
 
 	case src.Device != nil && (src.Device.Type != "" || src.Device.Fingerprint != "" || src.Device.Path != ""):
 		xpub, xerr := NewHWIRunner(net).GetXpub(ctx, *src.Device, path)
@@ -99,6 +94,25 @@ func DeriveKeystore(
 		out.Descriptor = desc
 	}
 	return out, nil
+}
+
+// DerivePublicAccount returns the account xpub, fingerprint, and origin path.
+func DerivePublicAccount(seedHex, path string, net *chaincfg.Params) (DerivedKeystore, error) {
+	path, err := ParseKeystorePath(path)
+	if err != nil {
+		return DerivedKeystore{}, err
+	}
+	xpub, err := DeriveAccountXpub(seedHex, path, net)
+	if err != nil {
+		return DerivedKeystore{}, err
+	}
+	fingerprint, err := seedMasterFingerprint(seedHex, net)
+	if err != nil {
+		return DerivedKeystore{}, err
+	}
+	return DerivedKeystore{
+		Xpub: xpub, Fingerprint: fingerprint, OriginPath: strings.TrimPrefix(path, "m/"),
+	}, nil
 }
 
 // keystorePath resolves the derivation path for a keystore. Single-sig follows

@@ -304,6 +304,29 @@ func (h *MultisigLoungeHandler) ImportGroupFromTxid(
 	}, nil
 }
 
+func (h *MultisigLoungeHandler) DeriveWalletKey(
+	_ context.Context,
+	req *pb.DeriveWalletKeyRequest,
+) (*pb.DeriveWalletKeyResponse, error) {
+	if err := h.requireEngine(); err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
+	}
+	if req.GetWalletId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "wallet ID is necessary")
+	}
+	seedHex := h.walletSeedHex(req.GetWalletId())
+	if seedHex == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "wallet has no seed")
+	}
+	key, err := wallet.DerivePublicAccount(seedHex, req.GetDerivationPath(), h.engine.Network())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+	}
+	return &pb.DeriveWalletKeyResponse{
+		Xpub: key.Xpub, Fingerprint: key.Fingerprint, OriginPath: key.OriginPath,
+	}, nil
+}
+
 func (h *MultisigLoungeHandler) FindWalletKeys(
 	ctx context.Context,
 	req *pb.FindWalletKeysRequest,

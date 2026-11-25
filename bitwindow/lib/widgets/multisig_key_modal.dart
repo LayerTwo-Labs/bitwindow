@@ -170,20 +170,6 @@ class MultisigKeyModalViewModel extends BaseViewModel {
     setBusy(true);
 
     try {
-      if (!_hdWalletProvider.isInitialized) {
-        await _hdWalletProvider.init();
-      }
-
-      if (_hdWalletProvider.error != null) {
-        modalError = 'Failed to load wallet: ${_hdWalletProvider.error}';
-        return;
-      }
-
-      if (_hdWalletProvider.mnemonic == null) {
-        modalError = 'Wallet mnemonic not available';
-        return;
-      }
-
       await _generateNextMultisigKey();
     } catch (e) {
       modalError = 'Failed to generate multisig key: $e';
@@ -194,43 +180,25 @@ class MultisigKeyModalViewModel extends BaseViewModel {
   }
 
   Future<void> _generateNextMultisigKey() async {
-    try {
-      if (!_hdWalletProvider.isInitialized) {
-        await _hdWalletProvider.init();
-      }
+    final accountIndex = await _hdWalletProvider.getNextAccountIndex(<int>{});
 
-      if (!_hdWalletProvider.isInitialized || _hdWalletProvider.mnemonic == null) {
-        throw Exception('HD Wallet not properly initialized. Please ensure wallet is set up.');
-      }
+    final keyInfoResult = await _hdWalletProvider.generateWalletXpub(
+      accountIndex,
+      GetIt.I.get<BitcoinConfProvider>().usesMainnetParams,
+    );
 
-      final accountIndex = await _hdWalletProvider.getNextAccountIndex(<int>{});
+    final relativeIndex = accountIndex - 8000;
 
-      final keyInfoResult = await _hdWalletProvider.generateWalletXpub(
-        accountIndex,
-        GetIt.I.get<BitcoinConfProvider>().usesMainnetParams,
-      );
+    keyInfo = {
+      'index': relativeIndex,
+      'accountIndex': accountIndex,
+      'path': keyInfoResult['derivation_path'] ?? '',
+      'xpub': keyInfoResult['xpub'] ?? '',
+      'fingerprint': keyInfoResult['fingerprint'] ?? '',
+      'originPath': keyInfoResult['origin_path'],
+    };
 
-      if (keyInfoResult.isEmpty) {
-        throw Exception('Failed to generate xPub');
-      }
-
-      final relativeIndex = accountIndex - 8000;
-
-      keyInfo = {
-        'index': relativeIndex,
-        'accountIndex': accountIndex,
-        'path': keyInfoResult['derivation_path'] ?? '',
-        'xpub': keyInfoResult['xpub'] ?? '',
-        'fingerprint': keyInfoResult['fingerprint'] ?? '',
-        'originPath': keyInfoResult['derivation_path']?.toString().startsWith('m/') == true
-            ? keyInfoResult['derivation_path']?.substring(2)
-            : keyInfoResult['derivation_path'],
-      };
-
-      keyNameController.text = 'MyKey$relativeIndex';
-    } catch (e) {
-      rethrow;
-    }
+    keyNameController.text = 'MyKey$relativeIndex';
   }
 
   Future<void> _writeKeyToMultisigJson() async {

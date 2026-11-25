@@ -523,10 +523,7 @@ class CreateMultisigModalViewModel extends BaseViewModel {
   bool get canProceed => nameController.text.isNotEmpty && m > 0 && n > 0 && m <= n && parameterError == null;
 
   bool get canGenerateKey =>
-      ownerController.text.isNotEmpty &&
-      pathController.text.isNotEmpty &&
-      _hdWallet.isInitialized &&
-      _hdWallet.mnemonic != null;
+      ownerController.text.isNotEmpty && pathController.text.isNotEmpty && _walletReader.activeWalletId != null;
 
   bool get canSaveKey =>
       ownerController.text.isNotEmpty &&
@@ -626,14 +623,6 @@ class CreateMultisigModalViewModel extends BaseViewModel {
     try {
       modalError = null;
       setBusy(true);
-
-      if (!_hdWallet.isInitialized) {
-        await _hdWallet.init();
-      }
-
-      if (!_hdWallet.isInitialized || _hdWallet.mnemonic == null) {
-        throw Exception('HD Wallet not properly initialized. Please ensure wallet is set up.');
-      }
 
       if (!canGenerateKey) {
         return;

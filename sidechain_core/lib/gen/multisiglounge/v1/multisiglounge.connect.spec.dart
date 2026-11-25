@@ -52,6 +52,14 @@ abstract final class MultisigLoungeService {
     multisigloungev1multisiglounge.ImportGroupFromTxidResponse.new,
   );
 
+  /// DeriveWalletKey derives a cosigner public key from the selected wallet.
+  static const deriveWalletKey = connect.Spec(
+    '/$name/DeriveWalletKey',
+    connect.StreamType.unary,
+    multisigloungev1multisiglounge.DeriveWalletKeyRequest.new,
+    multisigloungev1multisiglounge.DeriveWalletKeyResponse.new,
+  );
+
   /// FindWalletKeys reports which group keys the selected wallet can derive.
   static const findWalletKeys = connect.Spec(
     '/$name/FindWalletKeys',

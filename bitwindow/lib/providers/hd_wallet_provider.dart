@@ -2,7 +2,6 @@ import 'package:sail_ui/sail_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
-import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 
 class HDWalletProvider extends ChangeNotifier implements NetworkScoped {
   @override
@@ -129,28 +128,22 @@ class HDWalletProvider extends ChangeNotifier implements NetworkScoped {
   ]) async {
     final coinType = isMainnet ? "0'" : "1'";
     final path = "m/84'/$coinType/$accountIndex'";
-    final derived = await deriveAccountXpub(path);
+    final walletId = GetIt.I.get<WalletReaderProvider>().activeWalletId;
+    if (walletId == null) {
+      throw StateError('No active wallet');
+    }
+    final derived = await GetIt.I.get<OrchestratorRPC>().multisigLounge.deriveWalletKey(
+      walletId: walletId,
+      derivationPath: path,
+    );
 
     return {
       'xpub': derived.xpub,
       'fingerprint': derived.fingerprint,
       'xpub_with_origin': '[${derived.fingerprint}/${derived.originPath}]${derived.xpub}',
       'derivation_path': path,
+      'origin_path': derived.originPath,
     };
-  }
-
-  /// The account xpub at [path] for the loaded L1 seed, from the orchestrator.
-  Future<wmpb.DeriveKeystoreResponse> deriveAccountXpub(String path) {
-    final mnemonic = _mnemonic;
-    if (mnemonic == null || mnemonic.isEmpty) {
-      throw StateError('no L1 wallet seed is loaded');
-    }
-    return GetIt.I.get<OrchestratorRPC>().wallet.deriveKeystore(
-      mnemonic: mnemonic,
-      scriptType: 'wsh',
-      multisig: true,
-      derivationPath: path,
-    );
   }
 
   Future<int> getNextAccountIndex([Set<int>? additionalUsedIndices]) async {

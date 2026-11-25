@@ -914,6 +914,151 @@ class RestoreHistoryResponse extends $pb.GeneratedMessage {
   $pb.PbList<MultisigHistoryTx> get transactions => $_getList(0);
 }
 
+class DeriveWalletKeyRequest extends $pb.GeneratedMessage {
+  factory DeriveWalletKeyRequest({
+    $core.String? walletId,
+    $core.String? derivationPath,
+  }) {
+    final result = DeriveWalletKeyRequest._();
+    if (walletId != null) result.walletId = walletId;
+    if (derivationPath != null) result.derivationPath = derivationPath;
+    return result;
+  }
+
+  DeriveWalletKeyRequest._();
+
+  factory DeriveWalletKeyRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeriveWalletKeyRequest()..mergeFromBuffer(data, registry);
+  factory DeriveWalletKeyRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeriveWalletKeyRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DeriveWalletKeyRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'multisiglounge.v1'),
+      createEmptyInstance: DeriveWalletKeyRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'walletId')
+    ..aOS(2, _omitFieldNames ? '' : 'derivationPath')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeriveWalletKeyRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeriveWalletKeyRequest copyWith(void Function(DeriveWalletKeyRequest) updates) =>
+      super.copyWith((message) => updates(message as DeriveWalletKeyRequest)) as DeriveWalletKeyRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DeriveWalletKeyRequest() / DeriveWalletKeyRequest.new instead')
+  static DeriveWalletKeyRequest create() => DeriveWalletKeyRequest._();
+  static $pb.GeneratedMessage $_createMessage() => DeriveWalletKeyRequest._();
+  @$core.override
+  DeriveWalletKeyRequest createEmptyInstance() => DeriveWalletKeyRequest._();
+  @$core.pragma('dart2js:noInline')
+  static DeriveWalletKeyRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DeriveWalletKeyRequest>(DeriveWalletKeyRequest.$_createMessage);
+  static DeriveWalletKeyRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get walletId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set walletId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasWalletId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearWalletId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get derivationPath => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set derivationPath($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDerivationPath() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDerivationPath() => $_clearField(2);
+}
+
+class DeriveWalletKeyResponse extends $pb.GeneratedMessage {
+  factory DeriveWalletKeyResponse({
+    $core.String? xpub,
+    $core.String? fingerprint,
+    $core.String? originPath,
+  }) {
+    final result = DeriveWalletKeyResponse._();
+    if (xpub != null) result.xpub = xpub;
+    if (fingerprint != null) result.fingerprint = fingerprint;
+    if (originPath != null) result.originPath = originPath;
+    return result;
+  }
+
+  DeriveWalletKeyResponse._();
+
+  factory DeriveWalletKeyResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeriveWalletKeyResponse()..mergeFromBuffer(data, registry);
+  factory DeriveWalletKeyResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeriveWalletKeyResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DeriveWalletKeyResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'multisiglounge.v1'),
+      createEmptyInstance: DeriveWalletKeyResponse.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'xpub')
+    ..aOS(2, _omitFieldNames ? '' : 'fingerprint')
+    ..aOS(3, _omitFieldNames ? '' : 'originPath')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeriveWalletKeyResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeriveWalletKeyResponse copyWith(void Function(DeriveWalletKeyResponse) updates) =>
+      super.copyWith((message) => updates(message as DeriveWalletKeyResponse)) as DeriveWalletKeyResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DeriveWalletKeyResponse() / DeriveWalletKeyResponse.new instead')
+  static DeriveWalletKeyResponse create() => DeriveWalletKeyResponse._();
+  static $pb.GeneratedMessage $_createMessage() => DeriveWalletKeyResponse._();
+  @$core.override
+  DeriveWalletKeyResponse createEmptyInstance() => DeriveWalletKeyResponse._();
+  @$core.pragma('dart2js:noInline')
+  static DeriveWalletKeyResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DeriveWalletKeyResponse>(DeriveWalletKeyResponse.$_createMessage);
+  static DeriveWalletKeyResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get xpub => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set xpub($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasXpub() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearXpub() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get fingerprint => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set fingerprint($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasFingerprint() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFingerprint() => $_clearField(2);
+
+  /// Account path without the leading "m/".
+  @$pb.TagNumber(3)
+  $core.String get originPath => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set originPath($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasOriginPath() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearOriginPath() => $_clearField(3);
+}
+
 class SignTransactionRequest extends $pb.GeneratedMessage {
   factory SignTransactionRequest({
     $core.String? psbtBase64,
@@ -2379,6 +2524,11 @@ class MultisigLoungeServiceApi {
           $pb.ClientContext? ctx, ImportGroupFromTxidRequest request) =>
       _client.invoke<ImportGroupFromTxidResponse>(
           ctx, 'MultisigLoungeService', 'ImportGroupFromTxid', request, ImportGroupFromTxidResponse());
+
+  /// DeriveWalletKey derives a cosigner public key from the selected wallet.
+  $async.Future<DeriveWalletKeyResponse> deriveWalletKey($pb.ClientContext? ctx, DeriveWalletKeyRequest request) =>
+      _client.invoke<DeriveWalletKeyResponse>(
+          ctx, 'MultisigLoungeService', 'DeriveWalletKey', request, DeriveWalletKeyResponse());
 
   /// FindWalletKeys reports which group keys the selected wallet can derive.
   $async.Future<FindWalletKeysResponse> findWalletKeys($pb.ClientContext? ctx, FindWalletKeysRequest request) =>

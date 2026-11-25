@@ -32,6 +32,42 @@ func TestImportGroupFindsTheWalletKey(t *testing.T) {
 	require.Equal(t, []uint32{0}, resp.WalletKeyIndices)
 }
 
+func TestDeriveWalletKey(t *testing.T) {
+	const path = "m/84'/1'/8000'"
+	h, firstID, _ := newGroupImportHandler(t, path)
+	second, err := h.svc.GenerateWallet("Second", syncTestMnemonic, "cosigner", nil)
+	require.NoError(t, err)
+
+	t.Run("uses the requested wallet", func(t *testing.T) {
+		firstKey, err := h.DeriveWalletKey(t.Context(), &pb.DeriveWalletKeyRequest{WalletId: firstID, DerivationPath: path})
+		require.NoError(t, err)
+		secondKey, err := h.DeriveWalletKey(t.Context(), &pb.DeriveWalletKeyRequest{WalletId: second.ID, DerivationPath: path})
+		require.NoError(t, err)
+		require.NotEqual(t, firstKey.GetXpub(), secondKey.GetXpub())
+		require.NotEqual(t, firstKey.GetFingerprint(), secondKey.GetFingerprint())
+
+		want, err := wallet.DeriveAccountXpub(second.Master.SeedHex, path, &chaincfg.SigNetParams)
+		require.NoError(t, err)
+		require.Equal(t, want, secondKey.GetXpub())
+		require.Equal(t, "84'/1'/8000'", secondKey.GetOriginPath())
+	})
+
+	t.Run("rejects a missing wallet ID", func(t *testing.T) {
+		_, err := h.DeriveWalletKey(t.Context(), &pb.DeriveWalletKeyRequest{DerivationPath: path})
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	})
+
+	t.Run("rejects a wallet with no seed", func(t *testing.T) {
+		_, err := h.DeriveWalletKey(t.Context(), &pb.DeriveWalletKeyRequest{WalletId: "missing", DerivationPath: path})
+		require.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
+	})
+
+	t.Run("rejects an invalid path", func(t *testing.T) {
+		_, err := h.DeriveWalletKey(t.Context(), &pb.DeriveWalletKeyRequest{WalletId: firstID, DerivationPath: "m//"})
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	})
+}
+
 func TestFindWalletKeysUsesTheSelectedWallet(t *testing.T) {
 	const path = "m/48'/1'/0'/2'"
 	h, firstID, group := newGroupImportHandler(t, path)
