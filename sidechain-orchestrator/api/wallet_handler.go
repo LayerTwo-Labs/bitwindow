@@ -1486,6 +1486,13 @@ func (h *WalletHandler) GetTransactionDetails(ctx context.Context, req *pb.GetTr
 	} else {
 		rawTx, err = chain.GetRawTransaction(ctx, req.Txid)
 	}
+	if tx.Blockhash == "" && (errors.Is(err, wallet.ErrTxNotFound) || errors.Is(err, wallet.ErrTxUnreadable)) {
+		rawTx, err = wallet.DecodeStoredTransaction(tx, h.engine.Network())
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("decode wallet transaction: %w", err).Error()).WithCause(err)
+		}
+	}
+
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("getrawtransaction: %w", err).Error())
 	}

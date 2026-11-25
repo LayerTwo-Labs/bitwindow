@@ -231,6 +231,53 @@ func TestGetTransactionDetailsReadsAConfirmedParentFromTheWallet(t *testing.T) {
 	assert.Equal(t, int64(1_000_000), resp.FeeSats)
 }
 
+func TestGetTransactionDetailsReadsAnExpiredWalletTransaction(t *testing.T) {
+	recipient, err := btcutil.NewAddressWitnessPubKeyHash(make([]byte, 20), &chaincfg.SigNetParams)
+	require.NoError(t, err)
+	script, err := txscript.PayToAddrScript(recipient)
+	require.NoError(t, err)
+
+	prev := wire.NewMsgTx(wire.TxVersion)
+	prev.AddTxIn(&wire.TxIn{})
+	prev.AddTxOut(&wire.TxOut{Value: 5000, PkScript: script})
+	var prevRaw bytes.Buffer
+	require.NoError(t, prev.Serialize(&prevRaw))
+	prevID := prev.TxHash()
+	tx := wire.NewMsgTx(wire.TxVersion)
+	tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(&prevID, 0), nil, wire.TxWitness{{1, 2}}))
+	tx.AddTxOut(&wire.TxOut{Value: 4800, PkScript: script})
+	var txRaw bytes.Buffer
+	require.NoError(t, tx.Serialize(&txRaw))
+	txID := tx.TxHash().String()
+	txHex := hex.EncodeToString(txRaw.Bytes())
+
+	fake := &detailsProvider{
+		rawTxErr: wallet.ErrTxNotFound,
+		walletTxs: map[string]*wallet.WalletTx{
+			txID:            {TxID: txID, Hex: txHex},
+			prevID.String(): {TxID: prevID.String(), Hex: hex.EncodeToString(prevRaw.Bytes())},
+		},
+		owned: map[string]bool{recipient.EncodeAddress(): false},
+	}
+	h, walletID := newDetailsHandler(t, fake)
+	resp, err := h.GetTransactionDetails(t.Context(), &pb.GetTransactionDetailsRequest{
+		WalletId: walletID,
+		Txid:     txID,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Inputs, 1)
+	require.Len(t, resp.Outputs, 1)
+	assert.Equal(t, txHex, resp.RawHex)
+	assert.EqualValues(t, 0, resp.Confirmations)
+	assert.EqualValues(t, 5000, resp.Inputs[0].ValueSats)
+	assert.Equal(t, []string{"0102"}, resp.Inputs[0].Witness)
+	assert.EqualValues(t, 4800, resp.Outputs[0].ValueSats)
+	assert.Equal(t, recipient.EncodeAddress(), resp.Outputs[0].Address)
+	assert.True(t, resp.Outputs[0].IsMine)
+	assert.False(t, resp.Outputs[0].IsChange)
+	assert.EqualValues(t, 200, resp.FeeSats)
+}
+
 func TestGetTransactionDetailsFailsOnAnOwnershipError(t *testing.T) {
 	fake := &detailsProvider{
 		rawTx:    paymentWithChange(),

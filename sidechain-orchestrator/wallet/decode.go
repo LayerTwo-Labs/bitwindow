@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
@@ -117,6 +119,49 @@ func DecodeTransaction(input string, net *chaincfg.Params) (*DecodedTransaction,
 		return nil, ErrUnrecognizedTransaction
 	}
 	return decodeMsgTx(tx, net), nil
+}
+
+// DecodeStoredTransaction reads the transaction bytes that the wallet saved.
+func DecodeStoredTransaction(tx *WalletTx, net *chaincfg.Params) (*RawTransaction, error) {
+	decoded, err := DecodeTransaction(tx.Hex, net)
+	if err != nil {
+		return nil, err
+	}
+	if decoded.Form != DecodedFormRawTx || decoded.TxID != tx.TxID {
+		return nil, fmt.Errorf("wallet bytes do not match transaction %s", tx.TxID)
+	}
+	raw := &RawTransaction{
+		TxID:          decoded.TxID,
+		Hex:           tx.Hex,
+		Version:       decoded.Version,
+		Locktime:      decoded.Locktime,
+		Size:          decoded.SizeBytes,
+		Vsize:         decoded.VsizeVBytes,
+		Weight:        decoded.WeightWU,
+		Blockhash:     tx.Blockhash,
+		Confirmations: tx.Confirmations,
+		BlockTime:     tx.BlockTime,
+		Time:          tx.Time,
+		Vin:           make([]RawTxIn, 0, len(decoded.Inputs)),
+		Vout:          make([]RawTxOut, 0, len(decoded.Outputs)),
+	}
+	for _, input := range decoded.Inputs {
+		vin := RawTxIn{
+			TxID: input.PrevTxID, Vout: input.PrevVout, Sequence: input.Sequence, Witness: input.Witness,
+			ScriptSig: &ScriptSig{Hex: input.ScriptSig},
+		}
+		if input.IsCoinbase {
+			vin.Coinbase = input.ScriptSig
+		}
+		raw.Vin = append(raw.Vin, vin)
+	}
+	for _, output := range decoded.Outputs {
+		raw.Vout = append(raw.Vout, RawTxOut{
+			N: output.Index, Value: btcutil.Amount(output.ValueSats).ToBTC(),
+			ScriptPubKey: ScriptPubKey{Hex: output.ScriptPubKeyHex, Type: output.ScriptType, Address: output.Address},
+		})
+	}
+	return raw, nil
 }
 
 func parsePSBT(input string) (*psbt.Packet, error) {
