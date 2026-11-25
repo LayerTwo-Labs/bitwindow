@@ -285,12 +285,12 @@ class Sidepot extends Sidechain {
                downloadConfig: DownloadConfig(
                  binary: 'sidepot-node',
                  baseUrls: allNetworksUrl(
-                   'https://github.com/Coinelius/sidepot-node/releases/download/sidepot-v0.2.2/',
+                   'https://github.com/Coinelius/sidepot-node/releases/download/sidepot-v0.2.3/',
                  ),
                  files: allNetworks({
-                   OS.linux: 'sidepot-node-v0.2.2-x86_64-unknown-linux-gnu.zip',
-                   OS.macos: 'sidepot-node-v0.2.2-x86_64-apple-darwin.zip',
-                   OS.windows: 'sidepot-node-v0.2.2-x86_64-pc-windows-gnu.zip',
+                   OS.linux: 'sidepot-node-v0.2.3-x86_64-unknown-linux-gnu.zip',
+                   OS.macos: 'sidepot-node-v0.2.3-x86_64-apple-darwin.zip',
+                   OS.windows: 'sidepot-node-v0.2.3-x86_64-pc-windows-gnu.zip',
                  }),
                ),
                remoteTimestamp: null,
