@@ -34,6 +34,10 @@ func (p *ElectrumBackend) AddressUnspent(ctx context.Context, address string) ([
 		return nil, 0, err
 	}
 
+	for _, u := range utxos {
+		tip = max(tip, heightFor(u.Status))
+	}
+
 	prevTxs := map[string]*wire.MsgTx{}
 	out := make([]UTXO, 0, len(utxos))
 	for _, u := range utxos {
