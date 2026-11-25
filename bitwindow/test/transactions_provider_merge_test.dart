@@ -56,6 +56,16 @@ void main() {
     expect(rows.single.note, 'rent');
   });
 
+  test('a transaction the wallet abandoned gives an abandoned row', () {
+    final rows = walletTransactionsFromEntries([
+      _entry(_payment, 0, -1000, fee: -0.00000200, confirmations: 0),
+      _entry(_payment, 1, -2000, fee: -0.00000200, confirmations: 0)..abandoned = true,
+      _entry(_deposit, 0, 5000, confirmations: 0),
+    ], {});
+
+    expect({for (final tx in rows) tx.txid: tx.abandoned}, {_payment: true, _deposit: false});
+  });
+
   test('each txid keeps its own row', () {
     final rows = walletTransactionsFromEntries([
       _entry(_deposit, 0, 5000),

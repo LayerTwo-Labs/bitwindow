@@ -232,6 +232,24 @@ void main() {
     });
   }
 
+  testWidgets('an abandoned row says so, and offers no fee bump', (tester) async {
+    final entry = walletpb.WalletTransaction(
+      txid: 'ab' * 32,
+      sentSatoshi: Int64(300000000),
+      feeSats: Int64(705),
+      abandoned: true,
+    );
+    await tester.pumpSailPage(TransactionTable(searchWidget: const SizedBox.shrink(), model: _Overview([entry])));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Abandoned'), findsOneWidget);
+    expect(find.text('Unconfirmed'), findsNothing);
+    expect(find.text('Bump fee'), findsNothing);
+    final hints = tester.widgetList<SailTooltip>(find.byType(SailTooltip)).where((t) => t.message == abandonedHint);
+    expect(hints, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
   final notFound = {
     'with no txindex':
         'This node keeps no transaction index, so it finds only wallet and mempool txids. '

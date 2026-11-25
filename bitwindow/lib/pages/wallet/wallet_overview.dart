@@ -186,17 +186,27 @@ class OverviewLoadingSkeleton extends StatelessWidget {
 /// Only a transaction that waits for a block can carry a replacement. Whether
 /// this wallet signs its inputs comes from the backend preview, because a
 /// self-send and a consolidation both read as amount zero here.
-bool canBumpFee(WalletTransaction tx) => tx.confirmations == 0 && !canCancelBid(tx);
+bool canBumpFee(WalletTransaction tx) => tx.confirmations == 0 && !tx.abandoned && !canCancelBid(tx);
 
 /// A lost bid names a mainchain block the chain already built past, so no miner
 /// can take it. A replacement is the only way back to the coins.
-bool canCancelBid(WalletTransaction tx) => tx.hasBmmBid() && tx.bmmBid.lost;
+bool canCancelBid(WalletTransaction tx) => tx.hasBmmBid() && tx.bmmBid.lost && !tx.abandoned;
+
+/// An unconfirmed payment to this wallet can pay for its own confirmation with a child.
+bool canAccelerate(WalletTransaction tx) =>
+    tx.confirmations == 0 && !tx.abandoned && tx.receivedSatoshi > tx.sentSatoshi;
+
+/// What the status cell of an abandoned transaction tells on hover.
+const String abandonedHint = 'The chain dropped this transaction. It does not count in your balance.';
 
 /// Confirmations a coinbase output needs before it can be spent.
 const int coinbaseMaturity = 100;
 
 /// What the status column says about one transaction.
 String transactionStatus(WalletTransaction tx) {
+  if (tx.abandoned) {
+    return 'Abandoned';
+  }
   if (tx.hasBmmBid()) {
     return tx.bmmBid.lost ? 'BMM bid \u00b7 lost' : 'BMM bid \u00b7 slot ${tx.bmmBid.slot}';
   }
@@ -229,7 +239,11 @@ String transactionsCsv(List<WalletTransaction> transactions) {
 
   for (final tx in transactions) {
     final netAmount = walletNetSats(tx);
-    final type = netAmount > 0 ? 'Received' : 'Sent';
+    final type = tx.abandoned
+        ? 'Abandoned'
+        : netAmount > 0
+        ? 'Received'
+        : 'Sent';
     final amountBTC = (netAmount / 100000000).toStringAsFixed(8);
     final date = DateFormat('yyyy-MM-dd HH:mm:ss').format(tx.confirmationTime.timestamp.toDateTime().toLocal());
 
@@ -421,9 +435,10 @@ class _TransactionTableState extends State<TransactionTable> {
                             rowBuilder: (context, row, selected) {
                               final entry = entries[row];
                               final unconfirmed = entry.confirmations == 0;
-                              final statusColor = unconfirmed || entry.immature
-                                  ? context.sailTheme.colors.orange
-                                  : null;
+                              final mutedColor = entry.abandoned ? context.sailTheme.colors.textSecondary : null;
+                              final statusColor =
+                                  mutedColor ??
+                                  (unconfirmed || entry.immature ? context.sailTheme.colors.orange : null);
                               final replaceable = canBumpFee(entry);
                               final cancellable = canCancelBid(entry);
 
@@ -456,7 +471,18 @@ class _TransactionTableState extends State<TransactionTable> {
                                   textColor: statusColor,
                                   fill: phone,
                                   padding: phone ? _phoneCellPadding : _cellPadding,
-                                  child: entry.warningMessage.trim().isEmpty && !entry.immature
+                                  child: entry.abandoned
+                                      ? SailTooltip(
+                                          message: abandonedHint,
+                                          maxWidth: 320,
+                                          child: SailText.primary13(
+                                            transactionStatus(entry),
+                                            color: statusColor,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        )
+                                      : entry.warningMessage.trim().isEmpty && !entry.immature
                                       ? (phone
                                             ? SailText.primary13(
                                                 transactionStatus(entry),
@@ -503,6 +529,7 @@ class _TransactionTableState extends State<TransactionTable> {
                                 ),
                                 SailTableCell(
                                   value: formattedAmount,
+                                  textColor: mutedColor,
                                   monospace: !phone,
                                   hugContent: phone,
                                   padding: phone ? _phoneCellPadding : _cellPadding,
@@ -533,7 +560,6 @@ class _TransactionTableState extends State<TransactionTable> {
                             },
                             contextMenuItems: (rowId) {
                               final entry = entries.firstWhere((e) => e.txid == rowId);
-                              final isUnconfirmed = entry.confirmations == 0;
 
                               return [
                                 SailMenuItem(
@@ -589,7 +615,7 @@ class _TransactionTableState extends State<TransactionTable> {
                                   ),
                                 // CPFP - accelerate an unconfirmed incoming tx whose
                                 // output this wallet can spend (RBF can't bump it).
-                                if (isUnconfirmed && entry.receivedSatoshi > entry.sentSatoshi)
+                                if (canAccelerate(entry))
                                   SailMenuItem(
                                     onSelected: () async {
                                       await widget.model.accelerateCpfp(context, entry);
