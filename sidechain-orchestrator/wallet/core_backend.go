@@ -1052,8 +1052,8 @@ func (p *CoreBackend) fixedFeeRawTx(
 		outputs = slices.Clone(outputs)
 		payment := &outputs[len(req.RawOutputs)]
 		paymentSats := req.DestinationsSats[payment.Address] - req.FixedFeeSats
-		if paymentSats < dustForOutput(*payment, p.net()) {
-			return "", connect.Errorf(connect.CodeInvalidArgument, "fee %d sats exceeds the payment", req.FixedFeeSats)
+		if minimumSats := dustForOutput(*payment, p.net()); paymentSats < minimumSats {
+			return "", connect.Errorf(connect.CodeInvalidArgument, "payment after the fee must be at least %d sats", minimumSats)
 		}
 		payment.AmountBTC = float64(paymentSats) / 1e8
 		feeOnTopSats = 0
