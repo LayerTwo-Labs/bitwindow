@@ -25,6 +25,8 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(tester.takeException(), isNull);
+    expect(find.text('Copy base64').hitTestable(), findsOneWidget);
+    expect(find.text('Save .psbt').hitTestable(), findsOneWidget);
     expect(find.text('Cancel').hitTestable(), findsOneWidget);
     await tester.tap(find.text('Next: import signed').hitTestable());
     await tester.pump(const Duration(seconds: 1));
