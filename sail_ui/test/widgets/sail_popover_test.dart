@@ -81,6 +81,47 @@ void main() {
       expect(find.text('barrier-body'), findsNothing);
     });
 
+    testWidgets('a nested coin menu opens and selects an output', (tester) async {
+      String? selected;
+      await tester.pumpWidget(
+        _app(
+          SailPopover(
+            alignment: SailPopoverAlignment.end,
+            popover: SizedBox(
+              width: 320,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: SailMultiSelectDropdown(
+                  items: [SailDropdownItem(value: 'outpoint', label: 'Coin output')],
+                  selectedValues: const [],
+                  onSelected: (value) => selected = value,
+                  searchPlaceholder: 'Search UTXOs',
+                  selectedCountText: 'Select UTXO(s)',
+                ),
+              ),
+            ),
+            child: SailText.primary12('Pay from'),
+          ),
+        ),
+      );
+
+      final trigger = find.text('Pay from');
+      await tester.tap(trigger);
+      await tester.pumpAndSettle();
+      final picker = find.text('Select UTXO(s)');
+      expect(tester.getTopLeft(picker).dy, greaterThan(tester.getBottomLeft(trigger).dy));
+
+      await tester.tap(picker);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final output = find.text('Coin output');
+      expect(output.hitTestable(), findsOneWidget);
+
+      await tester.tap(output);
+      await tester.pumpAndSettle();
+      expect(selected, 'outpoint');
+    });
+
     testWidgets('supports custom side', (tester) async {
       await tester.pumpWidget(
         _app(

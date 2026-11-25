@@ -72,7 +72,6 @@ class SailPopover extends StatefulWidget {
 
 class _SailPopoverState extends State<SailPopover> {
   final OverlayPortalController _portal = OverlayPortalController();
-  final LayerLink _link = LayerLink();
   late SailPopoverController _controller;
   bool _ownsController = false;
 
@@ -169,7 +168,7 @@ class _SailPopoverState extends State<SailPopover> {
     }
   }
 
-  Alignment _followerAnchor() {
+  Alignment _popoverAnchor() {
     switch (widget.side) {
       case SailPopoverSide.bottom:
         switch (widget.alignment) {
@@ -226,60 +225,69 @@ class _SailPopoverState extends State<SailPopover> {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-    return CompositedTransformTarget(
-      link: _link,
-      child: OverlayPortal(
-        controller: _portal,
-        overlayChildBuilder: (ctx) {
-          return Stack(
-            children: [
-              if (widget.barrierDismissible)
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: _controller.hide,
-                  ),
-                ),
-              Positioned(
-                left: 0,
-                top: 0,
-                child: CompositedTransformFollower(
-                  link: _link,
-                  showWhenUnlinked: false,
-                  targetAnchor: _targetAnchor(),
-                  followerAnchor: _followerAnchor(),
-                  offset: _offset(),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: theme.colors.popoverBackground,
-                      borderRadius: theme.chrome.beveled
-                          ? BorderRadius.zero
-                          : widget.borderRadius ??
-                                (theme.chrome.terminalStyle ? theme.chrome.radius : BorderRadius.circular(6)),
-                      border: theme.chrome.beveled
-                          ? theme.chrome.bevel!.raised
-                          : Border.all(color: theme.colors.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colors.shadow,
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: widget.popover,
-                  ),
+    return OverlayPortal.overlayChildLayoutBuilder(
+      controller: _portal,
+      overlayChildBuilder: (context, layout) {
+        final anchor = MatrixUtils.transformPoint(
+          layout.childPaintTransform,
+          _targetAnchor().alongSize(layout.childSize),
+        );
+        return Stack(
+          children: [
+            if (widget.barrierDismissible)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _controller.hide,
                 ),
               ),
-            ],
-          );
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _toggleFromTap,
-          child: widget.child,
-        ),
+            Positioned.fill(
+              child: CustomSingleChildLayout(
+                delegate: _PopoverLayout(anchor + _offset(), _popoverAnchor()),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colors.popoverBackground,
+                    borderRadius: theme.chrome.beveled
+                        ? BorderRadius.zero
+                        : widget.borderRadius ??
+                              (theme.chrome.terminalStyle ? theme.chrome.radius : BorderRadius.circular(6)),
+                    border: theme.chrome.beveled ? theme.chrome.bevel!.raised : Border.all(color: theme.colors.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colors.shadow,
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: widget.popover,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggleFromTap,
+        child: widget.child,
       ),
     );
   }
+}
+
+class _PopoverLayout extends SingleChildLayoutDelegate {
+  final Offset anchor;
+  final Alignment alignment;
+
+  const _PopoverLayout(this.anchor, this.alignment);
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) => const BoxConstraints();
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) => anchor - alignment.alongSize(childSize);
+
+  @override
+  bool shouldRelayout(_PopoverLayout oldDelegate) => anchor != oldDelegate.anchor || alignment != oldDelegate.alignment;
 }
