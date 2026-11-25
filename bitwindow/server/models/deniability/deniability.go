@@ -283,22 +283,35 @@ func nextExecution(denial Denial, executions []ExecutedDenial) *time.Time {
 		return nil
 	}
 
-	hops := lo.UniqBy(executions, func(execution ExecutedDenial) string {
-		return execution.ToTxID
-	})
-	if int32(len(hops)) >= denial.NumHops {
+	hops := completedHops(executions)
+	if int32(hops) >= denial.NumHops {
 		return nil
 	}
 
+	// A restart sets UpdatedAt, so the delay of the next hop starts at the restart.
 	last := denial.CreatedAt
-	if len(executions) > 0 {
-		last = lo.MaxBy(executions, func(a, b ExecutedDenial) bool {
-			return a.CreatedAt.After(b.CreatedAt)
-		}).CreatedAt
+	if denial.UpdatedAt.After(last) {
+		last = denial.UpdatedAt
+	}
+	for _, execution := range executions {
+		if execution.CreatedAt.After(last) {
+			last = execution.CreatedAt
+		}
 	}
 
-	next := last.Add(hopDelay(denial, len(hops)))
+	next := last.Add(hopDelay(denial, hops))
 	return &next
+}
+
+func completedHops(executions []ExecutedDenial) int {
+	return len(lo.UniqBy(executions, func(execution ExecutedDenial) string {
+		return execution.ToTxID
+	}))
+}
+
+// CompletedHops is the number of hop transactions the plan sent.
+func (d Denial) CompletedHops() int {
+	return completedHops(d.ExecutedDenials)
 }
 
 // hopDelay is the delay before a hop: a whole number of seconds in
@@ -336,19 +349,24 @@ func GetByTip(ctx context.Context, db *sql.DB, tipTxID string, tipVout *int32) (
 	return &d, nil
 }
 
-// Update adds numHops to a plan, sets its delay and target sizes, moves its
-// start to txid:vout and clears its cancel.
-func Update(ctx context.Context, db *sql.DB, id int64, delay time.Duration, numHops int32, targetSizes TargetSizes, txid string, vout int32) error {
+// Restart makes a stopped plan run numHops more hops from txid:vout, with a
+// new delay and one target size per new hop. It clears the cancel and the pause.
+func Restart(ctx context.Context, db *sql.DB, denial Denial, delay time.Duration, numHops int32, targetSizes []int64, txid string, vout int32) error {
+	done := denial.CompletedHops()
+	var sizes TargetSizes
+	if len(targetSizes) > 0 {
+		sizes = append(make(TargetSizes, done, done+len(targetSizes)), targetSizes...)
+	}
 	err := database.CheckOne(db.ExecContext(ctx, `
 		UPDATE denials
-		SET delay_duration = ?, num_hops = num_hops + ?, target_utxo_sizes = ?, initial_txid = ?, initial_vout = ?, cancelled_at = NULL, cancelled_reason = NULL, paused_at = NULL, updated_at = ?
+		SET delay_duration = ?, num_hops = ?, target_utxo_sizes = ?, initial_txid = ?, initial_vout = ?, cancelled_at = NULL, cancelled_reason = NULL, paused_at = NULL, updated_at = ?
 		WHERE id = ?
-	`, delay, numHops, targetSizes, txid, vout, time.Now(), id))
+	`, delay, int32(done)+numHops, sizes, txid, vout, time.Now(), denial.ID))
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return ErrNotFound
 	case err != nil:
-		return fmt.Errorf("update deniability: %w", err)
+		return fmt.Errorf("restart deniability: %w", err)
 	}
 	return nil
 }

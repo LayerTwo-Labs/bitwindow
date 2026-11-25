@@ -327,14 +327,11 @@ func (s *Server) CreateDenial(
 			Uint32("vout", req.Vout).
 			Int32("delay_seconds", req.DelaySeconds).
 			Int32("num_hops", req.NumHops).
-			Msg("CreateDenial: continue a stopped denial")
+			Msg("CreateDenial: restart a stopped denial")
 
-		targetSizes := make(deniability.TargetSizes, denial.NumHops, int(denial.NumHops)+len(req.TargetUtxoSizes))
-		copy(targetSizes, denial.TargetUTXOSizes)
-		targetSizes = append(targetSizes, req.TargetUtxoSizes...)
-		if err := deniability.Update(
-			ctx, s.db, denial.ID, time.Duration(req.DelaySeconds)*time.Second, req.NumHops,
-			targetSizes, req.Txid, int32(req.Vout),
+		if err := deniability.Restart(
+			ctx, s.db, *denial, time.Duration(req.DelaySeconds)*time.Second, req.NumHops,
+			req.TargetUtxoSizes, req.Txid, int32(req.Vout),
 		); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 		}
