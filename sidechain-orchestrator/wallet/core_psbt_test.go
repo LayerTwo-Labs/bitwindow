@@ -274,6 +274,21 @@ func TestCoreBackendCreatePSBTTakesAFixedFeeFromTheAmount(t *testing.T) {
 	assert.Equal(t, []map[string]any{{dest: 0.24999774}, {change: 0.75}}, outputs)
 }
 
+func TestCoreBackendCreatePSBTReportsTheMinimumAfterTheFee(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	dest := p2wpkhAddr(t, fixedKey(0x88), &chaincfg.RegressionNetParams)
+
+	_, err := backend.CreatePSBT(t.Context(), coreID, SendRequest{
+		DestinationsSats:      map[string]int64{dest: 8_001},
+		FixedFeeSats:          7_801,
+		SubtractFeeFromAmount: true,
+	})
+	require.ErrorContains(t, err, "payment after the fee must be at least 294 sats")
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	assert.Empty(t, fake.callsFor("createrawtransaction"))
+}
+
 func TestCoreBackendCreatePSBTHoldsFrozenCoinsWhileCoreFunds(t *testing.T) {
 	for _, fundErr := range []string{"", "Insufficient funds"} {
 		t.Run(fmt.Sprintf("funding error %q", fundErr), func(t *testing.T) {
