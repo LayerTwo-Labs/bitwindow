@@ -396,8 +396,11 @@ func (s *Server) listTransactions(ctx context.Context, walletID string, includeC
 				return d.Category == corepb.GetTransactionResponse_CATEGORY_IMMATURE
 			}),
 		}
+		row.send = amount < 0
 		if len(tx.Details) > 0 {
 			row.address = tx.Details[0].Address
+			row.vout = tx.Details[0].Vout
+			row.send = row.send || tx.Details[0].Category == corepb.GetTransactionResponse_CATEGORY_SEND
 		}
 		if tx.Confirmations > 0 {
 			row.confirmations = uint32(tx.Confirmations)
@@ -445,6 +448,8 @@ func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, 
 			feeSats:    feeSats,
 			address:    t.Address,
 			label:      t.Label,
+			vout:       uint32(t.Vout),
+			send:       t.Category == "send" || t.AmountSats < 0,
 			immature:   t.Category == "immature",
 			abandoned:  t.Abandoned,
 		}
@@ -468,6 +473,8 @@ type txRow struct {
 	feeSats       uint64
 	address       string
 	label         string
+	vout          uint32
+	send          bool
 	confirmation  *pb.Confirmation
 	confirmations uint32
 	immature      bool
@@ -475,23 +482,23 @@ type txRow struct {
 }
 
 // mergeTxRows gives one transaction per txid, in the order of the first row.
-// The first row sets the address, label and confirmation.
+// The first row sets the confirmation, and the largest payment sets the address.
 func mergeTxRows(rows []txRow) []*pb.WalletTransaction {
 	byTxid := make(map[string]*pb.WalletTransaction, len(rows))
+	rowsOf := make(map[string][]txRow, len(rows))
 	out := make([]*pb.WalletTransaction, 0, len(rows))
 	for _, r := range rows {
 		tx, ok := byTxid[r.txid]
 		if !ok {
 			tx = &pb.WalletTransaction{
 				Txid:             r.txid,
-				Address:          r.address,
-				AddressLabel:     r.label,
 				ConfirmationTime: r.confirmation,
 				Confirmations:    r.confirmations,
 			}
 			byTxid[r.txid] = tx
 			out = append(out, tx)
 		}
+		rowsOf[r.txid] = append(rowsOf[r.txid], r)
 		if r.amountSats >= 0 {
 			tx.ReceivedSatoshi += uint64(r.amountSats)
 		} else {
@@ -502,7 +509,63 @@ func mergeTxRows(rows []txRow) []*pb.WalletTransaction {
 		tx.Immature = tx.Immature || r.immature
 		tx.Abandoned = tx.Abandoned || r.abandoned
 	}
+	for _, tx := range out {
+		tx.Payments = rowPayments(rowsOf[tx.Txid])
+		if len(tx.Payments) == 0 {
+			continue
+		}
+		tx.Address = tx.Payments[0].Address
+		for _, r := range rowsOf[tx.Txid] {
+			if r.address == tx.Address && r.label != "" {
+				tx.AddressLabel = r.label
+				break
+			}
+		}
+	}
 	return out
+}
+
+// rowPayments gives the outputs the rows of one transaction are about, the
+// largest first. A send names what it pays to others. A transfer inside the
+// wallet names its own outputs.
+func rowPayments(rows []txRow) []*pb.TransactionPayment {
+	type output struct {
+		vout    uint32
+		address string
+	}
+	credited := make(map[output]bool)
+	var sends, credits []txRow
+	for _, r := range rows {
+		if r.send {
+			sends = append(sends, r)
+			continue
+		}
+		credits = append(credits, r)
+		credited[output{r.vout, r.address}] = true
+	}
+	toOthers := lo.Reject(sends, func(r txRow, _ int) bool { return credited[output{r.vout, r.address}] })
+	outputs := credits
+	switch {
+	case len(toOthers) > 0:
+		outputs = toOthers
+	case len(sends) > 0:
+		outputs = sends
+	}
+
+	payments := lo.FilterMap(outputs, func(r txRow, _ int) (*pb.TransactionPayment, bool) {
+		amount := r.amountSats
+		if amount < 0 {
+			amount = -amount
+		}
+		return &pb.TransactionPayment{Address: r.address, AmountSats: uint64(amount)}, r.address != ""
+	})
+	sort.SliceStable(payments, func(i, j int) bool {
+		if payments[i].AmountSats != payments[j].AmountSats {
+			return payments[i].AmountSats > payments[j].AmountSats
+		}
+		return payments[i].Address < payments[j].Address
+	})
+	return payments
 }
 
 // A failed tip read gives no block heights; the transaction list must not depend on it.

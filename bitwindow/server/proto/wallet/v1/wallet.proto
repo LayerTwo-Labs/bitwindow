@@ -227,6 +227,15 @@ message WalletTransaction {
   // True when the wallet gave the transaction up. It can never confirm, and
   // it does not count in the balance.
   bool abandoned = 14;
+  // The outputs the row is about, the largest first: the payments of a send,
+  // or the outputs that pay this wallet. address holds the first one.
+  repeated TransactionPayment payments = 15;
+}
+
+// TransactionPayment is one output of a wallet transaction.
+message TransactionPayment {
+  string address = 1;
+  uint64 amount_sats = 2;
 }
 
 // DepositRequest names the sidechain a deposit request pays into.

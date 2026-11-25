@@ -1237,6 +1237,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     DepositRequest? depositRequest,
     $core.int? confirmations,
     $core.bool? abandoned,
+    $core.Iterable<TransactionPayment>? payments,
   }) {
     final result = WalletTransaction._();
     if (txid != null) result.txid = txid;
@@ -1253,6 +1254,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     if (depositRequest != null) result.depositRequest = depositRequest;
     if (confirmations != null) result.confirmations = confirmations;
     if (abandoned != null) result.abandoned = abandoned;
+    if (payments != null) result.payments.addAll(payments);
     return result;
   }
 
@@ -1283,6 +1285,7 @@ class WalletTransaction extends $pb.GeneratedMessage {
     ..aOM<DepositRequest>(12, _omitFieldNames ? '' : 'depositRequest', subBuilder: DepositRequest.$_createMessage)
     ..aI(13, _omitFieldNames ? '' : 'confirmations', fieldType: $pb.PbFieldType.OU3)
     ..aOB(14, _omitFieldNames ? '' : 'abandoned')
+    ..pPM<TransactionPayment>(15, _omitFieldNames ? '' : 'payments', subBuilder: TransactionPayment.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1443,6 +1446,78 @@ class WalletTransaction extends $pb.GeneratedMessage {
   $core.bool hasAbandoned() => $_has(13);
   @$pb.TagNumber(14)
   void clearAbandoned() => $_clearField(14);
+
+  /// The outputs the row is about, the largest first: the payments of a send,
+  /// or the outputs that pay this wallet. address holds the first one.
+  @$pb.TagNumber(15)
+  $pb.PbList<TransactionPayment> get payments => $_getList(14);
+}
+
+/// TransactionPayment is one output of a wallet transaction.
+class TransactionPayment extends $pb.GeneratedMessage {
+  factory TransactionPayment({
+    $core.String? address,
+    $fixnum.Int64? amountSats,
+  }) {
+    final result = TransactionPayment._();
+    if (address != null) result.address = address;
+    if (amountSats != null) result.amountSats = amountSats;
+    return result;
+  }
+
+  TransactionPayment._();
+
+  factory TransactionPayment.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransactionPayment()..mergeFromBuffer(data, registry);
+  factory TransactionPayment.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransactionPayment()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TransactionPayment',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'wallet.v1'),
+      createEmptyInstance: TransactionPayment.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'address')
+    ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'amountSats', $pb.PbFieldType.OU6, defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransactionPayment clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransactionPayment copyWith(void Function(TransactionPayment) updates) =>
+      super.copyWith((message) => updates(message as TransactionPayment)) as TransactionPayment;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TransactionPayment() / TransactionPayment.new instead')
+  static TransactionPayment create() => TransactionPayment._();
+  static $pb.GeneratedMessage $_createMessage() => TransactionPayment._();
+  @$core.override
+  TransactionPayment createEmptyInstance() => TransactionPayment._();
+  @$core.pragma('dart2js:noInline')
+  static TransactionPayment getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TransactionPayment>(TransactionPayment.$_createMessage);
+  static TransactionPayment? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get address => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set address($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasAddress() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAddress() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get amountSats => $_getI64(1);
+  @$pb.TagNumber(2)
+  set amountSats($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAmountSats() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAmountSats() => $_clearField(2);
 }
 
 /// DepositRequest names the sidechain a deposit request pays into.
