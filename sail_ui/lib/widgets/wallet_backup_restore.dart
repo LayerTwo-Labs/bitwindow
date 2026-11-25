@@ -413,6 +413,7 @@ class RestoreProgressStep {
   String name;
   DateTime startTime;
   DateTime? endTime;
+  bool isFailed = false;
 
   RestoreProgressStep({
     String? id,
@@ -420,7 +421,7 @@ class RestoreProgressStep {
     required this.startTime,
   }) : id = id ?? name;
 
-  bool get isCompleted => endTime != null;
+  bool get isCompleted => endTime != null && !isFailed;
   Duration? get duration => endTime?.difference(startTime);
 }
 
@@ -761,6 +762,7 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
             case wmpb.RestoreWalletBackupStepState.RESTORE_WALLET_BACKUP_STEP_STATE_STARTED:
               step.startTime = DateTime.now();
               step.endTime = null;
+              step.isFailed = false;
               _currentStepIndex = index;
               break;
             case wmpb.RestoreWalletBackupStepState.RESTORE_WALLET_BACKUP_STEP_STATE_COMPLETED:
@@ -769,6 +771,7 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
               break;
             case wmpb.RestoreWalletBackupStepState.RESTORE_WALLET_BACKUP_STEP_STATE_FAILED:
               step.endTime ??= DateTime.now();
+              step.isFailed = true;
               _currentStepIndex = index;
               _error = status.error.isNotEmpty ? status.error : 'Restore failed';
               break;
@@ -790,63 +793,11 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
     });
   }
 
-  Future<String?> _promptBackupPassword(wmpb.WalletBackup backup) async {
-    final controller = TextEditingController();
-    try {
-      return await showSailDialog<String>(
-        context: context,
-        builder: (context) {
-          final theme = SailTheme.of(context);
-          return Dialog(
-            backgroundColor: theme.colors.background,
-            shape: SailSheetScope.of(context) ? null : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailText.primary20('Encrypted wallet backup', bold: true),
-                  const SizedBox(height: 16),
-                  SailText.secondary13(_formatBackupDate(backup)),
-                  const SizedBox(height: 20),
-                  SailText.primary13('Password', bold: true),
-                  const SizedBox(height: 8),
-                  SailTextField(
-                    controller: controller,
-                    hintText: 'Enter wallet password',
-                    obscureText: true,
-                    autofocus: true,
-                    onSubmitted: (value) => Navigator.of(context).pop(value),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: SailText.primary13('Cancel'),
-                      ),
-                      const SizedBox(width: 8),
-                      SailButton(
-                        label: 'Restore',
-                        variant: ButtonVariant.primary,
-                        onPressed: () async {
-                          Navigator.of(context).pop(controller.text);
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    } finally {
-      controller.dispose();
-    }
+  Future<String?> _promptBackupPassword(wmpb.WalletBackup backup) {
+    return showSailDialog<String>(
+      context: context,
+      builder: (_) => _BackupPasswordDialog(backupDate: _formatBackupDate(backup)),
+    );
   }
 
   String _formatBackupDate(wmpb.WalletBackup backup) {
@@ -1213,6 +1164,75 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
   }
 }
 
+class _BackupPasswordDialog extends StatefulWidget {
+  final String backupDate;
+
+  const _BackupPasswordDialog({required this.backupDate});
+
+  @override
+  State<_BackupPasswordDialog> createState() => _BackupPasswordDialogState();
+}
+
+class _BackupPasswordDialogState extends State<_BackupPasswordDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Dialog(
+      backgroundColor: theme.colors.background,
+      shape: SailSheetScope.of(context) ? null : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 400),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SailText.primary20('Encrypted wallet backup', bold: true),
+            const SizedBox(height: 16),
+            SailText.secondary13(widget.backupDate),
+            const SizedBox(height: 20),
+            SailText.primary13('Password', bold: true),
+            const SizedBox(height: 8),
+            SailTextField(
+              controller: _controller,
+              hintText: 'Enter wallet password',
+              obscureText: true,
+              autofocus: true,
+              onSubmitted: (value) => Navigator.of(context).pop(value),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: SailText.primary13('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                SailButton(
+                  label: 'Restore',
+                  variant: ButtonVariant.primary,
+                  onPressed: () async {
+                    Navigator.of(context).pop(_controller.text);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _RestoreProgressCard extends StatelessWidget {
   final bool success;
   final List<RestoreProgressStep> steps;
@@ -1253,10 +1273,11 @@ class _RestoreProgressCard extends StatelessWidget {
               ...steps.asMap().entries.map((entry) {
                 final index = entry.key;
                 final step = entry.value;
-                final isActive = index == currentStepIndex && !step.isCompleted;
+                final isActive = index == currentStepIndex && !step.isCompleted && !step.isFailed;
                 return ProgressStepTile(
                   name: step.name,
                   isCompleted: step.isCompleted,
+                  isFailed: step.isFailed,
                   duration: step.duration,
                   isActive: isActive,
                 );

@@ -4,6 +4,7 @@ import 'package:sail_ui/sail_ui.dart';
 class ProgressStepTile extends StatelessWidget {
   final String name;
   final bool isCompleted;
+  final bool isFailed;
   final Duration? duration;
   final bool isActive;
 
@@ -12,6 +13,7 @@ class ProgressStepTile extends StatelessWidget {
     required this.name,
     required this.isCompleted,
     required this.isActive,
+    this.isFailed = false,
     this.duration,
   });
 
@@ -22,10 +24,11 @@ class ProgressStepTile extends StatelessWidget {
     Widget iconWidget;
     String timeText = '';
 
-    if (isCompleted) {
+    final resultColor = isFailed ? theme.colors.error : SailColorScheme.green;
+    if (isCompleted || isFailed) {
       iconWidget = SailSVG.fromAsset(
-        SailSVGAsset.circleCheck,
-        color: SailColorScheme.green,
+        isFailed ? SailSVGAsset.circleX : SailSVGAsset.circleCheck,
+        color: resultColor,
         width: 16,
         height: 16,
       );
@@ -62,14 +65,16 @@ class ProgressStepTile extends StatelessWidget {
         Expanded(
           child: SailText.primary13(
             name,
-            color: isActive
+            color: isFailed
+                ? resultColor
+                : isActive
                 ? theme.colors.primary
                 : isCompleted
-                ? SailColorScheme.green
+                ? resultColor
                 : theme.colors.textSecondary,
           ),
         ),
-        if (timeText.isNotEmpty) SailText.secondary12(timeText, color: SailColorScheme.green),
+        if (timeText.isNotEmpty) SailText.secondary12(timeText, color: resultColor),
       ],
     );
   }
