@@ -97,15 +97,15 @@ void main() {
     final broadcast = find.widgetWithText(SailButton, 'Broadcast');
     tester.state<EditableTextState>(message).widget.controller.text = 'QA headline';
     await tester.pump();
-    for (final invalid in ['abc', '0', '0.000000001', '-0.00002000']) {
+    for (final invalid in ['0.000021009', 'abc', '0', '0.000000001', '-0.00002000']) {
       tester.state<EditableTextState>(fee).widget.controller.text = invalid;
       await tester.pump();
       await tester.ensureVisible(broadcast);
       await tester.pump();
       await tester.widget<SailButton>(broadcast).onPressed!();
       await tester.pump();
-      final error = find.text('Enter a fee greater than zero.');
-      expect(error, findsOneWidget);
+      final error = find.text('Enter a fee greater than zero. Use up to 8 decimal places.');
+      expect(error, findsOneWidget, reason: 'Fee input: $invalid');
       expect(tester.getBottomLeft(error).dy, lessThanOrEqualTo(tester.getBottomLeft(find.byKey(viewport)).dy));
       expect(api.misc.fees, isEmpty);
     }
