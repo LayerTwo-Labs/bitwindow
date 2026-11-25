@@ -55,7 +55,13 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
   Map<String, int> _mined = {};
   Set<String>? _sidepotMempool;
 
+  /// The eCash fee rate a move pays when the field is left empty, in sat/vB: [_entryFeeMultiple] times the
+  /// wallet's next-block estimate, at most [_entryFeeCap]. Null until the wallet has given an estimate.
+  int? _suggestedFee;
+  DateTime? _suggestedFeeAt;
+
   final _keys = TextEditingController(text: '1');
+  final _fee = TextEditingController();
   final _move = TextEditingController();
   final _cashout = TextEditingController();
 
@@ -75,6 +81,7 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
   void dispose() {
     _timer?.cancel();
     _keys.dispose();
+    _fee.dispose();
     _move.dispose();
     _cashout.dispose();
     super.dispose();
@@ -96,6 +103,7 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
       final account = await _rpc.callRAW('game_my_account');
       final mined = await _minedAt();
       final mempool = await _waitingSidepotTxids();
+      await _readSuggestedFee();
       if (!mounted) {
         return;
       }
@@ -277,8 +285,45 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     }
   }
 
+  /// A move counts only if an eCash block takes it while the round's clock runs, and the next-block estimate
+  /// is the floor of that block as the mempool stands now. With blocks hours apart the floor rises before the
+  /// block comes, so a move pays a multiple of the estimate. Its transaction is about 250 vB.
+  static const _entryFeeMultiple = 3;
+  static const _entryFeeCap = 100;
+
+  /// Reads the suggested fee rate again when the last reading is a minute old.
+  Future<void> _readSuggestedFee() async {
+    final at = _suggestedFeeAt;
+    if (at != null && DateTime.now().difference(at) < const Duration(minutes: 1)) {
+      return;
+    }
+    _suggestedFeeAt = DateTime.now();
+    try {
+      final estimate = await GetIt.I.get<OrchestratorRPC>().wallet.estimateFee(1);
+      _suggestedFee = estimate == null ? null : _entryFeeRate(estimate);
+    } catch (_) {
+      // No estimate: the wallet prices the transaction itself.
+    }
+  }
+
+  static int _entryFeeRate(double nextBlockSatPerVbyte) =>
+      (nextBlockSatPerVbyte * _entryFeeMultiple).ceil().clamp(1, _entryFeeCap).toInt();
+
+  /// The fee rate typed, or the suggested one; null leaves the rate to the wallet.
+  int? _feeRate() {
+    final typed = _fee.text.trim();
+    if (typed.isEmpty) {
+      return _suggestedFee;
+    }
+    final rate = int.tryParse(typed);
+    if (rate == null || rate < 1 || rate > 1000) {
+      throw Exception('Give the eCash fee rate as a whole number of sat/vB from 1 to 1000, or leave it empty.');
+    }
+    return rate;
+  }
+
   /// Sends one signed move as the data of an eCash transaction from the BitWindow wallet.
-  Future<String> _carry(dynamic signed) async {
+  Future<String> _carry(dynamic signed, int? feeRate) async {
     final entry = signed is Map ? signed['entry'] : null;
     if (entry is! String || entry.isEmpty) {
       throw Exception('The node did not sign the move.');
@@ -288,7 +333,12 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
       throw Exception('No BitWindow wallet is open to pay the eCash network fee.');
     }
     final wallet = GetIt.I.get<OrchestratorRPC>().wallet;
-    final sent = await wallet.sendTransaction(walletId: walletId, destinations: {}, opReturnHex: entry);
+    final sent = await wallet.sendTransaction(
+      walletId: walletId,
+      destinations: {},
+      opReturnHex: entry,
+      feeRateSatPerVbyte: feeRate,
+    );
     return sent.txid;
   }
 
@@ -297,8 +347,10 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     if (count == null || count < 1 || count > 1000) {
       throw Exception('Give a number of keys from 1 to 1000.');
     }
+    // Read before signing: a fee rate that cannot be used must not cost the account a nonce.
+    final feeRate = _feeRate();
     final signed = await _rpc.callRAW('game_sign_buy', [count, null]);
-    final txid = await _carry(signed);
+    final txid = await _carry(signed, feeRate);
     _addPending(
       PendingMove(
         kind: PendingKind.buy,
@@ -319,8 +371,9 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
     if (amount == null) {
       throw Exception('Give the amount in ECX, or leave it empty for everything.');
     }
+    final feeRate = _feeRate();
     final signed = await _rpc.callRAW('game_sign_cashout', [amount, null]);
-    final txid = await _carry(signed);
+    final txid = await _carry(signed, feeRate);
     _addPending(
       PendingMove(
         kind: PendingKind.cashout,
@@ -483,6 +536,15 @@ class _SidepotGamePageState extends State<SidepotGamePage> {
                           count > 0
                               ? 'Costs ${_ecx(price * count)} ECX from the game account at the present price, and a little more if the price rises first.'
                               : 'Each key costs the present key price.',
+                        ),
+                        SailTextField(
+                          controller: _fee,
+                          label: 'eCash fee rate (sat/vB)',
+                          hintText: _suggestedFee == null ? 'Set by the wallet' : '$_suggestedFee',
+                          textFieldType: TextFieldType.number,
+                        ),
+                        SailText.secondary13(
+                          'A buy counts only if an eCash block takes it before the clock runs out. Left empty, it pays $_entryFeeMultiple times the next-block estimate.',
                         ),
                         SailButton(
                           label: 'Buy',
