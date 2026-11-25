@@ -32,6 +32,9 @@ service WalletManagerService {
   rpc ListWalletBackups(ListWalletBackupsRequest) returns (ListWalletBackupsResponse);
   rpc RestoreWalletBackup(RestoreWalletBackupRequest) returns (RestoreWalletBackupResponse);
   rpc RestoreWalletBackupStream(RestoreWalletBackupRequest) returns (stream RestoreWalletBackupProgressResponse);
+  // ImportWalletBackup adds the wallets of a backup to the wallets of this
+  // install. A wallet that is here already stays as it is.
+  rpc ImportWalletBackup(ImportWalletBackupRequest) returns (ImportWalletBackupResponse);
   rpc CreateWatchOnlyWallet(CreateWatchOnlyWalletRequest) returns (CreateWatchOnlyWalletResponse);
   // Create an electrum wallet: keys are generated locally, but no local Bitcoin
   // Core or enforcer runs. The wallet reads its chain from Esplora.
@@ -474,6 +477,21 @@ message RestoreWalletBackupRequest {
 }
 
 message RestoreWalletBackupResponse {}
+
+message ImportWalletBackupRequest {
+  // Content of the wallet.json of the backup.
+  bytes wallet_json = 1;
+  // Content of the wallet_encryption.json of the backup. Empty for a backup
+  // with no password.
+  bytes encryption_json = 2;
+  // Password of the backup. Empty for a backup with no password.
+  string password = 3;
+}
+
+message ImportWalletBackupResponse {
+  // IDs of the added wallets. The first one is the active wallet.
+  repeated string wallet_ids = 1;
+}
 
 message RestoreWalletBackupStep {
   string step_id = 1;

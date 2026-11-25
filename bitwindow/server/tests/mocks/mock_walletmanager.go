@@ -628,6 +628,21 @@ func (mr *MockWalletManagerServiceClientMockRecorder) GetWalletStatus(arg0, arg1
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWalletStatus", reflect.TypeOf((*MockWalletManagerServiceClient)(nil).GetWalletStatus), arg0, arg1)
 }
 
+// ImportWalletBackup mocks base method.
+func (m *MockWalletManagerServiceClient) ImportWalletBackup(arg0 context.Context, arg1 *walletmanagerv1.ImportWalletBackupRequest) (*walletmanagerv1.ImportWalletBackupResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ImportWalletBackup", arg0, arg1)
+	ret0, _ := ret[0].(*walletmanagerv1.ImportWalletBackupResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ImportWalletBackup indicates an expected call of ImportWalletBackup.
+func (mr *MockWalletManagerServiceClientMockRecorder) ImportWalletBackup(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImportWalletBackup", reflect.TypeOf((*MockWalletManagerServiceClient)(nil).ImportWalletBackup), arg0, arg1)
+}
+
 // ListCoreVariants mocks base method.
 func (m *MockWalletManagerServiceClient) ListCoreVariants(arg0 context.Context, arg1 *walletmanagerv1.ListCoreVariantsRequest) (*walletmanagerv1.ListCoreVariantsResponse, error) {
 	m.ctrl.T.Helper()
@@ -1820,6 +1835,21 @@ func (m *MockWalletManagerServiceHandler) GetWalletStatus(arg0 context.Context, 
 func (mr *MockWalletManagerServiceHandlerMockRecorder) GetWalletStatus(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWalletStatus", reflect.TypeOf((*MockWalletManagerServiceHandler)(nil).GetWalletStatus), arg0, arg1)
+}
+
+// ImportWalletBackup mocks base method.
+func (m *MockWalletManagerServiceHandler) ImportWalletBackup(arg0 context.Context, arg1 *walletmanagerv1.ImportWalletBackupRequest) (*walletmanagerv1.ImportWalletBackupResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ImportWalletBackup", arg0, arg1)
+	ret0, _ := ret[0].(*walletmanagerv1.ImportWalletBackupResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ImportWalletBackup indicates an expected call of ImportWalletBackup.
+func (mr *MockWalletManagerServiceHandlerMockRecorder) ImportWalletBackup(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImportWalletBackup", reflect.TypeOf((*MockWalletManagerServiceHandler)(nil).ImportWalletBackup), arg0, arg1)
 }
 
 // ListCoreVariants mocks base method.

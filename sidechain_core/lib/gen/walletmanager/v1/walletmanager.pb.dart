@@ -2994,6 +2994,137 @@ class RestoreWalletBackupResponse extends $pb.GeneratedMessage {
   static RestoreWalletBackupResponse? _defaultInstance;
 }
 
+class ImportWalletBackupRequest extends $pb.GeneratedMessage {
+  factory ImportWalletBackupRequest({
+    $core.List<$core.int>? walletJson,
+    $core.List<$core.int>? encryptionJson,
+    $core.String? password,
+  }) {
+    final result = ImportWalletBackupRequest._();
+    if (walletJson != null) result.walletJson = walletJson;
+    if (encryptionJson != null) result.encryptionJson = encryptionJson;
+    if (password != null) result.password = password;
+    return result;
+  }
+
+  ImportWalletBackupRequest._();
+
+  factory ImportWalletBackupRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportWalletBackupRequest()..mergeFromBuffer(data, registry);
+  factory ImportWalletBackupRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportWalletBackupRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ImportWalletBackupRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'walletmanager.v1'),
+      createEmptyInstance: ImportWalletBackupRequest.$_createMessage)
+    ..a<$core.List<$core.int>>(1, _omitFieldNames ? '' : 'walletJson', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(2, _omitFieldNames ? '' : 'encryptionJson', $pb.PbFieldType.OY)
+    ..aOS(3, _omitFieldNames ? '' : 'password')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportWalletBackupRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportWalletBackupRequest copyWith(void Function(ImportWalletBackupRequest) updates) =>
+      super.copyWith((message) => updates(message as ImportWalletBackupRequest)) as ImportWalletBackupRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ImportWalletBackupRequest() / ImportWalletBackupRequest.new instead')
+  static ImportWalletBackupRequest create() => ImportWalletBackupRequest._();
+  static $pb.GeneratedMessage $_createMessage() => ImportWalletBackupRequest._();
+  @$core.override
+  ImportWalletBackupRequest createEmptyInstance() => ImportWalletBackupRequest._();
+  @$core.pragma('dart2js:noInline')
+  static ImportWalletBackupRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportWalletBackupRequest>(ImportWalletBackupRequest.$_createMessage);
+  static ImportWalletBackupRequest? _defaultInstance;
+
+  /// Content of the wallet.json of the backup.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get walletJson => $_getN(0);
+  @$pb.TagNumber(1)
+  set walletJson($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasWalletJson() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearWalletJson() => $_clearField(1);
+
+  /// Content of the wallet_encryption.json of the backup. Empty for a backup
+  /// with no password.
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get encryptionJson => $_getN(1);
+  @$pb.TagNumber(2)
+  set encryptionJson($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasEncryptionJson() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearEncryptionJson() => $_clearField(2);
+
+  /// Password of the backup. Empty for a backup with no password.
+  @$pb.TagNumber(3)
+  $core.String get password => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set password($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasPassword() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearPassword() => $_clearField(3);
+}
+
+class ImportWalletBackupResponse extends $pb.GeneratedMessage {
+  factory ImportWalletBackupResponse({
+    $core.Iterable<$core.String>? walletIds,
+  }) {
+    final result = ImportWalletBackupResponse._();
+    if (walletIds != null) result.walletIds.addAll(walletIds);
+    return result;
+  }
+
+  ImportWalletBackupResponse._();
+
+  factory ImportWalletBackupResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportWalletBackupResponse()..mergeFromBuffer(data, registry);
+  factory ImportWalletBackupResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportWalletBackupResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ImportWalletBackupResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'walletmanager.v1'),
+      createEmptyInstance: ImportWalletBackupResponse.$_createMessage)
+    ..pPS(1, _omitFieldNames ? '' : 'walletIds')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportWalletBackupResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportWalletBackupResponse copyWith(void Function(ImportWalletBackupResponse) updates) =>
+      super.copyWith((message) => updates(message as ImportWalletBackupResponse)) as ImportWalletBackupResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ImportWalletBackupResponse() / ImportWalletBackupResponse.new instead')
+  static ImportWalletBackupResponse create() => ImportWalletBackupResponse._();
+  static $pb.GeneratedMessage $_createMessage() => ImportWalletBackupResponse._();
+  @$core.override
+  ImportWalletBackupResponse createEmptyInstance() => ImportWalletBackupResponse._();
+  @$core.pragma('dart2js:noInline')
+  static ImportWalletBackupResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportWalletBackupResponse>(ImportWalletBackupResponse.$_createMessage);
+  static ImportWalletBackupResponse? _defaultInstance;
+
+  /// IDs of the added wallets. The first one is the active wallet.
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.String> get walletIds => $_getList(0);
+}
+
 class RestoreWalletBackupStep extends $pb.GeneratedMessage {
   factory RestoreWalletBackupStep({
     $core.String? stepId,
@@ -14298,6 +14429,13 @@ class WalletManagerServiceApi {
           $pb.ClientContext? ctx, RestoreWalletBackupRequest request) =>
       _client.invoke<RestoreWalletBackupProgressResponse>(
           ctx, 'WalletManagerService', 'RestoreWalletBackupStream', request, RestoreWalletBackupProgressResponse());
+
+  /// ImportWalletBackup adds the wallets of a backup to the wallets of this
+  /// install. A wallet that is here already stays as it is.
+  $async.Future<ImportWalletBackupResponse> importWalletBackup(
+          $pb.ClientContext? ctx, ImportWalletBackupRequest request) =>
+      _client.invoke<ImportWalletBackupResponse>(
+          ctx, 'WalletManagerService', 'ImportWalletBackup', request, ImportWalletBackupResponse());
   $async.Future<CreateWatchOnlyWalletResponse> createWatchOnlyWallet(
           $pb.ClientContext? ctx, CreateWatchOnlyWalletRequest request) =>
       _client.invoke<CreateWatchOnlyWalletResponse>(
