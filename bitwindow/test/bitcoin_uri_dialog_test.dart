@@ -32,6 +32,38 @@ void main() {
     expect(paragraph.overflow, isNot(TextOverflow.ellipsis));
     expect(tester.getSize(line).height, greaterThan(tester.getSize(find.text('Amount: 1.2300,0000 BTC')).height));
   });
+  testWidgets('an error shows its message only', (tester) async {
+    await tester.pumpSailPage(const Center(child: BitcoinURIDialog()));
+
+    await tester.enterText(find.byType(EditableText), 'hello');
+    await tester.pump();
+
+    expect(find.text('Not a bitcoin URI'), findsOneWidget);
+    expect(find.textContaining('Exception'), findsNothing);
+  });
+
+  testWidgets('an empty field shows no error', (tester) async {
+    await tester.pumpSailPage(const Center(child: BitcoinURIDialog()));
+
+    await tester.enterText(find.byType(EditableText), 'hello');
+    await tester.pump();
+    await tester.enterText(find.byType(EditableText), '');
+    await tester.pump();
+
+    expect(find.text('Not a bitcoin URI'), findsNothing);
+    expect(find.text('Enter a Bitcoin URI to parse'), findsOneWidget);
+  });
+
+  testWidgets('a URI with a bad address disables Use', (tester) async {
+    await tester.pumpSailPage(const Center(child: BitcoinURIDialog()));
+
+    await tester.enterText(find.byType(EditableText), 'bitcoin://not an address');
+    await tester.pump();
+
+    expect(tester.widget<SailButton>(find.widgetWithText(SailButton, 'Use')).disabled, isTrue);
+    expect(find.text('Invalid address'), findsOneWidget);
+  });
+
   testWidgets('A malformed URI amount disables Use', (tester) async {
     await tester.pumpSailPage(const Center(child: BitcoinURIDialog()));
 
