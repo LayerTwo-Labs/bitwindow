@@ -20,6 +20,8 @@ class _StreamBitwindowdAPI extends MockBitwindowdAPI {
   int listCalls = 0;
   int subscribes = 0;
   bool failStream = false;
+  bool failBlocks = false;
+  List<Block> blocks = [];
 
   @override
   Stream<WatchRecentTransactionsResponse> watchRecentTransactions() {
@@ -34,7 +36,12 @@ class _StreamBitwindowdAPI extends MockBitwindowdAPI {
   }
 
   @override
-  Future<(List<Block>, bool)> listBlocks({int startHeight = 0, int pageSize = 50}) async => (<Block>[], false);
+  Future<(List<Block>, bool)> listBlocks({int startHeight = 0, int pageSize = 50}) async {
+    if (failBlocks) {
+      throw StateError('Core is down');
+    }
+    return (blocks, false);
+  }
 }
 
 class _API extends MockAPI {
@@ -145,6 +152,26 @@ void main() {
 
     expect(rpc.api.frames.hasListener, isFalse);
     expect(provider.recentTransactions, isEmpty);
+  });
+
+  test('a Core restart clears the block error at the same tip', () async {
+    final sync = GetIt.I.get<SyncProvider>();
+    final tip = SyncInfo(progressCurrent: 103, progressGoal: 103, lastBlockAt: null);
+    sync.mainchainSyncInfo = tip;
+    rpc.api.blocks = [Block(hash: 'tip', height: 103)];
+    await provider.fetch();
+    expect(provider.blocks.single.hash, 'tip');
+
+    sync.mainchainSyncInfo = null;
+    rpc.api.failBlocks = true;
+    await provider.fetch();
+    expect(provider.blocksError, contains('Core is down'));
+
+    sync.mainchainSyncInfo = tip;
+    rpc.api.failBlocks = false;
+    await provider.fetch();
+    expect(provider.blocksError, isNull);
+    expect(provider.blocks.single.hash, 'tip');
   });
 
   test('a poll that bitwindowd answers subscribes the stream at once', () async {

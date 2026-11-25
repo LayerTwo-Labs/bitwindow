@@ -218,8 +218,8 @@ class BlockchainProvider extends ChangeNotifier implements NetworkScoped {
           blocksError = error;
           hasChanges = true;
         }
+        _blocksTip = blocksFailure == null ? tip : null;
         if (blocksFailure == null) {
-          _blocksTip = tip;
           final connects =
               hasMore && newBlocks.isNotEmpty && blocks.any((b) => b.hash == newBlocks.last.previousBlockHash);
           final olderBlocks = [
