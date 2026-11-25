@@ -371,6 +371,7 @@ const WalletTransaction$json = {
     {'1': 'immature', '3': 11, '4': 1, '5': 8, '10': 'immature'},
     {'1': 'deposit_request', '3': 12, '4': 1, '5': 11, '6': '.wallet.v1.DepositRequest', '10': 'depositRequest'},
     {'1': 'confirmations', '3': 13, '4': 1, '5': 13, '10': 'confirmations'},
+    {'1': 'abandoned', '3': 14, '4': 1, '5': 8, '10': 'abandoned'},
   ],
 };
 
@@ -385,7 +386,7 @@ final $typed_data.Uint8List walletTransactionDescriptor =
         'UgZibW1CaWQSJwoPd2FybmluZ19tZXNzYWdlGAogASgJUg53YXJuaW5nTWVzc2FnZRIaCghpbW'
         '1hdHVyZRgLIAEoCFIIaW1tYXR1cmUSQgoPZGVwb3NpdF9yZXF1ZXN0GAwgASgLMhkud2FsbGV0'
         'LnYxLkRlcG9zaXRSZXF1ZXN0Ug5kZXBvc2l0UmVxdWVzdBIkCg1jb25maXJtYXRpb25zGA0gAS'
-        'gNUg1jb25maXJtYXRpb25z');
+        'gNUg1jb25maXJtYXRpb25zEhwKCWFiYW5kb25lZBgOIAEoCFIJYWJhbmRvbmVk');
 
 @$core.Deprecated('Use depositRequestDescriptor instead')
 const DepositRequest$json = {

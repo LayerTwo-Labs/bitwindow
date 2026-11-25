@@ -1144,6 +1144,9 @@ type WalletTransaction struct {
 	DepositRequest *DepositRequest `protobuf:"bytes,12,opt,name=deposit_request,json=depositRequest,proto3" json:"deposit_request,omitempty"`
 	// Blocks on top of the transaction, its own block included. 0 when unconfirmed.
 	Confirmations uint32 `protobuf:"varint,13,opt,name=confirmations,proto3" json:"confirmations,omitempty"`
+	// True when the wallet gave the transaction up. It can never confirm, and
+	// it does not count in the balance.
+	Abandoned     bool `protobuf:"varint,14,opt,name=abandoned,proto3" json:"abandoned,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1267,6 +1270,13 @@ func (x *WalletTransaction) GetConfirmations() uint32 {
 		return x.Confirmations
 	}
 	return 0
+}
+
+func (x *WalletTransaction) GetAbandoned() bool {
+	if x != nil {
+		return x.Abandoned
+	}
+	return false
 }
 
 // DepositRequest names the sidechain a deposit request pays into.
@@ -4400,7 +4410,7 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	"\x0fderivation_path\x18\x06 \x01(\tR\x0ederivationPath\"`\n" +
 	"\fConfirmation\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\rR\x06height\x128\n" +
-	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\x84\x04\n" +
+	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xa2\x04\n" +
 	"\x11WalletTransaction\x12\x12\n" +
 	"\x04txid\x18\x01 \x01(\tR\x04txid\x12\x19\n" +
 	"\bfee_sats\x18\x02 \x01(\x04R\afeeSats\x12)\n" +
@@ -4415,7 +4425,8 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	" \x01(\tR\x0ewarningMessage\x12\x1a\n" +
 	"\bimmature\x18\v \x01(\bR\bimmature\x12B\n" +
 	"\x0fdeposit_request\x18\f \x01(\v2\x19.wallet.v1.DepositRequestR\x0edepositRequest\x12$\n" +
-	"\rconfirmations\x18\r \x01(\rR\rconfirmations\"F\n" +
+	"\rconfirmations\x18\r \x01(\rR\rconfirmations\x12\x1c\n" +
+	"\tabandoned\x18\x0e \x01(\bR\tabandoned\"F\n" +
 	"\x0eDepositRequest\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\rR\x04slot\x12 \n" +
 	"\vdestination\x18\x02 \x01(\tR\vdestination\"{\n" +
