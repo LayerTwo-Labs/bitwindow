@@ -509,8 +509,17 @@ func (c *EsploraClient) AddressTxsFrom(ctx context.Context, address string, minH
 // Tx returns a single decoded transaction.
 func (c *EsploraClient) Tx(ctx context.Context, txid string) (EsploraTx, error) {
 	var tx EsploraTx
-	err := c.get(ctx, "/tx/"+txid, &tx)
-	return tx, err
+	if err := c.get(ctx, "/tx/"+txid, &tx); err != nil {
+		return tx, err
+	}
+	if tx.Status.Confirmed {
+		c.tipMu.Lock()
+		if tx.Status.BlockHeight > c.tipVal {
+			c.tipFetched = time.Time{}
+		}
+		c.tipMu.Unlock()
+	}
+	return tx, nil
 }
 
 // EsploraOutspend is GET /tx/:txid/outspend/:vout. Status describes the
