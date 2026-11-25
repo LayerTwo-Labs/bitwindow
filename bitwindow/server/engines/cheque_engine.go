@@ -17,6 +17,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/models/cheques"
 )
@@ -238,7 +239,8 @@ type ChequeFunding struct {
 }
 
 // CheckFunding reads the coins at the cheque address and stores them. A cheque
-// with stored funds and no coins left becomes swept.
+// with stored funds and no coins left becomes swept. A swept cheque becomes
+// funded again only for a coin that the sweep did not spend.
 func (e *ChequeEngine) CheckFunding(ctx context.Context, cheque *cheques.Cheque) (ChequeFunding, error) {
 	log := zerolog.Ctx(ctx)
 
@@ -251,6 +253,17 @@ func (e *ChequeEngine) CheckFunding(ctx context.Context, cheque *cheques.Cheque)
 		Str("address", cheque.Address).
 		Int("utxo_count", len(utxos)).
 		Msg("check cheque funding: UTXOs found")
+
+	if cheque.SweptTxid != nil {
+		// A chain source can list a coin for a short time after its sweep.
+		swept, err := cheques.FundingOutpoints(ctx, e.db, cheque.ID)
+		if err != nil {
+			return ChequeFunding{}, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
+		}
+		utxos = lo.Reject(utxos, func(utxo ChequeUTXO, _ int) bool {
+			return slices.Contains(swept, fmt.Sprintf("%s:%d", utxo.TxID, utxo.Vout))
+		})
+	}
 
 	if len(utxos) == 0 {
 		if len(cheque.FundedTxids) > 0 && cheque.SweptTxid == nil {
