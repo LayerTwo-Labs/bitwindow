@@ -308,6 +308,32 @@ void main() {
     expect(find.byTooltip('Syncing mainchain blocks'), findsOneWidget);
   });
 
+  for (final width in [1024.0, 1200.0]) {
+    testWidgets('Reset fits at $width px during a Core outage with all balances', (tester) async {
+      final core = GetIt.I.get<BitcoindConnection>() as _Core;
+      core.connected = false;
+      core.connectionError = 'core rpc credentials: no core credentials';
+      sync.mainchainSyncInfo = SyncInfo(progressCurrent: 207, progressGoal: 207, lastBlockAt: null);
+      sync.enforcerSyncInfo = SyncInfo(progressCurrent: 0, progressGoal: 1, lastBlockAt: null);
+      sync.bitwindowdSyncInfo = SyncInfo(progressCurrent: 207, progressGoal: 207, lastBlockAt: null);
+      final balance = GetIt.I.get<BalanceProvider>() as _Balance;
+      balance.balance = 100.01240239;
+      balance.pendingBalance = 0.12345678;
+      balance.maturingBalance = 3525;
+
+      await pumpBars(tester, width);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byTooltip(core.connectionError!), findsOneWidget);
+      expect(find.byTooltip('Unconfirmed balance'), findsOneWidget);
+      expect(find.byTooltip('Maturing balance'), findsOneWidget);
+      expect(tester.getTopRight(find.byType(ResetButton)).dx, lessThanOrEqualTo(width));
+      await tester.tap(find.byType(ResetButton));
+      await tester.pump();
+      expect(AutoTabsRouter.of(tester.element(find.byType(StatusBar))).activeIndex, _tabs.length);
+    });
+  }
+
   testWidgets('the status bar fits a 1024 px window with a synced node and every balance', (tester) async {
     final lastBlockAt = Timestamp.fromDateTime(DateTime.now().subtract(const Duration(minutes: 59)));
     sync.mainchainSyncInfo = SyncInfo(progressCurrent: 102, progressGoal: 102, lastBlockAt: lastBlockAt);
