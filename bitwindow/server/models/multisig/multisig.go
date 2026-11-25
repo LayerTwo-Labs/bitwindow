@@ -651,6 +651,47 @@ func ImportBackupTx(ctx context.Context, tx *sql.Tx, groups, transactions []byte
 	return nil
 }
 
+// ImportNewBackupTx imports the groups of a backup that are not here, with
+// their transactions. A group that is here keeps its rows.
+func ImportNewBackupTx(ctx context.Context, tx *sql.Tx, groups, transactions []byte) error {
+	present, err := database.Select[string](ctx, tx, `SELECT id FROM multisig_groups`)
+	if err != nil {
+		return fmt.Errorf("list groups: %w", err)
+	}
+	here := lo.SliceToMap(present, func(id string) (string, bool) { return id, true })
+
+	if groups != nil {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(groups, &raw); err != nil {
+			return fmt.Errorf("import multisig data: unmarshal json: %w", err)
+		}
+		var list []map[string]interface{}
+		if raw["groups"] != nil {
+			if err := json.Unmarshal(raw["groups"], &list); err != nil {
+				return fmt.Errorf("import multisig data: unmarshal groups: %w", err)
+			}
+		}
+		list = lo.Reject(list, func(g map[string]interface{}, _ int) bool { return here[getString(g, "id")] })
+		if raw["groups"], err = json.Marshal(list); err != nil {
+			return fmt.Errorf("import multisig data: %w", err)
+		}
+		if groups, err = json.Marshal(raw); err != nil {
+			return fmt.Errorf("import multisig data: %w", err)
+		}
+	}
+	if transactions != nil {
+		var list []map[string]interface{}
+		if err := json.Unmarshal(transactions, &list); err != nil {
+			return fmt.Errorf("import transactions: unmarshal: %w", err)
+		}
+		list = lo.Reject(list, func(t map[string]interface{}, _ int) bool { return here[getString(t, "groupId")] })
+		if transactions, err = json.Marshal(list); err != nil {
+			return fmt.Errorf("import transactions: %w", err)
+		}
+	}
+	return ImportBackupTx(ctx, tx, groups, transactions)
+}
+
 func importGroupsJSON(ctx context.Context, tx *sql.Tx, data []byte) error {
 	var raw struct {
 		Groups   []json.RawMessage        `json:"groups"`
