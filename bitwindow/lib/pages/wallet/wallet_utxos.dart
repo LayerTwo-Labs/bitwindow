@@ -1,4 +1,5 @@
 import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
+import 'package:bitwindow/pages/wallet/denability_page.dart';
 import 'package:bitwindow/pages/wallet/wallet_page.dart';
 import 'package:bitwindow/pages/wallet/widgets/utxo_distribution_chart.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
@@ -308,33 +309,6 @@ class _UTXOTableState extends State<UTXOTable> {
     return utxo.denialInfo.hopsCompleted;
   }
 
-  String getDenialStatus(UnspentOutput utxo) {
-    if (!utxo.hasDenialInfo()) {
-      return '-';
-    }
-
-    final hops = utxo.denialInfo.hopsCompleted;
-    final totalHops = utxo.denialInfo.numHops;
-
-    if (hops >= totalHops && totalHops > 0) {
-      return 'Done ($hops)';
-    }
-    if (!utxo.denialInfo.hasNextExecutionTime() ||
-        utxo.denialInfo.nextExecutionTime.toDateTime().millisecondsSinceEpoch == 0) {
-      if (utxo.denialInfo.hasCancelTime()) {
-        return 'Cancelled ($hops)';
-      }
-      return 'Done ($hops)';
-    }
-    if (utxo.denialInfo.hasCancelTime()) {
-      return 'Cancelled ($hops)';
-    }
-    if (utxo.denialInfo.hasPausedAt()) {
-      return 'Paused ($hops/$totalHops)';
-    }
-    return 'Active ($hops/$totalHops)';
-  }
-
   Color? getDenialColor(BuildContext context, UnspentOutput utxo) {
     final theme = SailTheme.of(context);
     final hops = getDenialHops(utxo);
@@ -464,7 +438,7 @@ class _UTXOTableState extends State<UTXOTable> {
                   monospace: true,
                 ),
                 SailTableCell(
-                  value: getDenialStatus(utxo),
+                  value: denialStatusWithHops(utxo),
                   textColor: getDenialColor(context, utxo),
                   monospace: true,
                 ),
