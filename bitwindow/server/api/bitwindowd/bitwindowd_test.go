@@ -423,6 +423,55 @@ func TestService_CreateDenial(t *testing.T) {
 		assert.NotNil(t, denials[0].NextExecution)
 	})
 
+	t.Run("utxo too small for the hop fees", func(t *testing.T) {
+		t.Parallel()
+
+		database := database.Test(t)
+
+		ctrl := gomock.NewController(t)
+		mockBitcoind := mocks.NewMockBitcoinServiceClient(ctrl)
+		apitests.ExpectCoreWalletSetup(mockBitcoind)
+		mockBitcoind.EXPECT().
+			ListUnspent(gomock.Any(), gomock.Any()).
+			AnyTimes().
+			Return(&connectv1.Response[corepb.ListUnspentResponse]{
+				Msg: &corepb.ListUnspentResponse{
+					Unspent: []*corepb.UnspentOutput{
+						{Txid: "abc123", Vout: 0, Amount: 0.00025, Confirmations: 6},
+					},
+				},
+			}, nil)
+
+		cli := v1connect.NewBitwindowdServiceClient(
+			apitests.RPC(
+				t,
+				database,
+				apitests.WithCoreWallet(),
+				apitests.WithBitcoind(mockBitcoind),
+			))
+
+		_, err := cli.CreateDenial(t.Context(), &v1.CreateDenialRequest{
+			Txid:         "abc123",
+			Vout:         0,
+			DelaySeconds: 60,
+			NumHops:      3,
+		})
+		require.ErrorContains(t, err, "utxo abc123:0 holds 25000 sats, and 3 hops cost 32184 sats")
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+
+		denials, err := deniability.List(t.Context(), database)
+		require.NoError(t, err)
+		require.Empty(t, denials)
+
+		_, err = cli.CreateDenial(t.Context(), &v1.CreateDenialRequest{
+			Txid:         "abc123",
+			Vout:         0,
+			DelaySeconds: 60,
+			NumHops:      2,
+		})
+		require.NoError(t, err)
+	})
+
 	t.Run("multiple denials different utxos", func(t *testing.T) {
 		t.Parallel()
 

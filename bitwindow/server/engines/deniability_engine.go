@@ -284,7 +284,16 @@ func (e *DeniabilityEngine) ExecuteDenial(ctx context.Context, utxos []*UTXO, de
 	return nil
 }
 
-const denialDustLimit = 546
+const (
+	denialHopFee    = 10000
+	denialDustLimit = 546
+)
+
+// DenialMinValue is the smallest coin that pays for hops. Each hop pays the
+// fee and leaves a change output.
+func DenialMinValue(hops int32) uint64 {
+	return uint64(hops)*(denialHopFee+denialDustLimit) + denialDustLimit
+}
 
 var errDenialAmountTooSmall = errors.New("split amount is below the dust limit")
 
@@ -306,7 +315,7 @@ func (e *DeniabilityEngine) ProcessUTXO(ctx context.Context, utxo *UTXO, denial 
 
 	logger.Info().Msg("processing UTXO for denial")
 
-	const fee = 10000
+	const fee = denialHopFee
 	if utxo.ValueSats < fee+denialDustLimit {
 		return e.cancelTooSmall(ctx, logger, denial)
 	}
@@ -626,10 +635,7 @@ func (e *DeniabilityEngine) simpleSplit(
 	// Send 10-90% of the utxo to a new address. Change is indistinguishable,
 	// so we don't know
 	percentage := 10 + rand.Intn(80)
-	sendAmount := max((availableAmount*uint64(percentage))/100, denialDustLimit)
-	if availableAmount >= 2*denialDustLimit {
-		sendAmount = min(sendAmount, availableAmount-denialDustLimit)
-	}
+	sendAmount := simpleSplitAmount(availableAmount, percentage, denial.NumHops-int32(denial.CompletedHops())-1)
 
 	address, err := e.getNewAddress(ctx, walletType, walletID)
 	if err != nil {
@@ -647,6 +653,20 @@ func (e *DeniabilityEngine) simpleSplit(
 	return map[string]uint64{
 		address: sendAmount,
 	}, nil
+}
+
+// simpleSplitAmount is the amount a hop sends to the next tip: percentage of
+// available, but sufficient for the hops that remain after it.
+func simpleSplitAmount(available uint64, percentage int, hopsAfter int32) uint64 {
+	low := uint64(denialDustLimit)
+	if need := DenialMinValue(hopsAfter); hopsAfter > 0 && available >= need+denialDustLimit {
+		low = need
+	}
+	amount := max(available*uint64(percentage)/100, low)
+	if available >= low+denialDustLimit {
+		amount = min(amount, available-denialDustLimit)
+	}
+	return amount
 }
 
 // targetAmountSplit sends the user-specified target amount to a new address
