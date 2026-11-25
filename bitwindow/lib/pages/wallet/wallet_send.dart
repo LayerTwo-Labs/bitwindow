@@ -866,6 +866,8 @@ class RecipientModel extends ChangeNotifier {
   final TextEditingController amountController;
   bool subtractFee;
 
+  String get address => addressController.text.trim();
+
   RecipientModel({
     String address = '',
     String amount = '',
@@ -1095,7 +1097,7 @@ class SendPageViewModel extends BaseViewModel {
     final payments = <String, int>{};
     for (final r in recipients) {
       if (r.amountController.text.isNotEmpty) {
-        final address = r.addressController.text;
+        final address = r.address;
         payments[address] = (payments[address] ?? 0) + parseAmountToSatoshis(r.amountController.text, currentUnit);
       }
     }
@@ -1390,7 +1392,7 @@ class SendPageViewModel extends BaseViewModel {
     setBusy(true);
 
     // Check if all recipients have an address
-    final missingAddress = recipients.indexWhere((r) => r.addressController.text.trim().isEmpty);
+    final missingAddress = recipients.indexWhere((r) => r.address.isEmpty);
     if (missingAddress != -1) {
       setSendError('Please enter an address for all recipients.');
       setBusy(false);
@@ -1425,7 +1427,7 @@ class SendPageViewModel extends BaseViewModel {
 
     final destinations = <String, int>{};
     for (final r in recipients) {
-      final address = r.addressController.text;
+      final address = r.address;
       destinations[address] =
           (destinations[address] ?? 0) + parseAmountToSatoshis(r.amountController.text, currentUnit);
     }
@@ -1535,7 +1537,7 @@ class SendPageViewModel extends BaseViewModel {
   /// an external (airgap) signer. Returns base64, or null after surfacing an
   /// error toast.
   Future<String?> buildUnsignedPsbtForAirgap(BuildContext context, {bool allowReplay = false}) async {
-    final missingAddress = recipients.indexWhere((r) => r.addressController.text.trim().isEmpty);
+    final missingAddress = recipients.indexWhere((r) => r.address.isEmpty);
     if (missingAddress != -1) {
       setSendError('Please enter an address for all recipients.');
       return null;
@@ -1569,7 +1571,8 @@ class SendPageViewModel extends BaseViewModel {
       final destinations = <String, int>{};
       for (final r in recipients) {
         final satoshis = parseAmountToSatoshis(r.amountController.text, currentUnit);
-        destinations[r.addressController.text] = (destinations[r.addressController.text] ?? 0) + satoshis;
+        final address = r.address;
+        destinations[address] = (destinations[address] ?? 0) + satoshis;
       }
 
       final fee = sendFee(estimatedSatPerVByte: _estimatedSatPerVByte, typedFeeSats: feeSats);
@@ -1710,7 +1713,7 @@ class SendPageViewModel extends BaseViewModel {
   Map<String, int>? _destinationsWith({int? index, int? sats}) => sendDestinations([
     for (var i = 0; i < recipients.length; i++)
       (
-        address: recipients[i].addressController.text,
+        address: recipients[i].address,
         sats: i == index ? sats! : parseAmountToSatoshis(recipients[i].amountController.text, currentUnit),
       ),
   ]);
