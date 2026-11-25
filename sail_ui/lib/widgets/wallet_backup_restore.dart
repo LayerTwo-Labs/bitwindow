@@ -794,10 +794,7 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
   }
 
   Future<String?> _promptBackupPassword(wmpb.WalletBackup backup) {
-    return showSailDialog<String>(
-      context: context,
-      builder: (_) => _BackupPasswordDialog(backupDate: _formatBackupDate(backup)),
-    );
+    return showBackupPasswordDialog(context, backupName: _formatBackupDate(backup));
   }
 
   String _formatBackupDate(wmpb.WalletBackup backup) {
@@ -1162,6 +1159,15 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
       ],
     );
   }
+}
+
+/// Asks for the password of an encrypted backup. [backupName] tells the user
+/// which backup it is. Returns null when the user cancels.
+Future<String?> showBackupPasswordDialog(BuildContext context, {required String backupName}) {
+  return showSailDialog<String>(
+    context: context,
+    builder: (_) => _BackupPasswordDialog(backupDate: backupName),
+  );
 }
 
 class _BackupPasswordDialog extends StatefulWidget {

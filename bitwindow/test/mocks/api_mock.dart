@@ -400,7 +400,12 @@ class MockWalletAPI implements WalletAPI {
   }
 
   @override
-  Future<void> restoreBackup(List<int> backupData, String filename) async {}
+  Future<void> restoreBackup(
+    List<int> backupData,
+    String filename, {
+    bool keepWallets = false,
+    String password = '',
+  }) async {}
 
   @override
   Future<ValidateBackupResponse> validateBackup(List<int> backupData, String filename) {

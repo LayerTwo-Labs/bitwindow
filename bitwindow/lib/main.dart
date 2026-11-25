@@ -1315,10 +1315,15 @@ Future<void> _awaitDrivechaindExit(Logger log) async {
   throw StateError('drivechaind is still holding $host:$port — restart BitWindow to finish');
 }
 
-// Restores a wallet from a backup file (.zip/.json). The backend RestoreBackup
-// RPC writes the wallet and reboots the L1 stack so the enforcer picks it up —
-// the frontend just hands over the file.
-Future<void> restoreBitwindowWalletFromFile(File backupFile) async {
+/// Restores a backup file (.zip/.json). With no wallet in this install, the
+/// backend writes the wallets of the backup and restarts the L1 stack. With a
+/// wallet, the backend adds the wallets of the backup and keeps each wallet that
+/// is here. [askPassword] gets the password of an encrypted backup; a null
+/// answer stops the restore. Returns false when the user stopped it.
+Future<bool> restoreBitwindowWalletFromFile(
+  File backupFile, {
+  Future<String?> Function(String filename)? askPassword,
+}) async {
   final walletApi = GetIt.I.get<BitwindowRPC>().wallet;
   final bytes = await backupFile.readAsBytes();
   final filename = backupFile.uri.pathSegments.last;
@@ -1327,7 +1332,24 @@ Future<void> restoreBitwindowWalletFromFile(File backupFile) async {
   if (!validation.valid) {
     throw Exception(validation.errorMessage.isNotEmpty ? validation.errorMessage : 'Invalid backup file');
   }
-  await walletApi.restoreBackup(bytes, filename);
+
+  final reader = GetIt.I.get<WalletReaderProvider>();
+  if (reader.hasNoWallet) {
+    await walletApi.restoreBackup(bytes, filename);
+    return true;
+  }
+
+  var password = '';
+  if (validation.encrypted) {
+    final answer = await askPassword?.call(filename);
+    if (answer == null) {
+      return false;
+    }
+    password = answer;
+  }
+  await walletApi.restoreBackup(bytes, filename, keepWallets: true, password: password);
+  await reader.init();
+  return true;
 }
 
 Future<void> setupSignalHandlers(Logger log) async {
