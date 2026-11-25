@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"slices"
 	"sort"
 	"strconv"
@@ -1425,10 +1426,28 @@ func (p *CoreBackend) PreviewBumpFee(ctx context.Context, walletID string, req B
 	return preview, err
 }
 
+func (p *CoreBackend) feeMempoolEntry(ctx context.Context, txid string) (*MempoolEntry, error) {
+	entry, err := p.rpc.GetMempoolEntry(ctx, txid)
+	if err == nil {
+		return entry, nil
+	}
+
+	var rpcErr *rpcError
+	if errors.As(err, &rpcErr) && rpcErr.Code == coreTxNotFound {
+		return nil, connect.Errorf(connect.CodeFailedPrecondition, "transaction %s is not in the mempool", txid).WithCause(err)
+	}
+
+	var connectionErr *net.OpError
+	if errors.As(err, &connectionErr) {
+		return nil, connect.NewError(connect.CodeUnavailable, "could not read the mempool").WithCause(err)
+	}
+	return nil, err
+}
+
 func (p *CoreBackend) previewBumpFee(ctx context.Context, name string, req BumpFeeRequest) (*BumpFeePreview, *RawTransaction, error) {
-	entry, err := p.rpc.GetMempoolEntry(ctx, req.TxID)
+	entry, err := p.feeMempoolEntry(ctx, req.TxID)
 	if err != nil {
-		return nil, nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("transaction %s waits in no mempool: %w", req.TxID, err).Error())
+		return nil, nil, err
 	}
 	if entry.Vsize <= 0 {
 		return nil, nil, fmt.Errorf("transaction %s reports no size", req.TxID)
@@ -1703,9 +1722,9 @@ func (p *CoreBackend) CancelTransaction(ctx context.Context, walletID, txid stri
 }
 
 func (p *CoreBackend) previewCancel(ctx context.Context, walletID, name, txid string) (*CancelPreview, error) {
-	entry, err := p.rpc.GetMempoolEntry(ctx, txid)
+	entry, err := p.feeMempoolEntry(ctx, txid)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("transaction %s waits in no mempool: %w", txid, err).Error())
+		return nil, err
 	}
 	if entry.Vsize <= 0 {
 		return nil, fmt.Errorf("transaction %s reports no size", txid)

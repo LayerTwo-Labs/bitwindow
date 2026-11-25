@@ -54,6 +54,13 @@ class _BumpFeeDialogState extends State<BumpFeeDialog> {
     super.dispose();
   }
 
+  String _feeError(Object error) {
+    if (isExpectedBootError(error)) {
+      return 'Could not read the mempool. Check Daemon Status, then try again.';
+    }
+    return extractConnectException(error);
+  }
+
   int? get _rate {
     final rate = int.tryParse(_rateController.text.trim());
     if (rate == null || rate <= 0) {
@@ -98,7 +105,7 @@ class _BumpFeeDialogState extends State<BumpFeeDialog> {
         return;
       }
       void showError() => setState(() {
-        _error = e.toString();
+        _error = _feeError(e);
         // The plan on screen belongs to a question this one failed to answer.
         // It stays visible, but it cannot broadcast anything.
         _stale = true;
@@ -167,7 +174,7 @@ class _BumpFeeDialogState extends State<BumpFeeDialog> {
         return;
       }
       setState(() {
-        _error = e.toString();
+        _error = _feeError(e);
         _replacing = false;
       });
     }
@@ -203,7 +210,7 @@ class _BumpFeeDialogState extends State<BumpFeeDialog> {
         return;
       }
       setState(() {
-        _error = e.toString();
+        _error = _feeError(e);
         _replacing = false;
       });
     }

@@ -83,6 +83,12 @@ func newFakeBitcoind(t *testing.T) *fakeBitcoind {
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": -1, "message": rpcErrMsg}})
 			return
 		}
+		if rpcErr, ok := result.(*rpcError); ok {
+			if err := json.NewEncoder(w).Encode(rpcResponse{Error: rpcErr}); err != nil {
+				t.Errorf("write Core reply: %v", err)
+			}
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"result": result})
 	}))
 	t.Cleanup(f.srv.Close)
@@ -1941,6 +1947,32 @@ func TestCoreBackendPreviewBumpFeeReportsTheOutputs(t *testing.T) {
 
 // A transaction this wallet does not fund has no replacement to build: Core
 // reports no fee for it, and the rebuild could never sign its inputs.
+func TestCoreBackendPreviewBumpFeeMempoolErrors(t *testing.T) {
+	t.Run("Core stops", func(t *testing.T) {
+		backend, fake, walletID, _, _ := coreBumpFeeFixture(t)
+		_, err := backend.Ensure(t.Context(), walletID)
+		require.NoError(t, err)
+		fake.srv.Close()
+
+		_, err = backend.PreviewBumpFee(t.Context(), walletID, BumpFeeRequest{TxID: coreBumpTxid})
+		require.Equal(t, connect.CodeUnavailable, connect.CodeOf(err))
+		require.ErrorContains(t, err, "could not read the mempool")
+	})
+
+	t.Run("the mempool does not hold the transaction", func(t *testing.T) {
+		backend, fake, walletID, _, _ := coreBumpFeeFixture(t)
+		_, err := backend.Ensure(t.Context(), walletID)
+		require.NoError(t, err)
+		fake.handle("getmempoolentry", func(bitcoindCall) (any, string) {
+			return &rpcError{Code: -5, Message: "Transaction not in mempool"}, ""
+		})
+
+		_, err = backend.PreviewBumpFee(t.Context(), walletID, BumpFeeRequest{TxID: coreBumpTxid})
+		require.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
+		require.ErrorContains(t, err, "is not in the mempool")
+	})
+}
+
 func TestCoreBackendPreviewBumpFeeRefusesForeignInputs(t *testing.T) {
 	backend, fake, coreID, _, _ := coreBumpFeeFixture(t)
 	fake.handle("gettransaction", func(bitcoindCall) (any, string) {
