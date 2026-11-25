@@ -2,6 +2,7 @@ package wallet_test
 
 import (
 	"context"
+	"database/sql"
 	"sync/atomic"
 	"testing"
 
@@ -541,4 +542,58 @@ func TestCheckChequeFunding_FailedQueryNamesTheAddress(t *testing.T) {
 	require.Equal(t, connect.CodeUnavailable, connect.CodeOf(err))
 	require.ErrorContains(t, err, "query UTXOs of "+chequeAddr)
 	require.ErrorContains(t, err, "esplora down")
+}
+
+func TestCheckChequeFunding_SweptCheque(t *testing.T) {
+	t.Parallel()
+
+	const (
+		fundingTxid = "5eed00005eed00005eed00005eed00005eed00005eed00005eed00005eed0000"
+		laterTxid   = "1a7e00001a7e00001a7e00001a7e00001a7e00001a7e00001a7e00001a7e0000"
+	)
+	swept := &orchpb.AddressUnspentOutput{Txid: fundingTxid, Vout: 1, ValueSats: 100_000, Confirmations: 2}
+	later := &orchpb.AddressUnspentOutput{Txid: laterTxid, Vout: 0, ValueSats: 70_000, Confirmations: 1}
+
+	setup := func(t *testing.T, utxos ...*orchpb.AddressUnspentOutput) (walletv1connect.WalletServiceClient, *sql.DB, int64) {
+		db := database.Test(t)
+		chequeAddr := "tb1qsweptchequeaddr0000000000000000000000000"
+		cli := walletv1connect.NewWalletServiceClient(
+			apitests.RPC(t, db, apitests.WithOrchestrator(&fakeOrchestrator{address: chequeAddr, utxos: utxos})),
+		)
+		chequeID, err := cheques.Create(t.Context(), db, testWalletID, 0, 100_000, chequeAddr)
+		require.NoError(t, err)
+		require.NoError(t, cheques.UpdateFunding(t.Context(), db, testWalletID, chequeID,
+			[]cheques.FundingOutput{{Txid: fundingTxid, Vout: 1, ValueSats: 100_000}}, 100_000))
+		require.NoError(t, cheques.UpdateSwept(t.Context(), db, testWalletID, chequeID, "sweeptxid"))
+		return cli, db, chequeID
+	}
+
+	t.Run("a chain source that still lists the swept coin keeps the cheque swept", func(t *testing.T) {
+		t.Parallel()
+		cli, db, id := setup(t, swept)
+
+		resp, err := cli.CheckChequeFunding(t.Context(), &walletv1.CheckChequeFundingRequest{WalletId: testWalletID, Id: id})
+		require.NoError(t, err)
+		require.Empty(t, resp.FundedTxids)
+
+		cheque, err := cheques.Get(t.Context(), db, testWalletID, id)
+		require.NoError(t, err)
+		require.NotNil(t, cheque.SweptTxid)
+		require.Equal(t, "sweeptxid", *cheque.SweptTxid)
+	})
+
+	t.Run("a later payment makes the cheque funded again with the new coin only", func(t *testing.T) {
+		t.Parallel()
+		cli, db, id := setup(t, swept, later)
+
+		resp, err := cli.CheckChequeFunding(t.Context(), &walletv1.CheckChequeFundingRequest{WalletId: testWalletID, Id: id})
+		require.NoError(t, err)
+		require.Equal(t, []string{laterTxid}, resp.FundedTxids)
+		require.EqualValues(t, 70_000, resp.ActualAmountSats)
+
+		cheque, err := cheques.Get(t.Context(), db, testWalletID, id)
+		require.NoError(t, err)
+		require.Nil(t, cheque.SweptTxid)
+		require.EqualValues(t, 70_000, *cheque.ActualAmountSats)
+	})
 }

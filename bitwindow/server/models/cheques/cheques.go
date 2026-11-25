@@ -245,6 +245,17 @@ func attachFundingOutputs(ctx context.Context, db *sql.DB, cheques []*Cheque) er
 	return nil
 }
 
+// FundingOutpoints lists the recorded outputs of a cheque as "txid:vout".
+func FundingOutpoints(ctx context.Context, db *sql.DB, chequeID int64) ([]string, error) {
+	outpoints, err := database.Select[string](ctx, db, `
+		SELECT txid || ':' || vout FROM cheque_funding_outputs WHERE cheque_id = ?
+	`, chequeID)
+	if err != nil {
+		return nil, fmt.Errorf("list funding outpoints: %w", err)
+	}
+	return outpoints, nil
+}
+
 // FundingOutput is one cheque output. BlockHeight is 0 before block inclusion.
 type FundingOutput struct {
 	Txid        string
