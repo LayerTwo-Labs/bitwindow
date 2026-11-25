@@ -26,7 +26,7 @@ class _FakeCheckProvider extends ChangeNotifier implements CheckProvider {
   Completer<String> sweepCompleter = Completer<String>();
 
   @override
-  Future<bwpb.Cheque?> getCheck(int id) async => bwpb.Cheque(
+  Future<bwpb.Cheque> getCheck(int id) async => bwpb.Cheque(
     id: Int64(1),
     derivationIndex: 1,
     address: _address,
@@ -41,9 +41,6 @@ class _FakeCheckProvider extends ChangeNotifier implements CheckProvider {
     sweepCalls++;
     return sweepCompleter.future;
   }
-
-  @override
-  void startPolling(int checkId, {Duration interval = const Duration(seconds: 5)}) {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

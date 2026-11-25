@@ -11,35 +11,16 @@ import 'package:sidechain_core/providers/sync_provider.dart';
 import 'package:sidechain_core/providers/wallet_reader_provider.dart';
 import 'package:sidechain_core/rpcs/bitwindow_api.dart';
 
-/// Apply a CheckChequeFundingResponse to the in-memory cheque list. Returns
-/// true when [checks] was mutated and listeners should be notified.
-///
-/// Extracted as a pure function so the polling state machine can be unit
-/// tested without bringing up GetIt, the WalletReader, or the RPC client.
-bool applyFundingResponse(
-  List<Cheque> checks,
-  int id,
-  CheckChequeFundingResponse resp,
-) {
-  if (resp.fundedTxids.isEmpty) {
-    return false;
+/// Whether the chain holds other coins for [check] than the app shows.
+bool fundingChanged(Cheque check, CheckChequeFundingResponse chain) {
+  final swept = check.sweptTxid.isNotEmpty;
+  if (chain.fundedTxids.isEmpty) {
+    return !swept && check.fundedTxids.isNotEmpty;
   }
-  final index = checks.indexWhere((c) => c.id == id);
-  if (index == -1) {
-    return false;
-  }
-  checks[index] = Cheque(
-    id: checks[index].id,
-    derivationIndex: checks[index].derivationIndex,
-    address: checks[index].address,
-    expectedAmountSats: checks[index].expectedAmountSats,
-    funded: resp.funded,
-    fundedTxids: resp.fundedTxids,
-    actualAmountSats: resp.actualAmountSats,
-    createdAt: checks[index].createdAt,
-    fundedAt: resp.hasFundedAt() ? resp.fundedAt : null,
-  );
-  return true;
+  return swept ||
+      check.funded != chain.funded ||
+      check.actualAmountSats != chain.actualAmountSats ||
+      !setEquals(check.fundedTxids.toSet(), chain.fundedTxids.toSet());
 }
 
 class CheckProvider extends ChangeNotifier implements NetworkScoped {
@@ -56,12 +37,11 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
   List<Cheque> _checks = [];
   bool _isLoading = false;
   String? modelError;
+  (List<Cheque>, String?) _shown = (const [], null);
 
   List<Cheque> get checks => _checks;
   bool get isLoading => _isLoading;
 
-  Timer? _pollTimer;
-  int? _pollingCheckId;
   Timer? _unfundedPollTimer;
   final SyncedTipWatch _tip = SyncedTipWatch();
 
@@ -85,17 +65,56 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
         }
         return;
       }
-      final hasUnfunded = _checks.any((c) => !c.funded);
-      if (!hasUnfunded) {
+      final unfunded = _checks.where((c) => !c.funded && c.sweptTxid.isEmpty).toList();
+      if (unfunded.isEmpty) {
         return;
       }
-      await _checkUnfundedChecks();
+      await _read((walletId) => _readFunding(walletId, unfunded));
     });
   }
 
-  Future<void> _checkUnfundedChecks() async {
-    final unfunded = _checks.where((c) => !c.funded).toList();
-    await Future.wait(unfunded.map((check) => checkCheckFunding(check.id.toInt())));
+  /// Reads the coins of each check in [checks] from the chain. The server
+  /// stores what it finds, so one new list holds each change.
+  Future<void> _readFunding(String walletId, List<Cheque> checks) async {
+    final chain = await Future.wait(
+      checks.map((check) => _bitwindowRPC.wallet.checkChequeFunding(walletId, check.id.toInt())),
+    );
+    for (var i = 0; i < checks.length; i++) {
+      if (fundingChanged(checks[i], chain[i])) {
+        _checks = await _bitwindowRPC.wallet.listCheques(walletId);
+        return;
+      }
+    }
+  }
+
+  Future<void> _read(Future<void> Function(String walletId) read) async {
+    final walletId = _walletReader.activeWalletId;
+    if (walletId == null) {
+      return;
+    }
+
+    _isLoading = true;
+    try {
+      await read(walletId);
+      modelError = null;
+    } catch (e) {
+      if (e.toString() != modelError && !isExpectedBootError(e)) {
+        log.e('Failed to read checks: $e');
+      }
+      modelError = e.toString();
+    } finally {
+      _isLoading = false;
+      _show();
+    }
+  }
+
+  void _show() {
+    final (checks, error) = _shown;
+    if (error == modelError && listEquals(checks, _checks)) {
+      return;
+    }
+    _shown = (_checks, modelError);
+    notifyListeners();
   }
 
   void _onNewBlock() {
@@ -111,35 +130,14 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
 
   void clear() {
     _checks = [];
-    notifyListeners();
+    _show();
   }
 
-  Future<void> fetch() async {
-    final walletId = _walletReader.activeWalletId;
-    if (walletId == null) {
-      return;
-    }
-
-    final (shownChecks, shownError) = (_checks, modelError);
-    _isLoading = true;
-
-    try {
-      _checks = await _bitwindowRPC.wallet.listCheques(walletId);
-      modelError = null;
-      // Also check funding for unfunded checks (detects mempool txs)
-      await _checkUnfundedChecks();
-    } catch (e) {
-      if (!isExpectedBootError(e)) {
-        log.e('Failed to fetch checks: $e');
-      }
-      modelError = e.toString();
-    } finally {
-      _isLoading = false;
-      if (shownError != modelError || !listEquals(shownChecks, _checks)) {
-        notifyListeners();
-      }
-    }
-  }
+  Future<void> fetch() => _read((walletId) async {
+    _checks = await _bitwindowRPC.wallet.listCheques(walletId);
+    _show();
+    await _readFunding(walletId, _checks);
+  });
 
   Future<Cheque> createCheck(int expectedAmountSats) async {
     final walletId = _walletReader.activeWalletId;
@@ -149,41 +147,17 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
     final resp = await _bitwindowRPC.wallet.createCheque(walletId, expectedAmountSats);
     final check = await _bitwindowRPC.wallet.getCheque(walletId, resp.id.toInt());
 
-    _checks.insert(0, check);
-    notifyListeners();
+    _checks = [check, ..._checks];
+    _show();
     return check;
   }
 
-  Future<Cheque?> getCheck(int id) async {
-    try {
-      final walletId = _walletReader.activeWalletId;
-      if (walletId == null) {
-        throw Exception('No active wallet');
-      }
-      return await _bitwindowRPC.wallet.getCheque(walletId, id);
-    } catch (e) {
-      log.e('Failed to get check: $e');
-      return null;
+  Future<Cheque> getCheck(int id) async {
+    final walletId = _walletReader.activeWalletId;
+    if (walletId == null) {
+      throw Exception('No active wallet');
     }
-  }
-
-  Future<bool> checkCheckFunding(int id) async {
-    try {
-      final walletId = _walletReader.activeWalletId;
-      if (walletId == null) {
-        throw Exception('No active wallet');
-      }
-      final resp = await _bitwindowRPC.wallet.checkChequeFunding(walletId, id);
-
-      if (applyFundingResponse(_checks, id, resp)) {
-        notifyListeners();
-      }
-
-      return resp.funded;
-    } catch (e) {
-      log.e('Failed to check check funding: $e');
-      return false;
-    }
+    return _bitwindowRPC.wallet.getCheque(walletId, id);
   }
 
   Future<String> sweepCheck(String privateKeyWif, String destinationAddress, int feeSatPerVbyte) async {
@@ -203,53 +177,26 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
 
   Future<bool> deleteCheck(int id) async {
     try {
-      if (_pollingCheckId == id) {
-        stopPolling();
-      }
-
       final walletId = _walletReader.activeWalletId;
       if (walletId == null) {
         throw Exception('No active wallet');
       }
       await _bitwindowRPC.wallet.deleteCheque(walletId, id);
-      _checks.removeWhere((c) => c.id == id);
-      notifyListeners();
+      _checks = _checks.where((c) => c.id != id).toList();
+      _show();
       return true;
     } catch (e) {
       log.e('Failed to delete check: $e');
       modelError = e.toString();
-      notifyListeners();
+      _show();
       return false;
     }
-  }
-
-  void startPolling(int checkId, {Duration interval = const Duration(seconds: 5)}) {
-    stopPolling();
-    _pollingCheckId = checkId;
-    _pollTimer = Timer.periodic(interval, (_) async {
-      try {
-        final funded = await checkCheckFunding(checkId);
-        if (funded) {
-          stopPolling();
-        }
-      } catch (e) {
-        log.w('Error checking check funding (check may have been deleted): $e');
-        stopPolling();
-      }
-    });
-  }
-
-  void stopPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = null;
-    _pollingCheckId = null;
   }
 
   @override
   void dispose() {
     _syncProvider.removeListener(_onNewBlock);
     _walletReader.removeListener(_onWalletChanged);
-    stopPolling();
     _unfundedPollTimer?.cancel();
     super.dispose();
   }
