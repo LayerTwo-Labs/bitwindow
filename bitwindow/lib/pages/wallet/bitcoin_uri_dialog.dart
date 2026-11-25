@@ -22,14 +22,21 @@ class _BitcoinURIDialogState extends State<BitcoinURIDialog> {
   }
 
   void _parseURI() {
+    if (_controller.text.trim().isEmpty) {
+      setState(() {
+        _error = null;
+        _parsedURI = null;
+      });
+      return;
+    }
     try {
       setState(() {
         _parsedURI = BitcoinURI.parse(_controller.text);
         _error = null;
       });
-    } catch (e) {
+    } on FormatException catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = e.message;
         _parsedURI = null;
       });
     }
