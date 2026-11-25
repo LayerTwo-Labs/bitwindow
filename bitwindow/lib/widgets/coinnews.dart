@@ -22,6 +22,7 @@ class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
 
   @override
   Widget build(BuildContext context, CoinNewsViewModel viewModel) {
+    final selectedTopicCount = viewModel.selectedTopicIds.length;
     return SailCard(
       title: 'Coin News',
       titleTooltip: 'Stay up-to-date on the latest world developments',
@@ -61,7 +62,7 @@ class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
                       child: SailTextField(hintText: 'Search coin news...', controller: viewModel.searchController),
                     ),
                     SailMultiSelectDropdown(
-                      selectedCountText: '${viewModel.selectedTopicIds.length} topics',
+                      selectedCountText: selectedTopicCount == 1 ? '1 topic' : '$selectedTopicCount topics',
                       items: viewModel.topics
                           .map(
                             (topic) => SailDropdownItem(
