@@ -108,10 +108,14 @@ class _AirgapSignStepState extends State<AirgapSignStep> {
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Flexible(child: SingleChildScrollView(child: _exportBody())),
-                const SailSpacing(SailStyleValues.padding16),
+                Flexible(
+                  child: SingleChildScrollView(child: AnimatedURQR(psbt: _unsignedBytes)),
+                ),
+                const SailSpacing(SailStyleValues.padding08),
+                _exportFileActions(),
+                const SailSpacing(SailStyleValues.padding08),
                 Divider(height: 1, color: context.sailTheme.colors.divider),
-                const SailSpacing(SailStyleValues.padding16),
+                const SailSpacing(SailStyleValues.padding08),
                 _exportActions(),
               ],
             )
@@ -119,20 +123,13 @@ class _AirgapSignStepState extends State<AirgapSignStep> {
     );
   }
 
-  Widget _exportBody() {
-    return SailColumn(
-      spacing: SailStyleValues.padding16,
-      crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _exportFileActions() {
+    return SailRow(
+      mainAxisAlignment: MainAxisAlignment.center,
+      spacing: SailStyleValues.padding08,
       children: [
-        AnimatedURQR(psbt: _unsignedBytes),
-        SailRow(
-          mainAxisAlignment: MainAxisAlignment.center,
-          spacing: SailStyleValues.padding08,
-          children: [
-            SailButton(label: 'Copy base64', variant: ButtonVariant.secondary, onPressed: _copyUnsigned),
-            SailButton(label: 'Save .psbt', variant: ButtonVariant.secondary, onPressed: _saveUnsigned),
-          ],
-        ),
+        SailButton(label: 'Copy base64', variant: ButtonVariant.secondary, onPressed: _copyUnsigned),
+        SailButton(label: 'Save .psbt', variant: ButtonVariant.secondary, onPressed: _saveUnsigned),
       ],
     );
   }
