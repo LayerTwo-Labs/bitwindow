@@ -19,6 +19,7 @@ class NewsProvider extends ChangeNotifier {
   ];
   bool initialized = false;
   String? error;
+  String? _topicsError;
 
   Future<void>? _fetching;
   bool _fetchAgain = false;
@@ -36,6 +37,8 @@ class NewsProvider extends ChangeNotifier {
 
   /// Why the last read failed, or null when it worked.
   String? get readError => error == null ? null : 'Could not read the news. $error';
+
+  String? get topicReadError => _topicsError == null ? null : 'Could not read the topics. $_topicsError';
 
   /// Reads news and topics. A call during a read gets one more read after it,
   /// and completes when that read is done.
@@ -74,12 +77,14 @@ class NewsProvider extends ChangeNotifier {
     // Fetch topics independently
     try {
       final newTopics = await api.misc.listTopics();
+      _topicsError = null;
       if (!listEquals(topics, newTopics)) {
         topics = newTopics;
         dataChanged = true;
       }
     } catch (e) {
-      errors.add('Topics: ${e.toString()}');
+      _topicsError = e.toString();
+      errors.add('Topics: $_topicsError');
     }
 
     if (dataChanged || errors.isNotEmpty) {

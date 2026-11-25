@@ -781,6 +781,7 @@ class _YourTopicsTab extends StatelessWidget {
       spacing: SailStyleValues.padding16,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (viewModel.topicReadError case final error?) SailInlineError(error),
         Expanded(
           child: SailTable(
             getRowId: (index) => viewModel.topics[index].topic,
@@ -965,6 +966,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   final BitwindowRPC _api = GetIt.I.get<BitwindowRPC>();
 
   List<Topic> get topics => _newsProvider.topics;
+  String? get topicReadError => _newsProvider.topicReadError;
 
   final TextEditingController identifierController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
@@ -1018,8 +1020,9 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       _setCreateTopicError('Name must be 20 characters or less');
       return;
     }
-    final retentionDays = int.tryParse(retentionDaysController.text) ?? 7;
-    if (retentionDays < 0 || retentionDays > 255) {
+    final retentionText = retentionDaysController.text.trim();
+    final retentionDays = retentionText.isEmpty ? 7 : int.tryParse(retentionText);
+    if (retentionDays == null || retentionDays < 0 || retentionDays > 255) {
       _setCreateTopicError('Retention days must be between 0 and 255 (0 = infinite)');
       return;
     }
@@ -1062,14 +1065,14 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     // Example: 7{a1a1a1a1}US Weekly
     final regex = RegExp(r'^(\d+)\{([a-fA-F0-9]{8})\}(.+)$');
     final match = regex.firstMatch(url);
+    final days = int.tryParse(match?.group(1) ?? '');
 
-    if (match == null) {
+    if (match == null || days == null) {
       subscribeError = 'Invalid URL format. Expected: {days}{identifier}Name';
       notifyListeners();
       return;
     }
 
-    final days = int.tryParse(match.group(1)!) ?? 7;
     final identifier = match.group(2)!;
     final name = match.group(3)!;
 
@@ -1113,9 +1116,9 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     for (final line in lines) {
       final regex = RegExp(r'^(\d+)\{([a-fA-F0-9]{8})\}(.+)$');
       final match = regex.firstMatch(line.trim());
+      final days = int.tryParse(match?.group(1) ?? '');
 
-      if (match != null) {
-        final days = int.tryParse(match.group(1)!) ?? 7;
+      if (match != null && days != null) {
         final identifier = match.group(2)!;
         final name = match.group(3)!;
 
