@@ -601,14 +601,27 @@ void main() {
   // The old runs carry the transaction ids and the Unfreeze actions. A new
   // plan replaces that list, so the old one must settle first.
   test('refuses a second plan while the first still waits', () async {
+    expect(provider.startBlockReason, isNull);
     await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
     expect(provider.runs.single.status, ConsolidationRunStatus.pending);
+    expect(provider.startBlockReason, startsWith('The last consolidation still waits.'));
 
     expect(
       () => provider.start(walletId: 'wallet', plan: planOf([coin('c', 50000), coin('d', 50000)])),
-      throwsStateError,
+      throwsA(isA<StateError>().having((e) => e.message, 'message', provider.startBlockReason)),
     );
     expect(provider.runs.single.txid, 'txid1', reason: 'the first run keeps its record');
+  });
+
+  test('a confirmed run blocks no new plan', () async {
+    await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
+
+    transactions.walletTransactions = [
+      WalletTransaction(txid: 'txid1', confirmationTime: Confirmation(height: 900000)),
+    ];
+    transactions.notifyListeners();
+
+    expect(provider.startBlockReason, isNull);
   });
 
   test('refuses to clear runs that still hold frozen coins', () async {

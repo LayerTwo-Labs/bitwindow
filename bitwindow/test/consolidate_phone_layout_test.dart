@@ -42,8 +42,10 @@ class _FakeCoinSelection extends ChangeNotifier implements CoinSelectionProvider
   @override
   bool isFrozen(String outpoint) => false;
 
+  Map<String, String> labels = {};
+
   @override
-  String getLabel(String outpoint) => '';
+  String getLabel(String outpoint) => labels[outpoint] ?? '';
 
   @override
   Set<String> get frozenOutpoints => {};
@@ -77,6 +79,9 @@ class _FakeConsolidation extends ChangeNotifier implements ConsolidationProvider
 
   @override
   int get confirmedCount => 0;
+
+  @override
+  String? startBlockReason;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -195,5 +200,38 @@ void main() {
       ..notifyListeners();
     await tester.pump();
     expect(find.textContaining('connection refused'), findsOneWidget);
+  });
+
+  testWidgets('a long label ends in its column and the value column stays in the card', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1024, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final label = 'Salary ${'x' * 80}';
+    (GetIt.I<CoinSelectionProvider>() as _FakeCoinSelection).labels['${'0' * 64}:0'] = label;
+    await _pump(tester, phone: false);
+
+    final card = tester.getRect(find.ancestor(of: find.text('Coins').first, matching: find.byType(SailCard)).first);
+    final value = tester.getRect(find.text(GetIt.I<FormatterProvider>().formatSats(4000)).last);
+    expect(value.right, lessThanOrEqualTo(card.right));
+    expect(tester.getSize(find.text(label)).width, lessThan(260));
+  });
+
+  testWidgets('the button is off, with the reason above it, while the last run waits', (tester) async {
+    const reason =
+        'The last consolidation still waits. Let it confirm, or unfreeze its coins, before you start another.';
+    final consolidation = GetIt.I<ConsolidationProvider>() as _FakeConsolidation
+      ..running = false
+      ..startBlockReason = reason;
+    await _pump(tester, phone: false);
+
+    final button = find.widgetWithText(SailButton, 'Consolidate 3 coins');
+    expect(tester.widget<SailButton>(button).disabled, isTrue);
+    expect(tester.getRect(find.text(reason)).bottom, lessThanOrEqualTo(tester.getRect(button).top));
+
+    consolidation
+      ..startBlockReason = null
+      ..notifyListeners();
+    await tester.pump();
+    expect(tester.widget<SailButton>(button).disabled, isFalse);
+    expect(find.text(reason), findsNothing);
   });
 }

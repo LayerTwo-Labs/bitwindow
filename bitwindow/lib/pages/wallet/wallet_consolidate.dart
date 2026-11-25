@@ -1,4 +1,5 @@
 import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
+import 'package:bitwindow/pages/wallet/wallet_utxos.dart';
 import 'package:bitwindow/providers/coin_selection_provider.dart';
 import 'package:bitwindow/providers/consolidation_provider.dart';
 import 'package:bitwindow/providers/psbt_draft_provider.dart';
@@ -289,12 +290,13 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
             copyValue: coin.output,
           ),
           SailTableCell(value: shortenId(coin.address), copyValue: coin.address, monospace: true),
-          SailTableCell(
-            value: _isLocked(coin.output)
+          coinLabelCell(
+            _isLocked(coin.output)
                 ? 'Locked'
                 : frozen
                 ? 'Frozen'
                 : _coinSelection.getLabel(coin.output),
+            fill: true,
           ),
           SailTableCell(value: _formatter.formatSats(coin.valueSats.toInt()), monospace: true),
         ];
@@ -370,6 +372,7 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
     final tooSmall = plan.skippedFor(ConsolidationSkipReason.tooSmall).length;
     final unknownSize = plan.skippedFor(ConsolidationSkipReason.unknownSize).length;
     final running = _consolidation.running;
+    final waits = running ? null : _consolidation.startBlockReason;
 
     return SailCard(
       title: 'Plan',
@@ -421,11 +424,12 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
               '$unknownSize coins carry a script BitWindow cannot size. '
               'A transaction that holds them could pass the size limit, so the plan leaves them out.',
             ),
+          if (waits != null) _note(waits),
           SizedBox(
             width: double.infinity,
             child: SailButton(
               label: 'Consolidate ${plan.coinCount} coins',
-              disabled: plan.isEmpty || running,
+              disabled: plan.isEmpty || running || waits != null,
               loading: running,
               onPressed: _start,
             ),
