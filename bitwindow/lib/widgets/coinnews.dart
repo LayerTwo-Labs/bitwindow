@@ -510,10 +510,11 @@ class CoinNewsViewModel extends BaseViewModel {
       ];
     }
 
-    var filteredEntries = _newsProvider.news
+    final selectedTopics = selectedTopicIds;
+    final filteredEntries = _newsProvider.news
         .where(
           (news) =>
-              _selectedTopicIds.contains(news.topic) &&
+              selectedTopics.contains(news.topic) &&
               (searchController.text.isEmpty ||
                   news.headline.toLowerCase().contains(searchController.text.toLowerCase()) ||
                   news.content.toLowerCase().contains(searchController.text.toLowerCase())),
@@ -580,9 +581,8 @@ class CoinNewsViewModel extends BaseViewModel {
 
   List<Topic> get topics => _newsProvider.topics;
 
-  // Keep track of selected topic IDs
-  List<String> _selectedTopicIds = [];
-  List<String> get selectedTopicIds => _selectedTopicIds;
+  List<String>? _selectedTopicIds = [];
+  List<String> get selectedTopicIds => _selectedTopicIds ?? topics.map((topic) => topic.topic).toList();
 
   CoinNewsViewModel() {
     _newsProvider.addListener(notifyListeners);
@@ -596,16 +596,8 @@ class CoinNewsViewModel extends BaseViewModel {
       return;
     }
 
-    final setting = SelectedTopicsSetting();
-    final loadedSetting = await _settings.getValue(setting);
-    final config = loadedSetting.value;
-
-    if (config.selectedTopics == null) {
-      // Initialize with all topics if nothing is saved
-      _selectedTopicIds = topics.map((topic) => topic.topic).toList();
-    } else {
-      _selectedTopicIds = config.selectedTopics!;
-    }
+    final setting = await _settings.getValue(SelectedTopicsSetting());
+    _selectedTopicIds = setting.value.selectedTopics;
     notifyListeners();
   }
 
@@ -629,7 +621,7 @@ class CoinNewsViewModel extends BaseViewModel {
   }
 
   Future<void> toggleTopic(String topicId) async {
-    final newSelection = List<String>.from(_selectedTopicIds);
+    final newSelection = List<String>.of(selectedTopicIds);
     if (newSelection.contains(topicId)) {
       newSelection.remove(topicId);
     } else {
