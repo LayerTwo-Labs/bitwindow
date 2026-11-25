@@ -46,7 +46,8 @@ List<WalletTransaction> walletTransactionsFromEntries(
         ..receivedSatoshi += received
         ..sentSatoshi += sent
         ..feeSats = merged.feeSats > fee ? merged.feeSats : fee
-        ..immature = merged.immature || tx.category == 'immature';
+        ..immature = merged.immature || tx.category == 'immature'
+        ..abandoned = merged.abandoned || tx.abandoned;
       if (merged.warningMessage.isEmpty) {
         merged.warningMessage = tx.warningMessage;
       }
@@ -62,6 +63,7 @@ List<WalletTransaction> walletTransactionsFromEntries(
       note: notes[tx.txid] ?? '',
       warningMessage: tx.warningMessage,
       immature: tx.category == 'immature',
+      abandoned: tx.abandoned,
       confirmations: tx.confirmations,
       confirmationTime: Confirmation(
         height: tx.blockHeight,

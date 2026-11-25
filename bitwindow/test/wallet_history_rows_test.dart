@@ -61,6 +61,36 @@ void main() {
     expect(canBumpFee(_tx('bcrt1qown')), isFalse);
   });
 
+  test('an abandoned transaction says so, and has no fee bump', () {
+    final sent = _tx('bcrt1qext', confirmations: 0)
+      ..receivedSatoshi = Int64.ZERO
+      ..sentSatoshi = Int64(300000000)
+      ..abandoned = true;
+    final received = _tx('bcrt1qown', confirmations: 0)..abandoned = true;
+    final lostBid = _tx('bcrt1qown', confirmations: 0)
+      ..bmmBid = BmmBid(slot: 9, lost: true)
+      ..abandoned = true;
+
+    for (final tx in [sent, received, lostBid]) {
+      expect(transactionStatus(tx), 'Abandoned');
+      expect(canBumpFee(tx), isFalse);
+      expect(canCancelBid(tx), isFalse);
+      expect(canAccelerate(tx), isFalse);
+    }
+    expect(canAccelerate(_tx('bcrt1qown', confirmations: 0)), isTrue);
+    expect(canAccelerate(_tx('bcrt1qown')), isFalse);
+  });
+
+  test('the CSV names an abandoned transaction', () {
+    final csv = transactionsCsv([
+      _tx('bcrt1qown', confirmations: 0)..abandoned = true,
+      _tx('bcrt1qown', confirmations: 0),
+    ]).split('\r\n');
+
+    expect(csv[1].split(',')[2], 'Abandoned');
+    expect(csv[2].split(',')[2], 'Received');
+  });
+
   test('the address cell keeps 10 characters at each end, and the label', () {
     const address = 'bcrt1qhd4cfqjafyun28mpktu3te85pf9njwpu4v5jr5';
 
