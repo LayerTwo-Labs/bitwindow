@@ -185,24 +185,27 @@ func (p *Parser) sweepMempool(ctx context.Context) bool {
 
 // pruneMempool drops unconfirmed OP_RETURNs that can no longer confirm.
 func (p *Parser) pruneMempool(ctx context.Context) error {
-	mempoolTxIDs := func() ([]string, error) {
-		bitcoind, err := p.bitcoind.Get(ctx)
-		if err != nil {
-			return nil, err
-		}
-		res, err := bitcoind.GetRawMempool(ctx, connect.NewRequest(&corepb.GetRawMempoolRequest{}))
-		if err != nil {
-			return nil, err
-		}
-		return res.Msg.Txids, nil
+	return opreturns.PruneMempool(ctx, p.db, func() ([]string, error) {
+		return p.mempoolTxIDs(ctx)
+	})
+}
+
+func (p *Parser) mempoolTxIDs(ctx context.Context) ([]string, error) {
+	bitcoind, err := p.bitcoind.Get(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return opreturns.PruneMempool(ctx, p.db, mempoolTxIDs)
+	res, err := bitcoind.GetRawMempool(ctx, connect.NewRequest(&corepb.GetRawMempoolRequest{}))
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg.Txids, nil
 }
 
 // ResetChainData deletes every row derived from a block at or above height. It
 // keeps the rows the user made.
 func ResetChainData(ctx context.Context, db *sql.DB, height uint32) error {
-	_, err := purgeChainAtOrAbove(ctx, db, height)
+	_, err := purgeChainAtOrAbove(ctx, db, height, nil)
 	return err
 }
 
@@ -214,7 +217,19 @@ func (p *Parser) resetProcessedChain(ctx context.Context) error {
 }
 
 func (p *Parser) purgeAtOrAbove(ctx context.Context, height uint32) (uint32, error) {
-	return purgeChainAtOrAbove(ctx, p.db, height)
+	var affected bool
+	if err := p.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM op_returns WHERE height >= ?)", height).Scan(&affected); err != nil {
+		return 0, fmt.Errorf("find OP_RETURNs above the fork: %w", err)
+	}
+	var mempool []string
+	if affected {
+		var err error
+		mempool, err = p.mempoolTxIDs(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("read mempool after fork: %w", err)
+		}
+	}
+	return purgeChainAtOrAbove(ctx, p.db, height, mempool)
 }
 
 // purgeChainAtOrAbove drops every row derived from a block at height or above,
@@ -226,7 +241,7 @@ func (p *Parser) purgeAtOrAbove(ctx context.Context, height uint32) (uint32, err
 // It returns the height the replay has to start from, which the M4 purge can
 // take below height: a bundle whose score the orphan branch moved only rebuilds
 // by replaying the blocks that built it.
-func purgeChainAtOrAbove(ctx context.Context, db *sql.DB, height uint32) (uint32, error) {
+func purgeChainAtOrAbove(ctx context.Context, db *sql.DB, height uint32, mempool []string) (uint32, error) {
 	var replayFrom uint32
 	err := inTx(ctx, db, func(tx *sql.Tx) error {
 		var err error
@@ -245,6 +260,18 @@ func purgeChainAtOrAbove(ctx context.Context, db *sql.DB, height uint32) (uint32
 		}
 		if err := purgeCoinNewsAtOrAboveTx(ctx, tx, height); err != nil {
 			return fmt.Errorf("purge coinnews on fork: %w", err)
+		}
+		if len(mempool) > 0 {
+			txids, err := json.Marshal(mempool)
+			if err != nil {
+				return fmt.Errorf("encode mempool transaction IDs: %w", err)
+			}
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE op_returns SET height = NULL, created_at = ?
+				WHERE height >= ? AND txid IN (SELECT value FROM json_each(?))
+			`, time.Now(), height, string(txids)); err != nil {
+				return fmt.Errorf("restore pending OP_RETURNs on fork: %w", err)
+			}
 		}
 		if err := purgeChainDerivedAtOrAboveTx(ctx, tx, height); err != nil {
 			return fmt.Errorf("purge chain-derived rows on fork: %w", err)
