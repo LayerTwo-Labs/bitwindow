@@ -72,7 +72,7 @@ func Persist(
 	start := time.Now()
 	builder := sq.
 		Insert("op_returns").
-		Columns("txid", "vout", "op_return_data", "fee_sats", "height", "created_at", "explorer_data")
+		Columns("txid", "vout", "op_return_data", "fee_sats", "height", "created_at", "explorer_message")
 
 	for _, value := range values {
 		createdAt := time.Now()
@@ -82,14 +82,14 @@ func Persist(
 		builder = builder.Values(
 			value.TxID, value.Vout,
 			hex.EncodeToString(value.Data),
-			value.Fee, value.Height, createdAt, value.ExplorerData,
+			value.Fee, value.Height, createdAt, value.ExplorerMessage,
 		)
 	}
 
 	builder = builder.Suffix(
 		`ON CONFLICT (txid, vout) DO UPDATE SET 
 			op_return_data = excluded.op_return_data,
-			explorer_data = excluded.explorer_data,
+			explorer_message = excluded.explorer_message,
 			height = COALESCE(excluded.height, op_returns.height), 
 			-- Zero reads as unknown: a scan on a node with no txindex cannot
 			-- fetch the fee, and must not erase one the mempool already gave us.
@@ -114,14 +114,22 @@ func Persist(
 }
 
 type OPReturn struct {
-	ID           int64          `db:"id"`
-	TxID         string         `db:"txid"`
-	Vout         int32          `db:"vout"`
-	Data         []byte         `db:"op_return_data"`
-	ExplorerData []byte         `db:"explorer_data"`
-	Fee          btcutil.Amount `db:"fee_sats"` // 0 can either mean zero fee or unknown fee
-	Height       *uint32        `db:"height"`
-	CreatedAt    *time.Time     `db:"created_at"`
+	ID              int64          `db:"id"`
+	TxID            string         `db:"txid"`
+	Vout            int32          `db:"vout"`
+	Data            []byte         `db:"op_return_data"`
+	ExplorerMessage *string        `db:"explorer_message"`
+	Fee             btcutil.Amount `db:"fee_sats"` // 0 can either mean zero fee or unknown fee
+	Height          *uint32        `db:"height"`
+	CreatedAt       *time.Time     `db:"created_at"`
+}
+
+// Message returns the text or hex that the explorer shows.
+func (o OPReturn) Message() string {
+	if o.ExplorerMessage != nil {
+		return *o.ExplorerMessage
+	}
+	return OPReturnToReadable(o.Data)
 }
 
 // GetByTxID returns the OP_RETURN of the transaction with the lowest vout, or nil
@@ -237,7 +245,7 @@ func Query(ctx context.Context, db *sql.DB, filter Filter, limit int) ([]OPRetur
 		where = append(where, "datetime(created_at) < datetime(?)")
 		args = append(args, filter.To.UTC().Format(time.DateTime))
 	}
-	query := "SELECT id, txid, vout, COALESCE(explorer_data, unhex(op_return_data)) AS op_return_data, fee_sats, height, created_at FROM op_returns"
+	query := "SELECT id, txid, vout, unhex(op_return_data) AS op_return_data, explorer_message, fee_sats, height, created_at FROM op_returns"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -247,7 +255,7 @@ func Query(ctx context.Context, db *sql.DB, filter Filter, limit int) ([]OPRetur
 	if search := strings.ToLower(filter.Search); search != "" {
 		keep = func(o OPReturn) bool {
 			return strings.Contains(strings.ToLower(o.TxID), search) ||
-				strings.Contains(strings.ToLower(OPReturnToReadable(o.Data)), search)
+				strings.Contains(strings.ToLower(o.Message()), search)
 		}
 	}
 
@@ -265,7 +273,7 @@ func Query(ctx context.Context, db *sql.DB, filter Filter, limit int) ([]OPRetur
 		return nil, fmt.Errorf("query op_returns: %w", err)
 	}
 	slices.SortStableFunc(opReturns, func(a, b OPReturn) int {
-		order := strings.Compare(OPReturnToReadable(a.Data), OPReturnToReadable(b.Data))
+		order := strings.Compare(a.Message(), b.Message())
 		if !filter.Ascending {
 			order = -order
 		}
