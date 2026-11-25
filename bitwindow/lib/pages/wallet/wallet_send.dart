@@ -869,7 +869,6 @@ class RecipientModel extends ChangeNotifier {
   RecipientModel({
     String address = '',
     String amount = '',
-    String label = '',
     this.subtractFee = false,
   }) : addressController = TextEditingController(text: address),
        amountController = TextEditingController(text: amount) {
@@ -1616,6 +1615,7 @@ class SendPageViewModel extends BaseViewModel {
     }
     _estimatedSatPerVByte = null;
     selectedUtxos = [];
+    _openedUri = null;
     notifyListeners();
 
     unawaited(selectFeeTarget(1));
@@ -1638,16 +1638,20 @@ class SendPageViewModel extends BaseViewModel {
 
     await showThemedDialog(
       context: context,
-      builder: (context) => _SaveToAddressBookDialog(
+      builder: (context) => SaveToAddressBookDialog(
         address: address,
+        initialLabel: uriLabelFor(_openedUri, address),
         addressBookProvider: addressBookProvider,
         log: log,
       ),
     );
   }
 
+  BitcoinURI? _openedUri;
+
   void handleBitcoinURI(BitcoinURI uri) async {
     await clearAll();
+    _openedUri = uri;
     if (recipients.isNotEmpty) {
       final recipient = recipients.first;
       recipient.addressController.text = uri.address;
@@ -2043,23 +2047,31 @@ class _UTXOSelectorState extends State<UTXOSelector> {
   }
 }
 
-class _SaveToAddressBookDialog extends StatefulWidget {
+/// The label that [uri] gives to [address], or '' when it gives none.
+String uriLabelFor(BitcoinURI? uri, String address) => uri != null && uri.address == address ? uri.label ?? '' : '';
+
+class SaveToAddressBookDialog extends StatefulWidget {
   final String address;
+
+  /// The label the field starts with.
+  final String initialLabel;
   final AddressBookProvider addressBookProvider;
   final Logger log;
 
-  const _SaveToAddressBookDialog({
+  const SaveToAddressBookDialog({
+    super.key,
     required this.address,
+    this.initialLabel = '',
     required this.addressBookProvider,
     required this.log,
   });
 
   @override
-  State<_SaveToAddressBookDialog> createState() => _SaveToAddressBookDialogState();
+  State<SaveToAddressBookDialog> createState() => _SaveToAddressBookDialogState();
 }
 
-class _SaveToAddressBookDialogState extends State<_SaveToAddressBookDialog> {
-  final TextEditingController labelController = TextEditingController();
+class _SaveToAddressBookDialogState extends State<SaveToAddressBookDialog> {
+  late final TextEditingController labelController = TextEditingController(text: widget.initialLabel);
   String? _error;
 
   @override
