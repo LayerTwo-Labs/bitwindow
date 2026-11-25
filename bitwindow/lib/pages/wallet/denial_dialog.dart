@@ -19,6 +19,14 @@ class DenialDialog extends StatefulWidget {
   /// Fee per hop in satoshis (matches server/engines/deniability_engine.go)
   static const int feePerHopSats = 10000;
 
+  static const int dustSats = 546;
+
+  /// The smallest UTXO that pays for [hops]. Matches DenialMinValue in server/engines/deniability_engine.go.
+  static int minValueSats(int hops) => hops * (feePerHopSats + dustSats) + dustSats;
+
+  /// The most hops that a UTXO of [valueSats] pays for.
+  static int maxHops(int valueSats) => max((valueSats - dustSats) ~/ (feePerHopSats + dustSats), 0);
+
   // Default values for normal mode
   static const String defaultHops = '3';
   static const String defaultMinutes = '15';
@@ -62,8 +70,37 @@ class _DenialDialogState extends State<DenialDialog> {
   int processedCount = 0;
   String? errorMessage;
 
+  int get hops => int.tryParse(hopsController.text) ?? 3;
+
   /// The server uses at most one target size per hop.
-  int get maxTargetSizes => max(int.tryParse(hopsController.text) ?? 3, 0);
+  int get maxTargetSizes => max(hops, 0);
+
+  /// The UTXOs of a batch that pay for the hops.
+  List<UnspentOutput> get payingUtxos =>
+      widget.utxos?.where((u) => u.valueSats.toInt() >= DenialDialog.minValueSats(hops)).toList() ?? [];
+
+  /// Why the denial cannot start, or null.
+  String? get inputError {
+    if (hops < 1) {
+      return 'Enter 1 hop or more.';
+    }
+    if (getTotalSeconds() < 1) {
+      return 'Enter a delay of 1 minute or more.';
+    }
+    if (widget.isBatchMode) {
+      return payingUtxos.isEmpty ? 'No UTXO can pay for $hops ${_hopWord(hops)}.' : null;
+    }
+    final value = widget.valueSats;
+    if (value == null || value >= DenialDialog.minValueSats(hops)) {
+      return null;
+    }
+    final most = DenialDialog.maxHops(value);
+    return most == 0
+        ? 'This UTXO is too small to pay for a hop.'
+        : 'This UTXO can pay for $most ${_hopWord(most)} at most.';
+  }
+
+  String _hopWord(int count) => count == 1 ? 'hop' : 'hops';
 
   /// The target sizes the current hop count can use. The rest stay for a higher hop count.
   List<TextEditingController> get activeTargetSizeControllers => targetSizeControllers.take(maxTargetSizes).toList();
@@ -105,8 +142,6 @@ class _DenialDialogState extends State<DenialDialog> {
   /// (0 means random split for that hop).
   /// This ensures target amounts are created at random points during the denial process.
   List<int>? getTargetUtxoSizes() {
-    final hops = int.tryParse(hopsController.text) ?? 3;
-
     // Parse the user-entered target sizes
     final userSizes = activeTargetSizeControllers
         .map((c) {
@@ -155,7 +190,12 @@ class _DenialDialogState extends State<DenialDialog> {
   }
 
   Future<void> startDenial() async {
-    final hops = int.tryParse(hopsController.text) ?? 3;
+    final blocked = inputError;
+    if (blocked != null) {
+      setState(() => errorMessage = blocked);
+      return;
+    }
+    final utxos = payingUtxos;
     final delaySeconds = getTotalSeconds();
     final targetSizes = getTargetUtxoSizes();
 
@@ -167,7 +207,7 @@ class _DenialDialogState extends State<DenialDialog> {
       int? available;
       if (widget.isBatchMode) {
         // For batch: validate against smallest UTXO
-        final minUtxo = widget.utxos!.map((u) => u.valueSats.toInt()).reduce(min);
+        final minUtxo = utxos.map((u) => u.valueSats.toInt()).reduce(min);
         available = minUtxo - totalFees;
       } else if (widget.valueSats != null) {
         available = widget.valueSats! - totalFees;
@@ -189,7 +229,7 @@ class _DenialDialogState extends State<DenialDialog> {
 
     if (widget.isBatchMode) {
       // Batch mode: process multiple UTXOs
-      for (final utxo in widget.utxos!) {
+      for (final utxo in utxos) {
         try {
           await api.bitwindowd.createDenial(
             txid: utxo.output.split(':').first,
@@ -252,7 +292,10 @@ class _DenialDialogState extends State<DenialDialog> {
   Widget build(BuildContext context) {
     final isBatch = widget.isBatchMode;
     final targetSizes = activeTargetSizeControllers;
-    final utxoCount = isBatch ? widget.utxos!.length : 1;
+    final allCount = isBatch ? widget.utxos!.length : 1;
+    final utxoCount = isBatch ? payingUtxos.length : 1;
+    final formatter = GetIt.I<FormatterProvider>();
+    final feeHops = max(hops, 0);
 
     String buttonLabel;
     if (isProcessing) {
@@ -283,7 +326,11 @@ class _DenialDialogState extends State<DenialDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isBatch) ...[
-            SailText.primary15('Starting deniability on $utxoCount UTXOs'),
+            SailText.primary15(
+              utxoCount == allCount
+                  ? 'Starting deniability on $utxoCount UTXOs'
+                  : 'Starting deniability on $utxoCount of $allCount UTXOs. The others are too small for $hops ${_hopWord(hops)}.',
+            ),
             const SailSpacing(SailStyleValues.padding08),
           ],
 
@@ -343,6 +390,11 @@ class _DenialDialogState extends State<DenialDialog> {
               ),
               SailText.primary15('hops.'),
             ],
+          ),
+
+          SailText.secondary13(
+            'Fee: ${formatter.formatSats(DenialDialog.feePerHopSats)} per hop, '
+            '${formatter.formatSats(feeHops * DenialDialog.feePerHopSats * utxoCount)} in total.',
           ),
 
           // Target UTXO sizes (optional)
