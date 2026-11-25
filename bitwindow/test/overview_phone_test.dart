@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:fixnum/fixnum.dart';
@@ -26,6 +28,10 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
   ({DateTime start, DateTime end})? get dateRange => null;
 
   final saved = <String, String>{};
+  final feeDialog = Completer<void>();
+
+  @override
+  Future<void> openBumpFee(BuildContext context, walletpb.WalletTransaction tx) => feeDialog.future;
 
   @override
   Future<void> saveNote(BuildContext context, String txid, String note) async {
@@ -141,6 +147,53 @@ void main() {
     expect(tester.widget<SailTable>(find.byType(SailTable)).drawGrid, isTrue);
     expect(find.textContaining('BTC'), findsWidgets);
   });
+
+  for (final width in [1024.0, 1200.0]) {
+    testWidgets('the history fee action fits at desktop width $width', (tester) async {
+      SailStyleValues.phoneLayoutOverride = false;
+      final time = Timestamp.fromDateTime(DateTime.utc(2026, 11, 25, 9, 22));
+      final outgoing = walletpb.WalletTransaction(
+        txid: 'cd' * 32,
+        address: 'bcrt1q00hcx2zjh338tnahn5lr89v4lycng73ls369q6',
+        confirmationTime: walletpb.Confirmation(timestamp: time),
+        sentSatoshi: Int64(1234567),
+        feeSats: Int64(10000),
+      );
+      final coinbase = walletpb.WalletTransaction(
+        txid: 'ef' * 32,
+        address: 'bcrt1qj7tvw28e5a85rxl6fhkajlh2d2ka9vz6rxzesr',
+        confirmationTime: walletpb.Confirmation(height: 103, timestamp: time),
+        confirmations: 1,
+        immature: true,
+        receivedSatoshi: Int64(5000000000),
+      );
+      final model = _Overview([outgoing, coinbase]);
+      await tester.pumpSailPage(
+        Center(
+          child: SizedBox(
+            width: width - 24,
+            height: 550,
+            child: TransactionTable(searchWidget: const SizedBox.shrink(), model: model),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final table = find.byType(SailTable);
+      final button = find.widgetWithText(SailButton, 'Bump fee');
+      expect(tester.getRect(button).right, lessThanOrEqualTo(tester.getRect(table).right));
+      await tester.tap(button);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+      final waitLabel = find.text('Wait');
+      final waitButton = find.ancestor(of: waitLabel, matching: find.byType(SailButton));
+      expect(tester.getRect(waitLabel).right, lessThanOrEqualTo(tester.getRect(waitButton).right));
+      expect(tester.getRect(waitButton).right, lessThanOrEqualTo(tester.getRect(table).right));
+      model.feeDialog.complete();
+      await tester.pumpAndSettle();
+    });
+  }
 
   testWidgets('on a phone the loading table shows bars in a panel and what it waits for', (tester) async {
     SailStyleValues.phoneLayoutOverride = true;
