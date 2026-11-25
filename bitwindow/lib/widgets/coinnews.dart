@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:bitwindow/env.dart';
 import 'package:bitwindow/pages/overview_page.dart';
+import 'package:bitwindow/providers/blockchain_provider.dart';
 import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/widgets/news_cost.dart';
@@ -1049,12 +1050,16 @@ class CoinNewsArticlePanel extends StatefulWidget {
 class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
   BitwindowRPC get api => GetIt.I.get<BitwindowRPC>();
   NewsProvider get _newsProvider => GetIt.I.get<NewsProvider>();
+  final BlockchainProvider _blockchain = GetIt.I.get<BlockchainProvider>();
+  final FormatterProvider _formatter = GetIt.I.get<FormatterProvider>();
 
   List<Comment> _comments = [];
   bool _loading = true;
   bool _posting = false;
-  String? _error;
+  String? _loadError;
+  String? _postError;
   String? _replyTo; // item_id being replied to; null = top-level
+  int _reads = 0;
   final TextEditingController _controller = TextEditingController();
 
   String get _itemId => widget.news.itemId;
@@ -1063,6 +1068,8 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
   void initState() {
     super.initState();
     if (_itemId.isNotEmpty) {
+      _blockchain.addListener(_load);
+      _blockchain.recentChanged.addListener(_load);
       _load();
     } else {
       _loading = false;
@@ -1071,31 +1078,30 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
 
   @override
   void dispose() {
+    _blockchain.removeListener(_load);
+    _blockchain.recentChanged.removeListener(_load);
     _controller.dispose();
     super.dispose();
   }
 
+  /// Reads the thread. Only the newest read changes the panel.
   Future<void> _load() async {
-    setState(() => _loading = true);
+    final read = ++_reads;
+    List<Comment>? comments;
+    String? error;
     try {
-      final comments = await api.misc.listComments(_itemId);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _comments = comments;
-        _error = null;
-      });
+      comments = await api.misc.listComments(_itemId);
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      error = e.toString();
     }
+    if (!mounted || read != _reads) {
+      return;
+    }
+    setState(() {
+      _comments = comments ?? _comments;
+      _loadError = error;
+      _loading = false;
+    });
   }
 
   Future<void> _post() async {
@@ -1109,7 +1115,10 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
     if (!mounted) {
       return;
     }
-    setState(() => _posting = true);
+    setState(() {
+      _posting = true;
+      _postError = null;
+    });
     try {
       await api.misc.commentNews(_replyTo ?? _itemId, body);
       if (!mounted) {
@@ -1122,7 +1131,7 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
       if (!mounted) {
         return;
       }
-      setState(() => _error = e.toString());
+      setState(() => _postError = e.toString());
     } finally {
       if (mounted) {
         setState(() => _posting = false);
@@ -1234,7 +1243,11 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
                                 },
                               ),
                               const SailSpacing(SailStyleValues.padding32),
-                              if (_itemId.isNotEmpty) _commentsThread(context),
+                              if (_itemId.isNotEmpty)
+                                ListenableBuilder(
+                                  listenable: _formatter,
+                                  builder: (context, _) => _commentsThread(context),
+                                ),
                             ],
                           ),
                         ),
@@ -1264,11 +1277,13 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
         const SailSpacing(SailStyleValues.padding12),
         SailText.primary15('Comments (${_comments.length})', bold: true),
         const SailSpacing(SailStyleValues.padding12),
+        if (_loadError != null) ...[
+          SailText.secondary12(_loadError!, color: theme.colors.error),
+          const SailSpacing(SailStyleValues.padding12),
+        ],
         if (_loading)
           SailText.secondary12('Loading comments…')
-        else if (_error != null)
-          SailText.secondary12(_error!, color: theme.colors.error)
-        else if (roots.isEmpty)
+        else if (roots.isEmpty && _loadError == null)
           SailText.secondary12('No comments yet. Be the first.')
         else
           ...roots.map((c) => _commentTree(context, c, depth: 0)),
@@ -1293,24 +1308,33 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
   Widget _commentTile(BuildContext context, Comment comment) {
     final theme = SailTheme.of(context);
     final author = comment.author.length > 10 ? '${comment.author.substring(0, 10)}…' : comment.author;
+    final meta = [
+      author,
+      comment.pending ? 'Pending' : formatDate(comment.createTime.toDateTime()),
+      // The server sends 0 for a fee that it does not know.
+      if (comment.feeSats > 0) _formatter.formatSats(comment.feeSats.toInt()),
+    ].join('  ·  ');
     return Container(
       padding: const EdgeInsets.all(SailStyleValues.padding08),
       decoration: BoxDecoration(color: theme.colors.backgroundSecondary, borderRadius: context.sailTheme.chrome.radius),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SailText.secondary12(author, color: theme.colors.textTertiary),
+          SailText.secondary12(meta, color: theme.colors.textTertiary),
           const SailSpacing(SailStyleValues.padding04),
           SailText.primary13(comment.body),
           if (comment.url.isNotEmpty) SailText.secondary12(comment.url, color: theme.colors.textSecondary),
-          const SailSpacing(SailStyleValues.padding04),
-          SailButton(
-            label: _replyTo == comment.itemId ? 'Cancel reply' : 'Reply',
-            variant: ButtonVariant.ghost,
-            onPressed: () async {
-              setState(() => _replyTo = _replyTo == comment.itemId ? null : comment.itemId);
-            },
-          ),
+          // A reply in a block before its parent is not valid, so it waits for the block of the parent.
+          if (!comment.pending) ...[
+            const SailSpacing(SailStyleValues.padding04),
+            SailButton(
+              label: _replyTo == comment.itemId ? 'Cancel reply' : 'Reply',
+              variant: ButtonVariant.ghost,
+              onPressed: () async {
+                setState(() => _replyTo = _replyTo == comment.itemId ? null : comment.itemId);
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -1370,6 +1394,10 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
               ),
             ],
           ),
+          if (_postError != null) ...[
+            const SailSpacing(SailStyleValues.padding04),
+            SailText.secondary12(_postError!, color: theme.colors.error),
+          ],
         ],
       ),
     );
