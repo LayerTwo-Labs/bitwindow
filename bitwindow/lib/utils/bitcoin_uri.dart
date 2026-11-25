@@ -1,6 +1,15 @@
 import 'package:sidechain_core/bitcoin.dart';
 
 final _bip21AmountPattern = RegExp(r'^\d+(\.\d{0,8})?$|^\.\d{1,8}$');
+final _addressPattern = RegExp(r'^[A-Za-z0-9]+$');
+
+String _decode(String text) {
+  try {
+    return Uri.decodeComponent(text);
+  } on ArgumentError {
+    throw const FormatException('Invalid percent encoding');
+  }
+}
 
 class BitcoinURI {
   final String address;
@@ -21,15 +30,23 @@ class BitcoinURI {
 
   /// Parses a Bitcoin URI string according to BIP-0021
   /// Throws FormatException if URI is invalid
-  static BitcoinURI parse(String uri) {
+  static BitcoinURI parse(String text) {
+    var uri = text.trim();
     if (!uri.toLowerCase().startsWith('bitcoin:')) {
       throw const FormatException('Not a bitcoin URI');
+    }
+    // Some wallets write the scheme as a web link.
+    if (uri.startsWith('//', 8)) {
+      uri = uri.replaceRange(8, 10, '');
     }
 
     final queryStart = uri.indexOf('?', 8);
     final address = uri.substring(8, queryStart == -1 ? null : queryStart);
     if (address.isEmpty) {
       throw const FormatException('No address specified');
+    }
+    if (!_addressPattern.hasMatch(address)) {
+      throw const FormatException('Invalid address');
     }
 
     final params = <String, String>{};
@@ -45,7 +62,7 @@ class BitcoinURI {
           throw FormatException('Required parameter not understood: $key');
         }
 
-        params[Uri.decodeComponent(key)] = Uri.decodeComponent(param.substring(separator + 1));
+        params[_decode(key)] = _decode(param.substring(separator + 1));
       }
     }
 
