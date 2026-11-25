@@ -1161,7 +1161,7 @@ class SendPageViewModel extends BaseViewModel {
     }
     feeController.addListener(_onFormChanged);
     addressBookProvider.addListener(notifyListeners);
-    transactionsProvider.addListener(_clearStaleSelectedUTXOs);
+    transactionsProvider.addListener(_refreshSelectedUtxos);
     coinSelectionProvider.addListener(notifyListeners);
     settingsProvider.addListener(_onUnitChanged);
     draftProvider.addListener(notifyListeners);
@@ -1211,12 +1211,9 @@ class SendPageViewModel extends BaseViewModel {
     }
   }
 
-  Future<void> _clearStaleSelectedUTXOs() async {
-    final justFromWallet = allUtxos.where((u) => selectedUtxos.contains(u)).toList();
-    if (justFromWallet.length != selectedUtxos.length) {
-      selectedUtxos = justFromWallet;
-    }
-
+  /// Keeps each picked coin that the wallet still holds.
+  void _refreshSelectedUtxos() {
+    selectedUtxos = coinsAt(allUtxos, selectedUtxos.map((u) => u.output));
     notifyListeners();
   }
 
@@ -1238,7 +1235,7 @@ class SendPageViewModel extends BaseViewModel {
       recipient.removeListener(_onFormChanged);
     }
     addressBookProvider.removeListener(notifyListeners);
-    transactionsProvider.removeListener(_clearStaleSelectedUTXOs);
+    transactionsProvider.removeListener(_refreshSelectedUtxos);
     coinSelectionProvider.removeListener(notifyListeners);
     settingsProvider.removeListener(_onUnitChanged);
     draftProvider.removeListener(notifyListeners);
@@ -1269,14 +1266,14 @@ class SendPageViewModel extends BaseViewModel {
       final walletId = _walletReader.activeWalletId;
       final recipientCount = recipients.length;
       final recipient = recipients[index];
-      final selection = selectedUtxos;
+      final selection = selectedUtxos.map((u) => u.output).toList();
       final maxSend = await _maxSendFee(index, availableSats, otherSats);
       final formChanged =
           disposed ||
           _walletReader.activeWalletId != walletId ||
           recipients.length != recipientCount ||
           recipients[index] != recipient ||
-          !identical(selectedUtxos, selection);
+          !const ListEquality<String>().equals(selectedUtxos.map((u) => u.output).toList(), selection);
       if (maxSend == null || formChanged) {
         return;
       }
@@ -1674,8 +1671,7 @@ class SendPageViewModel extends BaseViewModel {
   }
 
   void onSelectionChanged(List<UnspentOutput> selected) {
-    final justFromWallet = allUtxos.where((u) => selected.contains(u)).toList();
-    selectedUtxos = List.from(justFromWallet);
+    selectedUtxos = coinsAt(allUtxos, selected.map((u) => u.output));
     notifyListeners();
   }
 
