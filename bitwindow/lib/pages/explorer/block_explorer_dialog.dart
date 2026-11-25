@@ -30,7 +30,7 @@ String humanizeTransactionLoadError(Object e) {
     return 'This transaction was not found in the active wallet. It may belong to another wallet, or the wallet may not be fully synced yet.';
   }
   if (raw.contains('connection') || raw.contains('unavailable') || raw.contains('refused')) {
-    return 'Could not reach the orchestrator. Make sure your daemon is running and try again.';
+    return 'Could not read transaction details. Check Daemon Status, then try again.';
   }
   return 'Could not load this transaction. Try again, or check the daemon logs if the problem persists.';
 }

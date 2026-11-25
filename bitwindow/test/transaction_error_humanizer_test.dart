@@ -22,11 +22,21 @@ void main() {
     test('matches connection-style errors', () {
       expect(
         humanizeTransactionLoadError(Exception('connection refused')),
-        contains('Could not reach the orchestrator'),
+        contains('Check Daemon Status'),
       );
       expect(
         humanizeTransactionLoadError(Exception('UNAVAILABLE: backend down')),
-        contains('Could not reach the orchestrator'),
+        contains('Check Daemon Status'),
+      );
+    });
+
+    test('directs Core connection errors to Daemon Status', () {
+      final error = Exception(
+        'gettransaction call: dial tcp 127.0.0.1:18793: connect: connection refused',
+      );
+      expect(
+        humanizeTransactionLoadError(error),
+        'Could not read transaction details. Check Daemon Status, then try again.',
       );
     });
 
