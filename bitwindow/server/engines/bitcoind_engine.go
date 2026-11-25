@@ -1078,12 +1078,13 @@ func (p *Parser) handleOpReturns(
 		}
 
 		opReturns = append(opReturns, opreturns.OPReturn{
-			TxID:      txid,
-			Data:      data,
-			Vout:      int32(vout),
-			Height:    height,
-			Fee:       *txFee,
-			CreatedAt: createdAt,
+			TxID:         txid,
+			Data:         data,
+			ExplorerData: explorerOPReturnData(txout.PkScript[1:]),
+			Vout:         int32(vout),
+			Height:       height,
+			Fee:          *txFee,
+			CreatedAt:    createdAt,
 		})
 	}
 
@@ -1313,6 +1314,27 @@ func parseOPReturnData(script []byte) ([]byte, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func explorerOPReturnData(pushes []byte) []byte {
+	tokenizer := txscript.MakeScriptTokenizer(0, pushes)
+	var data []byte
+	for tokenizer.Next() {
+		switch opcode := tokenizer.Opcode(); {
+		case opcode <= txscript.OP_PUSHDATA4:
+			data = append(data, tokenizer.Data()...)
+		case opcode == txscript.OP_1NEGATE:
+			data = append(data, 0x81)
+		case txscript.IsSmallInt(opcode):
+			data = append(data, byte(txscript.AsSmallInt(opcode)))
+		default:
+			return nil
+		}
+	}
+	if tokenizer.Err() != nil || tokenizer.OpcodePosition() < 1 {
+		return nil
+	}
+	return data
 }
 
 // witnessCommitmentMagic prefixes the coinbase segwit commitment push (BIP141).

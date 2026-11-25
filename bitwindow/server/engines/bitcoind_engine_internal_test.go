@@ -508,3 +508,37 @@ func TestShouldSkip(t *testing.T) {
 	assert.True(t, shouldSkip(script(t, []byte{0xd1, 0x61, 0x73, 0x68, 0x01})), "known prefix")
 	assert.False(t, shouldSkip(script(t, []byte("Hei på deg, blåbær"))), "graffiti")
 }
+
+func TestOpReturnHandling_ExplorerReadsBothPushes(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	db := database.Test(t)
+	parser := &Parser{db: db}
+	first := []byte("O2B TWO ")
+	second := []byte("PUSHES")
+	script, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).AddData(first).AddData(second).Script()
+	require.NoError(t, err)
+	tx := &wire.MsgTx{
+		TxIn:  []*wire.TxIn{{PreviousOutPoint: wire.OutPoint{Hash: chainhash.Hash{1}}}},
+		TxOut: []*wire.TxOut{{PkScript: script}},
+	}
+
+	height := uint32(114)
+	created := time.Unix(1795592028, 0).UTC()
+	require.NoError(t, parser.opReturnForTXID(ctx, tx, &height, &created, fixedFee(1100)))
+
+	found, err := opreturns.Query(ctx, db, opreturns.Filter{Search: "two pushes"}, 1000)
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, "O2B TWO PUSHES", string(found[0].Data))
+	assert.Equal(t, tx.TxID(), found[0].TxID)
+	assert.Equal(t, btcutil.Amount(1100), found[0].Fee)
+	assert.Equal(t, height, *found[0].Height)
+	assert.True(t, created.Equal(*found[0].CreatedAt))
+
+	stored, err := opreturns.GetByTxID(ctx, db, tx.TxID())
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	assert.Equal(t, first, stored.Data)
+}
