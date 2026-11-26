@@ -117,7 +117,7 @@ class FeeCoinNewsViewModel extends BaseViewModel {
       return [...dummyData];
     }
 
-    return _newsProvider.news.where((news) => news.topic == selectedTopic).toList()
+    return _newsProvider.currentNews.where((news) => news.topic == selectedTopic).toList()
       ..sort((a, b) => b.feeSats.compareTo(a.feeSats));
   }
 
@@ -298,7 +298,7 @@ class FeeCoinNewsLargeViewModel extends BaseViewModel {
       return [...dummyData];
     }
 
-    return _newsProvider.news.where((news) => news.topic == topic).toList()
+    return _newsProvider.currentNews.where((news) => news.topic == topic).toList()
       ..sort((a, b) => b.feeSats.compareTo(a.feeSats));
   }
 

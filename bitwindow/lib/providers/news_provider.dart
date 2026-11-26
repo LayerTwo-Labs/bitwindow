@@ -14,7 +14,11 @@ class NewsProvider extends ChangeNotifier {
   BlockchainProvider get blockchainProvider => GetIt.I.get<BlockchainProvider>();
   SyncProvider get _syncProvider => GetIt.I.get<SyncProvider>();
 
+  /// Each story of the last read, with the outdated stories.
   List<CoinNews> news = [];
+
+  /// The stories inside the retention of their topic.
+  List<CoinNews> get currentNews => news.where((story) => !story.outdated).toList();
   List<Topic> topics = [
     Topic(id: Int64(1), topic: 'a1a1a1a1', name: 'US Weekly'),
     Topic(id: Int64(2), topic: 'a2a2a2a2', name: 'Japan Weekly'),

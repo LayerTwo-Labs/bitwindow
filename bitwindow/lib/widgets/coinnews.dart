@@ -9,7 +9,6 @@ import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/widgets/news_cost.dart';
 import 'package:bitwindow/widgets/pagination.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get_it/get_it.dart';
@@ -275,7 +274,7 @@ class _LargeColumn extends StatelessWidget {
       shrinkWrap: stacked,
       padding: EdgeInsets.zero,
       itemCount: entries.length,
-      itemBuilder: (context, i) => _LargeStoryRow(entry: entries[i], outdated: viewModel.isOutdated(entries[i])),
+      itemBuilder: (context, i) => _LargeStoryRow(entry: entries[i], outdated: entries[i].outdated),
     );
   }
 }
@@ -385,23 +384,12 @@ class CoinNewsLargeViewModel extends BaseViewModel {
     notifyListeners();
   }
 
-  /// A story is outdated once it is older than its topic's retention. Topics
-  /// with retention 0 keep everything.
-  bool isOutdated(CoinNews news) {
-    final topic = topics.firstWhereOrNull((t) => t.topic == news.topic);
-    final days = topic?.retentionDays ?? 0;
-    if (days <= 0) {
-      return false;
-    }
-    return news.createTime.toDateTime().isBefore(DateTime.now().subtract(Duration(days: days)));
-  }
-
   int outdatedCountFor(String topic) {
-    return _allFor(topic).where(isOutdated).length;
+    return _allFor(topic).where((news) => news.outdated).length;
   }
 
   List<CoinNews> entriesFor(String topic) {
-    final entries = _allFor(topic).where((news) => showOutdated || !isOutdated(news)).toList();
+    final entries = _allFor(topic).where((news) => showOutdated || !news.outdated).toList();
     entries.sort((a, b) => b.feeSats.compareTo(a.feeSats));
     return entries;
   }
@@ -513,7 +501,7 @@ class CoinNewsViewModel extends BaseViewModel {
     }
 
     final selectedTopics = selectedTopicIds;
-    final filteredEntries = _newsProvider.news
+    final filteredEntries = _newsProvider.currentNews
         .where(
           (news) =>
               selectedTopics.contains(news.topic) &&
