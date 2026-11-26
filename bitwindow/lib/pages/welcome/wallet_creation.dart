@@ -14,7 +14,13 @@ Future<String> createWalletFromSetup(WalletSetupResult result) async {
   final gradient = WalletGradient.fromWalletId(name);
   final single = result.single!;
   final mnemonic = single.mnemonic ?? '';
-  if (mnemonic.isEmpty) {
+  if (mnemonic.isEmpty && single.provider == 'core' && (single.hardwareDeviceType ?? '').isEmpty) {
+    await writer.createWatchOnlyWallet(
+      name: name,
+      gradient: gradient,
+      xpubOrDescriptor: single.xpubOrDescriptor!,
+    );
+  } else if (mnemonic.isEmpty) {
     await writer.createElectrumWallet(
       name: name,
       gradient: gradient,
@@ -100,7 +106,11 @@ Future<String> importDescriptorWallet(String descriptor) async {
   }
   return createWalletFromSetup(
     WalletSetupResult.single(
-      SingleSigResult(scriptType: hotScriptType(policy.scriptType), xpubOrDescriptor: policy.descriptor),
+      SingleSigResult(
+        scriptType: hotScriptType(policy.scriptType),
+        provider: defaultWalletProvider(runsLocalBackends: NodeModeProvider.runsLocalBackends),
+        xpubOrDescriptor: policy.descriptor,
+      ),
     ),
   );
 }
