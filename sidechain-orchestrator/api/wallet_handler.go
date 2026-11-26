@@ -1157,6 +1157,7 @@ func (h *WalletHandler) PreviewSend(ctx context.Context, req *pb.PreviewSendRequ
 		AllowReplay:           req.AllowReplay,
 		RequiredInputs:        requiredInputs,
 		ExcludedInputs:        excluded,
+		CoinOrder:             wallet.CoinOrder(req.CoinOrder),
 	})
 	if err != nil {
 		return nil, rpcError(err)
@@ -2578,6 +2579,7 @@ func (h *WalletHandler) CreatePsbt(ctx context.Context, req *pb.CreatePsbtReques
 		OpReturnHex:           req.OpReturnHex,
 		SubtractFeeFromAmount: req.SubtractFeeFromAmount,
 		AllowReplay:           req.AllowReplay,
+		CoinOrder:             wallet.CoinOrder(req.CoinOrder),
 	}
 	if err := h.refuseFrozenInputs(req.RequiredInputs); err != nil {
 		return nil, err

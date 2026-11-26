@@ -16,10 +16,12 @@ type UTXO struct {
 	Confirmations int     `json:"confirmations"`
 	// BlockHeight is the absolute confirmation height. 0 when the coin is
 	// unconfirmed, or when the backend counts confirmations only.
-	BlockHeight int   `json:"-"`
-	Spendable   bool  `json:"spendable"`
-	Solvable    bool  `json:"solvable"`
-	ReceivedAt  int64 `json:"-"`
+	BlockHeight int  `json:"-"`
+	Spendable   bool `json:"spendable"`
+	Solvable    bool `json:"solvable"`
+	// Safe is false for an unconfirmed coin that another wallet sent.
+	Safe       bool  `json:"safe"`
+	ReceivedAt int64 `json:"-"`
 	// HDPath is the BIP32 path of the owning address. Not unmarshalled: Core's
 	// listunspent doesn't supply it.
 	HDPath string `json:"-"`
@@ -237,6 +239,8 @@ type SendRequest struct {
 	ExternalInputs []ExternalInput
 	// ExcludedInputs are wallet coins the coin selection must leave alone.
 	ExcludedInputs []RequiredInput
+	// CoinOrder selects the coins when no input is pinned.
+	CoinOrder CoinOrder
 }
 
 // RequiredInput pins one outpoint that the transaction must spend.

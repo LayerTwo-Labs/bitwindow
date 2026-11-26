@@ -642,8 +642,8 @@ func TestCoreBackendSendFixedFeeSelectsInputsAndChange(t *testing.T) {
 
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": strings.Repeat("11", 32), "vout": 0, "amount": 0.0002, "spendable": true},
-			{"txid": strings.Repeat("22", 32), "vout": 1, "amount": 0.0004, "spendable": true},
+			{"txid": strings.Repeat("11", 32), "vout": 0, "amount": 0.0002, "spendable": true, "safe": true},
+			{"txid": strings.Repeat("22", 32), "vout": 1, "amount": 0.0004, "spendable": true, "safe": true},
 			{"txid": strings.Repeat("33", 32), "vout": 0, "amount": 0.0009, "spendable": false},
 		}, ""
 	})
@@ -698,7 +698,7 @@ func TestCoreBackendSendFixedFeeFromTheAmount(t *testing.T) {
 		fake.stubEnsureFlow()
 		fake.handle("listunspent", func(bitcoindCall) (any, string) {
 			return []map[string]any{
-				{"txid": strings.Repeat("11", 32), "vout": 0, "amount": 1.0, "spendable": true},
+				{"txid": strings.Repeat("11", 32), "vout": 0, "amount": 1.0, "spendable": true, "safe": true},
 			}, ""
 		})
 		fake.handle("getrawchangeaddress", func(bitcoindCall) (any, string) { return change, "" })
@@ -770,7 +770,7 @@ func TestCoreBackendSendFixedFeeResolvesRequiredInputValue(t *testing.T) {
 		require.NoError(t, json.Unmarshal(c.Params[0], &minConf))
 		assert.Equal(t, 0, minConf)
 		return []map[string]any{
-			{"txid": pinned, "vout": 2, "amount": 0.001, "spendable": true},
+			{"txid": pinned, "vout": 2, "amount": 0.001, "spendable": true, "safe": true},
 		}, ""
 	})
 	fake.handle("getrawchangeaddress", func(bitcoindCall) (any, string) { return change, "" })
@@ -886,7 +886,7 @@ func TestCoreBackendSendReplayProtect(t *testing.T) {
 
 			fake.handle("listunspent", func(bitcoindCall) (any, string) {
 				return []map[string]any{
-					{"txid": strings.Repeat("44", 32), "vout": 0, "amount": 0.001, "spendable": true},
+					{"txid": strings.Repeat("44", 32), "vout": 0, "amount": 0.001, "spendable": true, "safe": true},
 				}, ""
 			})
 			fake.handle("getrawchangeaddress", func(bitcoindCall) (any, string) {
@@ -936,7 +936,7 @@ func TestCoreBackendSendFollowsTheNetworkSwitch(t *testing.T) {
 	dest := p2wpkhAddr(t, fixedKey(0xAA), net)
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": strings.Repeat("44", 32), "vout": 0, "amount": 0.001, "spendable": true},
+			{"txid": strings.Repeat("44", 32), "vout": 0, "amount": 0.001, "spendable": true, "safe": true},
 		}, ""
 	})
 	fake.handle("getrawchangeaddress", func(bitcoindCall) (any, string) {
@@ -983,7 +983,7 @@ func TestCoreBackendCreateCpfp(t *testing.T) {
 
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": parentTxid, "vout": 0, "address": parentAddr, "amount": 0.002, "spendable": true, "confirmations": 0},
+			{"txid": parentTxid, "vout": 0, "address": parentAddr, "amount": 0.002, "spendable": true, "safe": true, "confirmations": 0},
 		}, ""
 	})
 	fake.handle("getmempoolentry", func(bitcoindCall) (any, string) {
@@ -1051,7 +1051,7 @@ func TestCoreBackendCreateCpfpBip47Parent(t *testing.T) {
 
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": parentTxid, "vout": 0, "address": parentAddr, "amount": 0.002, "spendable": true, "confirmations": 0},
+			{"txid": parentTxid, "vout": 0, "address": parentAddr, "amount": 0.002, "spendable": true, "safe": true, "confirmations": 0},
 		}, ""
 	})
 	fake.handle("getmempoolentry", func(bitcoindCall) (any, string) {
@@ -1130,7 +1130,7 @@ func TestCoreBackendCreateCpfpTaproot(t *testing.T) {
 
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": parentTxid, "vout": 0, "address": parentAddr, "amount": 0.002, "spendable": true, "confirmations": 0},
+			{"txid": parentTxid, "vout": 0, "address": parentAddr, "amount": 0.002, "spendable": true, "safe": true, "confirmations": 0},
 		}, ""
 	})
 	fake.handle("getmempoolentry", func(bitcoindCall) (any, string) {
@@ -1223,7 +1223,7 @@ func TestCoreBackendCpfpBase58Kinds(t *testing.T) {
 				targetRate  = int64(20)
 			)
 			fake.handle("listunspent", func(bitcoindCall) (any, string) {
-				return []map[string]any{{"txid": parentTxid, "vout": 0, "address": childAddr, "amount": 0.002, "spendable": true, "confirmations": 0}}, ""
+				return []map[string]any{{"txid": parentTxid, "vout": 0, "address": childAddr, "amount": 0.002, "spendable": true, "safe": true, "confirmations": 0}}, ""
 			})
 			fake.handle("getmempoolentry", func(bitcoindCall) (any, string) {
 				return map[string]any{"vsize": parentVsize, "fees": map[string]any{"base": float64(parentFee) / 1e8}}, ""
@@ -1540,7 +1540,7 @@ func TestCoreBackendSendM5Deposit(t *testing.T) {
 
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": walletTxid, "vout": 0, "amount": float64(walletFunds) / 1e8, "spendable": true},
+			{"txid": walletTxid, "vout": 0, "amount": float64(walletFunds) / 1e8, "spendable": true, "safe": true},
 		}, ""
 	})
 	fake.handle("getrawchangeaddress", func(bitcoindCall) (any, string) {
@@ -2039,7 +2039,7 @@ func TestCoreBackendReplaceableSendSignalsBip125(t *testing.T) {
 
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": coreBumpFundingTxid, "vout": 0, "amount": 0.01, "spendable": true, "confirmations": 3},
+			{"txid": coreBumpFundingTxid, "vout": 0, "amount": 0.01, "spendable": true, "safe": true, "confirmations": 3},
 		}, ""
 	})
 	fake.handle("getrawchangeaddress", func(bitcoindCall) (any, string) {
@@ -2838,7 +2838,7 @@ func TestCoreBackendListUnspentShowsAMempoolCoin(t *testing.T) {
 			return []map[string]any{}, ""
 		}
 		return []map[string]any{
-			{"txid": "change", "vout": 1, "address": "bcrt1qchange", "amount": 8.32, "confirmations": 0, "spendable": true},
+			{"txid": "change", "vout": 1, "address": "bcrt1qchange", "amount": 8.32, "confirmations": 0, "spendable": true, "safe": true},
 		}, ""
 	})
 
@@ -2855,9 +2855,9 @@ func TestCoreBackendListUnspentGivesEachCoinItsPath(t *testing.T) {
 	fake.stubEnsureFlow()
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": "a", "vout": 0, "address": "bcrt1qfirst", "amount": 1.0, "confirmations": 3, "spendable": true},
-			{"txid": "b", "vout": 1, "address": "bcrt1qfirst", "amount": 2.0, "confirmations": 2, "spendable": true},
-			{"txid": "c", "vout": 0, "address": "bcrt1qsecond", "amount": 3.0, "confirmations": 1, "spendable": true},
+			{"txid": "a", "vout": 0, "address": "bcrt1qfirst", "amount": 1.0, "confirmations": 3, "spendable": true, "safe": true},
+			{"txid": "b", "vout": 1, "address": "bcrt1qfirst", "amount": 2.0, "confirmations": 2, "spendable": true, "safe": true},
+			{"txid": "c", "vout": 0, "address": "bcrt1qsecond", "amount": 3.0, "confirmations": 1, "spendable": true, "safe": true},
 		}, ""
 	})
 	paths := map[string]string{"bcrt1qfirst": "m/84h/1h/0h/0/4", "bcrt1qsecond": "m/84h/1h/0h/1/7"}

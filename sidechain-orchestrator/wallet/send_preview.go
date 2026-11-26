@@ -122,6 +122,9 @@ func (p *CoreBackend) PreviewSend(ctx context.Context, walletID string, req Send
 	changeAddress := p.previewChange[changeKey]
 	p.previewMu.Unlock()
 
+	if inputs, err = p.coinOrderInputs(ctx, walletID, req, inputs, outputs); err != nil {
+		return nil, err
+	}
 	funded, err := p.fundWithCoreSelection(ctx, name, req, inputs, outputs, locktime, protect, changeAddress)
 	if err != nil {
 		return nil, err

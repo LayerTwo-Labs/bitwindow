@@ -78,8 +78,8 @@ func TestCoreSendLocksAHeldCoin(t *testing.T) {
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		coins := []map[string]any{}
 		for _, coin := range []map[string]any{
-			{"txid": frozenCoinTxid, "vout": 1, "address": change, "amount": 0.04, "confirmations": 0, "spendable": true},
-			{"txid": freeCoinTxid, "vout": 0, "address": change, "amount": 0.01, "confirmations": 6, "spendable": true},
+			{"txid": frozenCoinTxid, "vout": 1, "address": change, "amount": 0.04, "confirmations": 0, "spendable": true, "safe": true},
+			{"txid": freeCoinTxid, "vout": 0, "address": change, "amount": 0.01, "confirmations": 6, "spendable": true, "safe": true},
 		} {
 			if !locked[fmt.Sprintf("%s:%d", coin["txid"], coin["vout"])] {
 				coins = append(coins, coin)
@@ -167,8 +167,8 @@ func TestOverlappingSendsHoldTheLockToTheEnd(t *testing.T) {
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		coins := []map[string]any{}
 		for _, coin := range []map[string]any{
-			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true},
-			{"txid": freeCoinTxid, "vout": 0, "amount": 0.01, "spendable": true},
+			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true, "safe": true},
+			{"txid": freeCoinTxid, "vout": 0, "amount": 0.01, "spendable": true, "safe": true},
 		} {
 			if !locked[fmt.Sprintf("%s:%d", coin["txid"], coin["vout"])] {
 				coins = append(coins, coin)
@@ -228,7 +228,7 @@ func TestASecondSendWaitsForTheFirstLock(t *testing.T) {
 		defer lockMu.Unlock()
 		coins := []map[string]any{}
 		for _, coin := range []map[string]any{
-			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true},
+			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true, "safe": true},
 		} {
 			if !locked[fmt.Sprintf("%s:%d", coin["txid"], coin["vout"])] {
 				coins = append(coins, coin)
@@ -295,8 +295,8 @@ func TestALaterSendLocksACoinFrozenMeanwhile(t *testing.T) {
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		coins := []map[string]any{}
 		for _, coin := range []map[string]any{
-			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true},
-			{"txid": freeCoinTxid, "vout": 0, "amount": 0.01, "spendable": true},
+			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true, "safe": true},
+			{"txid": freeCoinTxid, "vout": 0, "amount": 0.01, "spendable": true, "safe": true},
 		} {
 			if !locked[fmt.Sprintf("%s:%d", coin["txid"], coin["vout"])] {
 				coins = append(coins, coin)
@@ -345,7 +345,7 @@ func TestAFailedUnlockKeepsTheCoins(t *testing.T) {
 
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true},
+			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true, "safe": true},
 		}, ""
 	})
 	var unlocks int
