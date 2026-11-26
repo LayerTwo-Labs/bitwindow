@@ -397,12 +397,47 @@ func (p *CoreBackend) fillReceivedAt(ctx context.Context, name string, utxos []U
 	return nil
 }
 
+// ListTransactions returns the newest count rows, oldest first, with the txs
+// that pay only change.
 func (p *CoreBackend) ListTransactions(ctx context.Context, walletID string, count int) ([]WalletTransaction, error) {
 	name, err := p.walletName(ctx, walletID)
 	if err != nil {
 		return nil, err
 	}
-	return p.rpc.ListTransactions(ctx, name, count)
+	listed, err := p.rpc.ListTransactions(ctx, name, count)
+	if err != nil {
+		return nil, err
+	}
+	all, err := p.rpc.ListAllTransactions(ctx, name, true)
+	if err != nil {
+		return nil, err
+	}
+	return withChangeOnlyTxs(listed, all, count), nil
+}
+
+// withChangeOnlyTxs adds the rows of all whose tx listed leaves out, as
+// listtransactions does for a tx that pays only change. A full page of count
+// rows gets only those no older than its oldest row.
+func withChangeOnlyTxs(listed, all []WalletTransaction, count int) []WalletTransaction {
+	known := lo.SliceToMap(listed, func(tx WalletTransaction) (string, bool) { return tx.TxID, true })
+	var oldest int64
+	if len(listed) > 0 && len(listed) >= count {
+		oldest = listed[0].Time
+	}
+	extra := lo.Filter(all, func(tx WalletTransaction, _ int) bool { return !known[tx.TxID] && tx.Time >= oldest })
+	if len(extra) == 0 {
+		return listed
+	}
+	sort.SliceStable(extra, func(i, j int) bool { return extra[i].Time < extra[j].Time })
+	merged := make([]WalletTransaction, 0, len(listed)+len(extra))
+	for _, tx := range listed {
+		for len(extra) > 0 && extra[0].Time < tx.Time {
+			merged = append(merged, extra[0])
+			extra = extra[1:]
+		}
+		merged = append(merged, tx)
+	}
+	return append(merged, extra...)
 }
 
 func (p *CoreBackend) ListTransactionsRange(ctx context.Context, walletID string, count, skip int) ([]WalletTransaction, error) {

@@ -26,6 +26,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -3383,4 +3384,47 @@ func TestCoreBackendListUnspentReadsManyCoinTimesFromTheHistory(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Len(t, fake.callsFor("listtransactions"), 2, "coins the history leaves out cost one walk, not one per read")
+}
+
+func TestCoreBackendListTransactionsHoldsChangeOnlyTxs(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	receive := map[string]any{"txid": "aa", "category": "receive", "address": "bcrt1qrecv", "amount": 1.0, "vout": 0, "time": 1000}
+	send := map[string]any{"txid": "cc", "category": "send", "address": "bcrt1qother", "amount": -0.2, "fee": -0.00001, "vout": 0, "time": 3000}
+	cancelSend := map[string]any{"txid": "bb", "category": "send", "address": "bcrt1qchange", "amount": -0.5, "fee": -0.00000282, "vout": 0, "time": 2000}
+	cancelReceive := map[string]any{"txid": "bb", "category": "receive", "address": "bcrt1qchange", "amount": 0.5, "vout": 0, "time": 2000}
+	fake.handle("listtransactions", func(bitcoindCall) (any, string) {
+		return []map[string]any{receive, send}, ""
+	})
+	fake.handle("listsinceblock", func(bitcoindCall) (any, string) {
+		return map[string]any{"transactions": []map[string]any{receive, cancelSend, cancelReceive, send}}, ""
+	})
+
+	rows, err := backend.ListTransactions(context.Background(), coreID, 100)
+	require.NoError(t, err)
+
+	got := lo.Map(rows, func(tx WalletTransaction, _ int) string { return tx.TxID + ":" + tx.Category })
+	assert.Equal(t, []string{"aa:receive", "bb:send", "bb:receive", "cc:send"}, got, "a tx with only change keeps its place in time")
+	assert.InDelta(t, -0.00000282, rows[1].Fee, 1e-12)
+	calls := fake.callsFor("listsinceblock")
+	require.Len(t, calls, 1)
+	assert.Equal(t, "true", string(calls[0].Params[4]), "the read asks Core for the change outputs")
+}
+
+func TestWithChangeOnlyTxsKeepsAFullPageInItsTimeWindow(t *testing.T) {
+	listed := []WalletTransaction{{TxID: "b", Time: 200}, {TxID: "d", Time: 400}}
+	all := []WalletTransaction{
+		{TxID: "a", Time: 100},
+		{TxID: "b", Time: 200},
+		{TxID: "c", Time: 300},
+		{TxID: "d", Time: 400},
+		{TxID: "e", Time: 500},
+	}
+	ids := func(rows []WalletTransaction) []string {
+		return lo.Map(rows, func(tx WalletTransaction, _ int) string { return tx.TxID })
+	}
+
+	assert.Equal(t, []string{"b", "c", "d", "e"}, ids(withChangeOnlyTxs(listed, all, 2)), "a row older than the page stays out")
+	assert.Equal(t, []string{"a", "b", "c", "d", "e"}, ids(withChangeOnlyTxs(listed, all, 100)))
+	assert.Equal(t, []string{"b", "d"}, ids(withChangeOnlyTxs(listed, listed, 100)))
 }
