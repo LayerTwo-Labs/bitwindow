@@ -5,7 +5,10 @@ import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
+
+import 'mocks/store_mock.dart';
 
 class _FakeBitwindow extends ChangeNotifier implements BitwindowRPC {
   @override
@@ -13,6 +16,9 @@ class _FakeBitwindow extends ChangeNotifier implements BitwindowRPC {
 }
 
 class _FakeAddressBook extends ChangeNotifier implements AddressBookProvider {
+  @override
+  List<AddressBookEntry> get receiveEntries => const [];
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -32,6 +38,9 @@ class _FakeTransactions extends ChangeNotifier implements TransactionProvider {
   @override
   String? error;
 
+  @override
+  String address = '';
+
   int fetches = 0;
 
   @override
@@ -47,6 +56,10 @@ void main() {
 
   setUp(() async {
     await GetIt.I.reset();
+    final log = Logger();
+    GetIt.I.registerSingleton<Logger>(log);
+    GetIt.I.registerSingleton<ClientSettings>(ClientSettings(store: MockStore(), log: log));
+    GetIt.I.registerSingleton<SettingsProvider>(await SettingsProvider.create());
     bitwindow = _FakeBitwindow();
     transactions = _FakeTransactions();
     GetIt.I.registerSingleton<BitwindowRPC>(bitwindow);

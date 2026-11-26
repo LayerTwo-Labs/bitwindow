@@ -2,6 +2,7 @@ import 'package:bitwindow/models/burn_ecx_amount.dart';
 import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/providers/hd_wallet_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:bitwindow/utils/bitcoin_uri.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/widgets/burn_ecx_card.dart';
 import 'package:bitwindow/widgets/claim_ecx_card.dart';
@@ -14,6 +15,8 @@ import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wm
 import 'package:sail_ui/sail_ui.dart';
 
 const _claimCardWidth = 420.0;
+
+const _maxSats = 21000000 * 100000000;
 
 /// Below this the claim card drops under the address card instead of beside it.
 const _claimBesideAddress = 1100.0;
@@ -107,6 +110,7 @@ class ReceiveTab extends StatelessWidget {
                                         ),
                                         if (model.addressDerivationPath.isNotEmpty)
                                           SailText.secondary12(model.addressDerivationPath, monospace: true),
+                                        if (model.address.isNotEmpty) PaymentRequestFields(model: model),
                                       ],
                                     ),
                                   ),
@@ -115,13 +119,14 @@ class ReceiveTab extends StatelessWidget {
                                     child: SailCard(
                                       padding: true,
                                       child: QrImageView(
+                                        key: ValueKey(model.paymentRequest),
                                         padding: EdgeInsets.zero,
                                         eyeStyle: QrEyeStyle(
                                           color: theme.colors.text,
                                           eyeShape: QrEyeShape.square,
                                         ),
                                         dataModuleStyle: QrDataModuleStyle(color: theme.colors.text),
-                                        data: model.address,
+                                        data: model.paymentRequest,
                                         version: QrVersions.auto,
                                       ),
                                     ),
@@ -175,6 +180,74 @@ class ReceiveTab extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Amount, label and message of a payment request, and the request with a copy button.
+class PaymentRequestFields extends StatelessWidget {
+  final ReceivePageViewModel model;
+
+  const PaymentRequestFields({super.key, required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final unit = model.unit;
+    final amount = SailTextField(
+      label: 'Amount',
+      controller: model.amountController,
+      hintText: 'Optional',
+      size: TextFieldSize.small,
+      textFieldType: unit == BitcoinUnit.btc ? TextFieldType.bitcoin : TextFieldType.number,
+      suffix: unit.symbol,
+    );
+    final label = SailTextField(
+      label: 'Label',
+      controller: model.labelController,
+      focusNode: model.labelFocus,
+      hintText: 'Optional',
+      size: TextFieldSize.small,
+      onSubmitted: (_) => model.saveRequestLabel(),
+    );
+    final message = SailTextField(
+      label: 'Message',
+      controller: model.messageController,
+      hintText: 'Optional',
+      size: TextFieldSize.small,
+    );
+    final fields = SailStyleValues.phoneLayout(context)
+        ? SailColumn(spacing: SailStyleValues.padding08, children: [amount, label, message])
+        : SailRow(
+            spacing: SailStyleValues.padding08,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: amount),
+              Expanded(child: label),
+              Expanded(child: message),
+            ],
+          );
+    final request = model.paymentRequest;
+
+    return SailColumn(
+      spacing: SailStyleValues.padding08,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        fields,
+        if (model.amountError case final error?) SailInlineError(error),
+        if (model.labelError case final error?) SailInlineError(error),
+        if (request != model.address)
+          SailTextField(
+            label: 'Payment request',
+            controller: TextEditingController(text: request),
+            hintText: '',
+            readOnly: true,
+            minLines: 1,
+            maxLines: null,
+            alignSuffixTop: true,
+            suffixWidget: CopyButton(text: request),
+          ),
+      ],
     );
   }
 }
@@ -483,13 +556,117 @@ class ReceivePageViewModel extends BaseViewModel {
   String sortColumn = 'address';
   bool sortAscending = true;
 
+  final amountController = TextEditingController();
+  final labelController = TextEditingController();
+  final messageController = TextEditingController();
+  final labelFocus = FocusNode();
+
+  /// The save error of the request label, or null.
+  String? labelError;
+
+  String _requestAddress = '';
+  String _savedLabel = '';
+  BitcoinUnit _amountUnit = BitcoinUnit.btc;
+
+  BitcoinUnit get unit => GetIt.I<SettingsProvider>().bitcoinUnit;
+
+  int? get _amountSats {
+    final text = amountController.text.trim();
+    return text.isEmpty ? null : parseAmountToSatoshis(text, unit);
+  }
+
+  /// The field error of the request amount, or null.
+  String? get amountError => switch (_amountSats) {
+    null => null,
+    <= 0 => 'Enter an amount above zero, or leave the field empty',
+    > _maxSats => 'The amount is more than 21 million ${activeTicker.symbol}',
+    _ => null,
+  };
+
+  /// The BIP-0021 request for the shown address. With a bad amount, the plain address.
+  String get paymentRequest {
+    if (address.isEmpty || amountError != null) {
+      return address;
+    }
+    return BitcoinURI(
+      address: address,
+      amountSats: _amountSats,
+      label: labelController.text.trim(),
+      message: messageController.text.trim(),
+    ).format();
+  }
+
+  /// Load a new request when the shown address changes, and the saved label when it loads.
+  void _syncRequest() {
+    final saved = matchingEntry.label;
+    if (address != _requestAddress) {
+      _requestAddress = address;
+      amountController.clear();
+      messageController.clear();
+      labelController.text = saved;
+      _savedLabel = saved;
+      labelError = null;
+    } else if (saved != _savedLabel && labelController.text == _savedLabel) {
+      labelController.text = saved;
+      _savedLabel = saved;
+    }
+  }
+
+  void _onChanged() {
+    _syncRequest();
+    notifyListeners();
+  }
+
+  /// Keep the request amount when the display unit changes.
+  void _onUnitChanged() {
+    final text = amountController.text.trim();
+    if (unit != _amountUnit && text.isNotEmpty) {
+      final sats = parseAmountToSatoshis(text, _amountUnit);
+      amountController.text = unit == BitcoinUnit.btc ? bip21Amount(sats) : '$sats';
+    }
+    _amountUnit = unit;
+    notifyListeners();
+  }
+
+  void _onLabelFocus() {
+    if (!labelFocus.hasFocus) {
+      saveRequestLabel();
+    }
+  }
+
+  /// Save the request label as the label of the shown address.
+  Future<void> saveRequestLabel() async {
+    final label = labelController.text.trim();
+    final target = address;
+    if (target.isEmpty || label == _savedLabel) {
+      return;
+    }
+    try {
+      await _addressBookProvider.createEntry(label, target, Direction.DIRECTION_RECEIVE);
+      if (target == address) {
+        _savedLabel = label;
+        labelError = null;
+      }
+    } catch (error) {
+      labelError = 'Could not save the label: $error';
+    }
+    notifyListeners();
+  }
+
   void init() {
     // bitwindowrpc has a health stream that notifies listener. when it changes, we should try to
     // regenerate an address!
     _bitwindowRPC.addListener(generateNewAddress);
-    transactionsProvider.addListener(notifyListeners);
-    _addressBookProvider.addListener(notifyListeners);
+    transactionsProvider.addListener(_onChanged);
+    _addressBookProvider.addListener(_onChanged);
     _hdWalletProvider.addListener(notifyListeners);
+    amountController.addListener(notifyListeners);
+    labelController.addListener(notifyListeners);
+    messageController.addListener(notifyListeners);
+    labelFocus.addListener(_onLabelFocus);
+    _amountUnit = unit;
+    GetIt.I<SettingsProvider>().addListener(_onUnitChanged);
+    _syncRequest();
     if (!_hdWalletProvider.isInitialized) {
       _hdWalletProvider.init();
     }
@@ -499,9 +676,15 @@ class ReceivePageViewModel extends BaseViewModel {
   @override
   void dispose() {
     _bitwindowRPC.removeListener(generateNewAddress);
-    transactionsProvider.removeListener(notifyListeners);
-    _addressBookProvider.removeListener(notifyListeners);
+    transactionsProvider.removeListener(_onChanged);
+    _addressBookProvider.removeListener(_onChanged);
     _hdWalletProvider.removeListener(notifyListeners);
+    labelFocus.removeListener(_onLabelFocus);
+    GetIt.I<SettingsProvider>().removeListener(_onUnitChanged);
+    amountController.dispose();
+    labelController.dispose();
+    messageController.dispose();
+    labelFocus.dispose();
     super.dispose();
   }
 
