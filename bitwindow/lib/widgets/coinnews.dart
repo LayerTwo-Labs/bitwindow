@@ -32,6 +32,27 @@ String storyMeta(CoinNews news, {required String? topicName, required String dat
   ].join(separator);
 }
 
+List<SailDropdownItem<String>> topicDropdownItems(List<Topic> topics) {
+  final names = <String>{};
+  final repeatedNames = <String>{};
+  for (final topic in topics) {
+    if (!names.add(topic.name)) {
+      repeatedNames.add(topic.name);
+    }
+  }
+  return [
+    for (final topic in topics)
+      SailDropdownItem<String>(
+        value: topic.topic,
+        label: [
+          if (repeatedNames.contains(topic.name)) '${topic.topic} · ',
+          topic.name,
+          if (!topic.confirmed) ' (pending)',
+        ].join(),
+      ),
+  ];
+}
+
 class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
   const CoinNewsView({super.key});
 
@@ -78,14 +99,7 @@ class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
                     ),
                     SailMultiSelectDropdown(
                       selectedCountText: selectedTopicCount == 1 ? '1 topic' : '$selectedTopicCount topics',
-                      items: viewModel.topics
-                          .map(
-                            (topic) => SailDropdownItem(
-                              value: topic.topic,
-                              label: topic.confirmed ? topic.name : '${topic.name} (pending)',
-                            ),
-                          )
-                          .toList(),
+                      items: topicDropdownItems(viewModel.topics),
                       selectedValues: viewModel.selectedTopicIds,
                       onSelected: viewModel.toggleTopic,
                       searchPlaceholder: 'Select topics..',
@@ -233,12 +247,7 @@ class _LargeColumn extends StatelessWidget {
               SailText.primary15('Coin News', bold: true),
               Expanded(child: Container()),
               SailDropdownButton<String>(
-                items: viewModel.topics
-                    .map(
-                      (t) =>
-                          SailDropdownItem<String>(value: t.topic, label: t.confirmed ? t.name : '${t.name} (pending)'),
-                    )
-                    .toList(),
+                items: topicDropdownItems(viewModel.topics),
                 onChanged: onTopicChanged,
                 value: topic,
               ),

@@ -103,14 +103,7 @@ class FeeCoinNewsViewModel extends BaseViewModel {
   String? get readError => _newsProvider.readError;
   List<Topic> get topics => _newsProvider.topics;
 
-  List<SailDropdownItem<String>> get topicItems => topics
-      .map(
-        (topic) => SailDropdownItem<String>(
-          value: topic.topic,
-          label: topic.confirmed ? topic.name : '${topic.name} (pending)',
-        ),
-      )
-      .toList();
+  List<SailDropdownItem<String>> get topicItems => topicDropdownItems(topics);
 
   List<CoinNews> get entries {
     if (loading) {
@@ -281,14 +274,7 @@ class FeeCoinNewsLargeViewModel extends BaseViewModel {
   String? get readError => _newsProvider.readError;
   List<Topic> get topics => _newsProvider.topics;
 
-  List<SailDropdownItem<String>> get topicItems => topics
-      .map(
-        (topic) => SailDropdownItem<String>(
-          value: topic.topic,
-          label: topic.confirmed ? topic.name : '${topic.name} (pending)',
-        ),
-      )
-      .toList();
+  List<SailDropdownItem<String>> get topicItems => topicDropdownItems(topics);
 
   List<CoinNews> get leftEntries => _entriesFor(leftTopic);
   List<CoinNews> get rightEntries => _entriesFor(rightTopic);
