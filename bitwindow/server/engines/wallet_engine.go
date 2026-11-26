@@ -505,6 +505,26 @@ func (e *WalletEngine) BroadcastOpReturn(ctx context.Context, data []byte, feeSa
 	return e.SendTransaction(ctx, req)
 }
 
+// PreviewOpReturn gives the fee in sats and the size in vB of the send that
+// BroadcastOpReturn makes with no fee choice. It broadcasts nothing.
+func (e *WalletEngine) PreviewOpReturn(ctx context.Context, data []byte) (feeSats, vsize int64, err error) {
+	activeWallet, err := e.GetActiveWallet(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("get active wallet: %w", err)
+	}
+	if err := e.PushFrozenCoins(ctx); err != nil {
+		return 0, 0, err
+	}
+	resp, err := e.orchClient.PreviewSend(ctx, &orchpb.PreviewSendRequest{
+		WalletId:    activeWallet.ID,
+		OpReturnHex: hex.EncodeToString(data),
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("preview send: %w", err)
+	}
+	return resp.FeeSats, resp.VsizeVbytes, nil
+}
+
 // SendTransaction builds, signs, and broadcasts a transaction through the
 // orchestrator wallet manager, which routes to the active wallet's backend
 // (electrum or Bitcoin Core). Used by server-side senders like news OP_RETURNs.

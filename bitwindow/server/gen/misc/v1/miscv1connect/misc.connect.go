@@ -143,7 +143,8 @@ type MiscServiceClient interface {
 	CommentNews(context.Context, *v1.CommentNewsRequest) (*v1.CommentNewsResponse, error)
 	// Returns the full reply thread rooted at an Item, highest fee first.
 	ListComments(context.Context, *v1.ListCommentsRequest) (*v1.ListCommentsResponse, error)
-	// What a story or comment would cost to broadcast. Builds nothing.
+	// The fee that the active wallet pays for a story or a comment with no fee
+	// choice. Broadcasts nothing.
 	EstimateNewsFee(context.Context, *v1.EstimateNewsFeeRequest) (*v1.EstimateNewsFeeResponse, error)
 	// File timestamping
 	TimestampFile(context.Context, *v1.TimestampFileRequest) (*v1.TimestampFileResponse, error)
@@ -169,7 +170,8 @@ type MiscServiceHandler interface {
 	CommentNews(context.Context, *v1.CommentNewsRequest) (*v1.CommentNewsResponse, error)
 	// Returns the full reply thread rooted at an Item, highest fee first.
 	ListComments(context.Context, *v1.ListCommentsRequest) (*v1.ListCommentsResponse, error)
-	// What a story or comment would cost to broadcast. Builds nothing.
+	// The fee that the active wallet pays for a story or a comment with no fee
+	// choice. Broadcasts nothing.
 	EstimateNewsFee(context.Context, *v1.EstimateNewsFeeRequest) (*v1.EstimateNewsFeeResponse, error)
 	// File timestamping
 	TimestampFile(context.Context, *v1.TimestampFileRequest) (*v1.TimestampFileResponse, error)
