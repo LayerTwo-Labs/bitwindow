@@ -128,6 +128,12 @@ class _UTXOsTabState extends State<UTXOsTab> {
   }
 }
 
+/// The label of a coin: its own label, else the label of its address.
+String coinLabel(UnspentOutput utxo) {
+  final own = GetIt.I<CoinSelectionProvider>().getLabel(utxo.output);
+  return own.isNotEmpty ? own : utxo.label;
+}
+
 /// The text of the freeze item in a coin menu.
 String coinFreezeMenuLabel(String outpoint) {
   if (GetIt.I<ConsolidationProvider>().reservedOutpoints.contains(outpoint)) {
@@ -277,8 +283,8 @@ class _UTXOTableState extends State<UTXOTable> {
           bValue = b.derivationPath;
           break;
         case 'label':
-          aValue = _getLabel(a);
-          bValue = _getLabel(b);
+          aValue = coinLabel(a);
+          bValue = coinLabel(b);
           break;
         case 'value':
           aValue = a.valueSats;
@@ -302,11 +308,6 @@ class _UTXOTableState extends State<UTXOTable> {
   // The precision of Timestamp.toDateTime, with no DateTime per compare.
   static int _receivedAtMicros(UnspentOutput utxo) =>
       utxo.receivedAt.seconds.toInt() * Duration.microsecondsPerSecond + utxo.receivedAt.nanos ~/ 1000;
-
-  String _getLabel(UnspentOutput utxo) {
-    final metaLabel = _coinSelection.getLabel(utxo.output);
-    return metaLabel.isNotEmpty ? metaLabel : utxo.label;
-  }
 
   // Unknown sorts below no, no below yes.
   int splittableRank(UnspentOutput utxo) {
@@ -341,7 +342,7 @@ class _UTXOTableState extends State<UTXOTable> {
   }
 
   Future<void> _showLabelDialog(BuildContext context, UnspentOutput utxo) async {
-    final controller = TextEditingController(text: _getLabel(utxo));
+    final controller = TextEditingController(text: coinLabel(utxo));
     final result = await showThemedDialog<String>(
       context: context,
       builder: (context) => SailDialog(
@@ -453,7 +454,7 @@ class _UTXOTableState extends State<UTXOTable> {
                   alignment: Alignment.centerRight,
                   monospace: true,
                 ),
-                coinLabelCell(_getLabel(utxo), monospace: true),
+                coinLabelCell(coinLabel(utxo), monospace: true),
                 SailTableCell(
                   value: denialStatusWithHops(utxo),
                   textColor: getDenialColor(context, utxo),
