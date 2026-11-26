@@ -79,6 +79,7 @@ void main() {
       List<String> outpoints = const ['x:0', 'y:1'],
       List<String> frozen = const ['z:2'],
       List<String> wallet = const ['x:0', 'y:1', 'z:2'],
+      CoinOrder order = CoinOrder.COIN_ORDER_LARGEST_FIRST,
     }) => feePreviewKey(
       walletId: 'w',
       destinations: destinations,
@@ -87,19 +88,21 @@ void main() {
       requiredOutpoints: outpoints,
       frozenOutpoints: frozen,
       walletOutpoints: wallet,
+      coinOrder: order,
     );
 
     test('the same send in another order asks for no new preview', () {
       expect(key(destinations: {'b': 2000, 'a': 1000}, outpoints: ['y:1', 'x:0']), key());
     });
 
-    test('a new amount, rate, fee mode, coin, frozen coin or wallet coin asks for a new preview', () {
+    test('a new amount, rate, fee mode, coin, frozen coin, wallet coin or coin order asks for a new preview', () {
       expect(key(destinations: {'a': 1001, 'b': 2000}), isNot(key()));
       expect(key(rate: 4), isNot(key()));
       expect(key(subtract: true), isNot(key()));
       expect(key(outpoints: ['x:0']), isNot(key()));
       expect(key(frozen: ['z:2', 'w:3']), isNot(key()));
       expect(key(wallet: ['x:0', 'z:2']), isNot(key()));
+      expect(key(order: CoinOrder.COIN_ORDER_SMALLEST_FIRST), isNot(key()));
     });
   });
 

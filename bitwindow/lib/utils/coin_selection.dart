@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
+import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' show CoinOrder;
 
 /// Strategy for selecting UTXOs when building transactions
 enum CoinSelectionStrategy {
@@ -178,6 +179,14 @@ class CoinSelector {
 }
 
 extension CoinSelectionStrategyExtension on CoinSelectionStrategy {
+  /// The order in which the wallet backend selects the coins of a send.
+  CoinOrder get coinOrder => switch (this) {
+    CoinSelectionStrategy.largestFirst => CoinOrder.COIN_ORDER_LARGEST_FIRST,
+    CoinSelectionStrategy.smallestFirst => CoinOrder.COIN_ORDER_SMALLEST_FIRST,
+    CoinSelectionStrategy.random => CoinOrder.COIN_ORDER_RANDOM,
+    CoinSelectionStrategy.branchAndBound => CoinOrder.COIN_ORDER_BRANCH_AND_BOUND,
+  };
+
   String get displayName {
     switch (this) {
       case CoinSelectionStrategy.largestFirst:

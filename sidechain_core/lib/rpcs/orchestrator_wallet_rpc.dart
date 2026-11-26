@@ -388,6 +388,7 @@ class OrchestratorWalletRPC {
     bool subtractFeeFromAmount = false,
     bool notificationOnly = false,
     List<bwpb.UnspentOutput>? requiredInputs,
+    wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
   }) async {
     await pushFrozenCoins();
     return _unaryClient.previewSend(
@@ -398,6 +399,7 @@ class OrchestratorWalletRPC {
         subtractFeeFromAmount: subtractFeeFromAmount,
         notificationOnly: notificationOnly,
         requiredInputs: requiredInputs?.map(_mapRequiredInput).toList() ?? [],
+        coinOrder: coinOrder,
       ),
     );
   }
@@ -414,6 +416,7 @@ class OrchestratorWalletRPC {
     String? opReturnHex,
     List<bwpb.UnspentOutput>? requiredInputs,
     bool allowReplay = false,
+    wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
   }) async {
     final resolvedOpReturnHex =
         opReturnHex ?? (opReturnMessage == null ? null : _bytesToHex(utf8.encode(opReturnMessage)));
@@ -429,6 +432,7 @@ class OrchestratorWalletRPC {
         fixedFeeSats: Int64(fixedFeeSats ?? 0),
         requiredInputs: requiredInputs?.map(_mapRequiredInput).toList() ?? [],
         allowReplay: allowReplay,
+        coinOrder: coinOrder,
       ),
     );
     return response.psbtBase64;

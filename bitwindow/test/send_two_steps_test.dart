@@ -5,13 +5,14 @@ import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/providers/coin_selection_provider.dart';
 import 'package:bitwindow/providers/psbt_draft_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:bitwindow/utils/coin_selection.dart';
 import 'package:bitwindow/widgets/grouped_address.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
-import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
+import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart' hide CoinSelectionStrategy;
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 import 'package:sidechain_core/gen/walletpsbt/v1/walletpsbt.pb.dart';
 
@@ -41,6 +42,9 @@ class _Transactions extends ChangeNotifier implements TransactionProvider {
 class _Coins extends ChangeNotifier implements CoinSelectionProvider {
   @override
   Set<String> frozenOutpoints = {};
+
+  @override
+  CoinSelectionStrategy strategy = CoinSelectionStrategy.largestFirst;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -77,6 +81,7 @@ class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
 
 class _Wallet implements OrchestratorWalletRPC {
   Map<String, int>? psbtDestinations;
+  wmpb.CoinOrder? psbtCoinOrder;
 
   @override
   Future<String> createPsbt({
@@ -89,8 +94,10 @@ class _Wallet implements OrchestratorWalletRPC {
     String? opReturnHex,
     List<UnspentOutput>? requiredInputs,
     bool allowReplay = false,
+    wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
   }) async {
     psbtDestinations = destinations;
+    psbtCoinOrder = coinOrder;
     return 'unsigned';
   }
 
@@ -102,6 +109,7 @@ class _Wallet implements OrchestratorWalletRPC {
     bool subtractFeeFromAmount = false,
     bool notificationOnly = false,
     List<UnspentOutput>? requiredInputs,
+    wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
   }) async {
     expect(notificationOnly, isTrue);
     expect(feeRateSatPerVbyte, 0);
@@ -168,6 +176,18 @@ void main() {
 
       expect(psbt, 'unsigned');
       expect(orchestrator.wallet.psbtDestinations, {address: 15000});
+    });
+
+    testWidgets('PSBT creation selects the coins in the strategy order', (tester) async {
+      coins.strategy = CoinSelectionStrategy.smallestFirst;
+      model.recipients.single.addressController.text = 'bcrt1qvx7nwqp6cpqgl33m40fmk55zhh29e849f3uv69';
+      model.recipients.single.amountController.text = '0.00013';
+      model.feeController.text = '0.00010000';
+      await tester.pumpWidget(const SizedBox());
+
+      await model.buildUnsignedPsbtForAirgap(tester.element(find.byType(SizedBox)));
+
+      expect(orchestrator.wallet.psbtCoinOrder, wmpb.CoinOrder.COIN_ORDER_SMALLEST_FIRST);
     });
 
     test('MAX keeps the BIP47 notification cost with a fixed fee', () async {

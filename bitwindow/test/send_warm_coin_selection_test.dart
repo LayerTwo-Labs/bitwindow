@@ -18,6 +18,7 @@ class _PreviewWallet implements OrchestratorWalletRPC {
     bool subtractFeeFromAmount = false,
     bool notificationOnly = false,
     List<UnspentOutput>? requiredInputs,
+    wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
   }) async {
     expect(walletId, 'w1');
     expect(requiredInputs, isNull);

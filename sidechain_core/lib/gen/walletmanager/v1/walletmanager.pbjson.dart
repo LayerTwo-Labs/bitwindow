@@ -50,6 +50,24 @@ final $typed_data.Uint8List nodeModeDescriptor =
     $convert.base64Decode('CghOb2RlTW9kZRIZChVOT0RFX01PREVfVU5TUEVDSUZJRUQQABISCg5OT0RFX01PREVfRlVMTB'
         'ABEhMKD05PREVfTU9ERV9MSUdIVBAC');
 
+@$core.Deprecated('Use coinOrderDescriptor instead')
+const CoinOrder$json = {
+  '1': 'CoinOrder',
+  '2': [
+    {'1': 'COIN_ORDER_UNSPECIFIED', '2': 0},
+    {'1': 'COIN_ORDER_LARGEST_FIRST', '2': 1},
+    {'1': 'COIN_ORDER_SMALLEST_FIRST', '2': 2},
+    {'1': 'COIN_ORDER_RANDOM', '2': 3},
+    {'1': 'COIN_ORDER_BRANCH_AND_BOUND', '2': 4},
+  ],
+};
+
+/// Descriptor for `CoinOrder`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List coinOrderDescriptor =
+    $convert.base64Decode('CglDb2luT3JkZXISGgoWQ09JTl9PUkRFUl9VTlNQRUNJRklFRBAAEhwKGENPSU5fT1JERVJfTE'
+        'FSR0VTVF9GSVJTVBABEh0KGUNPSU5fT1JERVJfU01BTExFU1RfRklSU1QQAhIVChFDT0lOX09S'
+        'REVSX1JBTkRPTRADEh8KG0NPSU5fT1JERVJfQlJBTkNIX0FORF9CT1VORBAE');
+
 @$core.Deprecated('Use walletTypeDescriptor instead')
 const WalletType$json = {
   '1': 'WalletType',
@@ -1382,6 +1400,7 @@ const PreviewSendRequest$json = {
     {'1': 'allow_replay', '3': 6, '4': 1, '5': 8, '10': 'allowReplay'},
     {'1': 'notification_only', '3': 7, '4': 1, '5': 8, '10': 'notificationOnly'},
     {'1': 'op_return_hex', '3': 8, '4': 1, '5': 9, '10': 'opReturnHex'},
+    {'1': 'coin_order', '3': 9, '4': 1, '5': 14, '6': '.walletmanager.v1.CoinOrder', '10': 'coinOrder'},
   ],
   '3': [PreviewSendRequest_DestinationsEntry$json],
 };
@@ -1405,9 +1424,10 @@ final $typed_data.Uint8List previewSendRequestDescriptor =
         'BCABKAhSFXN1YnRyYWN0RmVlRnJvbUFtb3VudBJICg9yZXF1aXJlZF9pbnB1dHMYBSADKAsyHy'
         '53YWxsZXRtYW5hZ2VyLnYxLlVuc3BlbnRPdXRwdXRSDnJlcXVpcmVkSW5wdXRzEiEKDGFsbG93'
         'X3JlcGxheRgGIAEoCFILYWxsb3dSZXBsYXkSKwoRbm90aWZpY2F0aW9uX29ubHkYByABKAhSEG'
-        '5vdGlmaWNhdGlvbk9ubHkSIgoNb3BfcmV0dXJuX2hleBgIIAEoCVILb3BSZXR1cm5IZXgaPwoR'
-        'RGVzdGluYXRpb25zRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSFAoFdmFsdWUYAiABKANSBXZhbH'
-        'VlOgI4AQ==');
+        '5vdGlmaWNhdGlvbk9ubHkSIgoNb3BfcmV0dXJuX2hleBgIIAEoCVILb3BSZXR1cm5IZXgSOgoK'
+        'Y29pbl9vcmRlchgJIAEoDjIbLndhbGxldG1hbmFnZXIudjEuQ29pbk9yZGVyUgljb2luT3JkZX'
+        'IaPwoRRGVzdGluYXRpb25zRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSFAoFdmFsdWUYAiABKANS'
+        'BXZhbHVlOgI4AQ==');
 
 @$core.Deprecated('Use previewSendResponseDescriptor instead')
 const PreviewSendResponse$json = {
@@ -1530,6 +1550,7 @@ const CreatePsbtRequest$json = {
     {'1': 'raw_outputs', '3': 8, '4': 3, '5': 11, '6': '.walletmanager.v1.RawOutput', '10': 'rawOutputs'},
     {'1': 'external_inputs', '3': 9, '4': 3, '5': 11, '6': '.walletmanager.v1.ExternalInput', '10': 'externalInputs'},
     {'1': 'allow_replay', '3': 11, '4': 1, '5': 8, '10': 'allowReplay'},
+    {'1': 'coin_order', '3': 12, '4': 1, '5': 14, '6': '.walletmanager.v1.CoinOrder', '10': 'coinOrder'},
   ],
   '3': [CreatePsbtRequest_DestinationsEntry$json],
   '9': [
@@ -1559,8 +1580,9 @@ final $typed_data.Uint8List createPsbtRequestDescriptor =
         'VkSW5wdXRzEjwKC3Jhd19vdXRwdXRzGAggAygLMhsud2FsbGV0bWFuYWdlci52MS5SYXdPdXRw'
         'dXRSCnJhd091dHB1dHMSSAoPZXh0ZXJuYWxfaW5wdXRzGAkgAygLMh8ud2FsbGV0bWFuYWdlci'
         '52MS5FeHRlcm5hbElucHV0Ug5leHRlcm5hbElucHV0cxIhCgxhbGxvd19yZXBsYXkYCyABKAhS'
-        'C2FsbG93UmVwbGF5Gj8KEURlc3RpbmF0aW9uc0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5EhQKBX'
-        'ZhbHVlGAIgASgDUgV2YWx1ZToCOAFKBAgKEAs=');
+        'C2FsbG93UmVwbGF5EjoKCmNvaW5fb3JkZXIYDCABKA4yGy53YWxsZXRtYW5hZ2VyLnYxLkNvaW'
+        '5PcmRlclIJY29pbk9yZGVyGj8KEURlc3RpbmF0aW9uc0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5'
+        'EhQKBXZhbHVlGAIgASgDUgV2YWx1ZToCOAFKBAgKEAs=');
 
 @$core.Deprecated('Use createPsbtResponseDescriptor instead')
 const CreatePsbtResponse$json = {

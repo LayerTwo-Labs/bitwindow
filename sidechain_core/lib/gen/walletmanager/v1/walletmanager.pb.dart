@@ -5693,6 +5693,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     $core.bool? allowReplay,
     $core.bool? notificationOnly,
     $core.String? opReturnHex,
+    CoinOrder? coinOrder,
   }) {
     final result = PreviewSendRequest._();
     if (walletId != null) result.walletId = walletId;
@@ -5703,6 +5704,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     if (allowReplay != null) result.allowReplay = allowReplay;
     if (notificationOnly != null) result.notificationOnly = notificationOnly;
     if (opReturnHex != null) result.opReturnHex = opReturnHex;
+    if (coinOrder != null) result.coinOrder = coinOrder;
     return result;
   }
 
@@ -5730,6 +5732,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     ..aOB(6, _omitFieldNames ? '' : 'allowReplay')
     ..aOB(7, _omitFieldNames ? '' : 'notificationOnly')
     ..aOS(8, _omitFieldNames ? '' : 'opReturnHex')
+    ..aE<CoinOrder>(9, _omitFieldNames ? '' : 'coinOrder', enumValues: CoinOrder.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5814,6 +5817,15 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
   $core.bool hasOpReturnHex() => $_has(7);
   @$pb.TagNumber(8)
   void clearOpReturnHex() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  CoinOrder get coinOrder => $_getN(8);
+  @$pb.TagNumber(9)
+  set coinOrder(CoinOrder value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasCoinOrder() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearCoinOrder() => $_clearField(9);
 }
 
 class PreviewSendResponse extends $pb.GeneratedMessage {
@@ -6267,6 +6279,7 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
     $core.Iterable<RawOutput>? rawOutputs,
     $core.Iterable<ExternalInput>? externalInputs,
     $core.bool? allowReplay,
+    CoinOrder? coinOrder,
   }) {
     final result = CreatePsbtRequest._();
     if (walletId != null) result.walletId = walletId;
@@ -6279,6 +6292,7 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
     if (rawOutputs != null) result.rawOutputs.addAll(rawOutputs);
     if (externalInputs != null) result.externalInputs.addAll(externalInputs);
     if (allowReplay != null) result.allowReplay = allowReplay;
+    if (coinOrder != null) result.coinOrder = coinOrder;
     return result;
   }
 
@@ -6308,6 +6322,7 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
     ..pPM<RawOutput>(8, _omitFieldNames ? '' : 'rawOutputs', subBuilder: RawOutput.$_createMessage)
     ..pPM<ExternalInput>(9, _omitFieldNames ? '' : 'externalInputs', subBuilder: ExternalInput.$_createMessage)
     ..aOB(11, _omitFieldNames ? '' : 'allowReplay')
+    ..aE<CoinOrder>(12, _omitFieldNames ? '' : 'coinOrder', enumValues: CoinOrder.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -6398,6 +6413,15 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
   $core.bool hasAllowReplay() => $_has(9);
   @$pb.TagNumber(11)
   void clearAllowReplay() => $_clearField(11);
+
+  @$pb.TagNumber(12)
+  CoinOrder get coinOrder => $_getN(10);
+  @$pb.TagNumber(12)
+  set coinOrder(CoinOrder value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasCoinOrder() => $_has(10);
+  @$pb.TagNumber(12)
+  void clearCoinOrder() => $_clearField(12);
 }
 
 class CreatePsbtResponse extends $pb.GeneratedMessage {

@@ -148,6 +148,7 @@ class _FakeRpc implements OrchestratorWalletRPC {
     String? opReturnHex,
     List<bwpb.UnspentOutput>? requiredInputs,
     bool allowReplay = false,
+    wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
   }) async {
     walletIds.add(walletId);
     amounts.add(destinations);
