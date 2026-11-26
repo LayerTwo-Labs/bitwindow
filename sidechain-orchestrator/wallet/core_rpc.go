@@ -779,9 +779,10 @@ func (c *CoreRPCClient) InMempool(ctx context.Context, txid string) (bool, error
 	}
 }
 
-// ListAllTransactions returns every transaction the wallet holds.
-func (c *CoreRPCClient) ListAllTransactions(ctx context.Context, walletName string) ([]WalletTransaction, error) {
-	result, err := c.call(ctx, walletName, "listsinceblock")
+// ListAllTransactions returns every transaction the wallet holds. With
+// includeChange, it also lists the outputs that pay the wallet's change.
+func (c *CoreRPCClient) ListAllTransactions(ctx context.Context, walletName string, includeChange bool) ([]WalletTransaction, error) {
+	result, err := c.call(ctx, walletName, "listsinceblock", "", 1, true, true, includeChange)
 	if err != nil {
 		return nil, err
 	}

@@ -138,7 +138,7 @@ func (p *CoreBackend) chainSynced(ctx context.Context) (bool, error) {
 }
 
 func (p *CoreBackend) releaseStrandedIn(ctx context.Context, name string, retiredLockTimes []uint32) error {
-	txs, err := p.rpc.ListAllTransactions(ctx, name)
+	txs, err := p.rpc.ListAllTransactions(ctx, name, false)
 	if err != nil {
 		return err
 	}
