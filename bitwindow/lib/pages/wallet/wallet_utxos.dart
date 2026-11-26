@@ -24,9 +24,6 @@ class _UTXOsTabState extends State<UTXOsTab> {
   static const double _headerHeight = 40.0;
   static const double _cardPadding = 80.0; // title + padding
 
-  BitwindowRPC get _rpc => GetIt.I<BitwindowRPC>();
-  CoinSelectionProvider get _coinSelection => GetIt.I<CoinSelectionProvider>();
-  ConsolidationProvider get _consolidation => GetIt.I<ConsolidationProvider>();
   WalletReaderProvider get _walletReader => GetIt.I<WalletReaderProvider>();
 
   void _showBucketContextMenu(BuildContext context, UtxoBucket bucket, Offset position) {
@@ -40,25 +37,8 @@ class _UTXOsTabState extends State<UTXOsTab> {
         items: [
           if (isSingleUtxo && outpoint != null) ...[
             SailMenuItem(
-              onSelected: () async {
-                // A consolidation broadcasts its queued transactions without
-                // freezing again, so releasing one of its coins here would
-                // break that send.
-                if (_consolidation.reservedOutpoints.contains(outpoint)) {
-                  showSailToast(context, 'A consolidation holds this coin. Stop it from the Consolidate tab first.');
-                  return;
-                }
-                final isFrozen = _coinSelection.isFrozen(outpoint);
-                await _rpc.wallet.setUTXOMetadata(outpoint, isFrozen: !isFrozen);
-                await _coinSelection.fetch();
-              },
-              child: SailText.primary12(
-                _consolidation.reservedOutpoints.contains(outpoint)
-                    ? 'Held by a consolidation'
-                    : _coinSelection.isFrozen(outpoint)
-                    ? 'Unfreeze UTXO'
-                    : 'Freeze UTXO',
-              ),
+              onSelected: () async => toggleCoinFreeze(context, outpoint),
+              child: SailText.primary12(coinFreezeMenuLabel(outpoint)),
             ),
             SailMenuItem(
               onSelected: () async {
@@ -148,6 +128,37 @@ class _UTXOsTabState extends State<UTXOsTab> {
   }
 }
 
+/// The text of the freeze item in a coin menu.
+String coinFreezeMenuLabel(String outpoint) {
+  if (GetIt.I<ConsolidationProvider>().reservedOutpoints.contains(outpoint)) {
+    return 'Held by a consolidation';
+  }
+  return GetIt.I<CoinSelectionProvider>().isFrozen(outpoint) ? 'Unfreeze UTXO' : 'Freeze UTXO';
+}
+
+/// Freezes or unfreezes a coin from a coin menu, and shows a failure in a toast.
+Future<void> toggleCoinFreeze(BuildContext context, String outpoint) async {
+  // A consolidation broadcasts its queued transactions without a new freeze,
+  // so a release here would break that send.
+  if (GetIt.I<ConsolidationProvider>().reservedOutpoints.contains(outpoint)) {
+    showSailToast(context, 'A consolidation holds this coin. Stop it from the Consolidate tab first.');
+    return;
+  }
+  final coins = GetIt.I<CoinSelectionProvider>();
+  final freeze = !coins.isFrozen(outpoint);
+  try {
+    await coins.setFrozen(outpoint, freeze);
+  } catch (e) {
+    if (context.mounted) {
+      showSailToast(
+        context,
+        'BitWindow could not ${freeze ? 'freeze' : 'unfreeze'} the coin: $e',
+        variant: SailToastVariant.destructive,
+      );
+    }
+  }
+}
+
 /// The label cell of a coin table. Its first [columnChars] characters size the column, and a longer label ends
 /// with an ellipsis, so it does not push the other columns out.
 SailTableCell coinLabelCell(String label, {bool monospace = false, int columnChars = 24}) => SailTableCell(
@@ -193,7 +204,6 @@ class _UTXOTableState extends State<UTXOTable> {
   bool hideFrozen = false;
 
   CoinSelectionProvider get _coinSelection => GetIt.I<CoinSelectionProvider>();
-  BitwindowRPC get _rpc => GetIt.I<BitwindowRPC>();
 
   @override
   void initState() {
@@ -358,9 +368,15 @@ class _UTXOTableState extends State<UTXOTable> {
       ),
     );
 
-    if (result != null) {
-      await _rpc.wallet.setUTXOMetadata(utxo.output, label: result);
-      await _coinSelection.fetch();
+    if (result == null) {
+      return;
+    }
+    try {
+      await _coinSelection.setLabel(utxo.output, result);
+    } catch (e) {
+      if (context.mounted) {
+        showSailToast(context, 'BitWindow could not save the label: $e', variant: SailToastVariant.destructive);
+      }
     }
   }
 
@@ -479,15 +495,11 @@ class _UTXOTableState extends State<UTXOTable> {
             onDoubleTap: (rowId) => showTransactionDetails(context, rowId.split(':').first),
             contextMenuItems: (rowId) {
               final utxo = sortedEntries.firstWhere((u) => u.output == rowId);
-              final isFrozen = _coinSelection.isFrozen(rowId);
 
               return [
                 SailMenuItem(
-                  onSelected: () async {
-                    await _rpc.wallet.setUTXOMetadata(rowId, isFrozen: !isFrozen);
-                    await _coinSelection.fetch();
-                  },
-                  child: SailText.primary12(isFrozen ? 'Unfreeze UTXO' : 'Freeze UTXO'),
+                  onSelected: () async => toggleCoinFreeze(context, rowId),
+                  child: SailText.primary12(coinFreezeMenuLabel(rowId)),
                 ),
                 SailMenuItem(
                   onSelected: () async {

@@ -551,6 +551,32 @@ void main() {
     expect(run.error, contains('could not unfreeze'));
   });
 
+  // An Unfreeze click must never fail with no trace on the run.
+  test('a failed unfreeze keeps the coins marked and shows the error on the run', () async {
+    await provider.start(walletId: 'wallet', plan: planOf([coin('a', 50000), coin('b', 50000)]));
+    final run = provider.runs.single;
+    expect(run.status, ConsolidationRunStatus.pending);
+    bitwindow.recordingWallet.failUnfreeze = true;
+
+    await provider.unfreeze(run);
+    await provider.unfreeze(run);
+
+    expect(run.coinsFrozen, isTrue);
+    expect(run.canUnfreeze, isTrue);
+    expect(run.status, ConsolidationRunStatus.pending);
+    expect(
+      'BitWindow could not unfreeze the coins'.allMatches(run.error!).length,
+      1,
+      reason: 'one line per failure kind',
+    );
+
+    bitwindow.recordingWallet.failUnfreeze = false;
+    await provider.unfreeze(run);
+
+    expect(run.coinsFrozen, isFalse);
+    expect(run.error, isNot(contains('could not unfreeze')));
+  });
+
   // Every queued run holds frozen coins already. The loop broadcasts it later
   // without a new freeze, so releasing it early leaves the send unreserved.
   test('offers no unfreeze on a transaction that has not sent', () async {

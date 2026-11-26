@@ -52,6 +52,20 @@ class CoinSelectionProvider extends ChangeNotifier {
     }
   }
 
+  /// Freezes or unfreezes one coin, then reads the metadata again. It throws
+  /// when the write or the read fails.
+  Future<void> setFrozen(String outpoint, bool frozen) async {
+    await _rpc.wallet.setUTXOMetadata(outpoint, isFrozen: frozen);
+    await refresh();
+  }
+
+  /// Saves the label of one coin, then reads the metadata again. It throws
+  /// when the write or the read fails.
+  Future<void> setLabel(String outpoint, String label) async {
+    await _rpc.wallet.setUTXOMetadata(outpoint, label: label);
+    await refresh();
+  }
+
   /// Runs one read and reports its failure instead of throwing, so a plain
   /// [fetch] stays quiet.
   Future<Object?> _read() {
