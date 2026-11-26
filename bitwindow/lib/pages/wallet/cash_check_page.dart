@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:bitwindow/routing/router.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
+
+const _checkDebounce = Duration(milliseconds: 400);
 
 @RoutePage()
 class CashCheckPage extends StatefulWidget {
@@ -18,12 +22,62 @@ class _CashCheckPageState extends State<CashCheckPage> {
   final WalletReaderProvider _walletReader = GetIt.I.get<WalletReaderProvider>();
   final TextEditingController _wifController = TextEditingController();
   bool _isCashing = false;
+  bool _isChecking = false;
+  SweepPreview? _preview;
+  String? _destination;
   String? _error;
+  Timer? _debounce;
+
+  String get _wif => _wifController.text.trim();
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _wifController.dispose();
     super.dispose();
+  }
+
+  void _onKeyChanged(String value) {
+    _debounce?.cancel();
+    final hasKey = value.trim().isNotEmpty;
+    setState(() {
+      _error = null;
+      _preview = null;
+      _isChecking = hasKey;
+    });
+    if (hasKey) {
+      _debounce = Timer(_checkDebounce, _check);
+    }
+  }
+
+  /// Reads what the key holds and what the sweep to this wallet costs.
+  Future<void> _check() async {
+    final wif = _wif;
+    try {
+      final walletId = _walletReader.activeWalletId;
+      if (walletId == null) {
+        throw Exception('No active wallet');
+      }
+      final destination = (await _orchestratorWallet.getNewAddress(walletId)).address;
+      final preview = await _bitwindowRPC.wallet.previewSweep(wif, destinationAddress: destination);
+      if (!mounted || _wif != wif) {
+        return;
+      }
+      setState(() {
+        _isChecking = false;
+        _destination = destination;
+        _preview = preview.hasFunds ? preview : null;
+        _error = preview.hasFunds ? null : 'This key holds no coins.';
+      });
+    } catch (e) {
+      if (!mounted || _wif != wif) {
+        return;
+      }
+      setState(() {
+        _isChecking = false;
+        _error = 'Failed to cash check: $e';
+      });
+    }
   }
 
   @override
@@ -56,12 +110,9 @@ class _CashCheckPageState extends State<CashCheckPage> {
                       hintText: 'Private key (WIF format)',
                       textFieldType: TextFieldType.text,
                       maxLines: 3,
-                      onChanged: (_) {
-                        if (_error != null) {
-                          setState(() => _error = null);
-                        }
-                      },
+                      onChanged: _onKeyChanged,
                     ),
+                    if (_preview case final preview?) _SweepPreviewRows(preview: preview, phone: phone),
                     SailRow(
                       spacing: SailStyleValues.padding08,
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -73,7 +124,8 @@ class _CashCheckPageState extends State<CashCheckPage> {
                         ),
                         SailButton(
                           label: 'Cash Check',
-                          loading: _isCashing,
+                          loading: _isCashing || _isChecking,
+                          disabled: _preview == null,
                           onPressed: () async => _cashCheck(),
                         ),
                       ],
@@ -90,9 +142,10 @@ class _CashCheckPageState extends State<CashCheckPage> {
   }
 
   Future<void> _cashCheck() async {
-    final wif = _wifController.text.trim();
-    if (wif.isEmpty) {
-      setState(() => _error = 'Please enter a private key');
+    final wif = _wif;
+    final preview = _preview;
+    final destinationAddress = _destination;
+    if (preview == null || destinationAddress == null) {
       return;
     }
 
@@ -107,14 +160,11 @@ class _CashCheckPageState extends State<CashCheckPage> {
         throw Exception('No active wallet');
       }
 
-      final destinationAddress = (await _orchestratorWallet.getNewAddress(walletId)).address;
-
-      // 0 means "use the backend's electrum fee estimate".
       final result = await _bitwindowRPC.wallet.sweepCheque(
         walletId,
         wif,
         destinationAddress,
-        0,
+        preview.feeSatPerVbyte,
       );
 
       if (!mounted) {
@@ -214,6 +264,53 @@ class _CashCheckPageState extends State<CashCheckPage> {
     );
 
     passwordController.dispose();
+  }
+}
+
+String _formatSats(int sats) => '${(sats / 100000000).toStringAsFixed(8)} ${activeTicker.symbol}';
+
+/// What the key holds, the fee of the sweep, and what the wallet receives.
+class _SweepPreviewRows extends StatelessWidget {
+  final SweepPreview preview;
+  final bool phone;
+
+  const _SweepPreviewRows({required this.preview, required this.phone});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = [
+      ('Check amount', _formatSats(preview.amountSats)),
+      ('Network fee', _formatSats(preview.feeSats)),
+      ('You receive', _formatSats(preview.receiveSats)),
+    ];
+    if (phone) {
+      final divider = Container(height: 1, color: SailTheme.of(context).colors.divider);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (label, value) in rows) ...[divider, SailValueRow(label: label, value: value)],
+          divider,
+        ],
+      );
+    }
+    return SailCard(
+      padding: true,
+      secondary: true,
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (label, value) in rows)
+            SailRow(
+              spacing: SailStyleValues.padding08,
+              children: [
+                SailText.primary13('$label:', bold: true),
+                SailText.primary13(value),
+              ],
+            ),
+        ],
+      ),
+    );
   }
 }
 
