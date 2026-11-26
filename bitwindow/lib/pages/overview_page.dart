@@ -1124,6 +1124,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     final lines = data.text!.split('\n').where((l) => l.trim().isNotEmpty).toList();
     var imported = 0;
     var failed = 0;
+    String? firstError;
 
     for (final line in lines) {
       final regex = RegExp(r'^(\d+)\{([a-fA-F0-9]{8})\}(.+)$');
@@ -1144,9 +1145,11 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
           imported++;
         } catch (e) {
           failed++;
+          firstError ??= e.toString();
         }
       } else {
         failed++;
+        firstError ??= '"${line.trim()}" is not in the format {days}{identifier}Name';
       }
     }
 
@@ -1155,12 +1158,13 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       return;
     }
 
-    if (imported > 0) {
-      showSailToast(context, 'Imported $imported topic(s)${failed > 0 ? ', $failed failed' : ''}');
-    } else if (failed > 0) {
-      importError = 'Failed to import $failed topic(s)';
+    if (failed > 0) {
+      importError = 'Failed to import $failed topic(s): $firstError';
       notifyListeners();
-    } else {
+    }
+    if (imported > 0) {
+      showSailToast(context, 'Imported $imported topic(s)');
+    } else if (failed == 0) {
       showSailToast(context, 'No new topics to import');
     }
   }
