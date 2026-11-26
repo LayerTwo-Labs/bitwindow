@@ -49,6 +49,7 @@ class _FakeWallet implements OrchestratorWalletRPC {
       xprv: 'xprv-master',
       xpub: 'xpub-master',
       bip47PaymentCode: 'PM8code',
+      watchDescriptor: 'wpkh($path)',
       keys: [
         for (var i = startIndex; i < startIndex + 2; i++)
           wmpb.ExploredKey(path: '$path/$i', address: '${walletId}addr-$i', publicKey: 'pub-$i', wif: 'wif-$i'),
@@ -194,6 +195,7 @@ void main() {
       expect(model.xpriv, isEmpty);
       expect(model.xpub, isEmpty);
       expect(model.bip47PaymentCode, isEmpty);
+      expect(model.watchDescriptor, isEmpty);
       expect(model.derivedEntries, isEmpty);
       expect(model.currentPage, 0);
       expect(model.canGoNext, isFalse);
@@ -226,6 +228,14 @@ void main() {
 
     model.derivationPathController.text = ' ';
     expect(model.canDeriveAddresses, isFalse);
+  });
+
+  test('shows the watch descriptor of the account', () async {
+    final model = HDWalletViewModel()..mnemonicController.text = _mnemonic;
+
+    await model.deriveAddresses();
+
+    expect(model.watchDescriptor, "wpkh(m/84'/0'/0'/0)");
   });
 
   test('shows the reason when the orchestrator refuses', () async {
