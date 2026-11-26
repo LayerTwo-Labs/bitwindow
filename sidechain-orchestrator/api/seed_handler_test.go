@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,15 +21,34 @@ import (
 
 const seedHandlerMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 
+// receivedBackend answers ListReceivedByAddress from a fixed list.
+type receivedBackend struct {
+	wallet.Backend
+	received []wallet.ReceivedByAddress
+	err      error
+	calls    int
+}
+
+func (b *receivedBackend) ListReceivedByAddress(context.Context, string) ([]wallet.ReceivedByAddress, error) {
+	b.calls++
+	return b.received, b.err
+}
+
 func newSeedHandler(t *testing.T, net *chaincfg.Params) *WalletHandler {
+	h, _ := newSeedHandlerWithBackend(t, net)
+	return h
+}
+
+func newSeedHandlerWithBackend(t *testing.T, net *chaincfg.Params) (*WalletHandler, *receivedBackend) {
 	t.Helper()
 	log := zerolog.New(zerolog.NewTestWriter(t))
 	svc := wallet.NewService(t.TempDir(), log)
 	require.NoError(t, svc.Init())
 	t.Cleanup(func() { svc.Close() })
 	h := NewWalletHandler(svc)
-	h.SetEngine(wallet.NewWalletEngine(svc, wallet.NewBackendRouter(svc, nil, nil), wallet.StaticParams(net), log))
-	return h
+	backend := &receivedBackend{}
+	h.SetEngine(wallet.NewWalletEngine(svc, wallet.NewBackendRouter(svc, backend, nil), wallet.StaticParams(net), log))
+	return h, backend
 }
 
 func TestExploreSeedUsesTheEngineNetwork(t *testing.T) {
@@ -85,6 +105,79 @@ func TestExploreSeedOfAWalletUsesItsOwnSeed(t *testing.T) {
 	first, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: starter.ID, Count: 1})
 	require.NoError(t, err)
 	require.NotEqual(t, first.Keys[0].Address, out.Keys[0].Address)
+}
+
+func TestExploreSeedOfTheWalletReceiveChainGivesTheUseOfEachKey(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	h, backend := newSeedHandlerWithBackend(t, net)
+	w, err := h.svc.GenerateWalletWithPath("one", seedHandlerMnemonic, "", 0, "", "", nil)
+	require.NoError(t, err)
+	keys, err := wallet.ExploreWallet(w, "", 0, 4, net)
+	require.NoError(t, err)
+	backend.received = []wallet.ReceivedByAddress{
+		{Address: keys.Keys[0].Address, TxIDs: []string{"a", "b"}, BalanceSats: 0},
+		{Address: keys.Keys[3].Address, TxIDs: []string{"c"}, BalanceSats: 12_345_678},
+	}
+
+	out, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: w.ID, Count: 4})
+	require.NoError(t, err)
+	require.True(t, out.WalletTracksKeys)
+	type use struct {
+		used    bool
+		balance int64
+	}
+	got := make([]use, 0, len(out.Keys))
+	for _, k := range out.Keys {
+		got = append(got, use{k.Used, k.BalanceSats})
+	}
+	require.Equal(t, []use{{true, 0}, {false, 0}, {false, 0}, {true, 12_345_678}}, got)
+
+	out, err = h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: w.ID, BasePath: "m/84h/1h/0h/0", StartIndex: 3, Count: 1})
+	require.NoError(t, err)
+	require.True(t, out.WalletTracksKeys)
+	require.True(t, out.Keys[0].Used)
+	require.Equal(t, int64(12_345_678), out.Keys[0].BalanceSats)
+}
+
+func TestExploreSeedOfAWalletWithNoKeysAsksTheWalletNothing(t *testing.T) {
+	h, backend := newSeedHandlerWithBackend(t, &chaincfg.RegressionNetParams)
+	w, err := h.svc.GenerateWalletWithPath("one", seedHandlerMnemonic, "", 0, "", "", nil)
+	require.NoError(t, err)
+	backend.err = errors.New("connection refused")
+
+	out, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: w.ID})
+	require.NoError(t, err, "Use Wallet reads the stored seed with no node")
+	require.Equal(t, seedHandlerMnemonic, out.Mnemonic)
+	require.Zero(t, backend.calls)
+}
+
+func TestExploreSeedGivesNoKeyUseOffTheWalletChains(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	h, backend := newSeedHandlerWithBackend(t, net)
+	w, err := h.svc.GenerateWalletWithPath("one", seedHandlerMnemonic, "", 0, "", "", nil)
+	require.NoError(t, err)
+
+	// The wallet list leaves out change addresses, so a spent change address would read as unused.
+	for _, path := range []string{"m/84'/1'/0'/1", "m/86'/1'/0'/0", "m/84'/1'/1'/0", "m/84'/1'/0'/2"} {
+		out, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: w.ID, BasePath: path, Count: 1})
+		require.NoError(t, err, path)
+		require.False(t, out.WalletTracksKeys, path)
+	}
+	out, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{Mnemonic: seedHandlerMnemonic, BasePath: "m/84'/1'/0'/0", Count: 1})
+	require.NoError(t, err)
+	require.False(t, out.WalletTracksKeys, "a typed seed is not the wallet")
+	require.Zero(t, backend.calls)
+}
+
+func TestExploreSeedOfAWalletFailsWhenTheWalletCannotAnswer(t *testing.T) {
+	h, backend := newSeedHandlerWithBackend(t, &chaincfg.RegressionNetParams)
+	w, err := h.svc.GenerateWalletWithPath("one", seedHandlerMnemonic, "", 0, "", "", nil)
+	require.NoError(t, err)
+	backend.err = errors.New("connection refused")
+
+	_, err = h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: w.ID, Count: 1})
+	require.Equal(t, connect.CodeUnavailable, connect.CodeOf(err))
+	require.ErrorContains(t, err, "connection refused")
 }
 
 func TestExploreSeedDescriptorMakesAWatchOnlyWallet(t *testing.T) {

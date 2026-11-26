@@ -7472,11 +7472,15 @@ func (x *ExploreSeedRequest) GetWalletId() string {
 }
 
 type ExploredKey struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	Address       string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
-	PublicKey     string                 `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"` // compressed, hex
-	Wif           string                 `protobuf:"bytes,4,opt,name=wif,proto3" json:"wif,omitempty"`                              // compressed
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Path      string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Address   string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	PublicKey string                 `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"` // compressed, hex
+	Wif       string                 `protobuf:"bytes,4,opt,name=wif,proto3" json:"wif,omitempty"`                              // compressed
+	// With wallet_tracks_keys: true when a wallet transaction pays to the address.
+	Used bool `protobuf:"varint,5,opt,name=used,proto3" json:"used,omitempty"`
+	// With wallet_tracks_keys: what the address holds now, unconfirmed coins included.
+	BalanceSats   int64 `protobuf:"varint,6,opt,name=balance_sats,json=balanceSats,proto3" json:"balance_sats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7539,6 +7543,20 @@ func (x *ExploredKey) GetWif() string {
 	return ""
 }
 
+func (x *ExploredKey) GetUsed() bool {
+	if x != nil {
+		return x.Used
+	}
+	return false
+}
+
+func (x *ExploredKey) GetBalanceSats() int64 {
+	if x != nil {
+		return x.BalanceSats
+	}
+	return 0
+}
+
 type ExploreSeedResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	SeedHex          string                 `protobuf:"bytes,1,opt,name=seed_hex,json=seedHex,proto3" json:"seed_hex,omitempty"`
@@ -7551,8 +7569,11 @@ type ExploreSeedResponse struct {
 	// Watch-only descriptor of the account of base_path. Empty when base_path is
 	// not a receive or change chain.
 	WatchDescriptor string `protobuf:"bytes,8,opt,name=watch_descriptor,json=watchDescriptor,proto3" json:"watch_descriptor,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// True when keys are on the receive chain of the wallet of wallet_id.
+	// tx_count and balance_sats then come from that wallet.
+	WalletTracksKeys bool `protobuf:"varint,9,opt,name=wallet_tracks_keys,json=walletTracksKeys,proto3" json:"wallet_tracks_keys,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ExploreSeedResponse) Reset() {
@@ -7639,6 +7660,13 @@ func (x *ExploreSeedResponse) GetWatchDescriptor() string {
 		return x.WatchDescriptor
 	}
 	return ""
+}
+
+func (x *ExploreSeedResponse) GetWalletTracksKeys() bool {
+	if x != nil {
+		return x.WalletTracksKeys
+	}
+	return false
 }
 
 type GenerateMnemonicRequest struct {
@@ -12364,13 +12392,15 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\vstart_index\x18\x04 \x01(\rR\n" +
 	"startIndex\x12\x14\n" +
 	"\x05count\x18\x05 \x01(\rR\x05count\x12\x1b\n" +
-	"\twallet_id\x18\x06 \x01(\tR\bwalletId\"l\n" +
+	"\twallet_id\x18\x06 \x01(\tR\bwalletId\"\xa3\x01\n" +
 	"\vExploredKey\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x03 \x01(\tR\tpublicKey\x12\x10\n" +
-	"\x03wif\x18\x04 \x01(\tR\x03wif\"\x9d\x02\n" +
+	"\x03wif\x18\x04 \x01(\tR\x03wif\x12\x12\n" +
+	"\x04used\x18\x05 \x01(\bR\x04used\x12!\n" +
+	"\fbalance_sats\x18\x06 \x01(\x03R\vbalanceSats\"\xcb\x02\n" +
 	"\x13ExploreSeedResponse\x12\x19\n" +
 	"\bseed_hex\x18\x01 \x01(\tR\aseedHex\x12\x12\n" +
 	"\x04xprv\x18\x02 \x01(\tR\x04xprv\x12\x12\n" +
@@ -12379,7 +12409,8 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x04keys\x18\x05 \x03(\v2\x1d.walletmanager.v1.ExploredKeyR\x04keys\x12\x1b\n" +
 	"\tbase_path\x18\x06 \x01(\tR\bbasePath\x12\x1a\n" +
 	"\bmnemonic\x18\a \x01(\tR\bmnemonic\x12)\n" +
-	"\x10watch_descriptor\x18\b \x01(\tR\x0fwatchDescriptor\"\x19\n" +
+	"\x10watch_descriptor\x18\b \x01(\tR\x0fwatchDescriptor\x12,\n" +
+	"\x12wallet_tracks_keys\x18\t \x01(\bR\x10walletTracksKeys\"\x19\n" +
 	"\x17GenerateMnemonicRequest\"6\n" +
 	"\x18GenerateMnemonicResponse\x12\x1a\n" +
 	"\bmnemonic\x18\x01 \x01(\tR\bmnemonic\"5\n" +

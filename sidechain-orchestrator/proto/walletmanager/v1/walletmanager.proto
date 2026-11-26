@@ -1068,6 +1068,10 @@ message ExploredKey {
   string address = 2;
   string public_key = 3; // compressed, hex
   string wif = 4; // compressed
+  // With wallet_tracks_keys: true when a wallet transaction pays to the address.
+  bool used = 5;
+  // With wallet_tracks_keys: what the address holds now, unconfirmed coins included.
+  int64 balance_sats = 6;
 }
 
 message ExploreSeedResponse {
@@ -1081,6 +1085,9 @@ message ExploreSeedResponse {
   // Watch-only descriptor of the account of base_path. Empty when base_path is
   // not a receive or change chain.
   string watch_descriptor = 8;
+  // True when keys are on the receive chain of the wallet of wallet_id.
+  // tx_count and balance_sats then come from that wallet.
+  bool wallet_tracks_keys = 9;
 }
 
 message GenerateMnemonicRequest {}
