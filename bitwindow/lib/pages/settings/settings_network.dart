@@ -227,9 +227,7 @@ class _SettingsNetworkState extends State<SettingsNetwork> {
     });
 
     try {
-      final result = await FilePicker.getDirectoryPath(
-        initialDirectory: _confProvider.detectedDataDir,
-      );
+      final result = await pickDirectoryPath(initialDirectory: _confProvider.detectedDataDir);
       if (result != null) {
         // Backend validates writability via the RPC.
         await _confProvider.updateDataDir(result, forNetwork: _confProvider.network);

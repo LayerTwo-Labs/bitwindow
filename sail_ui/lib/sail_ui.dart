@@ -185,6 +185,7 @@ export 'widgets/wallet_blob_avatar.dart';
 export 'widgets/wallet_dropdown.dart';
 export 'widgets/select_background_dialog.dart';
 export 'widgets/wallet_management_dialog.dart';
+export 'widgets/inputs/pick_directory.dart';
 export 'widgets/wallet_backup_restore.dart';
 export 'widgets/config_editor/actual_config_panel.dart';
 export 'widgets/config_editor/configurator_panel.dart';

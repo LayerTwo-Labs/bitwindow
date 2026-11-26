@@ -77,9 +77,7 @@ class _GenerateReportTabState extends State<GenerateReportTab> {
   }
 
   Future<void> _selectFile() async {
-    final directory = await FilePicker.getDirectoryPath(
-      dialogTitle: 'Save Proof of Funds Report',
-    );
+    final directory = await pickDirectoryPath(dialogTitle: 'Save Proof of Funds Report');
 
     if (directory != null) {
       final fileName = 'proof_of_funds_${DateTime.now().millisecondsSinceEpoch}.csv';
