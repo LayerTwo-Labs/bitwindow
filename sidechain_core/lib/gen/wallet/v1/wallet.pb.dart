@@ -3421,10 +3421,12 @@ class PreviewSweepRequest extends $pb.GeneratedMessage {
   factory PreviewSweepRequest({
     $core.String? privateKeyWif,
     $fixnum.Int64? feeSatPerVbyte,
+    $core.String? destinationAddress,
   }) {
     final result = PreviewSweepRequest._();
     if (privateKeyWif != null) result.privateKeyWif = privateKeyWif;
     if (feeSatPerVbyte != null) result.feeSatPerVbyte = feeSatPerVbyte;
+    if (destinationAddress != null) result.destinationAddress = destinationAddress;
     return result;
   }
 
@@ -3443,6 +3445,7 @@ class PreviewSweepRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'privateKeyWif')
     ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'feeSatPerVbyte', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOS(3, _omitFieldNames ? '' : 'destinationAddress')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3483,6 +3486,16 @@ class PreviewSweepRequest extends $pb.GeneratedMessage {
   $core.bool hasFeeSatPerVbyte() => $_has(1);
   @$pb.TagNumber(2)
   void clearFeeSatPerVbyte() => $_clearField(2);
+
+  /// Where the sweep pays. Empty sizes the fee for a P2WPKH output.
+  @$pb.TagNumber(3)
+  $core.String get destinationAddress => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set destinationAddress($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasDestinationAddress() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDestinationAddress() => $_clearField(3);
 }
 
 /// What a private key holds, and what sweeping it would cost. Reads only.

@@ -825,13 +825,15 @@ const PreviewSweepRequest$json = {
   '2': [
     {'1': 'private_key_wif', '3': 1, '4': 1, '5': 9, '10': 'privateKeyWif'},
     {'1': 'fee_sat_per_vbyte', '3': 2, '4': 1, '5': 4, '10': 'feeSatPerVbyte'},
+    {'1': 'destination_address', '3': 3, '4': 1, '5': 9, '10': 'destinationAddress'},
   ],
 };
 
 /// Descriptor for `PreviewSweepRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List previewSweepRequestDescriptor =
     $convert.base64Decode('ChNQcmV2aWV3U3dlZXBSZXF1ZXN0EiYKD3ByaXZhdGVfa2V5X3dpZhgBIAEoCVINcHJpdmF0ZU'
-        'tleVdpZhIpChFmZWVfc2F0X3Blcl92Ynl0ZRgCIAEoBFIOZmVlU2F0UGVyVmJ5dGU=');
+        'tleVdpZhIpChFmZWVfc2F0X3Blcl92Ynl0ZRgCIAEoBFIOZmVlU2F0UGVyVmJ5dGUSLwoTZGVz'
+        'dGluYXRpb25fYWRkcmVzcxgDIAEoCVISZGVzdGluYXRpb25BZGRyZXNz');
 
 @$core.Deprecated('Use previewSweepResponseDescriptor instead')
 const PreviewSweepResponse$json = {

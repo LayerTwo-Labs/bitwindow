@@ -2736,8 +2736,10 @@ type PreviewSweepRequest struct {
 	PrivateKeyWif string                 `protobuf:"bytes,1,opt,name=private_key_wif,json=privateKeyWif,proto3" json:"private_key_wif,omitempty"`
 	// Zero asks the backend for its own estimate.
 	FeeSatPerVbyte uint64 `protobuf:"varint,2,opt,name=fee_sat_per_vbyte,json=feeSatPerVbyte,proto3" json:"fee_sat_per_vbyte,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Where the sweep pays. Empty sizes the fee for a P2WPKH output.
+	DestinationAddress string `protobuf:"bytes,3,opt,name=destination_address,json=destinationAddress,proto3" json:"destination_address,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *PreviewSweepRequest) Reset() {
@@ -2782,6 +2784,13 @@ func (x *PreviewSweepRequest) GetFeeSatPerVbyte() uint64 {
 		return x.FeeSatPerVbyte
 	}
 	return 0
+}
+
+func (x *PreviewSweepRequest) GetDestinationAddress() string {
+	if x != nil {
+		return x.DestinationAddress
+	}
+	return ""
 }
 
 // What a private key holds, and what sweeping it would cost. Reads only.
@@ -4633,10 +4642,11 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	"\tfunded_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\bfundedAt\x88\x01\x01\x12+\n" +
 	"\x11min_confirmations\x18\x05 \x01(\rR\x10minConfirmationsB\f\n" +
 	"\n" +
-	"_funded_at\"h\n" +
+	"_funded_at\"\x99\x01\n" +
 	"\x13PreviewSweepRequest\x12&\n" +
 	"\x0fprivate_key_wif\x18\x01 \x01(\tR\rprivateKeyWif\x12)\n" +
-	"\x11fee_sat_per_vbyte\x18\x02 \x01(\x04R\x0efeeSatPerVbyte\"\x9d\x02\n" +
+	"\x11fee_sat_per_vbyte\x18\x02 \x01(\x04R\x0efeeSatPerVbyte\x12/\n" +
+	"\x13destination_address\x18\x03 \x01(\tR\x12destinationAddress\"\x9d\x02\n" +
 	"\x14PreviewSweepResponse\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12>\n" +
 	"\faddress_kind\x18\x02 \x01(\x0e2\x1b.wallet.v1.SweepAddressKindR\vaddressKind\x12\x1f\n" +

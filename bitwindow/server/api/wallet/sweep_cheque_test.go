@@ -189,12 +189,16 @@ func TestPreviewSweep(t *testing.T) {
 		{Txid: "aa00000000000000000000000000000000000000000000000000000000000002", Vout: 1, ValueSats: 40_000, Confirmations: 1},
 	}
 
+	taproot, err := btcutil.NewAddressTaproot(make([]byte, 32), &chaincfg.SigNetParams)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name        string
 		compressed  bool
 		fundedIndex int
 		utxos       []*orchpb.AddressUnspentOutput
 		feeRate     uint64
+		destination string
 		wantKind    walletv1.SweepAddressKind
 		wantFee     uint64
 		wantReceive uint64
@@ -210,6 +214,10 @@ func TestPreviewSweep(t *testing.T) {
 		{
 			name: "a funded uncompressed p2pkh key", compressed: false, fundedIndex: 0, utxos: funded, feeRate: 10,
 			wantKind: walletv1.SweepAddressKind_SWEEP_ADDRESS_KIND_P2PKH, wantFee: (2*180 + 11 + 31) * 10, wantReceive: 100_000 - (2*180+11+31)*10,
+		},
+		{
+			name: "a taproot destination", compressed: true, fundedIndex: 0, utxos: funded, feeRate: 10, destination: taproot.EncodeAddress(),
+			wantKind: walletv1.SweepAddressKind_SWEEP_ADDRESS_KIND_P2WPKH, wantFee: (2*68 + 11 + 43) * 10, wantReceive: 100_000 - (2*68+11+43)*10,
 		},
 		{
 			name: "an empty key", compressed: true, fundedIndex: 0, feeRate: 10,
@@ -231,8 +239,9 @@ func TestPreviewSweep(t *testing.T) {
 			)))
 
 			resp, err := cli.PreviewSweep(t.Context(), &walletv1.PreviewSweepRequest{
-				PrivateKeyWif:  wif.String(),
-				FeeSatPerVbyte: tt.feeRate,
+				PrivateKeyWif:      wif.String(),
+				FeeSatPerVbyte:     tt.feeRate,
+				DestinationAddress: tt.destination,
 			})
 			require.NoError(t, err)
 			assert.Equal(t, source.Address, resp.Address)
@@ -257,5 +266,19 @@ func TestPreviewSweep(t *testing.T) {
 		})
 		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 		require.ErrorContains(t, err, "WIF is not for network")
+	})
+
+	t.Run("a destination of another network is refused", func(t *testing.T) {
+		t.Parallel()
+		db := database.Test(t)
+		wif, _ := newKey(t, &chaincfg.SigNetParams, true)
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, db, apitests.WithOrchestrator(&fakeOrchestrator{})))
+
+		_, err := cli.PreviewSweep(t.Context(), &walletv1.PreviewSweepRequest{
+			PrivateKeyWif:      wif.String(),
+			FeeSatPerVbyte:     1,
+			DestinationAddress: "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+		})
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 	})
 }

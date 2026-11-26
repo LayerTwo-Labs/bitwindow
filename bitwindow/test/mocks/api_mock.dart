@@ -327,7 +327,7 @@ class MockWalletAPI implements WalletAPI {
   }
 
   @override
-  Future<SweepPreview> previewSweep(String privateKeyWif, {int feeSatPerVbyte = 0}) {
+  Future<SweepPreview> previewSweep(String privateKeyWif, {int feeSatPerVbyte = 0, String destinationAddress = ''}) {
     return Future.value(
       SweepPreview(
         address: 'mock_address',
