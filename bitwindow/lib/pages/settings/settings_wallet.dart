@@ -17,13 +17,10 @@ class SettingsWallet extends StatefulWidget {
 
 class _SettingsWalletState extends State<SettingsWallet> {
   final WalletReaderProvider _walletReader = GetIt.I.get<WalletReaderProvider>();
-  bool _isEncrypted = false;
-  bool _isCheckingEncryption = true;
 
   @override
   void initState() {
     super.initState();
-    _checkEncryptionStatus();
     _walletReader.addListener(_onDataChanged);
   }
 
@@ -34,18 +31,7 @@ class _SettingsWalletState extends State<SettingsWallet> {
   }
 
   void _onDataChanged() {
-    _checkEncryptionStatus();
     setState(() {});
-  }
-
-  Future<void> _checkEncryptionStatus() async {
-    final encrypted = await _walletReader.isWalletEncrypted();
-    if (mounted) {
-      setState(() {
-        _isEncrypted = encrypted;
-        _isCheckingEncryption = false;
-      });
-    }
   }
 
   /// Settings and the wallet picker open the same dialog, so a picture and a
@@ -57,6 +43,7 @@ class _SettingsWalletState extends State<SettingsWallet> {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    final encrypted = _walletReader.encrypted;
 
     return SailSettingsBody(
       children: [
@@ -99,12 +86,12 @@ class _SettingsWalletState extends State<SettingsWallet> {
         SailSettingsGroup(
           title: 'Encryption',
           children: [
-            if (_isCheckingEncryption)
+            if (!_walletReader.walletStateKnown)
               SailSettingsRow(
                 label: 'Wallet encryption',
                 trailing: SizedBox(width: 20, height: 20, child: LoadingIndicator(color: theme.colors.primary)),
               )
-            else if (!_isEncrypted)
+            else if (!encrypted)
               SailSettingsRow(
                 label: 'Wallet encryption',
                 description: 'Protect your wallet with a password',
@@ -113,11 +100,8 @@ class _SettingsWalletState extends State<SettingsWallet> {
                   small: true,
                   onPressed: () async {
                     final result = await EncryptWalletDialog.show(context);
-                    if (result == true) {
-                      await _checkEncryptionStatus();
-                      if (context.mounted) {
-                        showSailToast(context, 'Wallet encrypted', variant: SailToastVariant.success);
-                      }
+                    if (result == true && context.mounted) {
+                      showSailToast(context, 'Wallet encrypted', variant: SailToastVariant.success);
                     }
                   },
                 ),
@@ -151,7 +135,6 @@ class _SettingsWalletState extends State<SettingsWallet> {
                   skipLoading: true,
                   onPressed: () async {
                     await GetIt.I.get<AppRouter>().push(RemoveEncryptionRoute());
-                    await _checkEncryptionStatus();
                   },
                 ),
               ),

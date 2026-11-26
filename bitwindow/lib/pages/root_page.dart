@@ -92,7 +92,6 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
 
   WalletReaderProvider get _walletReader => GetIt.I.get<WalletReaderProvider>();
   bool _isWalletSwitching = false;
-  bool _isWalletEncrypted = false;
   List<PlatformMenuItem>? _cachedMenuList;
   bool? _cachedMenuListEncrypted;
   bool? _cachedMenuListHasWallet;
@@ -148,7 +147,6 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
     _bitnamesRPC.addListener(_onProviderChanged);
     _confProvider.addListener(_onNetworkChange);
     _initializeWindowManager();
-    _checkEncryptionStatus();
     HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
     _codeSearchService.loadFiles();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -199,17 +197,7 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
   }
 
   void _onProviderChanged() {
-    _checkEncryptionStatus();
     setState(() {});
-  }
-
-  Future<void> _checkEncryptionStatus() async {
-    final encrypted = await _walletReader.isWalletEncrypted();
-    if (mounted && encrypted != _isWalletEncrypted) {
-      setState(() {
-        _isWalletEncrypted = encrypted;
-      });
-    }
   }
 
   Future<void> _initializeWindowManager() async {
@@ -459,8 +447,9 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
     // 5s BlockchainProvider tick triggers a RootPage rebuild via
     // _onProviderChanged). The list only varies on the wallet state.
     final hasWallet = !_walletReader.hasNoWallet;
-    if (_cachedMenuListEncrypted != _isWalletEncrypted || _cachedMenuListHasWallet != hasWallet) {
-      _cachedMenuListEncrypted = _isWalletEncrypted;
+    final encrypted = _walletReader.encrypted;
+    if (_cachedMenuListEncrypted != encrypted || _cachedMenuListHasWallet != hasWallet) {
+      _cachedMenuListEncrypted = encrypted;
       _cachedMenuListHasWallet = hasWallet;
       _cachedMenuList = null;
     }
@@ -574,7 +563,7 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
                   ],
                 ),
                 ...encryptionMenuGroups(
-                  encrypted: _isWalletEncrypted,
+                  encrypted: encrypted,
                   hasWallet: hasWallet,
                   onEncrypt: () {
                     showThemedDialog(context: context, builder: (context) => const EncryptWalletDialog());
