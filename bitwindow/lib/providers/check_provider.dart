@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sidechain_core/classes/rpc_connection.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
+import 'package:sidechain_core/providers/node_mode_provider.dart';
 import 'package:sidechain_core/providers/sync_provider.dart';
 import 'package:sidechain_core/providers/wallet_reader_provider.dart';
 import 'package:sidechain_core/rpcs/bitwindow_api.dart';
@@ -118,7 +119,11 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
   }
 
   void _onNewBlock() {
-    if (_tip.moved(_syncProvider, synced: _syncProvider.isSynced)) {
+    final sync = _syncProvider;
+    final tipMoved = NodeModeProvider.runsLocalBackends
+        ? _tip.moved(sync, synced: sync.isSynced)
+        : _tip.movedOnChainSource(sync);
+    if (tipMoved) {
       fetch();
     }
   }

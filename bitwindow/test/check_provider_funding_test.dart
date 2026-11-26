@@ -64,11 +64,34 @@ class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
 
 class _SyncProvider extends ChangeNotifier implements SyncProvider {
   @override
+  bool get isSynced => false;
+
+  @override
+  SyncInfo? chainSourceSyncInfo;
+
+  void showChainTip(double height) {
+    chainSourceSyncInfo = SyncInfo(progressCurrent: height, progressGoal: height, lastBlockAt: null);
+    notifyListeners();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _LightNodeMode implements NodeModeProvider {
+  @override
+  bool get needsChoice => false;
+
+  @override
+  bool get isFull => false;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
   late _WalletAPI wallet;
+  late _SyncProvider sync;
 
   setUp(() async {
     await GetIt.I.reset();
@@ -76,7 +99,8 @@ void main() {
     wallet = rpc.wallet;
     GetIt.I.registerSingleton<BitwindowRPC>(rpc);
     GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader());
-    GetIt.I.registerSingleton<SyncProvider>(_SyncProvider());
+    sync = _SyncProvider();
+    GetIt.I.registerSingleton<SyncProvider>(sync);
   });
 
   tearDown(() => GetIt.I.reset());
@@ -111,6 +135,36 @@ void main() {
     test('a payment to a swept check is a change', () {
       final check = _check(funded: true, actual: 1000, txids: [_txid], swept: 'cc33');
       expect(fundingChanged(check, _chain(amount: 500, txids: ['dd44'])), isTrue);
+    });
+  });
+
+  test('a new chain tip in light mode refreshes a swept check', () {
+    fakeAsync((async) {
+      GetIt.I.registerSingleton<NodeModeProvider>(_LightNodeMode());
+      wallet.cheques = [
+        _check(actual: 800, txids: [_txid], swept: 'swept'),
+      ];
+      final provider = CheckProvider();
+      async.flushMicrotasks();
+      sync.showChainTip(100);
+      async.flushMicrotasks();
+      expect(provider.checks.single.sweptTxid, 'swept');
+
+      wallet.chain = _chain(amount: 700, txids: ['new-payment']);
+      wallet.afterChainRead = [
+        _check(actual: 700, txids: ['new-payment']),
+      ];
+      sync.showChainTip(101);
+      async.flushMicrotasks();
+
+      expect(provider.checks.single.sweptTxid, isEmpty);
+      expect(provider.checks.single.actualAmountSats, Int64(700));
+      final reads = wallet.chainReads.length;
+
+      sync.showChainTip(101);
+      async.flushMicrotasks();
+      expect(wallet.chainReads, hasLength(reads));
+      provider.dispose();
     });
   });
 

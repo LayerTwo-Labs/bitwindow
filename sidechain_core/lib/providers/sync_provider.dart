@@ -105,16 +105,27 @@ class SyncedTipWatch {
   /// moved since the last call that returned true. A tip with a new block
   /// time at the same height counts as a move.
   bool moved(SyncProvider sync, {required bool synced}) {
-    if (!synced) {
-      _last = null;
-      return false;
-    }
-    final tip = (_tipOf(sync.mainchainSyncInfo), _tipOf(sync.enforcerSyncInfo), _tipOf(sync.bitwindowdSyncInfo));
+    final tip = synced
+        ? (
+            _tipOf(sync.mainchainSyncInfo),
+            _tipOf(sync.enforcerSyncInfo),
+            _tipOf(sync.bitwindowdSyncInfo),
+          )
+        : null;
+    return _moved(tip);
+  }
+
+  bool movedOnChainSource(SyncProvider sync) {
+    final source = sync.chainSourceSyncInfo;
+    return _moved(source?.isSynced == true ? _tipOf(source) : null);
+  }
+
+  bool _moved(Object? tip) {
     if (tip == _last) {
       return false;
     }
     _last = tip;
-    return true;
+    return tip != null;
   }
 
   static (double, Timestamp?)? _tipOf(SyncInfo? info) => info == null ? null : (info.progressCurrent, info.lastBlockAt);
