@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:auto_route/auto_route.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:path/path.dart' as path;
@@ -32,7 +31,7 @@ class DataDirSelection extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final result = await FilePicker.getDirectoryPath();
+      final result = await pickDirectoryPath();
       if (result != null) {
         final testFile = File(path.join(result, '.bitwindow_test'));
         try {
