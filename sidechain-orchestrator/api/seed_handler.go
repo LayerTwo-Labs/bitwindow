@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"connectrpc.com/connect/v2"
 
@@ -18,7 +19,7 @@ func (h *WalletHandler) ExploreSeed(
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
 	}
 	if req.WalletId != "" {
-		return h.exploreWallet(req)
+		return h.exploreWallet(ctx, req)
 	}
 	out, err := wallet.ExploreSeed(req.Mnemonic, req.Passphrase, req.BasePath, req.StartIndex, req.Count, h.engine.Network())
 	if err != nil {
@@ -27,7 +28,7 @@ func (h *WalletHandler) ExploreSeed(
 	return exploredResponse(out), nil
 }
 
-func (h *WalletHandler) exploreWallet(req *pb.ExploreSeedRequest) (*pb.ExploreSeedResponse, error) {
+func (h *WalletHandler) exploreWallet(ctx context.Context, req *pb.ExploreSeedRequest) (*pb.ExploreSeedResponse, error) {
 	if req.Mnemonic != "" || req.Passphrase != "" {
 		return nil, connect.Errorf(connect.CodeInvalidArgument, "give a wallet_id or a mnemonic, not both")
 	}
@@ -44,9 +45,34 @@ func (h *WalletHandler) exploreWallet(req *pb.ExploreSeedRequest) (*pb.ExploreSe
 		}
 		resp := exploredResponse(out)
 		resp.Mnemonic = w.Master.Mnemonic
+		if out.WalletReceiveChain && len(resp.Keys) > 0 {
+			if err := h.fillKeyUse(ctx, w.ID, resp); err != nil {
+				return nil, err
+			}
+		}
 		return resp, nil
 	}
 	return nil, connect.Errorf(connect.CodeNotFound, "wallet %s not found", req.WalletId)
+}
+
+// fillKeyUse sets the use and the balance of each key from the wallet.
+func (h *WalletHandler) fillKeyUse(ctx context.Context, walletID string, resp *pb.ExploreSeedResponse) error {
+	received, err := h.engine.Backend().ListReceivedByAddress(ctx, walletID)
+	if err != nil {
+		err = fmt.Errorf("read the address use of wallet %s: %w", walletID, err)
+		return connect.NewError(connect.CodeUnavailable, err.Error()).WithCause(err)
+	}
+	byAddress := make(map[string]wallet.ReceivedByAddress, len(received))
+	for _, r := range received {
+		byAddress[r.Address] = r
+	}
+	for _, k := range resp.Keys {
+		r := byAddress[k.Address]
+		k.Used = len(r.TxIDs) > 0
+		k.BalanceSats = r.BalanceSats
+	}
+	resp.WalletTracksKeys = true
+	return nil
 }
 
 func exploredResponse(out wallet.SeedExplorer) *pb.ExploreSeedResponse {

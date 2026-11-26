@@ -36,7 +36,10 @@ type SeedExplorer struct {
 	// WatchDescriptor is the watch-only descriptor of the account of BasePath.
 	// It is empty when BasePath is not a receive or change chain.
 	WatchDescriptor string
-	Keys            []ExploredKey
+	// WalletReceiveChain is true when Keys are on the receive chain of the
+	// explored wallet, so the wallet lists what each address received.
+	WalletReceiveChain bool
+	Keys               []ExploredKey
 }
 
 // ExploreSeed derives the master keys of a mnemonic and the keys at
@@ -137,13 +140,14 @@ func exploreSeedBytes(seed []byte, w *WalletData, basePath string, start, count 
 	}
 
 	return SeedExplorer{
-		SeedHex:         seedHex,
-		Xprv:            master.String(),
-		Xpub:            masterPub.String(),
-		PaymentCode:     paymentCode,
-		BasePath:        base,
-		WatchDescriptor: watchDescriptor,
-		Keys:            keys,
+		SeedHex:            seedHex,
+		Xprv:               master.String(),
+		Xpub:               masterPub.String(),
+		PaymentCode:        paymentCode,
+		BasePath:           base,
+		WatchDescriptor:    watchDescriptor,
+		WalletReceiveChain: w != nil && base == walletAccount+"/0",
+		Keys:               keys,
 	}, nil
 }
 
