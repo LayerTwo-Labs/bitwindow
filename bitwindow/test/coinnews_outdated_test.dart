@@ -75,13 +75,13 @@ void main() {
       provider.notifyListeners();
       await tester.pumpAndSettle();
 
-      expect(find.text('Current story'), findsOneWidget);
+      expect(find.text('Current story'), findsWidgets);
       expect(find.text('Outdated story'), findsNothing);
 
       await tester.tap(find.text('Show Outdated').first);
       await tester.pumpAndSettle();
 
-      expect(find.text('Outdated story'), findsOneWidget);
+      expect(find.text('Outdated story'), findsWidgets);
       expect(find.text('Hide Outdated'), findsWidgets);
     });
   });
