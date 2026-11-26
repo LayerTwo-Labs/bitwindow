@@ -38,6 +38,9 @@ class RecordingMisc extends MockMiscAPI {
     sent.add((topic, retentionDays));
     return CreateTopicResponse(txid: 'ab' * 32);
   }
+    if (name == 'Refused Topic') {
+      throw StateError('title cannot be longer than 64 bytes');
+    }
 }
 
 class TopicAPI extends MockAPI {
@@ -132,3 +135,26 @@ void main() {
     expect(api.sent, [('ba042002', 0)]);
   });
 }
+
+  testWidgets('Import shows why a topic failed', (tester) async {
+    final api = await open(tester);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') {
+        return {'text': '7{ba042003}Refused Topic\n0{ba042002}Valid Topic'};
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await tester.tap(button('Import'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    expect(api.sent, [('ba042002', 0)]);
+    expect(
+      find.textContaining('Failed to import 1 topic(s): Bad state: title cannot be longer than 64 bytes'),
+      findsOneWidget,
+    );
+  });
