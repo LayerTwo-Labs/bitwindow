@@ -1091,6 +1091,9 @@ func (s *Server) requireUnlocked(ctx context.Context) error {
 	return nil
 }
 
+// minChequeSats is the smallest amount the wallet sends to one address.
+const minChequeSats = 546
+
 // CreateCheque implements walletv1connect.WalletServiceHandler.
 func (s *Server) CreateCheque(ctx context.Context, c *pb.CreateChequeRequest) (*pb.CreateChequeResponse, error) {
 	log := zerolog.Ctx(ctx)
@@ -1100,8 +1103,8 @@ func (s *Server) CreateCheque(ctx context.Context, c *pb.CreateChequeRequest) (*
 		return nil, connect.NewError(connect.CodeInvalidArgument, "wallet_id is required")
 	}
 
-	if c.ExpectedAmountSats == 0 || c.ExpectedAmountSats > btcutil.MaxSatoshi {
-		return nil, connect.Errorf(connect.CodeInvalidArgument, "expected_amount_sats must be from 1 to %d", int64(btcutil.MaxSatoshi))
+	if c.ExpectedAmountSats < minChequeSats || c.ExpectedAmountSats > btcutil.MaxSatoshi {
+		return nil, connect.Errorf(connect.CodeInvalidArgument, "expected_amount_sats must be from %d to %d", minChequeSats, int64(btcutil.MaxSatoshi))
 	}
 
 	if err := s.requireUnlocked(ctx); err != nil {

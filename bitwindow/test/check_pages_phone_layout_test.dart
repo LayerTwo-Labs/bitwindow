@@ -172,6 +172,17 @@ void main() {
     expect(find.text('Please enter a valid amount'), findsOneWidget);
   });
 
+  testWidgets('Create Check refuses an amount that the wallet cannot send', (tester) async {
+    _registerFakes();
+    await _pump(tester, const CreateCheckPage(), phone: false);
+
+    await tester.enterText(find.byType(TextField), '0.00000545');
+    await tester.tap(find.text('Create'));
+    await tester.pump();
+
+    expect(find.text('Please enter a valid amount'), findsOneWidget);
+  });
+
   group('check details', () {
     testWidgets('an unfunded check on a phone shows a dot, the address on one line and a full-width button', (
       tester,
