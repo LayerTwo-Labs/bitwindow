@@ -1,13 +1,10 @@
-import 'dart:math' as math;
-
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/widgets.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 /// A group of coins in one value range.
 class UtxoBucket {
-  /// The value range without a unit, for example "0.005 - 0.010".
+  /// The value range without a unit, for example "0.01–0.1".
   final String label;
   int valueSats = 0;
   int count = 0;
@@ -16,311 +13,19 @@ class UtxoBucket {
   UtxoBucket(this.label);
 }
 
-const List<int> _distributionBounds = [
-  546,
-  1000,
-  5000,
-  10000,
-  50000,
-  100000,
-  500000,
-  1000000,
-  5000000,
-  10000000,
-  50000000,
-  100000000,
-  500000000,
-  1000000000,
-  5000000000,
-  10000000000,
-];
+/// Upper bounds in sats of the buckets: 0.001, 0.01, 0.1, 1 and 10 coins.
+const List<int> utxoBucketBounds = [100000, 1000000, 10000000, 100000000, 1000000000];
+const List<String> utxoBucketLabels = ['< 0.001', '0.001–0.01', '0.01–0.1', '0.1–1', '1–10', '> 10'];
+const List<String> phoneUtxoBucketLabels = ['<.001', '.001–.01', '.01–.1', '.1–1', '1–10', '>10'];
 
-/// The coins sorted into at most [maxBuckets] value ranges, smallest first. A range with no coins drops out.
-List<UtxoBucket> utxoDistribution(List<UnspentOutput> utxos, {int maxBuckets = 8}) {
-  if (utxos.isEmpty) {
-    return [];
-  }
-  final values = utxos.map((u) => u.valueSats.toInt());
-  final minSats = values.reduce(math.min);
-  final maxSats = values.reduce(math.max);
-
-  var bounds = _distributionBounds.where((b) => b > minSats && b < maxSats).toList();
-  if (bounds.length > maxBuckets - 1) {
-    final step = bounds.length / (maxBuckets - 1);
-    bounds = [for (var i = 0; i < maxBuckets - 1; i++) bounds[(i * step).floor()]];
-  }
-
-  final ranges = <(int, int)>[];
-  var lower = minSats;
-  for (final bound in bounds) {
-    ranges.add((lower, bound - 1));
-    lower = bound;
-  }
-  ranges.add((lower, maxSats));
-
-  final buckets = [for (final (low, high) in ranges) UtxoBucket('${_rangeValue(low)} - ${_rangeValue(high)}')];
+/// The coins sorted into the six buckets, smallest first. A bucket with no coins stays in the list.
+List<UtxoBucket> utxoBuckets(List<UnspentOutput> utxos, {List<String> labels = utxoBucketLabels}) {
+  final buckets = [for (final label in labels) UtxoBucket(label)];
   for (final utxo in utxos) {
     final sats = utxo.valueSats.toInt();
-    final bucket = buckets[ranges.indexWhere((r) => sats >= r.$1 && sats <= r.$2)];
-    bucket.valueSats += sats;
-    bucket.count++;
-    bucket.outpoints.add(utxo.output);
-  }
-  return buckets.where((b) => b.count > 0).toList();
-}
-
-String _rangeValue(int sats) {
-  final coins = sats / 100000000;
-  if (coins >= 1) {
-    return coins.toStringAsFixed(1);
-  }
-  if (coins >= 0.01) {
-    return coins.toStringAsFixed(2);
-  }
-  if (coins >= 0.001) {
-    return coins.toStringAsFixed(3);
-  }
-  if (coins >= 0.0001) {
-    return coins.toStringAsFixed(4);
-  }
-  return coins.toStringAsFixed(8).replaceFirst(RegExp(r'0+$'), '');
-}
-
-class UTXODistributionChart extends StatefulWidget {
-  final List<UnspentOutput> utxos;
-  final void Function(List<String> outpoints)? onBucketTap;
-  final void Function(UtxoBucket bucket, Offset position)? onBucketContextMenu;
-  final void Function(List<UtxoBucket> smallBuckets)? onConsolidate;
-
-  const UTXODistributionChart({
-    super.key,
-    required this.utxos,
-    this.onBucketTap,
-    this.onBucketContextMenu,
-    this.onConsolidate,
-  });
-
-  @override
-  State<UTXODistributionChart> createState() => _UTXODistributionChartState();
-}
-
-class _UTXODistributionChartState extends State<UTXODistributionChart> {
-  int _touchedIndex = -1;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final buckets = utxoDistribution(widget.utxos);
-    if (buckets.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final totalValue = buckets.fold<double>(0, (sum, b) => sum + b.valueSats.toDouble());
-
-    // Find small UTXOs (less than 1% of total, or in "Other" bucket)
-    final smallBuckets = buckets.where((b) {
-      final percentage = totalValue > 0 ? (b.valueSats.toDouble() / totalValue) * 100 : 0;
-      return percentage < 5 || b.label.startsWith('Other');
-    }).toList();
-    final hasSmallUtxos = smallBuckets.isNotEmpty && smallBuckets.fold<int>(0, (sum, b) => sum + b.count) > 1;
-
-    return SizedBox(
-      height: 180,
-      child: Row(
-        children: [
-          // Pie Chart
-          Expanded(
-            flex: 2,
-            child: PieChart(
-              PieChartData(
-                pieTouchData: PieTouchData(
-                  touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                    setState(() {
-                      if (!event.isInterestedForInteractions ||
-                          pieTouchResponse == null ||
-                          pieTouchResponse.touchedSection == null) {
-                        _touchedIndex = -1;
-                        return;
-                      }
-                      _touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
-                    });
-
-                    // Handle tap
-                    if (event is FlTapUpEvent && _touchedIndex >= 0 && _touchedIndex < buckets.length) {
-                      final outpoints = buckets[_touchedIndex].outpoints;
-                      widget.onBucketTap?.call(outpoints);
-                    }
-                  },
-                ),
-                borderData: FlBorderData(show: false),
-                sectionsSpace: 2,
-                centerSpaceRadius: 30,
-                sections: _buildSections(buckets, totalValue, theme),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Legend and actions
-          Expanded(
-            flex: 3,
-            child: Column(
-              children: [
-                Expanded(
-                  child: _Legend(
-                    buckets: buckets,
-                    totalValue: totalValue,
-                    touchedIndex: _touchedIndex,
-                    onTouchChange: (index) => setState(() => _touchedIndex = index),
-                    onBucketTap: widget.onBucketTap,
-                    onBucketContextMenu: widget.onBucketContextMenu,
-                  ),
-                ),
-                if (hasSmallUtxos && widget.onConsolidate != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: SailStyleValues.padding08),
-                    child: SailButton(
-                      label: 'Consolidate Small UTXOs',
-                      variant: ButtonVariant.secondary,
-                      small: true,
-                      onPressed: () async {
-                        widget.onConsolidate?.call(smallBuckets);
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<PieChartSectionData> _buildSections(
-    List<UtxoBucket> buckets,
-    double totalValue,
-    SailThemeData theme,
-  ) {
-    final colors = theme.colors.chartPalette;
-
-    return buckets.asMap().entries.map((entry) {
-      final index = entry.key;
-      final bucket = entry.value;
-      final isTouched = index == _touchedIndex;
-      final percentage = totalValue > 0 ? (bucket.valueSats.toDouble() / totalValue) * 100 : 0;
-
-      return PieChartSectionData(
-        color: colors[index % colors.length],
-        value: bucket.valueSats.toDouble(),
-        title: percentage >= 5 ? '${percentage.toStringAsFixed(0)}%' : '',
-        radius: isTouched ? 55 : 50,
-        titleStyle: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: theme.colors.primaryButtonText,
-        ),
-        titlePositionPercentageOffset: 0.6,
-      );
-    }).toList();
-  }
-}
-
-class _Legend extends StatelessWidget {
-  final List<UtxoBucket> buckets;
-  final double totalValue;
-  final int touchedIndex;
-  final void Function(int) onTouchChange;
-  final void Function(List<String> outpoints)? onBucketTap;
-  final void Function(UtxoBucket bucket, Offset position)? onBucketContextMenu;
-
-  const _Legend({
-    required this.buckets,
-    required this.totalValue,
-    required this.touchedIndex,
-    required this.onTouchChange,
-    this.onBucketTap,
-    this.onBucketContextMenu,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final colors = theme.colors.chartPalette;
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: buckets.length,
-      itemBuilder: (context, index) {
-        final bucket = buckets[index];
-        final percentage = totalValue > 0 ? (bucket.valueSats.toDouble() / totalValue) * 100 : 0;
-        final isHovered = index == touchedIndex;
-
-        return MouseRegion(
-          onEnter: (_) => onTouchChange(index),
-          onExit: (_) => onTouchChange(-1),
-          child: GestureDetector(
-            onTap: () => onBucketTap?.call(bucket.outpoints),
-            onSecondaryTapUp: (details) {
-              onBucketContextMenu?.call(bucket, details.globalPosition);
-            },
-            onLongPressStart: (details) {
-              onBucketContextMenu?.call(bucket, details.globalPosition);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 6),
-              decoration: BoxDecoration(
-                color: isHovered ? theme.colors.backgroundSecondary : SailColorScheme.transparent,
-                borderRadius: context.sailTheme.chrome.radiusSmall,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: colors[index % colors.length],
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SailText.primary12(
-                      '${bucket.label} ${activeTicker.symbol}',
-                      monospace: true,
-                    ),
-                  ),
-                  SailText.secondary12(
-                    '${bucket.count} ${bucket.count == 1 ? 'UTXO' : 'UTXOs'}',
-                  ),
-                  const SizedBox(width: 12),
-                  SailText.primary12(
-                    '${percentage.toStringAsFixed(0)}%',
-                    monospace: true,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Upper bounds in sats of the phone buckets: 0.001, 0.01, 0.1, 1 and 10 coins.
-const List<int> phoneBucketBounds = [100000, 1000000, 10000000, 100000000, 1000000000];
-const List<String> phoneBucketLabels = ['<.001', '.001–.01', '.01–.1', '.1–1', '1–10', '>10'];
-
-/// The coins sorted into the six phone buckets, smallest first. A bucket with no coins stays in the list.
-List<UtxoBucket> phoneUtxoBuckets(List<UnspentOutput> utxos) {
-  final buckets = [for (final label in phoneBucketLabels) UtxoBucket(label)];
-  for (final utxo in utxos) {
-    final sats = utxo.valueSats.toInt();
-    var index = phoneBucketBounds.indexWhere((bound) => sats < bound);
+    var index = utxoBucketBounds.indexWhere((bound) => sats < bound);
     if (index < 0) {
-      index = phoneBucketBounds.length;
+      index = utxoBucketBounds.length;
     }
     final bucket = buckets[index];
     bucket.valueSats += sats;
@@ -330,24 +35,35 @@ List<UtxoBucket> phoneUtxoBuckets(List<UnspentOutput> utxos) {
   return buckets;
 }
 
-/// The phone form of the UTXO distribution: one bar per bucket, with the coin count above it.
-class UTXOPhoneBars extends StatelessWidget {
+/// True when the buckets that hold less than 5% of the value hold more than one coin.
+bool hasSmallUtxos(List<UtxoBucket> buckets) {
+  final total = buckets.fold<int>(0, (sum, b) => sum + b.valueSats);
+  if (total == 0) {
+    return false;
+  }
+  final small = buckets.where((b) => b.count > 0 && b.valueSats * 100 < total * 5);
+  return small.fold<int>(0, (sum, b) => sum + b.count) > 1;
+}
+
+/// The UTXO distribution: one bar per bucket, with the coin count above it.
+class UTXOBars extends StatelessWidget {
   final List<UnspentOutput> utxos;
   final void Function(UtxoBucket bucket, Offset position)? onBucketContextMenu;
+  final VoidCallback? onConsolidate;
 
-  const UTXOPhoneBars({super.key, required this.utxos, this.onBucketContextMenu});
-
-  static const double barWidth = 38;
-  static const double maxBarHeight = 100;
+  const UTXOBars({super.key, required this.utxos, this.onBucketContextMenu, this.onConsolidate});
 
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-    final buckets = phoneUtxoBuckets(utxos);
+    final phone = SailStyleValues.phoneLayout(context);
+    final buckets = utxoBuckets(utxos, labels: phone ? phoneUtxoBucketLabels : utxoBucketLabels);
     final most = buckets.fold<int>(0, (most, b) => b.count > most ? b.count : most);
+    final barWidth = phone ? 38.0 : 160.0;
+    final maxBarHeight = phone ? 100.0 : 120.0;
 
-    return SizedBox(
-      height: 150,
+    final bars = SizedBox(
+      height: phone ? 150 : 180,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -357,6 +73,9 @@ class UTXOPhoneBars extends StatelessWidget {
                 key: ValueKey('utxo_bar_$i'),
                 behavior: HitTestBehavior.opaque,
                 onLongPressStart: buckets[i].count == 0
+                    ? null
+                    : (details) => onBucketContextMenu?.call(buckets[i], details.globalPosition),
+                onSecondaryTapUp: buckets[i].count == 0
                     ? null
                     : (details) => onBucketContextMenu?.call(buckets[i], details.globalPosition),
                 child: Column(
@@ -379,6 +98,23 @@ class UTXOPhoneBars extends StatelessWidget {
             ),
         ],
       ),
+    );
+
+    if (onConsolidate == null || !hasSmallUtxos(buckets)) {
+      return bars;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        bars,
+        const SizedBox(height: SailStyleValues.padding08),
+        SailButton(
+          label: 'Consolidate Small UTXOs',
+          variant: ButtonVariant.secondary,
+          small: true,
+          onPressed: () async => onConsolidate!(),
+        ),
+      ],
     );
   }
 }

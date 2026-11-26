@@ -3,6 +3,7 @@ import 'package:bitwindow/pages/wallet/widgets/utxo_distribution_chart.dart';
 import 'package:bitwindow/providers/coin_selection_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -37,45 +38,11 @@ void main() {
     await GetIt.I.reset();
   });
 
-  group('utxoDistribution', () {
-    List<UnspentOutput> coins(List<int> values) => [
-      for (var i = 0; i < values.length; i++) UnspentOutput(output: 'tx:$i', valueSats: Int64(values[i])),
-    ];
-    List<(String, int, int)> read(List<UtxoBucket> buckets) => [
-      for (final b in buckets) (b.label, b.valueSats, b.count),
-    ];
-
-    test('gives values below 0.0001 exact labels', () {
-      expect(read(utxoDistribution(coins([546, 999, 1000, 4999, 9999]))), [
-        ('0.00000546 - 0.00000999', 1545, 2),
-        ('0.00001 - 0.00004999', 5999, 2),
-        ('0.00005 - 0.00009999', 9999, 1),
-      ]);
-    });
-
-    test('puts one value in one bucket', () {
-      expect(read(utxoDistribution(coins([100000000]))), [('1.0 - 1.0', 100000000, 1)]);
-    });
-
-    test('keeps a wide range to the bucket cap', () {
-      expect(read(utxoDistribution(coins([546, 50000, 1000000000]), maxBuckets: 3)), [
-        ('0.00000546 - 0.00000999', 546, 1),
-        ('0.00001 - 0.010', 50000, 1),
-        ('0.01 - 10.0', 1000000000, 1),
-      ]);
-    });
-
-    test('names the outpoints of each bucket and reads no coin as no bucket', () {
-      expect(utxoDistribution(coins([1000, 2000])).single.outpoints, ['tx:0', 'tx:1']);
-      expect(utxoDistribution([]), isEmpty);
-    });
-  });
-
-  group('phoneUtxoBuckets', () {
+  group('utxoBuckets', () {
     UnspentOutput coin(String output, int sats) => UnspentOutput(output: output, valueSats: Int64(sats));
 
     test('sorts each coin into its decade and keeps the empty buckets', () {
-      final buckets = phoneUtxoBuckets([
+      final buckets = utxoBuckets([
         coin('a:0', 99999),
         coin('b:0', 100000),
         coin('c:0', 50000000),
@@ -83,7 +50,7 @@ void main() {
         coin('e:0', 1000000000),
       ]);
 
-      expect([for (final b in buckets) b.label], phoneBucketLabels);
+      expect([for (final b in buckets) b.label], utxoBucketLabels);
       expect([for (final b in buckets) b.count], [1, 1, 0, 2, 0, 1]);
       expect(buckets[3].outpoints, ['c:0', 'd:0']);
       expect(buckets[3].valueSats, 110000000);
@@ -96,7 +63,7 @@ void main() {
     await tester.pumpSailPage(
       SizedBox(
         width: 342,
-        child: UTXOPhoneBars(
+        child: UTXOBars(
           utxos: [
             UnspentOutput(output: 'a:0', valueSats: Int64(50000)),
             UnspentOutput(output: 'b:0', valueSats: Int64(20000000)),
@@ -108,7 +75,7 @@ void main() {
     );
     await tester.usePhoneSize();
 
-    for (final label in phoneBucketLabels) {
+    for (final label in phoneUtxoBucketLabels) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('2'), findsOneWidget);
@@ -118,6 +85,40 @@ void main() {
 
     await tester.longPress(find.byKey(const ValueKey('utxo_bar_3')));
     expect(pressed?.outpoints, ['b:0', 'c:0']);
+  });
+
+  testWidgets('the desktop bars use the labels of the approved frame and open the menu on a right click', (
+    tester,
+  ) async {
+    SailStyleValues.phoneLayoutOverride = false;
+    UtxoBucket? pressed;
+    await tester.pumpSailPage(
+      SizedBox(
+        width: 1200,
+        child: UTXOBars(
+          utxos: [
+            UnspentOutput(output: 'a:0', valueSats: Int64(600)),
+            UnspentOutput(output: 'b:0', valueSats: Int64(5000000000)),
+          ],
+          onBucketContextMenu: (bucket, _) => pressed = bucket,
+        ),
+      ),
+    );
+
+    for (final label in utxoBucketLabels) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    await tester.tap(find.byKey(const ValueKey('utxo_bar_5')), buttons: kSecondaryMouseButton);
+    expect(pressed?.outpoints, ['b:0']);
+  });
+
+  test('small coins count only where the bucket holds less than 5% of the value', () {
+    UnspentOutput coin(int sats) => UnspentOutput(output: 'x:$sats', valueSats: Int64(sats));
+
+    expect(hasSmallUtxos(utxoBuckets([coin(1000), coin(2000), coin(5000000000)])), isTrue);
+    expect(hasSmallUtxos(utxoBuckets([coin(1000), coin(5000000000)])), isFalse);
+    expect(hasSmallUtxos(utxoBuckets([coin(60000), coin(70000)])), isFalse);
+    expect(hasSmallUtxos(utxoBuckets([])), isFalse);
   });
 
   for (final phone in [true, false]) {
