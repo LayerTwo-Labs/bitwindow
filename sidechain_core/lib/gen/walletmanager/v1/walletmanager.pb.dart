@@ -8790,12 +8790,16 @@ class ExploredKey extends $pb.GeneratedMessage {
     $core.String? address,
     $core.String? publicKey,
     $core.String? wif,
+    $core.bool? used,
+    $fixnum.Int64? balanceSats,
   }) {
     final result = ExploredKey._();
     if (path != null) result.path = path;
     if (address != null) result.address = address;
     if (publicKey != null) result.publicKey = publicKey;
     if (wif != null) result.wif = wif;
+    if (used != null) result.used = used;
+    if (balanceSats != null) result.balanceSats = balanceSats;
     return result;
   }
 
@@ -8814,6 +8818,8 @@ class ExploredKey extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'address')
     ..aOS(3, _omitFieldNames ? '' : 'publicKey')
     ..aOS(4, _omitFieldNames ? '' : 'wif')
+    ..aOB(5, _omitFieldNames ? '' : 'used')
+    ..aInt64(6, _omitFieldNames ? '' : 'balanceSats')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8871,6 +8877,26 @@ class ExploredKey extends $pb.GeneratedMessage {
   $core.bool hasWif() => $_has(3);
   @$pb.TagNumber(4)
   void clearWif() => $_clearField(4);
+
+  /// With wallet_tracks_keys: true when a wallet transaction pays to the address.
+  @$pb.TagNumber(5)
+  $core.bool get used => $_getBF(4);
+  @$pb.TagNumber(5)
+  set used($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasUsed() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearUsed() => $_clearField(5);
+
+  /// With wallet_tracks_keys: what the address holds now, unconfirmed coins included.
+  @$pb.TagNumber(6)
+  $fixnum.Int64 get balanceSats => $_getI64(5);
+  @$pb.TagNumber(6)
+  set balanceSats($fixnum.Int64 value) => $_setInt64(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasBalanceSats() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearBalanceSats() => $_clearField(6);
 }
 
 class ExploreSeedResponse extends $pb.GeneratedMessage {
@@ -8883,6 +8909,7 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     $core.String? basePath,
     $core.String? mnemonic,
     $core.String? watchDescriptor,
+    $core.bool? walletTracksKeys,
   }) {
     final result = ExploreSeedResponse._();
     if (seedHex != null) result.seedHex = seedHex;
@@ -8893,6 +8920,7 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     if (basePath != null) result.basePath = basePath;
     if (mnemonic != null) result.mnemonic = mnemonic;
     if (watchDescriptor != null) result.watchDescriptor = watchDescriptor;
+    if (walletTracksKeys != null) result.walletTracksKeys = walletTracksKeys;
     return result;
   }
 
@@ -8916,6 +8944,7 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     ..aOS(6, _omitFieldNames ? '' : 'basePath')
     ..aOS(7, _omitFieldNames ? '' : 'mnemonic')
     ..aOS(8, _omitFieldNames ? '' : 'watchDescriptor')
+    ..aOB(9, _omitFieldNames ? '' : 'walletTracksKeys')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -9005,6 +9034,17 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
   $core.bool hasWatchDescriptor() => $_has(7);
   @$pb.TagNumber(8)
   void clearWatchDescriptor() => $_clearField(8);
+
+  /// True when keys are on the receive chain of the wallet of wallet_id.
+  /// tx_count and balance_sats then come from that wallet.
+  @$pb.TagNumber(9)
+  $core.bool get walletTracksKeys => $_getBF(8);
+  @$pb.TagNumber(9)
+  set walletTracksKeys($core.bool value) => $_setBool(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasWalletTracksKeys() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearWalletTracksKeys() => $_clearField(9);
 }
 
 class GenerateMnemonicRequest extends $pb.GeneratedMessage {

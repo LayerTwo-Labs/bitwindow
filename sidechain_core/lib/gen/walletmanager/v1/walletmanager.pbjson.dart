@@ -2083,13 +2083,16 @@ const ExploredKey$json = {
     {'1': 'address', '3': 2, '4': 1, '5': 9, '10': 'address'},
     {'1': 'public_key', '3': 3, '4': 1, '5': 9, '10': 'publicKey'},
     {'1': 'wif', '3': 4, '4': 1, '5': 9, '10': 'wif'},
+    {'1': 'used', '3': 5, '4': 1, '5': 8, '10': 'used'},
+    {'1': 'balance_sats', '3': 6, '4': 1, '5': 3, '10': 'balanceSats'},
   ],
 };
 
 /// Descriptor for `ExploredKey`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List exploredKeyDescriptor =
     $convert.base64Decode('CgtFeHBsb3JlZEtleRISCgRwYXRoGAEgASgJUgRwYXRoEhgKB2FkZHJlc3MYAiABKAlSB2FkZH'
-        'Jlc3MSHQoKcHVibGljX2tleRgDIAEoCVIJcHVibGljS2V5EhAKA3dpZhgEIAEoCVIDd2lm');
+        'Jlc3MSHQoKcHVibGljX2tleRgDIAEoCVIJcHVibGljS2V5EhAKA3dpZhgEIAEoCVIDd2lmEhIK'
+        'BHVzZWQYBSABKAhSBHVzZWQSIQoMYmFsYW5jZV9zYXRzGAYgASgDUgtiYWxhbmNlU2F0cw==');
 
 @$core.Deprecated('Use exploreSeedResponseDescriptor instead')
 const ExploreSeedResponse$json = {
@@ -2103,6 +2106,7 @@ const ExploreSeedResponse$json = {
     {'1': 'base_path', '3': 6, '4': 1, '5': 9, '10': 'basePath'},
     {'1': 'mnemonic', '3': 7, '4': 1, '5': 9, '10': 'mnemonic'},
     {'1': 'watch_descriptor', '3': 8, '4': 1, '5': 9, '10': 'watchDescriptor'},
+    {'1': 'wallet_tracks_keys', '3': 9, '4': 1, '5': 8, '10': 'walletTracksKeys'},
   ],
 };
 
@@ -2113,7 +2117,7 @@ final $typed_data.Uint8List exploreSeedResponseDescriptor =
         'BCABKAlSEGJpcDQ3UGF5bWVudENvZGUSMQoEa2V5cxgFIAMoCzIdLndhbGxldG1hbmFnZXIudj'
         'EuRXhwbG9yZWRLZXlSBGtleXMSGwoJYmFzZV9wYXRoGAYgASgJUghiYXNlUGF0aBIaCghtbmVt'
         'b25pYxgHIAEoCVIIbW5lbW9uaWMSKQoQd2F0Y2hfZGVzY3JpcHRvchgIIAEoCVIPd2F0Y2hEZX'
-        'NjcmlwdG9y');
+        'NjcmlwdG9yEiwKEndhbGxldF90cmFja3Nfa2V5cxgJIAEoCFIQd2FsbGV0VHJhY2tzS2V5cw==');
 
 @$core.Deprecated('Use generateMnemonicRequestDescriptor instead')
 const GenerateMnemonicRequest$json = {
