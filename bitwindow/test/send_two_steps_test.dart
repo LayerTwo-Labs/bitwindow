@@ -180,6 +180,45 @@ void main() {
       expect(model.recipients.single.subtractFee, isTrue);
     });
 
+    testWidgets('MAX keeps the total after a custom fee change', (tester) async {
+      const first = 'bcrt1qvx7nwqp6cpqgl33m40fmk55zhh29e849f3uv69';
+      const second = 'bcrt1qes7qr6phulr0tgmhjkjmvqyz0hqnfrj5pdwyxd';
+      model.recipients.single.addressController.text = first;
+      model.recipients.single.amountController.text = '0.00010009';
+      model.addRecipient();
+      final recipient = model.recipients.last;
+      recipient.addressController.text = second;
+
+      await model.onUseAvailableBalance(1);
+      expect(recipient.amountController.text, '0.00129991');
+
+      model.feeController.clear();
+      model.feeController.text = '0.00002211';
+      expect(model.totalSats, 150000);
+      expect(recipient.amountController.text, '0.00137780');
+
+      model.feeController.text = '0.00012500';
+      expect(model.totalSats, 150000);
+      expect(recipient.amountController.text, '0.00127491');
+
+      await tester.pumpWidget(const SizedBox());
+      final psbt = await model.buildUnsignedPsbtForAirgap(tester.element(find.byType(SizedBox)));
+      expect(psbt, 'unsigned');
+      expect(orchestrator.wallet.psbtDestinations, {first: 10009, second: 127491});
+    });
+
+    test('A manual amount edit cancels the MAX adjustment', () async {
+      model.recipients.single.amountController.text = '0.00010009';
+      model.addRecipient();
+      await model.onUseAvailableBalance(1);
+
+      model.recipients.last.amountController.text = '0.00030000';
+      model.feeController.text = '0.00002211';
+
+      expect(model.recipients.last.amountController.text, '0.00030000');
+      expect(model.totalSats, 42220);
+    });
+
     test('MAX excludes a frozen coin', () async {
       coins.frozenOutpoints = {'bb:0'};
 
