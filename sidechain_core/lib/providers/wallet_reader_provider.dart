@@ -45,6 +45,12 @@ class WalletReaderProvider extends ChangeNotifier implements NetworkScoped {
   /// True when the backend reports a wallet with a password.
   bool encrypted = false;
 
+  /// The last wallet state the backend reported.
+  wmpb.WalletState walletState = wmpb.WalletState.WALLET_STATE_UNSPECIFIED;
+
+  /// True while the backend holds an encrypted wallet that waits for its password.
+  bool get needsPassword => walletState == wmpb.WalletState.WALLET_STATE_LOCKED;
+
   List<WalletMetadata> _restoredWallets = const [];
 
   /// Shows the wallets of the last session until the backend reports the
@@ -146,6 +152,7 @@ class WalletReaderProvider extends ChangeNotifier implements NetworkScoped {
     required bool encrypted,
   }) {
     this.encrypted = encrypted;
+    walletState = state;
     final previousActiveId = activeWalletId;
     // A transient stream frame can arrive with an empty active id while wallets
     // still exist; keep the known-good selection instead of blanking it.
@@ -537,6 +544,7 @@ class WalletReaderProvider extends ChangeNotifier implements NetworkScoped {
   void clearState() {
     wallets = [];
     activeWalletId = null;
+    walletState = wmpb.WalletState.WALLET_STATE_UNSPECIFIED;
     notifyListeners();
   }
 
