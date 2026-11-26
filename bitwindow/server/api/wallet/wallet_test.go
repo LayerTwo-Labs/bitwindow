@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -547,6 +548,49 @@ func TestService_SignMessage(t *testing.T) {
 				require.Equal(t, text == message, checked.Valid)
 			}
 		}
+	})
+
+	t.Run("space around a pasted address and signature does not count", func(t *testing.T) {
+		t.Parallel()
+
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t)))
+		pub := fixtureBranchKey(t, 84, 0, 0)
+		addr, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pub.SerializeCompressed()), &chaincfg.SigNetParams)
+		require.NoError(t, err)
+		const message = " keep this space "
+
+		signed, err := cli.SignMessage(t.Context(), &walletv1.SignMessageRequest{
+			WalletId: testWalletID,
+			Address:  " " + addr.EncodeAddress() + "\n",
+			Message:  message,
+		})
+		require.NoError(t, err)
+
+		for _, text := range []string{message, strings.TrimSpace(message)} {
+			checked, err := cli.VerifyMessage(t.Context(), &walletv1.VerifyMessageRequest{
+				PublicKey: "\t" + addr.EncodeAddress() + " ",
+				Message:   text,
+				Signature: " " + signed.Signature + " \n",
+			})
+			require.NoError(t, err)
+			require.Equal(t, text == message, checked.Valid)
+		}
+	})
+
+	t.Run("an empty address or signature names the empty field", func(t *testing.T) {
+		t.Parallel()
+
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t)))
+		_, err := cli.VerifyMessage(t.Context(), &walletv1.VerifyMessageRequest{PublicKey: " ", Signature: "AAAA"})
+		require.ErrorContains(t, err, "address is required")
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+
+		_, err = cli.VerifyMessage(t.Context(), &walletv1.VerifyMessageRequest{
+			PublicKey: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+			Signature: " ",
+		})
+		require.ErrorContains(t, err, "signature is required")
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 	})
 
 	t.Run("a signature verifies without a node", func(t *testing.T) {

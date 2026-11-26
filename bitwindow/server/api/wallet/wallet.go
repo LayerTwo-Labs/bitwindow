@@ -687,12 +687,13 @@ func (s *Server) SignMessage(ctx context.Context, c *pb.SignMessageRequest) (*pb
 		return nil, fmt.Errorf("get wallet type: %w", err)
 	}
 
-	if c.Address == "" {
+	addressText := strings.TrimSpace(c.Address)
+	if addressText == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "address is required")
 	}
 
 	chainParams := s.walletEngine.GetChainParams()
-	address, err := btcutil.DecodeAddress(c.Address, chainParams)
+	address, err := btcutil.DecodeAddress(addressText, chainParams)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("decode address: %s", err)).WithCause(err)
 	}
@@ -707,7 +708,7 @@ func (s *Server) SignMessage(ctx context.Context, c *pb.SignMessageRequest) (*pb
 		return nil, err
 	}
 
-	privKey, err := deriveMessageSigningPrivateKey(seedHex, walletInfo, chainParams, c.Address)
+	privKey, err := deriveMessageSigningPrivateKey(seedHex, walletInfo, chainParams, addressText)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("derive signing key: %s", err)).WithCause(err)
 	}
@@ -725,8 +726,17 @@ func (s *Server) SignMessage(ctx context.Context, c *pb.SignMessageRequest) (*pb
 
 // VerifyMessage implements walletv1connect.WalletServiceHandler.
 func (s *Server) VerifyMessage(ctx context.Context, c *pb.VerifyMessageRequest) (*pb.VerifyMessageResponse, error) {
+	addressText := strings.TrimSpace(c.PublicKey)
+	if addressText == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "address is required")
+	}
+	signature := strings.TrimSpace(c.Signature)
+	if signature == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "signature is required")
+	}
+
 	params := s.walletEngine.GetChainParams()
-	valid, err := signmessage.Verify(c.PublicKey, c.Message, c.Signature, params)
+	valid, err := signmessage.Verify(addressText, c.Message, signature, params)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
@@ -734,7 +744,7 @@ func (s *Server) VerifyMessage(ctx context.Context, c *pb.VerifyMessageRequest) 
 		return &pb.VerifyMessageResponse{Valid: valid}, nil
 	}
 
-	address, err := btcutil.DecodeAddress(c.PublicKey, params)
+	address, err := btcutil.DecodeAddress(addressText, params)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("decode address: %s", err)).WithCause(err)
 	}
