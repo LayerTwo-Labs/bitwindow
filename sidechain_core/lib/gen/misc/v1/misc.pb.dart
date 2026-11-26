@@ -829,12 +829,18 @@ class EstimateNewsFeeRequest extends $pb.GeneratedMessage {
     $core.String? body,
     $core.String? headline,
     $core.String? url,
+    $core.String? lang,
+    $core.int? subtype,
+    $core.bool? nsfw,
   }) {
     final result = EstimateNewsFeeRequest._();
     if (action != null) result.action = action;
     if (body != null) result.body = body;
     if (headline != null) result.headline = headline;
     if (url != null) result.url = url;
+    if (lang != null) result.lang = lang;
+    if (subtype != null) result.subtype = subtype;
+    if (nsfw != null) result.nsfw = nsfw;
     return result;
   }
 
@@ -854,6 +860,9 @@ class EstimateNewsFeeRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'body')
     ..aOS(3, _omitFieldNames ? '' : 'headline')
     ..aOS(4, _omitFieldNames ? '' : 'url')
+    ..aOS(5, _omitFieldNames ? '' : 'lang')
+    ..aI(6, _omitFieldNames ? '' : 'subtype')
+    ..aOB(7, _omitFieldNames ? '' : 'nsfw')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -912,6 +921,34 @@ class EstimateNewsFeeRequest extends $pb.GeneratedMessage {
   $core.bool hasUrl() => $_has(3);
   @$pb.TagNumber(4)
   void clearUrl() => $_clearField(4);
+
+  /// Story fields that change the size of the payload.
+  @$pb.TagNumber(5)
+  $core.String get lang => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set lang($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasLang() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearLang() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get subtype => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set subtype($core.int value) => $_setSignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSubtype() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSubtype() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get nsfw => $_getBF(6);
+  @$pb.TagNumber(7)
+  set nsfw($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasNsfw() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearNsfw() => $_clearField(7);
 }
 
 class EstimateNewsFeeResponse extends $pb.GeneratedMessage {
@@ -2259,7 +2296,8 @@ class MiscServiceApi {
   $async.Future<ListCommentsResponse> listComments($pb.ClientContext? ctx, ListCommentsRequest request) =>
       _client.invoke<ListCommentsResponse>(ctx, 'MiscService', 'ListComments', request, ListCommentsResponse());
 
-  /// What a story or comment would cost to broadcast. Builds nothing.
+  /// The fee that the active wallet pays for a story or a comment with no fee
+  /// choice. Broadcasts nothing.
   $async.Future<EstimateNewsFeeResponse> estimateNewsFee($pb.ClientContext? ctx, EstimateNewsFeeRequest request) =>
       _client.invoke<EstimateNewsFeeResponse>(
           ctx, 'MiscService', 'EstimateNewsFee', request, EstimateNewsFeeResponse());

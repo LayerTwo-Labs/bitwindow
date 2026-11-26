@@ -5692,6 +5692,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     $core.Iterable<UnspentOutput>? requiredInputs,
     $core.bool? allowReplay,
     $core.bool? notificationOnly,
+    $core.String? opReturnHex,
   }) {
     final result = PreviewSendRequest._();
     if (walletId != null) result.walletId = walletId;
@@ -5701,6 +5702,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     if (requiredInputs != null) result.requiredInputs.addAll(requiredInputs);
     if (allowReplay != null) result.allowReplay = allowReplay;
     if (notificationOnly != null) result.notificationOnly = notificationOnly;
+    if (opReturnHex != null) result.opReturnHex = opReturnHex;
     return result;
   }
 
@@ -5727,6 +5729,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     ..pPM<UnspentOutput>(5, _omitFieldNames ? '' : 'requiredInputs', subBuilder: UnspentOutput.$_createMessage)
     ..aOB(6, _omitFieldNames ? '' : 'allowReplay')
     ..aOB(7, _omitFieldNames ? '' : 'notificationOnly')
+    ..aOS(8, _omitFieldNames ? '' : 'opReturnHex')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5800,6 +5803,17 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
   $core.bool hasNotificationOnly() => $_has(6);
   @$pb.TagNumber(7)
   void clearNotificationOnly() => $_clearField(7);
+
+  /// Raw OP_RETURN payload hex. A preview with no destination can use a zero
+  /// rate, which is the send default.
+  @$pb.TagNumber(8)
+  $core.String get opReturnHex => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set opReturnHex($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasOpReturnHex() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearOpReturnHex() => $_clearField(8);
 }
 
 class PreviewSendResponse extends $pb.GeneratedMessage {

@@ -1353,7 +1353,16 @@ abstract class MiscAPI {
     int? feeSatPerVbyte,
     int? feeSats,
   });
-  Future<NewsFeeEstimate> estimateNewsFee(NewsAction action, {String body = '', String headline = '', String url = ''});
+
+  /// The fee that the active wallet pays for the action with no fee choice.
+  Future<NewsFeeEstimate> estimateNewsFee(
+    NewsAction action, {
+    String body = '',
+    String headline = '',
+    String url = '',
+    int subtype = 0,
+    bool nsfw = false,
+  });
   Future<CommentNewsResponse> commentNews(
     String parentId,
     String body, {
@@ -1436,14 +1445,19 @@ class _MiscAPILive implements MiscAPI {
     String body = '',
     String headline = '',
     String url = '',
+    int subtype = 0,
+    bool nsfw = false,
   }) async {
     try {
       final response = await _client.estimateNewsFee(
-        EstimateNewsFeeRequest()
-          ..action = action
-          ..body = body
-          ..headline = headline
-          ..url = url,
+        EstimateNewsFeeRequest(
+          action: action,
+          body: body,
+          headline: headline,
+          url: url,
+          subtype: subtype,
+          nsfw: nsfw,
+        ),
       );
       return NewsFeeEstimate(
         vsize: response.vsize.toInt(),

@@ -219,6 +219,9 @@ const EstimateNewsFeeRequest$json = {
     {'1': 'body', '3': 2, '4': 1, '5': 9, '10': 'body'},
     {'1': 'headline', '3': 3, '4': 1, '5': 9, '10': 'headline'},
     {'1': 'url', '3': 4, '4': 1, '5': 9, '10': 'url'},
+    {'1': 'lang', '3': 5, '4': 1, '5': 9, '10': 'lang'},
+    {'1': 'subtype', '3': 6, '4': 1, '5': 5, '10': 'subtype'},
+    {'1': 'nsfw', '3': 7, '4': 1, '5': 8, '10': 'nsfw'},
   ],
 };
 
@@ -226,7 +229,8 @@ const EstimateNewsFeeRequest$json = {
 final $typed_data.Uint8List estimateNewsFeeRequestDescriptor =
     $convert.base64Decode('ChZFc3RpbWF0ZU5ld3NGZWVSZXF1ZXN0EisKBmFjdGlvbhgBIAEoDjITLm1pc2MudjEuTmV3c0'
         'FjdGlvblIGYWN0aW9uEhIKBGJvZHkYAiABKAlSBGJvZHkSGgoIaGVhZGxpbmUYAyABKAlSCGhl'
-        'YWRsaW5lEhAKA3VybBgEIAEoCVIDdXJs');
+        'YWRsaW5lEhAKA3VybBgEIAEoCVIDdXJsEhIKBGxhbmcYBSABKAlSBGxhbmcSGAoHc3VidHlwZR'
+        'gGIAEoBVIHc3VidHlwZRISCgRuc2Z3GAcgASgIUgRuc2Z3');
 
 @$core.Deprecated('Use estimateNewsFeeResponseDescriptor instead')
 const EstimateNewsFeeResponse$json = {

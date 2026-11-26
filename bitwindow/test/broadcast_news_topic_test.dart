@@ -21,6 +21,25 @@ class _NewsAPI extends MockAPI {
 class _BroadcastAPI extends MockMiscAPI {
   final fees = <int?>[];
   final links = <String?>[];
+  final estimated = <({String headline, String body, String url, int subtype, bool nsfw})>[];
+  String? estimateError;
+
+  @override
+  Future<NewsFeeEstimate> estimateNewsFee(
+    NewsAction action, {
+    String body = '',
+    String headline = '',
+    String url = '',
+    int subtype = 0,
+    bool nsfw = false,
+  }) async {
+    estimated.add((headline: headline, body: body, url: url, subtype: subtype, nsfw: nsfw));
+    if (estimateError case final error?) {
+      throw BitwindowException(error);
+    }
+    final vsize = 150 + headline.length + body.length + url.length;
+    return NewsFeeEstimate(vsize: vsize, feeSatPerVbyte: 21, feeSats: 21 * vsize);
+  }
 
   @override
   Future<BroadcastNewsResponse> broadcastNews(
@@ -152,5 +171,110 @@ void main() {
     await tester.widget<SailButton>(broadcast).onPressed!();
     await tester.pump();
     expect(api.misc.links, ['https://example.com/story']);
+  });
+
+  Future<void> pumpDialog(WidgetTester tester) async {
+    await loadBundledFonts();
+    final provider = GetIt.I.get<NewsProvider>();
+    await tester.runAsync(provider.fetch);
+    provider.topics = [Topic(topic: 'a1a1a1a1', name: 'QA Topic', confirmed: true)];
+    await tester.runAsync(() => GetIt.I.get<ClientSettings>().setValue(LastUsedTopicSetting(newValue: 'a1a1a1a1')));
+    await tester.pumpSailPage(const SizedBox(width: 700, height: 700, child: BroadcastNewsView()));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> type(WidgetTester tester, Finder field, String text) async {
+    tester.state<EditableTextState>(field).widget.controller.text = text;
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+  }
+
+  testWidgets('the dialog shows the network fee of the story before the broadcast', (tester) async {
+    await pumpDialog(tester);
+    expect(find.textContaining('Network fee'), findsNothing);
+
+    await type(tester, find.byType(EditableText).first, 'QA headline\nThe body');
+    expect(api.misc.estimated.last, (headline: 'QA headline', body: 'The body', url: '', subtype: 0, nsfw: false));
+    final line = find.text('Network fee: ≈ 3549 sats  ·  169 vB at 21.0 sat/vB');
+    expect(line, findsOneWidget);
+    final broadcast = find.widgetWithText(SailButton, 'Broadcast');
+    expect(tester.getBottomLeft(line).dy, lessThan(tester.getTopLeft(broadcast).dy));
+    expect(api.misc.fees, isEmpty, reason: 'An estimate broadcasts nothing');
+
+    await tester.tap(find.byType(SailCheckbox));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(api.misc.estimated.last.nsfw, isTrue);
+
+    await type(tester, find.byType(EditableText).at(1), 'https://example.com');
+    expect(api.misc.estimated.last.url, 'https://example.com');
+    expect(find.text('Network fee: ≈ 3948 sats  ·  188 vB at 21.0 sat/vB'), findsOneWidget);
+  });
+
+  testWidgets('a fee in the field replaces the estimate', (tester) async {
+    await pumpDialog(tester);
+    await type(tester, find.byType(EditableText).first, 'QA headline');
+    expect(find.textContaining('Network fee'), findsOneWidget);
+    final reads = api.misc.estimated.length;
+
+    await type(tester, find.byType(EditableText).last, '0.00005');
+    expect(find.textContaining('Network fee'), findsNothing);
+    expect(api.misc.estimated, hasLength(reads));
+
+    await type(tester, find.byType(EditableText).last, '');
+    expect(find.textContaining('Network fee'), findsOneWidget);
+  });
+
+  testWidgets('the dialog gives the reason when the wallet has no fee for the story', (tester) async {
+    await pumpDialog(tester);
+    api.misc.estimateError = 'could not estimate news fee: insufficient funds';
+    await type(tester, find.byType(EditableText).first, 'QA headline');
+    expect(find.text('Could not estimate news fee: insufficient funds'), findsOneWidget);
+    expect(find.textContaining('Network fee'), findsNothing);
+
+    api.misc.estimateError = null;
+    await type(tester, find.byType(EditableText).first, 'QA headline 2');
+    expect(find.textContaining('Could not estimate'), findsNothing);
+    expect(find.textContaining('Network fee'), findsOneWidget);
+  });
+
+  testWidgets('only the last input sets the fee line', (tester) async {
+    await pumpDialog(tester);
+    final message = tester.state<EditableTextState>(find.byType(EditableText).first).widget.controller;
+    message.text = 'A';
+    await tester.pump(const Duration(milliseconds: 100));
+    message.text = 'A longer headline';
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(api.misc.estimated.map((e) => e.headline), ['A longer headline']);
+  });
+
+  testWidgets('a changed story does not keep the fee of the old story', (tester) async {
+    await pumpDialog(tester);
+    await type(tester, find.byType(EditableText).first, 'QA headline');
+    expect(find.text('Network fee: ≈ 3381 sats  ·  161 vB at 21.0 sat/vB'), findsOneWidget);
+
+    tester.state<EditableTextState>(find.byType(EditableText).first).widget.controller.text =
+        'QA headline\n${'A long body. ' * 40}';
+    await tester.pump();
+    expect(find.textContaining('Network fee'), findsNothing);
+    expect(find.text('Checking the fee…'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(find.text('Checking the fee…'), findsNothing);
+    expect(find.textContaining('Network fee'), findsOneWidget);
+    expect(find.text('Network fee: ≈ 3381 sats  ·  161 vB at 21.0 sat/vB'), findsNothing);
+  });
+
+  testWidgets('the dialog with the fee line fits a 1024x700 window', (tester) async {
+    await pumpDialog(tester);
+    await type(tester, find.byType(EditableText).first, 'QA headline');
+    expect(find.textContaining('Network fee'), findsOneWidget);
+
+    final content = find.descendant(of: find.byType(BroadcastNewsView), matching: find.byType(SailColumn)).first;
+    // The window leaves 582 px for the content of the dialog.
+    expect(tester.getSize(content).height, lessThanOrEqualTo(570));
   });
 }
