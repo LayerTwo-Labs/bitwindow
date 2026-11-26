@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:fixnum/fixnum.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sidechain_core/gen/bitcoin/bitcoind/v1alpha/bitcoin.pb.dart' show EstimateSmartFeeRequest;
-import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' show PreviewSendResponse;
+import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' show CoinOrder, PreviewSendResponse;
 import 'package:sail_ui/sail_ui.dart';
 
 /// Fee rate in ${activeTicker.feeRate} for a confirmation target in blocks.
@@ -78,10 +78,12 @@ String feePreviewKey({
   required Iterable<String> requiredOutpoints,
   required Iterable<String> frozenOutpoints,
   required Iterable<String> walletOutpoints,
+  required CoinOrder coinOrder,
 }) {
   String sorted(Iterable<String> items) => (items.toList()..sort()).join(',');
   return [
     walletId,
+    coinOrder.value,
     feeRateSatPerVbyte,
     subtractFeeFromAmount,
     sorted(destinations.entries.map((e) => '${e.key}=${e.value}')),

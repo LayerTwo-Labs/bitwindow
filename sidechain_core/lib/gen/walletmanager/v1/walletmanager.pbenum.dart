@@ -64,6 +64,32 @@ class NodeMode extends $pb.ProtobufEnum {
   const NodeMode._(super.value, super.name);
 }
 
+/// CoinOrder selects the coins of a send that pins no input.
+class CoinOrder extends $pb.ProtobufEnum {
+  /// The backend selection: Bitcoin Core's own for a fee rate, else largest first.
+  static const CoinOrder COIN_ORDER_UNSPECIFIED = CoinOrder._(0, _omitEnumNames ? '' : 'COIN_ORDER_UNSPECIFIED');
+  static const CoinOrder COIN_ORDER_LARGEST_FIRST = CoinOrder._(1, _omitEnumNames ? '' : 'COIN_ORDER_LARGEST_FIRST');
+  static const CoinOrder COIN_ORDER_SMALLEST_FIRST = CoinOrder._(2, _omitEnumNames ? '' : 'COIN_ORDER_SMALLEST_FIRST');
+  static const CoinOrder COIN_ORDER_RANDOM = CoinOrder._(3, _omitEnumNames ? '' : 'COIN_ORDER_RANDOM');
+
+  /// A set of coins that pays the send with no change, else the backend selection.
+  static const CoinOrder COIN_ORDER_BRANCH_AND_BOUND =
+      CoinOrder._(4, _omitEnumNames ? '' : 'COIN_ORDER_BRANCH_AND_BOUND');
+
+  static const $core.List<CoinOrder> values = <CoinOrder>[
+    COIN_ORDER_UNSPECIFIED,
+    COIN_ORDER_LARGEST_FIRST,
+    COIN_ORDER_SMALLEST_FIRST,
+    COIN_ORDER_RANDOM,
+    COIN_ORDER_BRANCH_AND_BOUND,
+  ];
+
+  static final $core.List<CoinOrder?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 4);
+  static CoinOrder? valueOf($core.int value) => value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const CoinOrder._(super.value, super.name);
+}
+
 class WalletType extends $pb.ProtobufEnum {
   static const WalletType WALLET_TYPE_UNSPECIFIED = WalletType._(0, _omitEnumNames ? '' : 'WALLET_TYPE_UNSPECIFIED');
   static const WalletType WALLET_TYPE_BITCOIN_CORE = WalletType._(1, _omitEnumNames ? '' : 'WALLET_TYPE_BITCOIN_CORE');

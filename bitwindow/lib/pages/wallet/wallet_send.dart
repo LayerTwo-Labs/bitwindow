@@ -1610,6 +1610,7 @@ class SendPageViewModel extends BaseViewModel {
         subtractFeeFromAmount: _subtractFeeFromAmount,
         requiredInputs: _sendInputs,
         allowReplay: allowReplay,
+        coinOrder: coinSelectionStrategy.coinOrder,
       );
     } catch (error) {
       log.e('Error building unsigned PSBT: $error');
@@ -1834,6 +1835,7 @@ class SendPageViewModel extends BaseViewModel {
       requiredOutpoints: selectedUtxos.map((u) => u.output),
       frozenOutpoints: heldOutpoints,
       walletOutpoints: allUtxos.map((u) => u.output),
+      coinOrder: coinSelectionStrategy.coinOrder,
     );
   }
 
@@ -1882,6 +1884,7 @@ class SendPageViewModel extends BaseViewModel {
         feeRateSatPerVbyte: _feeRateSatPerVbyte!,
         subtractFeeFromAmount: _subtractFeeFromAmount,
         requiredInputs: selectedUtxos,
+        coinOrder: coinSelectionStrategy.coinOrder,
       );
       if (disposed || key != _feePreviewKey) {
         return;
