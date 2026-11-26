@@ -762,6 +762,8 @@ func rpcError(err error) error {
 		return connect.NewError(connect.CodeUnauthenticated, err.Error()).WithCause(err)
 	case errors.Is(err, wallet.ErrNotEncrypted), errors.Is(err, wallet.ErrBackupPasswordRequired):
 		return connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
+	case errors.Is(err, wallet.ErrPSBTMismatch), errors.Is(err, wallet.ErrPSBTNotSigned):
+		return connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	case errors.Is(err, wallet.ErrBackupHasNoNewWallet):
 		return connect.NewError(connect.CodeAlreadyExists, err.Error()).WithCause(err)
 	default:
