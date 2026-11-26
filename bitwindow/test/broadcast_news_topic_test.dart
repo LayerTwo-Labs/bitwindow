@@ -277,4 +277,13 @@ void main() {
     // The window leaves 582 px for the content of the dialog.
     expect(tester.getSize(content).height, lessThanOrEqualTo(570));
   });
+
+  testWidgets('Help is at the left edge and Broadcast at the right edge', (tester) async {
+    await pumpDialog(tester);
+    final help = tester.getTopLeft(find.widgetWithText(SailButton, 'Help'));
+    final broadcast = tester.getTopRight(find.widgetWithText(SailButton, 'Broadcast'));
+    final field = tester.getRect(find.byType(SailTextField).last);
+    expect(help.dx, closeTo(field.left, 1));
+    expect(broadcast.dx, closeTo(field.right, 1));
+  });
 }
