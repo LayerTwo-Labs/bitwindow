@@ -313,7 +313,14 @@ class _AddressesSection extends StatelessWidget {
               ),
             ],
           ),
-          AddressTable(entries: model.derivedEntries, hidePrivateKeys: model.hidePrivateKeys),
+          ListenableBuilder(
+            listenable: GetIt.I.get<FormatterProvider>(),
+            builder: (context, child) => AddressTable(
+              entries: model.derivedEntries,
+              hidePrivateKeys: model.hidePrivateKeys,
+              showWalletUse: model.walletTracksKeys,
+            ),
+          ),
         ],
       ),
     );
@@ -339,6 +346,7 @@ class HDWalletViewModel extends BaseViewModel {
   String _xpub = '';
   String _bip47PaymentCode = '';
   String _watchDescriptor = '';
+  bool _walletTracksKeys = false;
   // The mnemonic and the path that the keys on the screen come from.
   String? _shownMnemonic;
   String? _shownPath;
@@ -360,6 +368,9 @@ class HDWalletViewModel extends BaseViewModel {
   String get xpub => _xpub;
   String get bip47PaymentCode => _bip47PaymentCode;
   String get watchDescriptor => _watchDescriptor;
+
+  /// True when the rows are keys of the receive chain of the active wallet, so each row has its use.
+  bool get walletTracksKeys => _walletTracksKeys;
   bool get hideSecrets => _hideSecrets;
   bool get hidePrivateKeys => _hidePrivateKeys;
   bool get hasMnemonic => mnemonicController.text.trim().isNotEmpty;
@@ -406,6 +417,7 @@ class HDWalletViewModel extends BaseViewModel {
     _xpub = '';
     _bip47PaymentCode = '';
     _watchDescriptor = '';
+    _walletTracksKeys = false;
     _derivedEntries = [];
     _currentPage = 0;
   }
@@ -505,9 +517,17 @@ class HDWalletViewModel extends BaseViewModel {
       _xpub = explored.xpub;
       _bip47PaymentCode = explored.bip47PaymentCode;
       _watchDescriptor = explored.watchDescriptor;
+      _walletTracksKeys = explored.walletTracksKeys;
       _derivedEntries = [
         for (final key in explored.keys)
-          HDWalletEntry(path: key.path, address: key.address, publicKey: key.publicKey, privateKey: key.wif),
+          HDWalletEntry(
+            path: key.path,
+            address: key.address,
+            publicKey: key.publicKey,
+            privateKey: key.wif,
+            used: explored.walletTracksKeys ? key.used : null,
+            balanceSats: explored.walletTracksKeys ? key.balanceSats.toInt() : null,
+          ),
       ];
     } catch (e) {
       if (run == _exploreRun) {
@@ -578,23 +598,32 @@ class HDWalletViewModel extends BaseViewModel {
 class AddressTable extends StatelessWidget {
   final List<HDWalletEntry> entries;
   final bool hidePrivateKeys;
+  // Adds the Used and Balance columns, from the wallet that watches the keys.
+  final bool showWalletUse;
 
   const AddressTable({
     super.key,
     required this.entries,
     required this.hidePrivateKeys,
+    this.showWalletUse = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final formatter = GetIt.I.get<FormatterProvider>();
+    final privateKeyColumn = showWalletUse ? 5 : 3;
     return SailTable(
-      phoneColumns: hidePrivateKeys ? const [0, 1] : const [0, 1, 3],
+      phoneColumns: [0, 1, if (showWalletUse) 3, if (!hidePrivateKeys) privateKeyColumn],
       getRowId: (index) => entries.isEmpty ? 'empty$index' : entries[index].path,
       drawGrid: true,
       shrinkWrap: true,
       headerBuilder: (context) => [
         const SailTableHeaderCell(name: 'Path'),
         const SailTableHeaderCell(name: 'Address'),
+        if (showWalletUse) ...[
+          const SailTableHeaderCell(name: 'Used'),
+          const SailTableHeaderCell(name: 'Balance'),
+        ],
         const SailTableHeaderCell(name: 'Public Key'),
         const SailTableHeaderCell(name: 'Private Key (WIF)'),
       ],
@@ -603,6 +632,10 @@ class AddressTable extends StatelessWidget {
         return [
           SailTableCell(value: entry.path, monospace: true, hugContent: true),
           SailTableCell(value: entry.address, monospace: true, hugContent: true),
+          if (showWalletUse) ...[
+            SailTableCell(value: entry.used == true ? 'Yes' : 'No', hugContent: true),
+            SailTableCell(value: formatter.formatSats(entry.balanceSats ?? 0), monospace: true, hugContent: true),
+          ],
           _keyCell(entry.publicKey, fill: true),
           hidePrivateKeys
               ? const SailTableCell(value: _hiddenKey, monospace: true, hugContent: true)
@@ -632,11 +665,16 @@ class HDWalletEntry {
   final String address;
   final String publicKey;
   final String privateKey;
+  // If a wallet transaction pays to the address, and what it holds. Null when no wallet watches the key.
+  final bool? used;
+  final int? balanceSats;
 
   HDWalletEntry({
     required this.path,
     required this.address,
     required this.publicKey,
     required this.privateKey,
+    this.used,
+    this.balanceSats,
   });
 }

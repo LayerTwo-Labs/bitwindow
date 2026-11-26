@@ -8,6 +8,8 @@ import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 
+import 'test_utils.dart';
+
 const _phrase = 'fixture phrase';
 const _master = 'fixture seed';
 const _private = 'fixture extended key';
@@ -55,7 +57,7 @@ class _BitcoinConf implements BitcoinConfProvider {
 void main() {
   late WalletReaderProvider reader;
 
-  setUp(() {
+  setUp(() async {
     final log = Logger(level: Level.off);
     GetIt.I.registerSingleton<Logger>(log);
     GetIt.I.registerSingleton<BitcoinConfProvider>(_BitcoinConf());
@@ -76,6 +78,7 @@ void main() {
       ),
     ];
     reader.activeWalletId = 'wallet-one';
+    await registerTestDependencies();
   });
 
   tearDown(() => GetIt.I.reset());

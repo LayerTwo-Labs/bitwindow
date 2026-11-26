@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bitwindow/pages/wallet/wallet_hd.dart';
+import 'package:fixnum/fixnum.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -42,7 +43,9 @@ class _FakeWallet implements OrchestratorWalletRPC {
       throw exploreError!;
     }
     final path = walletId.isNotEmpty && basePath.isEmpty ? walletPaths[walletId]! : basePath;
+    final tracked = walletId.isNotEmpty && path == walletPaths[walletId];
     return wmpb.ExploreSeedResponse(
+      walletTracksKeys: tracked,
       seedHex: walletId.isEmpty ? 'seed' : 'seed-$walletId',
       mnemonic: walletId.isEmpty ? '' : 'words of $walletId',
       basePath: path,
@@ -52,7 +55,14 @@ class _FakeWallet implements OrchestratorWalletRPC {
       watchDescriptor: 'wpkh($path)',
       keys: [
         for (var i = startIndex; i < startIndex + 2; i++)
-          wmpb.ExploredKey(path: '$path/$i', address: '${walletId}addr-$i', publicKey: 'pub-$i', wif: 'wif-$i'),
+          wmpb.ExploredKey(
+            path: '$path/$i',
+            address: '${walletId}addr-$i',
+            publicKey: 'pub-$i',
+            wif: 'wif-$i',
+            used: tracked && i == 0,
+            balanceSats: Int64(tracked && i == 0 ? 1000 : 0),
+          ),
       ],
     );
   }
@@ -325,6 +335,29 @@ void main() {
     expect(model.masterSeed, isEmpty);
     expect(model.derivedEntries, isEmpty);
     expect(model.derivationPathController.text, model.defaultDerivationPath);
+  });
+
+  test('keys of a wallet chain carry the use that the wallet reports', () async {
+    final model = HDWalletViewModel();
+    await model.useWalletMnemonic();
+
+    await model.deriveAddresses();
+
+    expect(model.walletTracksKeys, isTrue);
+    expect(model.derivedEntries.map((e) => (e.used, e.balanceSats)), [(true, 1000), (false, 0)]);
+  });
+
+  test('keys off the wallet chains carry no use', () async {
+    final model = HDWalletViewModel();
+    await model.useWalletMnemonic();
+    await model.deriveAddresses();
+
+    model.derivationPathController.text = "m/86'/1'/2'/0";
+    expect(model.walletTracksKeys, isFalse, reason: 'an edit drops the keys and their use');
+    await model.deriveAddresses();
+
+    expect(model.walletTracksKeys, isFalse);
+    expect(model.derivedEntries.map((e) => (e.used, e.balanceSats)), [(null, null), (null, null)]);
   });
 
   test('Use Wallet shows the reason when the wallet holds no seed', () async {
