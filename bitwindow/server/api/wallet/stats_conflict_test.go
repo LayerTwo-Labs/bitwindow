@@ -95,3 +95,73 @@ func TestStatsLastActivityIsTheNewestBlock(t *testing.T) {
 	assert.Equal(t, sameTime, response.LastTxAt.Seconds)
 	assert.Equal(t, int64(3), response.TransactionCountTotal)
 }
+
+func TestStatsLastActivityCountsUnconfirmedTransactions(t *testing.T) {
+	const seen = int64(1795699190)
+	confirmed := func(height uint32, blockTime int64) *orchpb.TransactionEntry {
+		return &orchpb.TransactionEntry{Txid: "confirmed", Category: "receive", AmountSats: 150_000_000, Confirmations: 1, BlockHeight: height, BlockTime: blockTime, Time: blockTime}
+	}
+	for _, tc := range []struct {
+		name       string
+		txs        []*orchpb.TransactionEntry
+		wantAt     int64
+		wantHeight uint32
+	}{
+		{
+			name:   "a new wallet with one unconfirmed payment",
+			txs:    []*orchpb.TransactionEntry{{Txid: "pending", Category: "receive", AmountSats: 70_000_000, Time: seen}},
+			wantAt: seen,
+		},
+		{
+			name: "an unconfirmed payment after the last block",
+			txs: []*orchpb.TransactionEntry{
+				confirmed(103, seen-600),
+				{Txid: "pending", Category: "receive", AmountSats: 30_000_000, Time: seen},
+			},
+			wantAt: seen,
+		},
+		{
+			name: "an unconfirmed send older than the last block",
+			txs: []*orchpb.TransactionEntry{
+				{Txid: "stuck", Category: "send", AmountSats: -1_000, Fee: -0.00000141, Time: seen - 3600},
+				confirmed(104, seen),
+			},
+			wantAt:     seen,
+			wantHeight: 104,
+		},
+		{
+			name: "the highest block counts when block times go back, in time order",
+			txs: []*orchpb.TransactionEntry{
+				confirmed(100, seen+100),
+				{Txid: "pending", Category: "receive", AmountSats: 1_000, Time: seen},
+				{Txid: "block-101", Category: "receive", AmountSats: 1_000, Confirmations: 1, BlockHeight: 101, BlockTime: seen - 100, Time: seen - 100},
+			},
+			wantAt: seen,
+		},
+		{
+			name: "the highest block counts when block times go back, in block order",
+			txs: []*orchpb.TransactionEntry{
+				{Txid: "pending", Category: "receive", AmountSats: 1_000, Time: seen},
+				{Txid: "block-101", Category: "receive", AmountSats: 1_000, Confirmations: 1, BlockHeight: 101, BlockTime: seen - 100, Time: seen - 100},
+				confirmed(100, seen+100),
+			},
+			wantAt: seen,
+		},
+		{
+			name: "an abandoned send is no activity",
+			txs: []*orchpb.TransactionEntry{
+				confirmed(103, seen-600),
+				{Txid: "abandoned", Category: "send", AmountSats: -1_000, Fee: -0.00000141, Time: seen, Abandoned: true},
+			},
+			wantAt:     seen - 600,
+			wantHeight: 103,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			response := coreStats(t, tc.txs, nil)
+			require.NotNil(t, response.LastTxAt)
+			assert.Equal(t, tc.wantAt, response.LastTxAt.Seconds)
+			assert.Equal(t, tc.wantHeight, response.LastTxBlockHeight)
+		})
+	}
+}

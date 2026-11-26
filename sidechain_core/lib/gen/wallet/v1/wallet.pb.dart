@@ -2500,8 +2500,8 @@ class GetStatsResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(7)
   void clearTotalFeesSats() => $_clearField(7);
 
-  /// Most-recent confirmed transaction in the wallet. Both unset when the
-  /// wallet has no confirmed transactions yet.
+  /// Newest wallet transaction: its block time, or the time the wallet saw it
+  /// when unconfirmed. Unset when the wallet has no transaction.
   @$pb.TagNumber(8)
   $0.Timestamp get lastTxAt => $_getN(7);
   @$pb.TagNumber(8)
@@ -2513,6 +2513,7 @@ class GetStatsResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(8)
   $0.Timestamp ensureLastTxAt() => $_ensure(7);
 
+  /// Block of the newest wallet transaction. 0 when it is unconfirmed.
   @$pb.TagNumber(9)
   $core.int get lastTxBlockHeight => $_getIZ(8);
   @$pb.TagNumber(9)

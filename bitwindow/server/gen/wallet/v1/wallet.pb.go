@@ -1932,10 +1932,11 @@ type GetStatsResponse struct {
 	TransactionCountTotal             int64                  `protobuf:"varint,5,opt,name=transaction_count_total,json=transactionCountTotal,proto3" json:"transaction_count_total,omitempty"`
 	TransactionCountSinceMonth        int64                  `protobuf:"varint,6,opt,name=transaction_count_since_month,json=transactionCountSinceMonth,proto3" json:"transaction_count_since_month,omitempty"`
 	TotalFeesSats                     int64                  `protobuf:"varint,7,opt,name=total_fees_sats,json=totalFeesSats,proto3" json:"total_fees_sats,omitempty"`
-	// Most-recent confirmed transaction in the wallet. Both unset when the
-	// wallet has no confirmed transactions yet.
-	LastTxAt          *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_tx_at,json=lastTxAt,proto3" json:"last_tx_at,omitempty"`
-	LastTxBlockHeight uint32                 `protobuf:"varint,9,opt,name=last_tx_block_height,json=lastTxBlockHeight,proto3" json:"last_tx_block_height,omitempty"`
+	// Newest wallet transaction: its block time, or the time the wallet saw it
+	// when unconfirmed. Unset when the wallet has no transaction.
+	LastTxAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_tx_at,json=lastTxAt,proto3" json:"last_tx_at,omitempty"`
+	// Block of the newest wallet transaction. 0 when it is unconfirmed.
+	LastTxBlockHeight uint32 `protobuf:"varint,9,opt,name=last_tx_block_height,json=lastTxBlockHeight,proto3" json:"last_tx_block_height,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
