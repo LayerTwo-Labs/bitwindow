@@ -3026,6 +3026,32 @@ func TestCoreBackendListReceivedReportsHDPath(t *testing.T) {
 	assert.Equal(t, 1, reads[freshAddr], "each address reads its path one time")
 }
 
+func TestCoreBackendListReceivedCountsImmatureCoinbase(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	addr := p2wpkhAddr(t, fixedKey(0x64), &chaincfg.RegressionNetParams)
+	fake.handle("getaddressinfo", func(bitcoindCall) (any, string) {
+		return map[string]any{"address": addr, "hdkeypath": "m/84h/1h/0h/0/0", "ismine": true}, ""
+	})
+	fake.handle("listreceivedbyaddress", func(c bitcoindCall) (any, string) {
+		var immature bool
+		if len(c.Params) > 4 {
+			require.NoError(t, json.Unmarshal(c.Params[4], &immature))
+		}
+		if !immature {
+			return []map[string]any{{"address": addr, "amount": 0, "txids": []string{}}}, ""
+		}
+		return []map[string]any{{"address": addr, "amount": 50, "txids": []string{"coinbase"}}}, ""
+	})
+	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+
+	recv, err := backend.ListReceivedByAddress(context.Background(), coreID)
+	require.NoError(t, err)
+	require.Len(t, recv, 1)
+	assert.Equal(t, []string{"coinbase"}, recv[0].TxIDs, "a mined key is used before its coinbase matures")
+}
+
 func TestCoreBackendListReceivedReturnsPathError(t *testing.T) {
 	backend, fake, coreID := newCoreBackendFixture(t)
 	fake.stubEnsureFlow()
