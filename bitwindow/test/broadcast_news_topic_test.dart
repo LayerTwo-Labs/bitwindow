@@ -103,6 +103,25 @@ void main() {
     expect(find.text('Select a topic'), findsNothing);
   });
 
+  testWidgets('the topic list tells apart two topics with one name', (tester) async {
+    await loadBundledFonts();
+    final provider = GetIt.I.get<NewsProvider>();
+    await tester.runAsync(provider.fetch);
+    provider.topics = [
+      Topic(id: Int64(1), topic: 'f1f1f1f1', name: 'Outside Test', confirmed: true),
+      Topic(id: Int64(2), topic: 'd1d1d1d1', name: 'Outside Test', confirmed: true),
+    ];
+    await tester.runAsync(() => GetIt.I.get<ClientSettings>().setValue(LastUsedTopicSetting(newValue: 'd1d1d1d1')));
+
+    await tester.pumpSailPage(const SizedBox(width: 700, height: 700, child: BroadcastNewsView()));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('d1d1d1d1 · Outside Test'), findsOneWidget);
+    expect(find.text('Outside Test'), findsNothing);
+  });
+
   testWidgets('a nonpositive or malformed fee stops the broadcast', (tester) async {
     await loadBundledFonts();
     final provider = GetIt.I.get<NewsProvider>();

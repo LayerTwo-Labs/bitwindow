@@ -485,14 +485,7 @@ class BroadcastNewsView extends StatelessWidget {
             leadingSpacing: true,
             children: [
               SailDropdownButton<String>(
-                items: [
-                  ...viewModel.topics.map(
-                    (topic) => SailDropdownItem(
-                      value: topic.topic,
-                      label: topic.confirmed ? topic.name : '${topic.name} (pending)',
-                    ),
-                  ),
-                ],
+                items: topicDropdownItems(viewModel.topics),
                 onChanged: viewModel.setTopic,
                 value: viewModel.topic?.topic,
                 hint: 'Select a topic',
