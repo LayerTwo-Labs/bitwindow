@@ -17,6 +17,21 @@ import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
+/// The kinds of a story, by the number that the chain holds.
+const storyKinds = {0: 'Link', 1: 'Text', 2: 'Ask', 3: 'Show', 4: 'Poll', 5: 'Job'};
+
+/// The topic, the kind, the NSFW mark and the date of a story, in one line.
+/// A link is the kind of a story with no choice, so it has no name here.
+String storyMeta(CoinNews news, {required String? topicName, required String date, String separator = ' · '}) {
+  final kind = news.subtype == 0 ? null : storyKinds[news.subtype];
+  return [
+    ?topicName,
+    ?kind,
+    if (news.nsfw) 'NSFW',
+    date,
+  ].join(separator);
+}
+
   const CoinNewsView({super.key});
 
   @override
@@ -321,7 +336,7 @@ class _LargeStoryRowState extends State<_LargeStoryRow> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SailText.primary13(widget.entry.headline, bold: true),
-                  SailText.secondary12(topicName == null ? date : '$topicName · $date'),
+                  SailText.secondary12(storyMeta(widget.entry, topicName: topicName, date: date)),
                 ],
               ),
             ),
@@ -1183,7 +1198,7 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
                                   final date = formatDate(widget.news.createTime.toDateTime());
                                   final topicName = _newsProvider.topicName(widget.news.topic);
                                   return SailText.secondary13(
-                                    topicName == null ? date : '$topicName  ·  $date',
+                                    storyMeta(widget.news, topicName: topicName, date: date, separator: '  ·  '),
                                     color: theme.colors.textTertiary,
                                   );
                                 },

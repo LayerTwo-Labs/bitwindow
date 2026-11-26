@@ -10,6 +10,7 @@ import 'package:bitwindow/providers/blockchain_provider.dart';
 import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/routing/router.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
+import 'package:bitwindow/widgets/coinnews.dart';
 import 'package:bitwindow/widgets/headline_highlight_text_field.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -505,13 +506,8 @@ class BroadcastNewsView extends StatelessWidget {
                 spacing: SailStyleValues.padding16,
                 children: [
                   SailDropdownButton<int>(
-                    items: const [
-                      SailDropdownItem(value: 0, label: 'Link'),
-                      SailDropdownItem(value: 1, label: 'Text'),
-                      SailDropdownItem(value: 2, label: 'Ask'),
-                      SailDropdownItem(value: 3, label: 'Show'),
-                      SailDropdownItem(value: 4, label: 'Poll'),
-                      SailDropdownItem(value: 5, label: 'Job'),
+                    items: [
+                      for (final kind in storyKinds.entries) SailDropdownItem(value: kind.key, label: kind.value),
                     ],
                     value: viewModel.subtype,
                     onChanged: viewModel.setSubtype,
