@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"connectrpc.com/connect/v2"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -97,6 +98,20 @@ func TestWalletHandlerPSBTRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, final.RawTxHex)
+
+	_, err = h.FinalizePsbt(ctx, &pb.FinalizePsbtRequest{PsbtBase64: created.PsbtBase64})
+	require.ErrorIs(t, err, wallet.ErrPSBTNotSigned)
+	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+
+	other, err := h.CreatePsbt(ctx, &pb.CreatePsbtRequest{
+		WalletId:           w.ID,
+		Destinations:       map[string]int64{dest: 60_000},
+		FeeRateSatPerVbyte: 2,
+	})
+	require.NoError(t, err)
+	_, err = h.CombinePsbt(ctx, &pb.CombinePsbtRequest{PsbtBase64: []string{created.PsbtBase64, other.PsbtBase64}})
+	require.ErrorIs(t, err, wallet.ErrPSBTMismatch)
+	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 }
 
 // TestWalletNeedsL1 covers the switch-time L1 decision: only electrum wallets

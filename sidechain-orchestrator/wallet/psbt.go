@@ -354,6 +354,13 @@ func CheckPSBTInputs(psbtBase64 string) error {
 	return nil
 }
 
+var (
+	// ErrPSBTMismatch reports PSBTs that are for different transactions.
+	ErrPSBTMismatch = errors.New("the psbts describe different transactions")
+	// ErrPSBTNotSigned reports a PSBT with an input that lacks a signature.
+	ErrPSBTNotSigned = errors.New("the psbt is not fully signed")
+)
+
 // finalizeAndExtract finalizes a fully-signed PSBT and returns the raw tx hex.
 func finalizeAndExtract(packet *psbt.Packet) (string, error) {
 	if err := verifySignatures(packet); err != nil {
@@ -375,7 +382,7 @@ func finalizeAndExtract(packet *psbt.Packet) (string, error) {
 		}
 	}
 	if err := psbt.MaybeFinalizeAll(packet); err != nil {
-		return "", fmt.Errorf("finalize psbt: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrPSBTNotSigned, err)
 	}
 	final, err := psbt.Extract(packet)
 	if err != nil {
@@ -1064,7 +1071,7 @@ func combinePSBT(base *psbt.Packet, others ...*psbt.Packet) error {
 			return errors.New("psbt has no unsigned transaction")
 		}
 		if o.UnsignedTx.TxHash() != base.UnsignedTx.TxHash() {
-			return errors.New("the psbts describe different transactions")
+			return ErrPSBTMismatch
 		}
 		if len(o.Inputs) != len(base.Inputs) {
 			return errors.New("psbt input count mismatch")
