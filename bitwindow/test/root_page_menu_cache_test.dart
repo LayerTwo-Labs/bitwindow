@@ -7,10 +7,10 @@
 // which the user perceives as a flicker / menu reset.
 //
 // Fix (commit 6949f401): cache the built list and only invalidate when
-// `_isWalletEncrypted` changes. The exact pattern in root_page.dart:
+// the streamed `encrypted` flag changes. The exact pattern in root_page.dart:
 //
-//   if (_cachedMenuListEncrypted != _isWalletEncrypted) {
-//     _cachedMenuListEncrypted = _isWalletEncrypted;
+//   if (_cachedMenuListEncrypted != encrypted) {
+//     _cachedMenuListEncrypted = encrypted;
 //     _cachedMenuList = null;
 //   }
 //   ...
