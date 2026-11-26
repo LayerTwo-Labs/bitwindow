@@ -410,8 +410,19 @@ type CoinNews struct {
 	NSFW      bool
 	TxID      string
 	Vout      uint32
+	// Outdated is true for a story older than the retention of its topic.
+	Outdated bool
 
 	CreatedAt *time.Time
+}
+
+// Outdated reports whether a story of blockTime is older than retentionDays at now.
+// A retention of 0 keeps a story forever.
+func Outdated(blockTime time.Time, retentionDays int32, now time.Time) bool {
+	if retentionDays <= 0 {
+		return false
+	}
+	return blockTime.Before(now.Add(-time.Duration(retentionDays) * 24 * time.Hour))
 }
 
 // ListTopics returns the confirmed topics, then each topic whose creation
@@ -629,6 +640,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 		Headline  string         `db:"headline"`
 		Content   string         `db:"content"`
 		Fee       btcutil.Amount `db:"fee"`
+		Retention int32          `db:"retention_days"`
 		BlockTime time.Time      `db:"block_time"`
 		ItemID    string         `db:"item_id"`
 		RawTLV    []byte         `db:"raw_tlv"`
@@ -646,6 +658,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 			s.headline AS headline,
 			COALESCE(s.body, '') AS content,
 			COALESCE(o.fee_sats, 0) AS fee,
+			COALESCE(ct.retention_days, 0) AS retention_days,
 			i.block_time AS block_time,
 			lower(hex(s.item_id)) AS item_id,
 			COALESCE(s.raw_tlv, x'') AS raw_tlv,
@@ -658,15 +671,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 		JOIN cn_items i ON i.item_id = s.item_id
 		LEFT JOIN cn_topics ct ON ct.topic = s.topic
 		LEFT JOIN op_returns o ON o.txid = i.txid AND o.vout = i.vout
-		WHERE
-			trim(s.headline) != ''
-			AND
-			CASE
-				WHEN ct.topic IS NOT NULL THEN
-					ct.retention_days = 0
-					OR datetime(i.block_time) >= datetime('now', '-' || ct.retention_days || ' days')
-				ELSE 1
-			END
+		WHERE trim(s.headline) != ''
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("list coin news: query new-format stories: %w", err)
@@ -677,6 +682,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 		itemID string
 		rawTLV []byte
 	}
+	now := time.Now()
 	var out []CoinNews
 	var toReassemble []continuationTarget
 	for _, row := range rows {
@@ -697,6 +703,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 			NSFW:      row.NSFW,
 			TxID:      row.TxID,
 			Vout:      row.Vout,
+			Outdated:  Outdated(blockTime, row.Retention, now),
 			CreatedAt: &blockTime,
 		})
 		toReassemble = append(toReassemble, continuationTarget{idx: len(out) - 1, itemID: row.ItemID, rawTLV: row.RawTLV})

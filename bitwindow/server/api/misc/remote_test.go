@@ -19,8 +19,15 @@ import (
 
 type stubRemote []engines.RemoteItem
 
-func (s stubRemote) ListFrontPage(_ context.Context, topicHex string, _ uint32) ([]engines.RemoteItem, error) {
-	return lo.Filter(s, func(item engines.RemoteItem, _ int) bool { return item.TopicHex == topicHex }), nil
+func (s stubRemote) ListFrontPage(_ context.Context, topicHex string, limit, offset uint32) ([]engines.RemoteItem, error) {
+	items := lo.Filter(s, func(item engines.RemoteItem, _ int) bool { return item.TopicHex == topicHex })
+	return lo.Subset(items, int(offset), uint(limit)), nil
+}
+
+type noIndexer struct{}
+
+func (noIndexer) ListFrontPage(context.Context, string, uint32, uint32) ([]engines.RemoteItem, error) {
+	return nil, engines.ErrNoIndexer
 }
 
 func TestService_ListCoinNews_RemoteFee(t *testing.T) {
@@ -57,4 +64,69 @@ func TestService_ListCoinNews_RemoteConfirmedHidesPending(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.CoinNews, 1)
 	assert.Equal(t, "cc", resp.CoinNews[0].ItemId)
+}
+
+func TestService_ListCoinNews_RemoteOutdated(t *testing.T) {
+	t.Parallel()
+	remote := stubRemote{
+		{ItemIDHex: "aa", TopicHex: "a1a1a1a1", Headline: "Old", FeeSats: 5000, BlockTime: time.Now().AddDate(0, 0, -40)},
+		{ItemIDHex: "bb", TopicHex: "a1a1a1a1", Headline: "New", FeeSats: 100, BlockTime: time.Now()},
+	}
+	srv := misc.New(database.Test(t), nil, nil, nil, remote)
+
+	resp, err := srv.ListCoinNews(t.Context(), &miscv1.ListCoinNewsRequest{})
+	require.NoError(t, err)
+	outdated := lo.SliceToMap(resp.CoinNews, func(n *miscv1.CoinNews) (string, bool) { return n.Headline, n.Outdated })
+	assert.Equal(t, map[string]bool{"Old": true, "New": false}, outdated)
+}
+
+// Outdated stories with a high fee must not take the places of the current stories.
+func TestService_ListCoinNews_OutdatedKeepCurrent(t *testing.T) {
+	t.Parallel()
+	db := database.Test(t)
+	ctx := t.Context()
+	topic := validTopicID()
+	seedCurrentTopic(t, ctx, db, topic, "Weekly", 1)
+
+	height := uint32(1)
+	for i := range 105 {
+		seedCurrentNews(t, ctx, db, topic, "Old", "", 3+i, time.Now().AddDate(0, 0, -30))
+		require.NoError(t, opreturns.Persist(ctx, db, []opreturns.OPReturn{{
+			Height: &height, TxID: fmt.Sprintf("%064x", 1000+3+i), Data: []byte("old"), Fee: 500,
+		}}))
+	}
+	seedCurrentNews(t, ctx, db, topic, "New", "", 200, time.Now())
+
+	srv := misc.New(db, nil, nil, nil, noIndexer{})
+	resp, err := srv.ListCoinNews(ctx, &miscv1.ListCoinNewsRequest{})
+	require.NoError(t, err)
+
+	outdated, current := lo.FilterReject(resp.CoinNews, func(n *miscv1.CoinNews, _ int) bool { return n.Outdated })
+	assert.Len(t, outdated, 100)
+	require.Len(t, current, 1)
+	assert.Equal(t, "New", current[0].Headline)
+}
+
+// The indexer ranks by fee with no retention, so current stories can be on a later page.
+func TestService_ListCoinNews_RemoteCurrentAfterOutdated(t *testing.T) {
+	t.Parallel()
+	var remote stubRemote
+	for i := range 150 {
+		remote = append(remote, engines.RemoteItem{
+			ItemIDHex: fmt.Sprintf("%024x", i), TopicHex: "a1a1a1a1", Headline: "Old", FeeSats: 5000,
+			BlockTime: time.Now().AddDate(0, 0, -40), TxID: fmt.Sprintf("%064x", i),
+		})
+	}
+	remote = append(remote, engines.RemoteItem{
+		ItemIDHex: "ff", TopicHex: "a1a1a1a1", Headline: "New", FeeSats: 100, BlockTime: time.Now(), TxID: fmt.Sprintf("%064x", 999),
+	})
+	srv := misc.New(database.Test(t), nil, nil, nil, remote)
+
+	resp, err := srv.ListCoinNews(t.Context(), &miscv1.ListCoinNewsRequest{})
+	require.NoError(t, err)
+
+	outdated, current := lo.FilterReject(resp.CoinNews, func(n *miscv1.CoinNews, _ int) bool { return n.Outdated })
+	assert.Len(t, outdated, 100)
+	require.Len(t, current, 1)
+	assert.Equal(t, "New", current[0].Headline)
 }

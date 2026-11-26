@@ -23,9 +23,10 @@ var ErrNoIndexer = errors.New("this network publishes no coin news indexer")
 
 // RemoteCoinNews reads a published CoinNews indexer.
 type RemoteCoinNews interface {
-	// ListFrontPage returns items ranked by fee, newest-first on ties. It
-	// returns ErrNoIndexer when the network publishes none.
-	ListFrontPage(ctx context.Context, topicHex string, limit uint32) ([]RemoteItem, error)
+	// ListFrontPage returns limit items after the first offset items, ranked
+	// by fee, newest-first on ties. It returns ErrNoIndexer when the network
+	// publishes none.
+	ListFrontPage(ctx context.Context, topicHex string, limit, offset uint32) ([]RemoteItem, error)
 }
 
 // RemoteItem is one indexed CoinNews story as the indexer renders it.
@@ -123,12 +124,12 @@ func newCoinNewsClient(url string) coinnewsv1connect.CoinNewsServiceClient {
 	)))
 }
 
-func (r *connectRemote) ListFrontPage(ctx context.Context, topicHex string, limit uint32) ([]RemoteItem, error) {
+func (r *connectRemote) ListFrontPage(ctx context.Context, topicHex string, limit, offset uint32) ([]RemoteItem, error) {
 	client := r.resolve(ctx)
 	if client == nil {
 		return nil, ErrNoIndexer
 	}
-	req := &coinnewsv1.ListFrontPageRequest{Limit: limit}
+	req := &coinnewsv1.ListFrontPageRequest{Limit: limit, Offset: offset}
 	if topicHex != "" {
 		req.TopicHex = &topicHex
 	}

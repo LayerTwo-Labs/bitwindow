@@ -9,6 +9,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"time"
 
 	connectv1 "connectrpc.com/connect"
 	"connectrpc.com/connect/v2"
@@ -302,15 +303,25 @@ func topicToProto(topic opreturns.Topic, _ int) *miscv1.Topic {
 	return out
 }
 
-// coinNewsPerTopic is the number of stories ListCoinNews returns for each topic.
+// coinNewsPerTopic is the number of current stories ListCoinNews returns for
+// each topic. It returns the same number of outdated stories.
 const coinNewsPerTopic = 100
 
 // ListCoinNews implements miscv1connect.MiscServiceHandler.
 func (s *Server) ListCoinNews(ctx context.Context, req *miscv1.ListCoinNewsRequest) (*miscv1.ListCoinNewsResponse, error) {
-	topics, err := s.coinNewsTopics(ctx, req.Topic)
+	known, err := opreturns.ListTopics(ctx, s.database)
 	if err != nil {
 		return nil, err
 	}
+	topics := lo.Map(known, func(t opreturns.Topic, _ int) opreturns.TopicID { return t.Topic })
+	if req.Topic != nil {
+		topicID, err := opreturns.ValidNewsTopicID(*req.Topic)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+		}
+		topics = []opreturns.TopicID{topicID}
+	}
+	retention := lo.SliceToMap(known, func(t opreturns.Topic) (opreturns.TopicID, int32) { return t.Topic, t.RetentionDays })
 	pending, err := opreturns.ListPendingCoinNews(ctx, s.database)
 	if err != nil {
 		return nil, err
@@ -318,7 +329,7 @@ func (s *Server) ListCoinNews(ctx context.Context, req *miscv1.ListCoinNewsReque
 
 	var out []*miscv1.CoinNews
 	for _, topic := range topics {
-		news, err := s.confirmedCoinNews(ctx, topic)
+		news, err := s.confirmedCoinNews(ctx, topic, retention[topic])
 		if err != nil {
 			return nil, err
 		}
@@ -331,46 +342,62 @@ func (s *Server) ListCoinNews(ctx context.Context, req *miscv1.ListCoinNewsReque
 			}
 		}
 		rankCoinNews(news)
-		out = append(out, news[:min(len(news), coinNewsPerTopic)]...)
+		outdated, current := lo.FilterReject(news, func(n *miscv1.CoinNews, _ int) bool { return n.Outdated })
+		out = append(out, current[:min(len(current), coinNewsPerTopic)]...)
+		out = append(out, outdated[:min(len(outdated), coinNewsPerTopic)]...)
 	}
 	rankCoinNews(out)
 	return &miscv1.ListCoinNewsResponse{CoinNews: out}, nil
 }
 
-// coinNewsTopics returns the requested topic, or each topic of this node.
-func (s *Server) coinNewsTopics(ctx context.Context, topic *string) ([]opreturns.TopicID, error) {
-	if topic != nil {
-		topicID, err := opreturns.ValidNewsTopicID(*topic)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
-		}
-		return []opreturns.TopicID{topicID}, nil
-	}
-	topics, err := opreturns.ListTopics(ctx, s.database)
-	if err != nil {
-		return nil, err
-	}
-	return lo.Map(topics, func(t opreturns.Topic, _ int) opreturns.TopicID { return t.Topic }), nil
-}
+// remoteCoinNewsPages is the number of indexer pages that one topic can take.
+const remoteCoinNewsPages = 10
 
-// confirmedCoinNews returns the top stories of one topic, from the network's
+// confirmedCoinNews returns the stories of one topic, from the network's
 // indexer, or from the local index when the network publishes no indexer.
-func (s *Server) confirmedCoinNews(ctx context.Context, topic opreturns.TopicID) ([]*miscv1.CoinNews, error) {
-	items, err := s.remoteCoinNews.ListFrontPage(ctx, topic.String(), coinNewsPerTopic)
+func (s *Server) confirmedCoinNews(ctx context.Context, topic opreturns.TopicID, retentionDays int32) ([]*miscv1.CoinNews, error) {
+	news, err := s.remoteCoinNewsOf(ctx, topic, retentionDays)
 	switch {
 	case errors.Is(err, engines.ErrNoIndexer):
 	case err != nil:
 		return nil, connect.NewError(connect.CodeUnavailable, fmt.Sprintf("read coin news indexer: %s", err)).WithCause(err)
 	default:
-		return lo.Map(items, remoteCoinNewsToProto), nil
+		return news, nil
 	}
 
-	news, err := opreturns.ListCoinNews(ctx, s.database)
+	local, err := opreturns.ListCoinNews(ctx, s.database)
 	if err != nil {
 		return nil, fmt.Errorf("list coin news: %w", err)
 	}
-	news = lo.Filter(news, func(n opreturns.CoinNews, _ int) bool { return n.Topic == topic })
-	return lo.Map(news[:min(len(news), coinNewsPerTopic)], coinNewsToProto), nil
+	local = lo.Filter(local, func(n opreturns.CoinNews, _ int) bool { return n.Topic == topic })
+	return lo.Map(local, coinNewsToProto), nil
+}
+
+// remoteCoinNewsOf reads the indexer by fee, page after page, until it holds
+// coinNewsPerTopic current stories. The indexer does not know the retention,
+// so outdated stories with a high fee come before the current ones.
+func (s *Server) remoteCoinNewsOf(ctx context.Context, topic opreturns.TopicID, retentionDays int32) ([]*miscv1.CoinNews, error) {
+	now := time.Now()
+	var news []*miscv1.CoinNews
+	current := 0
+	for page := range uint32(remoteCoinNewsPages) {
+		items, err := s.remoteCoinNews.ListFrontPage(ctx, topic.String(), coinNewsPerTopic, page*coinNewsPerTopic)
+		if err != nil {
+			return nil, err
+		}
+		for i, item := range items {
+			story := remoteCoinNewsToProto(item, i)
+			story.Outdated = opreturns.Outdated(item.BlockTime, retentionDays, now)
+			if !story.Outdated {
+				current++
+			}
+			news = append(news, story)
+		}
+		if current >= coinNewsPerTopic || len(items) < coinNewsPerTopic {
+			break
+		}
+	}
+	return news, nil
 }
 
 // rankCoinNews orders stories by fee, the newest first on equal fees.
@@ -417,6 +444,7 @@ func coinNewsToProto(coinNews opreturns.CoinNews, _ int) *miscv1.CoinNews {
 		Nsfw:       coinNews.NSFW,
 		Txid:       coinNews.TxID,
 		Vout:       coinNews.Vout,
+		Outdated:   coinNews.Outdated,
 	}
 }
 
