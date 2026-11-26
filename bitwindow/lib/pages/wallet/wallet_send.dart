@@ -829,7 +829,7 @@ class PayFromPanel extends ViewModelWidget<SendPageViewModel> {
           mainAxisSize: MainAxisSize.min,
           children: [
             UTXOSelector(
-              allUtxos: viewModel.allUtxos,
+              allUtxos: viewModel.availableUtxos,
               selectedUtxos: viewModel.selectedUtxos,
               onSelectionChanged: viewModel.onSelectionChanged,
             ),
