@@ -132,9 +132,7 @@ class _BackupWalletPageState extends State<BackupWalletPage> {
     try {
       final defaultFileName = _backupFileName();
 
-      final result = await FilePicker.getDirectoryPath(
-        dialogTitle: 'Save Wallet Backup',
-      );
+      final result = await pickDirectoryPath(dialogTitle: 'Save Wallet Backup');
 
       if (result != null) {
         setState(() {

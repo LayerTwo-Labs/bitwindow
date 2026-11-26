@@ -49,14 +49,14 @@ class _FakePicker extends FilePickerPlatform {
   final String path;
 
   @override
-  Future<String?> getDirectoryPath({
+  Future<Uri?> pickDirectory({
     String? dialogTitle,
     String? initialDirectory,
     AndroidOptions androidOptions = const AndroidOptions(),
     WindowsOptions windowsOptions = const WindowsOptions(),
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
-  }) async => path;
+  }) async => Uri.directory(path);
 }
 
 class _FakeWallet implements OrchestratorWalletRPC {

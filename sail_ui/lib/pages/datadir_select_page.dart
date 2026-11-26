@@ -1,4 +1,3 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' show AppBar, MaterialPageRoute, Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -30,7 +29,7 @@ class _DataDirSelectPageState extends State<DataDirSelectPage> {
   Future<void> _pickDirectory() async {
     setState(() => _isPicking = true);
     try {
-      final result = await FilePicker.getDirectoryPath();
+      final result = await pickDirectoryPath();
       if (result != null && mounted) {
         setState(() => _selectedPath = result);
       }

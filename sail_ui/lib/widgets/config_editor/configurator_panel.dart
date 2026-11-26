@@ -674,7 +674,7 @@ class _FileInputState extends State<_FileInput> {
       String? result;
 
       if (widget.option.inputType == ConfigInputType.directory) {
-        result = await FilePicker.getDirectoryPath(
+        result = await pickDirectoryPath(
           initialDirectory: _controller.text.isNotEmpty ? _controller.text : null,
         );
       } else {
