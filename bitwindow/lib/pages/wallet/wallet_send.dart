@@ -1011,6 +1011,7 @@ class SendPageViewModel extends BaseViewModel {
   CoinSelectionStrategy get coinSelectionStrategy => coinSelectionProvider.strategy;
 
   List<RecipientModel> recipients = [];
+  ({RecipientModel recipient, int budgetSats, int totalSats})? _customMax;
   BitcoinUnit? _previousUnit;
 
   /// The fee target in blocks. Null when the user types the fee.
@@ -1116,13 +1117,31 @@ class SendPageViewModel extends BaseViewModel {
   }
 
   void _onFormChanged() {
+    if (_customMax case final payment? when amountSats != payment.totalSats) {
+      _customMax = null;
+    }
     sendError = null;
     notifyListeners();
+  }
+
+  void _onFeeChanged() {
+    final fee = feeSats;
+    if (_customMax case (:final recipient, :final budgetSats, :final totalSats) when customFee && fee > 0) {
+      final previousAmount = parseAmountToSatoshis(recipient.amountController.text, currentUnit);
+      final amount = max(0, budgetSats - fee);
+      if (amount != previousAmount) {
+        _customMax = (recipient: recipient, budgetSats: budgetSats, totalSats: totalSats - previousAmount + amount);
+        recipient.amountController.text = amountTextInUnit(amount, currentUnit);
+        return;
+      }
+    }
+    _onFormChanged();
   }
 
   void _onUnitChanged() {
     final newUnit = currentUnit;
     if (_previousUnit != null && _previousUnit != newUnit) {
+      _customMax = null;
       _convertAllAmountsToNewUnit(_previousUnit!, newUnit);
     }
     _previousUnit = newUnit;
@@ -1160,7 +1179,7 @@ class SendPageViewModel extends BaseViewModel {
     } else {
       feeController = TextEditingController(text: '10000');
     }
-    feeController.addListener(_onFormChanged);
+    feeController.addListener(_onFeeChanged);
     addressBookProvider.addListener(notifyListeners);
     transactionsProvider.addListener(_refreshSelectedUtxos);
     coinSelectionProvider.addListener(notifyListeners);
@@ -1241,6 +1260,7 @@ class SendPageViewModel extends BaseViewModel {
     settingsProvider.removeListener(_onUnitChanged);
     draftProvider.removeListener(notifyListeners);
     _walletReader.removeListener(notifyListeners);
+    feeController.removeListener(_onFeeChanged);
     _feePreviewErrorTimer?.cancel();
     super.dispose();
   }
@@ -1285,6 +1305,13 @@ class SendPageViewModel extends BaseViewModel {
         notificationKeepBackSats: maxSend.notificationKeepBackSats,
         feeOnTopSats: maxSend.feeSats,
       );
+      _customMax = customFee && recipientCount > 1
+          ? (
+              recipient: recipient,
+              budgetSats: maxSend.availableSats - otherSats,
+              totalSats: otherSats + plan.amountSats,
+            )
+          : null;
       recipient.subtractFee = plan.subtractFee;
       recipient.amountController.text = amountTextInUnit(plan.amountSats, currentUnit);
       notifyListeners();
@@ -1601,6 +1628,7 @@ class SendPageViewModel extends BaseViewModel {
   }
 
   Future<void> clearAll() async {
+    _customMax = null;
     // Remove listeners from all recipients
     for (final recipient in recipients) {
       recipient.removeListener(_onFormChanged);
@@ -1667,6 +1695,7 @@ class SendPageViewModel extends BaseViewModel {
 
   /// Selects the spendable coins of [outpoints] and returns how many it took.
   int selectOutpoints(Iterable<String> outpoints) {
+    _customMax = null;
     selectedUtxos = coinsAt(availableUtxos, outpoints);
     notifyListeners();
     return selectedUtxos.length;
@@ -1678,6 +1707,7 @@ class SendPageViewModel extends BaseViewModel {
   }
 
   void onSelectionChanged(List<UnspentOutput> selected) {
+    _customMax = null;
     selectedUtxos = coinsAt(allUtxos, selected.map((u) => u.output));
     notifyListeners();
   }
@@ -1687,6 +1717,7 @@ class SendPageViewModel extends BaseViewModel {
   bool get _subtractFeeFromAmount => recipients.length == 1 && recipients.first.subtractFee;
 
   void addRecipient() {
+    _customMax = null;
     // Subtract-fee is a single-recipient option; a second recipient voids it.
     for (final r in recipients) {
       r.subtractFee = false;
@@ -1701,6 +1732,7 @@ class SendPageViewModel extends BaseViewModel {
     if (recipients.length <= 1) {
       return;
     }
+    _customMax = null;
     recipients[index].removeListener(_onFormChanged);
     recipients.removeAt(index);
     notifyListeners();
@@ -1925,6 +1957,7 @@ class SendPageViewModel extends BaseViewModel {
       return;
     }
     if (estimate case (confTarget: final target?, satPerVByte: final satPerVByte?, error: _)) {
+      _customMax = null;
       selectedConfTarget = target;
       _setEstimatedFee(satPerVByte);
       notifyListeners();
