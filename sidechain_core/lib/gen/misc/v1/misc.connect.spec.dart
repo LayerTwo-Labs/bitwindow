@@ -65,7 +65,8 @@ abstract final class MiscService {
     miscv1misc.ListCommentsResponse.new,
   );
 
-  /// What a story or comment would cost to broadcast. Builds nothing.
+  /// The fee that the active wallet pays for a story, a comment or a topic with no fee
+  /// choice. Broadcasts nothing.
   static const estimateNewsFee = connect.Spec(
     '/$name/EstimateNewsFee',
     connect.StreamType.unary,

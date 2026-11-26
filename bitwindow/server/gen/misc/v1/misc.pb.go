@@ -88,6 +88,7 @@ const (
 	NewsAction_NEWS_ACTION_UNSPECIFIED NewsAction = 0
 	NewsAction_NEWS_ACTION_COMMENT     NewsAction = 2
 	NewsAction_NEWS_ACTION_STORY       NewsAction = 3
+	NewsAction_NEWS_ACTION_TOPIC       NewsAction = 4
 )
 
 // Enum value maps for NewsAction.
@@ -96,11 +97,13 @@ var (
 		0: "NEWS_ACTION_UNSPECIFIED",
 		2: "NEWS_ACTION_COMMENT",
 		3: "NEWS_ACTION_STORY",
+		4: "NEWS_ACTION_TOPIC",
 	}
 	NewsAction_value = map[string]int32{
 		"NEWS_ACTION_UNSPECIFIED": 0,
 		"NEWS_ACTION_COMMENT":     2,
 		"NEWS_ACTION_STORY":       3,
+		"NEWS_ACTION_TOPIC":       4,
 	}
 )
 
@@ -753,9 +756,12 @@ type EstimateNewsFeeRequest struct {
 	Headline string `protobuf:"bytes,3,opt,name=headline,proto3" json:"headline,omitempty"`
 	Url      string `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
 	// Story fields that change the size of the payload.
-	Lang          string `protobuf:"bytes,5,opt,name=lang,proto3" json:"lang,omitempty"`
-	Subtype       int32  `protobuf:"varint,6,opt,name=subtype,proto3" json:"subtype,omitempty"`
-	Nsfw          bool   `protobuf:"varint,7,opt,name=nsfw,proto3" json:"nsfw,omitempty"`
+	Lang    string `protobuf:"bytes,5,opt,name=lang,proto3" json:"lang,omitempty"`
+	Subtype int32  `protobuf:"varint,6,opt,name=subtype,proto3" json:"subtype,omitempty"`
+	Nsfw    bool   `protobuf:"varint,7,opt,name=nsfw,proto3" json:"nsfw,omitempty"`
+	// Topic fields that change the size of the payload.
+	TopicName     string `protobuf:"bytes,8,opt,name=topic_name,json=topicName,proto3" json:"topic_name,omitempty"`
+	RetentionDays int32  `protobuf:"varint,9,opt,name=retention_days,json=retentionDays,proto3" json:"retention_days,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -837,6 +843,20 @@ func (x *EstimateNewsFeeRequest) GetNsfw() bool {
 		return x.Nsfw
 	}
 	return false
+}
+
+func (x *EstimateNewsFeeRequest) GetTopicName() string {
+	if x != nil {
+		return x.TopicName
+	}
+	return ""
+}
+
+func (x *EstimateNewsFeeRequest) GetRetentionDays() int32 {
+	if x != nil {
+		return x.RetentionDays
+	}
+	return 0
 }
 
 type EstimateNewsFeeResponse struct {
@@ -1905,7 +1925,7 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\x04txid\x18\x06 \x01(\tR\x04txid\x12%\n" +
 	"\x0eretention_days\x18\a \x01(\x05R\rretentionDays\"<\n" +
 	"\x12ListTopicsResponse\x12&\n" +
-	"\x06topics\x18\x01 \x03(\v2\x0e.misc.v1.TopicR\x06topics\"\xc9\x01\n" +
+	"\x06topics\x18\x01 \x03(\v2\x0e.misc.v1.TopicR\x06topics\"\x8f\x02\n" +
 	"\x16EstimateNewsFeeRequest\x12+\n" +
 	"\x06action\x18\x01 \x01(\x0e2\x13.misc.v1.NewsActionR\x06action\x12\x12\n" +
 	"\x04body\x18\x02 \x01(\tR\x04body\x12\x1a\n" +
@@ -1913,7 +1933,10 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\x03url\x18\x04 \x01(\tR\x03url\x12\x12\n" +
 	"\x04lang\x18\x05 \x01(\tR\x04lang\x12\x18\n" +
 	"\asubtype\x18\x06 \x01(\x05R\asubtype\x12\x12\n" +
-	"\x04nsfw\x18\a \x01(\bR\x04nsfw\"u\n" +
+	"\x04nsfw\x18\a \x01(\bR\x04nsfw\x12\x1d\n" +
+	"\n" +
+	"topic_name\x18\b \x01(\tR\ttopicName\x12%\n" +
+	"\x0eretention_days\x18\t \x01(\x05R\rretentionDays\"u\n" +
 	"\x17EstimateNewsFeeResponse\x12\x14\n" +
 	"\x05vsize\x18\x01 \x01(\x04R\x05vsize\x12)\n" +
 	"\x11fee_sat_per_vbyte\x18\x02 \x01(\x01R\x0efeeSatPerVbyte\x12\x19\n" +
@@ -2008,12 +2031,13 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\x15OP_RETURN_SORT_HEIGHT\x10\x02\x12\x16\n" +
 	"\x12OP_RETURN_SORT_FEE\x10\x03\x12\x17\n" +
 	"\x13OP_RETURN_SORT_TXID\x10\x04\x12\x1a\n" +
-	"\x16OP_RETURN_SORT_MESSAGE\x10\x05*q\n" +
+	"\x16OP_RETURN_SORT_MESSAGE\x10\x05*\x88\x01\n" +
 	"\n" +
 	"NewsAction\x12\x1b\n" +
 	"\x17NEWS_ACTION_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13NEWS_ACTION_COMMENT\x10\x02\x12\x15\n" +
-	"\x11NEWS_ACTION_STORY\x10\x03\"\x04\b\x01\x10\x01*\x10NEWS_ACTION_VOTE2\xe2\x06\n" +
+	"\x11NEWS_ACTION_STORY\x10\x03\x12\x15\n" +
+	"\x11NEWS_ACTION_TOPIC\x10\x04\"\x04\b\x01\x10\x01*\x10NEWS_ACTION_VOTE2\xe2\x06\n" +
 	"\vMiscService\x12K\n" +
 	"\fListOPReturn\x12\x1c.misc.v1.ListOPReturnRequest\x1a\x1d.misc.v1.ListOPReturnResponse\x12N\n" +
 	"\rBroadcastNews\x12\x1d.misc.v1.BroadcastNewsRequest\x1a\x1e.misc.v1.BroadcastNewsResponse\x12H\n" +

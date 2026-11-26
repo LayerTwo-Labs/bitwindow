@@ -43,14 +43,16 @@ class NewsAction extends $pb.ProtobufEnum {
   static const NewsAction NEWS_ACTION_UNSPECIFIED = NewsAction._(0, _omitEnumNames ? '' : 'NEWS_ACTION_UNSPECIFIED');
   static const NewsAction NEWS_ACTION_COMMENT = NewsAction._(2, _omitEnumNames ? '' : 'NEWS_ACTION_COMMENT');
   static const NewsAction NEWS_ACTION_STORY = NewsAction._(3, _omitEnumNames ? '' : 'NEWS_ACTION_STORY');
+  static const NewsAction NEWS_ACTION_TOPIC = NewsAction._(4, _omitEnumNames ? '' : 'NEWS_ACTION_TOPIC');
 
   static const $core.List<NewsAction> values = <NewsAction>[
     NEWS_ACTION_UNSPECIFIED,
     NEWS_ACTION_COMMENT,
     NEWS_ACTION_STORY,
+    NEWS_ACTION_TOPIC,
   ];
 
-  static final $core.List<NewsAction?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 3);
+  static final $core.List<NewsAction?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 4);
   static NewsAction? valueOf($core.int value) => value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const NewsAction._(super.value, super.name);

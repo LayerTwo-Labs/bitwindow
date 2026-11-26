@@ -832,6 +832,8 @@ class EstimateNewsFeeRequest extends $pb.GeneratedMessage {
     $core.String? lang,
     $core.int? subtype,
     $core.bool? nsfw,
+    $core.String? topicName,
+    $core.int? retentionDays,
   }) {
     final result = EstimateNewsFeeRequest._();
     if (action != null) result.action = action;
@@ -841,6 +843,8 @@ class EstimateNewsFeeRequest extends $pb.GeneratedMessage {
     if (lang != null) result.lang = lang;
     if (subtype != null) result.subtype = subtype;
     if (nsfw != null) result.nsfw = nsfw;
+    if (topicName != null) result.topicName = topicName;
+    if (retentionDays != null) result.retentionDays = retentionDays;
     return result;
   }
 
@@ -863,6 +867,8 @@ class EstimateNewsFeeRequest extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'lang')
     ..aI(6, _omitFieldNames ? '' : 'subtype')
     ..aOB(7, _omitFieldNames ? '' : 'nsfw')
+    ..aOS(8, _omitFieldNames ? '' : 'topicName')
+    ..aI(9, _omitFieldNames ? '' : 'retentionDays')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -949,6 +955,25 @@ class EstimateNewsFeeRequest extends $pb.GeneratedMessage {
   $core.bool hasNsfw() => $_has(6);
   @$pb.TagNumber(7)
   void clearNsfw() => $_clearField(7);
+
+  /// Topic fields that change the size of the payload.
+  @$pb.TagNumber(8)
+  $core.String get topicName => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set topicName($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasTopicName() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearTopicName() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get retentionDays => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set retentionDays($core.int value) => $_setSignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasRetentionDays() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearRetentionDays() => $_clearField(9);
 }
 
 class EstimateNewsFeeResponse extends $pb.GeneratedMessage {
@@ -2296,7 +2321,7 @@ class MiscServiceApi {
   $async.Future<ListCommentsResponse> listComments($pb.ClientContext? ctx, ListCommentsRequest request) =>
       _client.invoke<ListCommentsResponse>(ctx, 'MiscService', 'ListComments', request, ListCommentsResponse());
 
-  /// The fee that the active wallet pays for a story or a comment with no fee
+  /// The fee that the active wallet pays for a story, a comment or a topic with no fee
   /// choice. Broadcasts nothing.
   $async.Future<EstimateNewsFeeResponse> estimateNewsFee($pb.ClientContext? ctx, EstimateNewsFeeRequest request) =>
       _client.invoke<EstimateNewsFeeResponse>(

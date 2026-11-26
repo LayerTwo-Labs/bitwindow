@@ -45,6 +45,7 @@ const NewsAction$json = {
     {'1': 'NEWS_ACTION_UNSPECIFIED', '2': 0},
     {'1': 'NEWS_ACTION_COMMENT', '2': 2},
     {'1': 'NEWS_ACTION_STORY', '2': 3},
+    {'1': 'NEWS_ACTION_TOPIC', '2': 4},
   ],
   '4': [
     {'1': 1, '2': 1},
@@ -55,8 +56,8 @@ const NewsAction$json = {
 /// Descriptor for `NewsAction`. Decode as a `google.protobuf.EnumDescriptorProto`.
 final $typed_data.Uint8List newsActionDescriptor =
     $convert.base64Decode('CgpOZXdzQWN0aW9uEhsKF05FV1NfQUNUSU9OX1VOU1BFQ0lGSUVEEAASFwoTTkVXU19BQ1RJT0'
-        '5fQ09NTUVOVBACEhUKEU5FV1NfQUNUSU9OX1NUT1JZEAMiBAgBEAEqEE5FV1NfQUNUSU9OX1ZP'
-        'VEU=');
+        '5fQ09NTUVOVBACEhUKEU5FV1NfQUNUSU9OX1NUT1JZEAMSFQoRTkVXU19BQ1RJT05fVE9QSUMQ'
+        'BCIECAEQASoQTkVXU19BQ1RJT05fVk9URQ==');
 
 @$core.Deprecated('Use listOPReturnRequestDescriptor instead')
 const ListOPReturnRequest$json = {
@@ -222,6 +223,8 @@ const EstimateNewsFeeRequest$json = {
     {'1': 'lang', '3': 5, '4': 1, '5': 9, '10': 'lang'},
     {'1': 'subtype', '3': 6, '4': 1, '5': 5, '10': 'subtype'},
     {'1': 'nsfw', '3': 7, '4': 1, '5': 8, '10': 'nsfw'},
+    {'1': 'topic_name', '3': 8, '4': 1, '5': 9, '10': 'topicName'},
+    {'1': 'retention_days', '3': 9, '4': 1, '5': 5, '10': 'retentionDays'},
   ],
 };
 
@@ -230,7 +233,8 @@ final $typed_data.Uint8List estimateNewsFeeRequestDescriptor =
     $convert.base64Decode('ChZFc3RpbWF0ZU5ld3NGZWVSZXF1ZXN0EisKBmFjdGlvbhgBIAEoDjITLm1pc2MudjEuTmV3c0'
         'FjdGlvblIGYWN0aW9uEhIKBGJvZHkYAiABKAlSBGJvZHkSGgoIaGVhZGxpbmUYAyABKAlSCGhl'
         'YWRsaW5lEhAKA3VybBgEIAEoCVIDdXJsEhIKBGxhbmcYBSABKAlSBGxhbmcSGAoHc3VidHlwZR'
-        'gGIAEoBVIHc3VidHlwZRISCgRuc2Z3GAcgASgIUgRuc2Z3');
+        'gGIAEoBVIHc3VidHlwZRISCgRuc2Z3GAcgASgIUgRuc2Z3Eh0KCnRvcGljX25hbWUYCCABKAlS'
+        'CXRvcGljTmFtZRIlCg5yZXRlbnRpb25fZGF5cxgJIAEoBVINcmV0ZW50aW9uRGF5cw==');
 
 @$core.Deprecated('Use estimateNewsFeeResponseDescriptor instead')
 const EstimateNewsFeeResponse$json = {
