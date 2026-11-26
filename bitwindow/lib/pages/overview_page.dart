@@ -10,6 +10,7 @@ import 'package:bitwindow/providers/blockchain_provider.dart';
 import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/routing/router.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
+import 'package:bitwindow/utils/web_link.dart';
 import 'package:bitwindow/widgets/coinnews.dart';
 import 'package:bitwindow/widgets/headline_highlight_text_field.dart';
 import 'package:flutter/services.dart';
@@ -687,11 +688,18 @@ class BroadcastNewsViewModel extends BaseViewModel {
         return;
       }
 
+      final link = urlController.text.trim();
+      if (link.isNotEmpty && webLink(link) == null) {
+        broadcastError = 'Enter a link that starts with http:// or https://.';
+        notifyListeners();
+        return;
+      }
+
       await _api.misc.broadcastNews(
         topicId,
         headline,
         content,
-        url: urlController.text.trim().isEmpty ? null : urlController.text.trim(),
+        url: link.isEmpty ? null : link,
         subtype: subtype,
         nsfw: nsfw,
         feeSats: feeSats,

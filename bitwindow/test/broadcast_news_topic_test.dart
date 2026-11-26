@@ -20,6 +20,7 @@ class _NewsAPI extends MockAPI {
 
 class _BroadcastAPI extends MockMiscAPI {
   final fees = <int?>[];
+  final links = <String?>[];
 
   @override
   Future<BroadcastNewsResponse> broadcastNews(
@@ -34,6 +35,7 @@ class _BroadcastAPI extends MockMiscAPI {
     int? feeSats,
   }) async {
     fees.add(feeSats);
+    links.add(url);
     throw StateError('Test broadcast stopped');
   }
 }
@@ -120,5 +122,35 @@ void main() {
       expect(api.misc.fees.last, expected);
     }
     expect(api.misc.fees, [2001, null]);
+  });
+
+  testWidgets('a link that is not a web link stops the broadcast', (tester) async {
+    await loadBundledFonts();
+    final provider = GetIt.I.get<NewsProvider>();
+    await tester.runAsync(provider.fetch);
+    provider.topics = [Topic(topic: 'a1a1a1a1', name: 'QA Topic', confirmed: true)];
+    await tester.runAsync(() => GetIt.I.get<ClientSettings>().setValue(LastUsedTopicSetting(newValue: 'a1a1a1a1')));
+
+    await tester.pumpSailPage(const SizedBox(width: 700, height: 700, child: BroadcastNewsView()));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(EditableText);
+    final broadcast = find.widgetWithText(SailButton, 'Broadcast');
+    tester.state<EditableTextState>(fields.at(0)).widget.controller.text = 'QA headline';
+    for (final invalid in ['example.com/no-scheme', 'not a url %%', 'file:///etc/hosts']) {
+      tester.state<EditableTextState>(fields.at(1)).widget.controller.text = invalid;
+      await tester.pump();
+      await tester.widget<SailButton>(broadcast).onPressed!();
+      await tester.pump();
+      expect(find.text('Enter a link that starts with http:// or https://.'), findsOneWidget, reason: invalid);
+      expect(api.misc.links, isEmpty);
+    }
+
+    tester.state<EditableTextState>(fields.at(1)).widget.controller.text = ' https://example.com/story ';
+    await tester.pump();
+    await tester.widget<SailButton>(broadcast).onPressed!();
+    await tester.pump();
+    expect(api.misc.links, ['https://example.com/story']);
   });
 }
