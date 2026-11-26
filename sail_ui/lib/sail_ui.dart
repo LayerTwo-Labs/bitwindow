@@ -36,6 +36,7 @@ export 'pages/coming_soon_page.dart';
 export 'pages/enforcer_conf_editor_page.dart';
 export 'pages/datadir_select_page.dart';
 export 'routing/password_guard.dart';
+export 'routing/unlock_prompt.dart';
 export 'routing/datadir_guard.dart';
 export 'routing/node_mode_guard.dart';
 export 'routing/wallet_guard.dart';

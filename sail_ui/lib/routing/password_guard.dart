@@ -1,6 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:get_it/get_it.dart';
-import 'package:sail_ui/pages/router.gr.dart' show UnlockWalletRoute;
+import 'package:sail_ui/routing/unlock_prompt.dart';
 import 'package:sidechain_core/providers/wallet_reader_provider.dart';
 
 /// Guard that checks if wallet is unlocked.
@@ -31,7 +31,7 @@ class PasswordGuard extends AutoRouteGuard {
     }
 
     // Wallet is encrypted but locked - show unlock page
-    await router.push(UnlockWalletRoute());
+    await openUnlockPage(router);
 
     if (walletReader.isWalletUnlocked) {
       resolver.next(true);

@@ -5,7 +5,6 @@ import 'dart:io';
 
 import 'package:auto_updater/auto_updater.dart';
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
-import 'package:sail_ui/pages/router.gr.dart' as sail_routes;
 import 'package:sail_ui/shell/chain_events.dart';
 import 'package:bitwindow/sidechains/hosted_modules.dart';
 import 'package:bitwindow/sidechains/thunder_in_app.dart';
@@ -541,7 +540,7 @@ Future<void> runMainWindow(Logger log, Directory applicationDir, File logFile) a
   WidgetsBinding.instance.addPostFrameCallback((_) => firstFrame.complete());
   final boot = () async {
     try {
-      await bootBitwindowBackend(log, rootShown: snapshot != null, firstFrame: firstFrame.future);
+      await bootBitwindowBackend(log, firstFrame: firstFrame.future);
     } catch (e) {
       log.e('bootBitwindowBackend failed: $e');
       if (backendState.starting) {
@@ -555,6 +554,17 @@ Future<void> runMainWindow(Logger log, Directory applicationDir, File logFile) a
   }();
   unawaited(
     boot.then((_) => SchedulerBinding.instance.scheduleTask(GetIt.I.get<WindowProvider>().startSpare, Priority.idle)),
+  );
+  // The router mounts with the root page, one frame after the boot.
+  unawaited(
+    boot.then(
+      (_) => SchedulerBinding.instance.addPostFrameCallback(
+        (_) => UnlockPrompt(
+          walletReader: GetIt.I.get<WalletReaderProvider>(),
+          router: GetIt.I.get<AppRouter>(),
+        ).start(),
+      ),
+    ),
   );
 
   const windowOptions = WindowOptions(
@@ -977,9 +987,8 @@ Future<bool> waitForDrivechaind(
   }
 }
 
-/// [rootShown] is true when the root page showed before the backend answered.
 /// The readiness reads wait for [firstFrame], so their replies do not hold it back.
-Future<void> bootBitwindowBackend(Logger log, {bool rootShown = false, Future<void>? firstFrame}) async {
+Future<void> bootBitwindowBackend(Logger log, {Future<void>? firstFrame}) async {
   log.i('STARTUP: Booting BitWindow backend');
 
   final binaryProvider = GetIt.I.get<BinaryProvider>();
@@ -1068,10 +1077,6 @@ Future<void> bootBitwindowBackend(Logger log, {bool rootShown = false, Future<vo
   if (orchestratorReady && GetIt.I.isRegistered<WalletReaderProvider>()) {
     await GetIt.I.get<WalletReaderProvider>().init();
   }
-  // The password guard let the root page of the last session through.
-  if (orchestratorReady && rootShown) {
-    unawaited(_unlockIfLocked(orchestrator, log));
-  }
 
   await startBackendsForMode(
     orchestrator: orchestrator,
@@ -1116,7 +1121,6 @@ Future<void> startBackendsForMode({
     backendState.removeListener(onBackendState);
     log.i('STARTUP: drivechaind answered after the readiness wait');
     unawaited(_bootForMode(orchestrator: orchestrator, orchestratorReady: true, log: log, retryEvery: retryEvery));
-    unawaited(_unlockIfLocked(orchestrator, log));
   }
 
   backendState.addListener(onBackendState);
@@ -1130,22 +1134,6 @@ Future<void> reconcileNodeMode({
   required Logger log,
   Duration retryEvery = firstBootModeRetry,
 }) => _bootForMode(orchestrator: orchestrator, orchestratorReady: true, log: log, retryEvery: retryEvery);
-
-// The password guard ran while drivechaind was down, and read no encryption.
-Future<void> _unlockIfLocked(OrchestratorRPC orchestrator, Logger log) async {
-  final wmpb.GetWalletStatusResponse status;
-  try {
-    status = await orchestrator.wallet.getWalletStatus();
-  } catch (e) {
-    log.e('STARTUP: could not read the wallet lock after a late drivechaind: $e');
-    return;
-  }
-  if (status.state != wmpb.WalletState.WALLET_STATE_LOCKED) {
-    return;
-  }
-  log.i('STARTUP: the wallet is locked, asking for its password');
-  await GetIt.I.get<AppRouter>().push(sail_routes.UnlockWalletRoute());
-}
 
 Future<void> _bootForMode({
   required OrchestratorRPC orchestrator,
