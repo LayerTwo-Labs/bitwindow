@@ -402,6 +402,10 @@ class HDWalletViewModel extends BaseViewModel {
   String _xpriv = '';
   String _xpub = '';
   String _bip47PaymentCode = '';
+  String _watchDescriptor = '';
+  // The mnemonic and the path that the keys on the screen come from.
+  String? _shownMnemonic;
+  String? _shownPath;
   // An answer from an older run, or from before Clear, must not show its keys.
   int _exploreRun = 0;
   bool _hideSecrets = true;
@@ -419,12 +423,13 @@ class HDWalletViewModel extends BaseViewModel {
   String get xpriv => _xpriv;
   String get xpub => _xpub;
   String get bip47PaymentCode => _bip47PaymentCode;
+  String get watchDescriptor => _watchDescriptor;
   bool get hideSecrets => _hideSecrets;
   bool get hidePrivateKeys => _hidePrivateKeys;
   bool get hasMnemonic => mnemonicController.text.trim().isNotEmpty;
   bool get canGoPrevious => _currentPage > 0 && _derivedEntries.isNotEmpty;
   bool get canGoNext => _derivedEntries.isNotEmpty;
-  bool get canDeriveAddresses => hasMnemonic && _isValidDerivationPath();
+  bool get canDeriveAddresses => hasMnemonic && derivationPathController.text.trim().isNotEmpty;
   bool get _exploresWallet => _walletId != null && mnemonicController.text.trim() == _walletMnemonic;
 
   List<(String, String, bool)> get _keyRows => [
@@ -437,18 +442,36 @@ class HDWalletViewModel extends BaseViewModel {
   String _displayKey(String value, bool secret) =>
       secret && hideSecrets && value.isNotEmpty ? '••••••••••••••••••••••••••••••••' : value;
 
-  bool _isValidDerivationPath() {
-    final path = derivationPathController.text.trim();
-    // Basic validation for BIP44/84 path format
-    final pathRegex = RegExp(r"^m(/\d+'?){3,5}(/\d+)?$");
-    return pathRegex.hasMatch(path);
-  }
-
   OrchestratorWalletRPC get _orchestratorWallet => GetIt.I.get<OrchestratorRPC>().wallet;
 
   HDWalletViewModel() {
-    mnemonicController.addListener(notifyListeners);
+    mnemonicController.addListener(_onInputChange);
+    derivationPathController.addListener(_onInputChange);
     _reader.addListener(_onWalletChange);
+  }
+
+  // Keys of another mnemonic or path must not stay on the screen.
+  void _onInputChange() {
+    if (_shownMnemonic != null && !_inputsAre(_shownMnemonic!, _shownPath!)) {
+      _dropKeys();
+    }
+    notifyListeners();
+  }
+
+  bool _inputsAre(String mnemonic, String path) =>
+      mnemonicController.text.trim() == mnemonic && derivationPathController.text.trim() == path;
+
+  void _dropKeys() {
+    _exploreRun++;
+    _shownMnemonic = null;
+    _shownPath = null;
+    _masterSeed = '';
+    _xpriv = '';
+    _xpub = '';
+    _bip47PaymentCode = '';
+    _watchDescriptor = '';
+    _derivedEntries = [];
+    _currentPage = 0;
   }
 
   void _onWalletChange() {
@@ -516,29 +539,36 @@ class HDWalletViewModel extends BaseViewModel {
       return;
     }
 
-    _errorMessage = null;
-    await _explore(mnemonic);
+    await _explore(0);
     notifyListeners();
   }
 
-  Future<void> _explore(String mnemonic) async {
+  /// Shows the keys of [page]. A failure keeps the page on the screen.
+  Future<void> _explore(int page) async {
+    final mnemonic = mnemonicController.text.trim();
+    final path = derivationPathController.text.trim();
     final run = ++_exploreRun;
+    _errorMessage = null;
     try {
       final walletId = _exploresWallet ? _walletId! : '';
       final explored = await _orchestratorWallet.exploreSeed(
         mnemonic: walletId.isEmpty ? mnemonic : '',
         walletId: walletId,
-        basePath: derivationPathController.text.trim(),
-        startIndex: _currentPage * _entriesPerPage,
+        basePath: path,
+        startIndex: page * _entriesPerPage,
         count: _entriesPerPage,
       );
-      if (run != _exploreRun) {
+      if (run != _exploreRun || !_inputsAre(mnemonic, path)) {
         return;
       }
+      _shownMnemonic = mnemonic;
+      _shownPath = path;
+      _currentPage = page;
       _masterSeed = explored.seedHex;
       _xpriv = explored.xprv;
       _xpub = explored.xpub;
       _bip47PaymentCode = explored.bip47PaymentCode;
+      _watchDescriptor = explored.watchDescriptor;
       _derivedEntries = [
         for (final key in explored.keys)
           HDWalletEntry(path: key.path, address: key.address, publicKey: key.publicKey, privateKey: key.wif),
@@ -551,29 +581,20 @@ class HDWalletViewModel extends BaseViewModel {
   }
 
   Future<void> changePage(bool next) async {
-    if (next) {
-      _currentPage++;
-    } else {
-      _currentPage = _currentPage > 0 ? _currentPage - 1 : 0;
+    if (!next && _currentPage == 0) {
+      return;
     }
-
-    await _explore(mnemonicController.text.trim());
+    await _explore(next ? _currentPage + 1 : _currentPage - 1);
     notifyListeners();
   }
 
   void clearAll() {
-    _exploreRun++;
     _walletId = null;
     _walletMnemonic = '';
     _hideSecrets = true;
     _hidePrivateKeys = true;
+    _dropKeys();
     mnemonicController.clear();
-    _masterSeed = '';
-    _xpriv = '';
-    _xpub = '';
-    _bip47PaymentCode = '';
-    _derivedEntries = [];
-    _currentPage = 0;
     _errorMessage = null;
 
     notifyListeners();
@@ -610,7 +631,8 @@ class HDWalletViewModel extends BaseViewModel {
   @override
   void dispose() {
     _reader.removeListener(_onWalletChange);
-    mnemonicController.removeListener(notifyListeners);
+    mnemonicController.removeListener(_onInputChange);
+    derivationPathController.removeListener(_onInputChange);
     mnemonicController.dispose();
     derivationPathController.dispose();
     super.dispose();
