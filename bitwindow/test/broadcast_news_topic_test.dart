@@ -32,6 +32,8 @@ class _BroadcastAPI extends MockMiscAPI {
     String url = '',
     int subtype = 0,
     bool nsfw = false,
+    String topicName = '',
+    int retentionDays = 0,
   }) async {
     estimated.add((headline: headline, body: body, url: url, subtype: subtype, nsfw: nsfw));
     if (estimateError case final error?) {

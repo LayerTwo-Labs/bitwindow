@@ -14,6 +14,7 @@ import 'package:bitwindow/utils/web_link.dart';
 import 'package:bitwindow/widgets/coinnews.dart';
 import 'package:bitwindow/widgets/headline_highlight_text_field.dart';
 import 'package:bitwindow/widgets/news_cost.dart';
+import 'package:bitwindow/widgets/news_topics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -536,12 +537,7 @@ class BroadcastNewsView extends StatelessWidget {
                       child: SailText.secondary12(viewModel.feeUnit.symbol),
                     ),
                   ),
-                  if (viewModel.feeEstimatePending)
-                    SailText.secondary12('Checking the fee…')
-                  else if (viewModel.feeEstimate case final estimate?)
-                    SailText.secondary12('Network fee: ${formatFee(estimate)}')
-                  else if (viewModel.feeEstimateError case final error?)
-                    SailText.secondary12(error, color: context.sailTheme.colors.error),
+                  FeeQuoteText(quote: viewModel.fee),
                 ],
               ),
               if (viewModel.broadcastError != null) SailInlineError(viewModel.broadcastError!),
@@ -624,53 +620,23 @@ class BroadcastNewsViewModel extends BaseViewModel {
   }
 
   /// The fee that the wallet pays for the story when the fee field is empty.
-  NewsFeeEstimate? feeEstimate;
+  late final FeeQuote fee = FeeQuote(notifyListeners);
 
-  /// Why the wallet gave no fee for the story.
-  String? feeEstimateError;
-
-  /// True from an input until the wallet gives the fee of the changed story.
-  bool feeEstimatePending = false;
-
-  Timer? _estimateTimer;
-  int _estimates = 0;
-
-  /// Prices the story a short time after the last input.
   void _estimateFeeLater() {
-    _estimateTimer?.cancel();
-    final read = ++_estimates;
-    feeEstimate = null;
-    feeEstimateError = null;
-    feeEstimatePending = headline.trim().isNotEmpty && feeController.text.trim().isEmpty;
-    if (!feeEstimatePending) {
+    if (headline.trim().isEmpty || feeController.text.trim().isNotEmpty) {
+      fee.update(null);
       return;
     }
-    _estimateTimer = Timer(const Duration(milliseconds: 400), () => _estimateFee(read));
-  }
-
-  Future<void> _estimateFee(int read) async {
-    NewsFeeEstimate? estimate;
-    String? error;
-    try {
-      estimate = await _api.misc.estimateNewsFee(
+    fee.update(
+      () => _api.misc.estimateNewsFee(
         NewsAction.NEWS_ACTION_STORY,
         headline: headline,
         body: content,
         url: urlController.text.trim(),
         subtype: subtype,
         nsfw: nsfw,
-      );
-    } catch (e) {
-      final reason = e is BitwindowException ? e.message : e.toString();
-      error = reason.isEmpty ? reason : '${reason[0].toUpperCase()}${reason.substring(1)}';
-    }
-    if (disposed || read != _estimates) {
-      return;
-    }
-    feeEstimate = estimate;
-    feeEstimateError = error;
-    feeEstimatePending = false;
-    notifyListeners();
+      ),
+    );
   }
 
   BitcoinUnit get feeUnit => GetIt.I.get<SettingsProvider>().bitcoinUnit;
@@ -792,7 +758,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   @override
   void dispose() {
-    _estimateTimer?.cancel();
+    fee.dispose();
     _newsProvider.removeListener(notifyListeners);
     messageController.removeListener(_onInputChanged);
     messageController.dispose();
@@ -951,11 +917,19 @@ class _SubscribeTab extends StatelessWidget {
             ),
             SailButton(
               label: 'Add',
-              onPressed: viewModel.urlController.text.isNotEmpty ? () async => viewModel.addFromUrl(context) : null,
+              onPressed: viewModel.canAdd ? () async => viewModel.addFromUrl(context) : null,
             ),
           ],
         ),
-        if (viewModel.subscribeError != null) SailInlineError(viewModel.subscribeError!),
+        if (viewModel.subscribeError != null)
+          SailInlineError(viewModel.subscribeError!)
+        else if (viewModel.listedTopic case final topic?)
+          SailText.secondary12('${topic.name} (${topic.topic}) is already in Your Topics. It costs nothing.')
+        else if (viewModel.urlTopic case final line?)
+          FeeQuoteText(
+            quote: viewModel.subscribeFee,
+            lead: 'No topic ${line.topic} is on the chain. Add creates it.  ',
+          ),
         const SailSpacing(SailStyleValues.padding16),
         SailText.secondary12(
           'URL format: {days}{identifier}Name\n'
@@ -1002,7 +976,10 @@ class _CreateTopicTab extends StatelessWidget {
             label: 'Create Topic',
             onPressed: viewModel.canCreate ? () async => viewModel.createTopic(context) : null,
           ),
-          if (viewModel.createTopicError != null) SailInlineError(viewModel.createTopicError!),
+          if (viewModel.createTopicError != null)
+            SailInlineError(viewModel.createTopicError!)
+          else
+            FeeQuoteText(quote: viewModel.createFee),
           if (pendingTopics.isNotEmpty) ...[
             const SailSpacing(SailStyleValues.padding08),
             SailText.secondary13('Pending Topics (awaiting confirmation)'),
@@ -1061,21 +1038,57 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   String? subscribeError;
   String? importError;
 
+  /// The fee to create the topic of the Create Topic fields.
+  late final FeeQuote createFee = FeeQuote(notifyListeners);
+
+  /// The fee to create the topic of the URL when no such topic is on the chain.
+  late final FeeQuote subscribeFee = FeeQuote(notifyListeners);
+
+  /// The topic of the URL field, when the URL is valid.
+  TopicLine? urlTopic;
+
+  /// The topic in Your Topics with the identifier of the URL.
+  Topic? get listedTopic => _listed(urlTopic?.topic);
+
+  bool get canAdd => urlController.text.trim().isNotEmpty && listedTopic == null;
+
+  Topic? _listed(String? topic) => topics.firstWhereOrNull((t) => t.topic.toLowerCase() == topic);
+
   ManageNewsSubscriptionsViewModel() {
-    _newsProvider.addListener(notifyListeners);
+    _newsProvider.addListener(_onTopicsChanged);
     identifierController.addListener(_onTopicInputChanged);
     nameController.addListener(_onTopicInputChanged);
     urlController.addListener(_onUrlChanged);
     retentionDaysController.addListener(_onTopicInputChanged);
   }
 
+  int? get _retentionDays {
+    final text = retentionDaysController.text.trim();
+    return text.isEmpty ? 7 : int.tryParse(text);
+  }
+
   void _onTopicInputChanged() {
     createTopicError = null;
+    final name = nameController.text;
+    final days = _retentionDays;
+    final valid = topicError(topic: identifierController.text, name: name, retentionDays: days) == null;
+    createFee.update(
+      valid ? () => estimateTopicFee(TopicLine(retentionDays: days!, topic: '', name: name)) : null,
+    );
+    notifyListeners();
+  }
+
+  void _onTopicsChanged() {
+    if (listedTopic != null) {
+      subscribeFee.update(null);
+    }
     notifyListeners();
   }
 
   void _onUrlChanged() {
     subscribeError = null;
+    final line = urlTopic = TopicLine.tryParse(urlController.text);
+    subscribeFee.update(line == null || listedTopic != null ? null : () => estimateTopicFee(line));
     notifyListeners();
   }
 
@@ -1088,23 +1101,14 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     if (identifierController.text.isEmpty || nameController.text.isEmpty) {
       return;
     }
-    if (identifierController.text.length != 8) {
-      _setCreateTopicError('Identifier must be exactly 8 hex characters');
-      return;
-    }
-    final hexRegex = RegExp(r'^[0-9A-Fa-f]+$');
-    if (!hexRegex.hasMatch(identifierController.text)) {
-      _setCreateTopicError('Identifier must contain only valid hex characters (0-9, A-F)');
-      return;
-    }
-    if (nameController.text.length > 20) {
-      _setCreateTopicError('Name must be 20 characters or less');
-      return;
-    }
-    final retentionText = retentionDaysController.text.trim();
-    final retentionDays = retentionText.isEmpty ? 7 : int.tryParse(retentionText);
-    if (retentionDays == null || retentionDays < 0 || retentionDays > 255) {
-      _setCreateTopicError('Retention days must be between 0 and 255 (0 = infinite)');
+    final retentionDays = _retentionDays;
+    final error = topicError(
+      topic: identifierController.text,
+      name: nameController.text,
+      retentionDays: retentionDays,
+    );
+    if (error != null) {
+      _setCreateTopicError(error);
       return;
     }
 
@@ -1114,7 +1118,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       final response = await _api.misc.createTopic(
         identifierController.text,
         nameController.text,
-        retentionDays: retentionDays,
+        retentionDays: retentionDays!,
       );
       await _newsProvider.fetch();
       if (!context.mounted) {
@@ -1142,28 +1146,25 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       return;
     }
 
-    // Parse URL format: {days}{identifier}Name
-    // Example: 7{a1a1a1a1}US Weekly
-    final regex = RegExp(r'^(\d+)\{([a-fA-F0-9]{8})\}(.+)$');
-    final match = regex.firstMatch(url);
-    final days = int.tryParse(match?.group(1) ?? '');
-
-    if (match == null || days == null) {
-      subscribeError = 'Invalid URL format. Expected: {days}{identifier}Name';
+    final TopicLine line;
+    try {
+      line = TopicLine.parse(url);
+    } on FormatException catch (e) {
+      subscribeError = e.message;
       notifyListeners();
       return;
     }
-
-    final identifier = match.group(2)!;
-    final name = match.group(3)!;
+    if (_listed(line.topic) != null) {
+      return;
+    }
 
     try {
-      final response = await _api.misc.createTopic(identifier, name, retentionDays: days);
+      final response = await _api.misc.createTopic(line.topic, line.name, retentionDays: line.retentionDays);
       await _newsProvider.fetch();
       if (!context.mounted) {
         return;
       }
-      showSailToast(context, 'Subscribed to "$name"! txid: ${response.txid.substring(0, 8)}...');
+      showSailToast(context, 'Subscribed to "${line.name}"! txid: ${response.txid.substring(0, 8)}...');
       urlController.clear();
     } catch (e) {
       subscribeError = 'Could not subscribe: $e';
@@ -1184,95 +1185,103 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     importError = null;
     notifyListeners();
     final data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null || data!.text!.isEmpty) {
+    if (data?.text == null || data!.text!.trim().isEmpty) {
       importError = 'Clipboard is empty';
       notifyListeners();
       return;
     }
 
-    final lines = data.text!.split('\n').where((l) => l.trim().isNotEmpty).toList();
-    var imported = 0;
-    var failed = 0;
-    String? firstError;
-
-    for (final line in lines) {
-      final regex = RegExp(r'^(\d+)\{([a-fA-F0-9]{8})\}(.+)$');
-      final match = regex.firstMatch(line.trim());
-      final days = int.tryParse(match?.group(1) ?? '');
-
-      if (match != null && days != null) {
-        final identifier = match.group(2)!;
-        final name = match.group(3)!;
-
-        // Check if already subscribed
-        if (topics.any((t) => t.topic == identifier)) {
-          continue;
-        }
-
-        try {
-          await _api.misc.createTopic(identifier, name, retentionDays: days);
-          imported++;
-        } catch (e) {
-          failed++;
-          firstError ??= e.toString();
-        }
-      } else {
-        failed++;
-        firstError ??= '"${line.trim()}" is not in the format {days}{identifier}Name';
+    final lines = <TopicLine>[];
+    final failures = <String>[];
+    for (final text in data.text!.split('\n').where((l) => l.trim().isNotEmpty)) {
+      try {
+        lines.add(TopicLine.parse(text));
+      } on FormatException catch (e) {
+        failures.add('"${text.trim()}": ${e.message}');
       }
     }
-
-    await _newsProvider.fetch();
     if (!context.mounted) {
       return;
     }
 
-    if (failed > 0) {
-      importError = 'Failed to import $failed topic(s): $firstError';
+    final created = await _createTopics(context, lines, failures);
+    if (created == null || !context.mounted) {
+      return;
+    }
+    if (failures.isNotEmpty) {
+      importError = 'Failed to import ${failures.length} topic(s): ${failures.first}';
       notifyListeners();
     }
-    if (imported > 0) {
-      showSailToast(context, 'Imported $imported topic(s)');
-    } else if (failed == 0) {
+    if (created > 0) {
+      showSailToast(context, 'Imported $created topic(s)');
+    } else if (failures.isEmpty) {
       showSailToast(context, 'No new topics to import');
     }
   }
 
   Future<void> restoreDefaults(BuildContext context) async {
-    // Default topics from mainchain-deprecated
-    // Format: (identifier, name, retentionDays)
+    importError = null;
+    notifyListeners();
     const defaults = [
-      ('a1a1a1a1', 'US Weekly', 7),
-      ('a2a2a2a2', 'Japan Weekly', 7),
+      TopicLine(topic: 'a1a1a1a1', name: 'US Weekly', retentionDays: 7),
+      TopicLine(topic: 'a2a2a2a2', name: 'Japan Weekly', retentionDays: 7),
     ];
 
-    var restored = 0;
-    for (final (identifier, name, days) in defaults) {
-      if (!topics.any((t) => t.topic == identifier)) {
-        try {
-          await _api.misc.createTopic(identifier, name, retentionDays: days);
-          restored++;
-        } catch (e) {
-          // Ignore errors for defaults
-        }
-      }
-    }
-
-    await _newsProvider.fetch();
-    if (!context.mounted) {
+    final failures = <String>[];
+    final created = await _createTopics(context, defaults, failures);
+    if (created == null || !context.mounted) {
       return;
     }
-
-    if (restored > 0) {
-      showSailToast(context, 'Restored $restored default topic(s)');
-    } else {
+    if (failures.isNotEmpty) {
+      importError = 'Failed to restore ${failures.length} default topic(s): ${failures.first}';
+      notifyListeners();
+    }
+    if (created > 0) {
+      showSailToast(context, 'Restored $created default topic(s)');
+    } else if (failures.isEmpty) {
       showSailToast(context, 'All default topics already exist');
     }
   }
 
+  /// Creates each topic of [lines] that is not in Your Topics, after the user
+  /// accepts the fees. Adds the reason of each failure to [failures]. Returns
+  /// the number of new topics, or null when the user backs out.
+  Future<int?> _createTopics(BuildContext context, List<TopicLine> lines, List<String> failures) async {
+    final unlisted = <String, TopicLine>{
+      for (final line in lines)
+        if (_listed(line.topic) == null) line.topic: line,
+    }.values.toList();
+    if (unlisted.isEmpty) {
+      return 0;
+    }
+
+    final priced = await priceNewTopics(unlisted);
+    if (!context.mounted) {
+      return null;
+    }
+    final listed = lines.map((l) => l.topic).toSet().length - unlisted.length;
+    if (!await confirmNewTopics(context, priced, listed: listed)) {
+      return null;
+    }
+
+    var created = 0;
+    for (final line in unlisted) {
+      try {
+        await _api.misc.createTopic(line.topic, line.name, retentionDays: line.retentionDays);
+        created++;
+      } catch (e) {
+        failures.add('${line.name}: ${e is BitwindowException ? e.message : e}');
+      }
+    }
+    await _newsProvider.fetch();
+    return created;
+  }
+
   @override
   void dispose() {
-    _newsProvider.removeListener(notifyListeners);
+    createFee.dispose();
+    subscribeFee.dispose();
+    _newsProvider.removeListener(_onTopicsChanged);
     identifierController.removeListener(_onTopicInputChanged);
     identifierController.dispose();
     nameController.removeListener(_onTopicInputChanged);

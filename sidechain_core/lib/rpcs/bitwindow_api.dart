@@ -1373,6 +1373,8 @@ abstract class MiscAPI {
     String url = '',
     int subtype = 0,
     bool nsfw = false,
+    String topicName = '',
+    int retentionDays = 0,
   });
   Future<CommentNewsResponse> commentNews(
     String parentId,
@@ -1458,6 +1460,8 @@ class _MiscAPILive implements MiscAPI {
     String url = '',
     int subtype = 0,
     bool nsfw = false,
+    String topicName = '',
+    int retentionDays = 0,
   }) async {
     try {
       final response = await _client.estimateNewsFee(
@@ -1468,6 +1472,8 @@ class _MiscAPILive implements MiscAPI {
           url: url,
           subtype: subtype,
           nsfw: nsfw,
+          topicName: topicName,
+          retentionDays: retentionDays,
         ),
       );
       return NewsFeeEstimate(

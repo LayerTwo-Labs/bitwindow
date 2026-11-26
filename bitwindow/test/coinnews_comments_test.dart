@@ -64,6 +64,8 @@ class _MiscAPI extends MockMiscAPI {
     String url = '',
     int subtype = 0,
     bool nsfw = false,
+    String topicName = '',
+    int retentionDays = 0,
   }) async {
     estimated.add(body);
     if (failEstimate) {

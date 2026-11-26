@@ -14,8 +14,29 @@ const topicId = 'ba042001';
 
 class RecordingMisc extends MockMiscAPI {
   final sent = <(String, int)>[];
+  final priced = <(String, int)>[];
   bool failTopics = false;
   bool failNews = false;
+
+  @override
+  Future<NewsFeeEstimate> estimateNewsFee(
+    NewsAction action, {
+    String body = '',
+    String headline = '',
+    String url = '',
+    int subtype = 0,
+    bool nsfw = false,
+    String topicName = '',
+    int retentionDays = 0,
+  }) async {
+    expect(action, NewsAction.NEWS_ACTION_TOPIC);
+    priced.add((topicName, retentionDays));
+    if (topicName == 'No Fee Topic') {
+      throw BitwindowException('insufficient funds');
+    }
+    final vsize = 140 + topicName.length;
+    return NewsFeeEstimate(vsize: vsize, feeSatPerVbyte: 21, feeSats: 21 * vsize);
+  }
 
   @override
   Future<List<Topic>> listTopics() async {
@@ -38,7 +59,7 @@ class RecordingMisc extends MockMiscAPI {
 
   @override
   Future<CreateTopicResponse> createTopic(String topic, String name, {int retentionDays = 7}) async {
-    if (name == 'Refused Topic') {
+    if (name == 'Refused Topic' || name == 'Japan Weekly') {
       throw StateError('title cannot be longer than 64 bytes');
     }
     sent.add((topic, retentionDays));
@@ -57,6 +78,19 @@ class TopicAPI extends MockAPI {
 
 Finder button(String label) =>
     find.byWidgetPredicate((widget) => widget is SailButton && widget.label == label).hitTestable();
+
+/// Pumps until a dialog shows. The button that opened it spins until it closes.
+Future<void> openDialog(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 1));
+}
+
+/// Pumps past the toast of a finished action.
+Future<void> settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 5));
+  await tester.pumpAndSettle();
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -124,7 +158,7 @@ void main() {
     await tester.enterText(find.byType(EditableText).hitTestable(), '$overflowDays{$topicId}Test Topic');
     await tester.pump();
     await tester.tap(button('Add'));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(api.sent, isEmpty);
     expect(find.textContaining('Invalid URL format'), findsOneWidget);
@@ -142,9 +176,9 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(SystemChannels.platform, null));
 
     await tester.tap(button('Import'));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
+    await openDialog(tester);
+    await tester.tap(button('Create 1 topic'));
+    await settle(tester);
 
     expect(api.sent, [('ba042002', 0)]);
   });
@@ -161,14 +195,139 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(SystemChannels.platform, null));
 
     await tester.tap(button('Import'));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
+    await openDialog(tester);
+    await tester.tap(button('Create 2 topics'));
+    await settle(tester);
 
     expect(api.sent, [('ba042002', 0)]);
     expect(
-      find.textContaining('Failed to import 1 topic(s): Bad state: title cannot be longer than 64 bytes'),
+      find.textContaining(
+        'Failed to import 1 topic(s): Refused Topic: Bad state: title cannot be longer than 64 bytes',
+      ),
       findsOneWidget,
     );
+  });
+
+  Future<void> typeUrl(WidgetTester tester, String url) async {
+    await tester.tap(find.text('Subscribe'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText).hitTestable(), url);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Subscribe to a topic in Your Topics sends nothing and says so', (tester) async {
+    final api = await open(tester);
+    await typeUrl(tester, '7{A1A1A1A1}Other Name');
+
+    expect(find.text('Saved Topic (a1a1a1a1) is already in Your Topics. It costs nothing.'), findsOneWidget);
+    expect(tester.widget<SailButton>(button('Add')).onPressed, isNull);
+    expect(api.priced, isEmpty);
+    expect(find.textContaining('already exists'), findsNothing);
+  });
+
+  testWidgets('Subscribe to a topic that is not on the chain shows the fee before Add', (tester) async {
+    final api = await open(tester);
+    await typeUrl(tester, '3{$topicId}QA Daily');
+
+    expect(api.priced, [('QA Daily', 3)]);
+    expect(api.sent, isEmpty);
+    expect(
+      find.text(
+        'No topic $topicId is on the chain. Add creates it.  Network fee: ≈ 3108 sats  ·  148 vB at 21.0 sat/vB',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(button('Add'));
+    await settle(tester);
+    expect(api.sent, [(topicId, 3)]);
+  });
+
+  testWidgets('Subscribe uses the Create Topic rules for the name', (tester) async {
+    final api = await open(tester);
+    await typeUrl(tester, '7{$topicId}A name of more than twenty characters');
+    await tester.tap(button('Add'));
+    await settle(tester);
+
+    expect(api.sent, isEmpty);
+    expect(api.priced, isEmpty);
+    expect(find.textContaining('Name must be 20 characters or less'), findsOneWidget);
+  });
+
+  testWidgets('Create Topic shows the fee of the topic under the button', (tester) async {
+    final api = await open(tester);
+    await tester.tap(find.text('Create Topic'));
+    await tester.pumpAndSettle();
+    final fields = find.byType(EditableText).hitTestable();
+    await tester.enterText(fields.at(0), 'Nyheter æøå');
+    await tester.enterText(fields.at(1), topicId);
+    await tester.enterText(fields.at(2), '0');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(api.priced.last, ('Nyheter æøå', 0));
+    expect(find.text('Network fee: ≈ 3171 sats  ·  151 vB at 21.0 sat/vB'), findsOneWidget);
+    expect(api.sent, isEmpty);
+  });
+
+  testWidgets('Import lists the new topics with their fees and sends nothing on Cancel', (tester) async {
+    final api = await open(tester);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') {
+        return {'text': '5{e5e5e5e5}QA Imported\n7{a1a1a1a1}Saved Topic'};
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await tester.tap(button('Import'));
+    await openDialog(tester);
+
+    expect(find.text('Create 1 topic?'), findsOneWidget);
+    expect(find.text('QA Imported (e5e5e5e5), 5 days  ·  ≈ 3171 sats'), findsOneWidget);
+    expect(find.text('Network fee: ≈ 3171 sats. 1 topic is already in Your Topics.'), findsOneWidget);
+
+    await tester.tap(button('Cancel'));
+    await settle(tester);
+    expect(api.sent, isEmpty);
+    expect(find.textContaining('Imported'), findsNothing);
+  });
+
+  testWidgets('Restore Defaults asks first and shows a failed create', (tester) async {
+    final api = await open(tester);
+    await tester.tap(button('Restore Defaults'));
+    await openDialog(tester);
+
+    expect(find.textContaining('Japan Weekly (a2a2a2a2), 7 days'), findsOneWidget);
+    await tester.tap(button('Create 1 topic'));
+    await settle(tester);
+
+    expect(api.sent, isEmpty);
+    expect(
+      find.text('Failed to restore 1 default topic(s): Japan Weekly: Bad state: title cannot be longer than 64 bytes'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Import shows an unknown total when a topic has no fee', (tester) async {
+    await open(tester);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') {
+        return {'text': '5{e5e5e5e5}QA Imported\n5{e6e6e6e6}No Fee Topic'};
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await tester.tap(button('Import'));
+    await openDialog(tester);
+
+    expect(find.text('No Fee Topic (e6e6e6e6): Insufficient funds'), findsOneWidget);
+    expect(find.text('Network fee: unknown.'), findsOneWidget);
+    await tester.tap(button('Cancel'));
+    await settle(tester);
   });
 }
