@@ -338,8 +338,18 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
 
   /// Gives the coins of a stuck run back to the wallet. The transaction may
   /// still confirm, so the user takes that risk on purpose.
+  ///
+  /// A failed write keeps the coins marked and the action on the run, and the
+  /// run shows the error.
   Future<void> unfreeze(ConsolidationRun run) async {
-    await _setFrozen(run.outpoints, false);
+    try {
+      await _setFrozen(run.outpoints, false);
+    } catch (e) {
+      run.error = _joinError(_dropLine(run.error, _unfreezeFailed), '$_unfreezeFailed$e');
+      notifyListeners();
+      return;
+    }
+    run.error = _dropLine(run.error, _unfreezeFailed);
     run.coinsFrozen = false;
     // The transaction may confirm while the writes run. A confirmed run must
     // not read as failed, because nothing promotes it back.
@@ -547,6 +557,17 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
   }
 
   static String _joinError(String? first, String second) => first == null ? second : '$first\n$second';
+
+  static const String _unfreezeFailed = 'BitWindow could not unfreeze the coins: ';
+
+  /// [error] without its lines that start with [prefix], or null when no line stays.
+  static String? _dropLine(String? error, String prefix) {
+    if (error == null) {
+      return null;
+    }
+    final kept = error.split('\n').where((line) => !line.startsWith(prefix)).join('\n');
+    return kept.isEmpty ? null : kept;
+  }
 
   void _syncConfirmations() {
     // An empty list carries no information. Reading it as "nothing confirms"
