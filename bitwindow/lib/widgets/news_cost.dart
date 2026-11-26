@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -162,5 +164,83 @@ class _NewsCostTooltipState extends State<NewsCostTooltip> {
         child: widget.child,
       ),
     );
+  }
+}
+
+/// The reason of a failed estimate, as a sentence.
+String feeErrorText(Object error) {
+  final reason = error is BitwindowException ? error.message : error.toString();
+  return reason.isEmpty ? reason : '${reason[0].toUpperCase()}${reason.substring(1)}';
+}
+
+/// The fee of one news action, read again a short time after each input.
+class FeeQuote {
+  final VoidCallback _onChanged;
+
+  FeeQuote(this._onChanged);
+
+  NewsFeeEstimate? estimate;
+  String? error;
+
+  /// True from an input until the wallet gives the fee of the changed action.
+  bool pending = false;
+
+  Timer? _timer;
+  int _reads = 0;
+  bool _disposed = false;
+
+  /// Prices [load] a short time after the last call. A null [load] clears the quote.
+  void update(Future<NewsFeeEstimate> Function()? load) {
+    _timer?.cancel();
+    final read = ++_reads;
+    estimate = null;
+    error = null;
+    pending = load != null;
+    if (load == null) {
+      return;
+    }
+    _timer = Timer(const Duration(milliseconds: 400), () async {
+      NewsFeeEstimate? result;
+      String? reason;
+      try {
+        result = await load();
+      } catch (e) {
+        reason = feeErrorText(e);
+      }
+      if (_disposed || read != _reads) {
+        return;
+      }
+      estimate = result;
+      error = reason;
+      pending = false;
+      _onChanged();
+    });
+  }
+
+  void dispose() {
+    _disposed = true;
+    _timer?.cancel();
+  }
+}
+
+/// Shows the state of [quote] as one line, after [lead].
+class FeeQuoteText extends StatelessWidget {
+  final FeeQuote quote;
+  final String lead;
+
+  const FeeQuoteText({super.key, required this.quote, this.lead = ''});
+
+  @override
+  Widget build(BuildContext context) {
+    if (quote.pending) {
+      return SailText.secondary12('${lead}Checking the fee…');
+    }
+    if (quote.estimate case final estimate?) {
+      return SailText.secondary12('${lead}Network fee: ${formatFee(estimate)}');
+    }
+    if (quote.error case final error?) {
+      return SailText.secondary12('$lead$error', color: context.sailTheme.colors.error);
+    }
+    return const SizedBox.shrink();
   }
 }
