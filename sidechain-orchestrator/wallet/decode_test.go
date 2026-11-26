@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/stretchr/testify/require"
 )
 
 func mustScript(t *testing.T, addr string, net *chaincfg.Params) []byte {
@@ -141,6 +143,42 @@ func TestDecodeTransactionPSBT(t *testing.T) {
 	if got.FeeRateSatVB <= 0 {
 		t.Errorf("fee rate = %f, want > 0", got.FeeRateSatVB)
 	}
+}
+
+func TestDecodeTransactionPSBTOutputRoles(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	key, err := btcec.NewPrivateKey()
+	require.NoError(t, err)
+	pubKey := key.PubKey().SerializeCompressed()
+	address, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pubKey), net)
+	require.NoError(t, err)
+	script := mustScript(t, address.EncodeAddress(), net)
+
+	tx := wire.NewMsgTx(2)
+	tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(&chainhash.Hash{1}, 0), nil, nil))
+	for range 4 {
+		tx.AddTxOut(wire.NewTxOut(20_000, script))
+	}
+	packet, err := psbt.NewFromUnsignedTx(tx)
+	require.NoError(t, err)
+	for branch := range 2 {
+		path := []uint32{0x80000054, 0x80000001, 0x80000000, uint32(branch), 3}
+		packet.Outputs[branch].Bip32Derivation = []*psbt.Bip32Derivation{{PubKey: pubKey, Bip32Path: path}}
+		packet.Outputs[2+branch].TaprootBip32Derivation = []*psbt.TaprootBip32Derivation{{
+			XOnlyPubKey: pubKey[1:],
+			Bip32Path:   path,
+		}}
+	}
+
+	encoded, err := packet.B64Encode()
+	require.NoError(t, err)
+	decoded, err := DecodeTransaction(encoded, net)
+	require.NoError(t, err)
+	require.Len(t, decoded.Outputs, 4)
+	require.False(t, decoded.Outputs[0].IsChange)
+	require.True(t, decoded.Outputs[1].IsChange)
+	require.False(t, decoded.Outputs[2].IsChange)
+	require.True(t, decoded.Outputs[3].IsChange)
 }
 
 func TestDecodeTransactionPSBTSignedFlag(t *testing.T) {

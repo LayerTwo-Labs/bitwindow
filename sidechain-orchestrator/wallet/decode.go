@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -49,9 +50,7 @@ type DecodedOutput struct {
 	Address         string
 	ScriptType      string
 	ScriptPubKeyHex string
-	// PSBT-only: the output map carries derivation records, which the
-	// builders only write for the wallet's own change output.
-	IsChange bool
+	IsChange        bool
 }
 
 // DecodedTransaction is the structured result of decoding a raw transaction or
@@ -270,7 +269,13 @@ func decodePSBT(packet *psbt.Packet, net *chaincfg.Params) (*DecodedTransaction,
 		do := decodeTxOut(i, txOut, net)
 		if i < len(packet.Outputs) {
 			pout := packet.Outputs[i]
-			do.IsChange = len(pout.Bip32Derivation) > 0 || len(pout.TaprootBip32Derivation) > 0
+			do.IsChange = slices.ContainsFunc(pout.Bip32Derivation, func(derivation *psbt.Bip32Derivation) bool {
+				change, _, _ := chainIndexFromPath(derivation.Bip32Path)
+				return change
+			}) || slices.ContainsFunc(pout.TaprootBip32Derivation, func(derivation *psbt.TaprootBip32Derivation) bool {
+				change, _, _ := chainIndexFromPath(derivation.Bip32Path)
+				return change
+			})
 		}
 		out.Outputs = append(out.Outputs, do)
 	}

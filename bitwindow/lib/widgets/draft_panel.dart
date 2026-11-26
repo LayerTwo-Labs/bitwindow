@@ -41,7 +41,7 @@ class _DraftPanelState extends State<DraftPanel> {
   TransactionProvider get _transactions => GetIt.I.get<TransactionProvider>();
 
   DecodedTransaction? _decoded;
-  Set<String> _walletAddresses = {};
+  Set<String> _changeAddresses = {};
   String? _busyKey;
   String? _error;
   bool _showDiagram = false;
@@ -77,7 +77,7 @@ class _DraftPanelState extends State<DraftPanel> {
     super.initState();
     _drafts.addListener(_onDraftsChanged);
     _addressBook.addListener(_onDraftsChanged);
-    _loadWalletAddresses();
+    _loadChangeAddresses();
     _decode();
   }
 
@@ -118,14 +118,17 @@ class _DraftPanelState extends State<DraftPanel> {
     }
   }
 
-  Future<void> _loadWalletAddresses() async {
+  Future<void> _loadChangeAddresses() async {
     try {
       final resp = await _wallet.listReceiveAddresses(widget.walletId);
       if (!mounted) {
         return;
       }
       setState(() {
-        _walletAddresses = resp.addresses.map((a) => a.address).toSet();
+        _changeAddresses = resp.addresses
+            .where((address) => address.isChange)
+            .map((address) => address.address)
+            .toSet();
       });
     } catch (e) {
       // The change badge degrades to "payment"; the amounts stay correct.
@@ -595,11 +598,9 @@ class _DraftPanelState extends State<DraftPanel> {
     );
   }
 
-  // The PSBT derivation records mark the change output; a funded wallet
-  // address is a fallback for PSBTs from other builders.
   bool _isChange(walletpb.TransactionOutput output) =>
       (_decoded?.changeOutputIndexes.contains(output.index) ?? false) ||
-      (output.address.isNotEmpty && _walletAddresses.contains(output.address));
+      (output.address.isNotEmpty && _changeAddresses.contains(output.address));
 
   String? _addressBookName(String address) {
     for (final entry in _addressBook.entries) {
