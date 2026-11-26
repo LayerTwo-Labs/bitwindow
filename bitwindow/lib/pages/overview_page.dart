@@ -1482,6 +1482,8 @@ class _DatePickerField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    final date = value;
+    final text = date == null ? label : cachedDateFormat('yyyy-MM-dd', Intl.getCurrentLocale()).format(date);
 
     return SailTappable(
       onTap: () async {
@@ -1509,7 +1511,7 @@ class _DatePickerField extends StatelessWidget {
                 children: [
                   SailSVG.fromAsset(SailSVGAsset.calendar, color: theme.colors.textTertiary, width: 12),
                   SailText.secondary12(
-                    value != null ? formatDate(value!) : label,
+                    text,
                     color: value != null ? theme.colors.text : theme.colors.textTertiary,
                   ),
                 ],
@@ -1519,7 +1521,7 @@ class _DatePickerField extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   SailText.secondary12(
-                    value != null ? formatDate(value!) : label,
+                    text,
                     color: value != null ? theme.colors.text : theme.colors.textTertiary,
                   ),
                   SailSVG.fromAsset(

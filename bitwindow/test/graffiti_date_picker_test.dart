@@ -31,12 +31,14 @@ void main() {
 
   late _Misc misc;
   late DateTime yesterday;
+  late String yesterdayLabel;
 
   setUp(() async {
     await GetIt.I.reset();
     misc = _Misc();
     final today = DateTime.now();
     yesterday = DateTime(today.year, today.month, today.day - 1);
+    yesterdayLabel = yesterday.toIso8601String().split('T').first;
     GetIt.I.registerLazySingleton<BitwindowRPC>(() => _API(misc));
     await registerTestDependencies();
   });
@@ -46,8 +48,8 @@ void main() {
     await GetIt.I.reset();
   });
 
-  Future<void> pump(WidgetTester tester) async {
-    SailStyleValues.phoneLayoutOverride = false;
+  Future<void> pump(WidgetTester tester, {bool phone = false}) async {
+    SailStyleValues.phoneLayoutOverride = phone;
     await tester.pumpSailPage(const SizedBox(width: 1200, height: 700, child: GraffitiExplorerView()));
     await tester.pumpAndSettle();
   }
@@ -63,7 +65,24 @@ void main() {
     await tester.tap(find.descendant(of: find.byType(CalendarDatePicker), matching: find.text('${yesterday.day}')));
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    expect(find.text(formatDate(yesterday)), findsOneWidget);
+    expect(find.text(yesterdayLabel), findsOneWidget);
+  }
+
+  for (final phone in [false, true]) {
+    testWidgets('date labels show calendar dates on ${phone ? 'phone' : 'desktop'}', (tester) async {
+      await pump(tester, phone: phone);
+
+      for (final field in ['From', 'To']) {
+        await tester.tap(find.text(field));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+      }
+
+      final date = misc.requests.last.from.toDateTime().toLocal();
+      final dateLabel = date.toIso8601String().split('T').first;
+      expect(find.text(dateLabel), findsNWidgets(2));
+    });
   }
 
   testWidgets('an empty From picker opens after To selects yesterday', (tester) async {
@@ -93,7 +112,7 @@ void main() {
         final query = misc.requests.last;
         final reads = misc.requests.length;
 
-        await tester.tap(find.text(formatDate(yesterday)));
+        await tester.tap(find.text(yesterdayLabel));
         await tester.pumpAndSettle();
         if (cancel) {
           await tester.tap(find.text('Cancel'));
@@ -103,7 +122,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(DatePickerDialog), findsNothing);
-        expect(find.text(formatDate(yesterday)), findsOneWidget);
+        expect(find.text(yesterdayLabel), findsOneWidget);
         expect(misc.requests.length, reads);
         expect(misc.requests.last, query);
       });
