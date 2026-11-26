@@ -35,6 +35,17 @@ String _formatTimeAgo(DateTime when) {
   return '$s second${s == 1 ? '' : 's'} ago';
 }
 
+/// The subtitle of the last activity card: the block of the newest transaction.
+String lastActivitySubtitle(GetStatsResponse? stats) {
+  if (stats == null || !stats.hasLastTxAt()) {
+    return '';
+  }
+  if (stats.lastTxBlockHeight == 0) {
+    return 'Unconfirmed';
+  }
+  return 'at block ${formatWithThousandSpacers(stats.lastTxBlockHeight)}';
+}
+
 class OverviewTab extends StatelessWidget {
   const OverviewTab({super.key});
 
@@ -100,9 +111,7 @@ class OverviewTab extends StatelessWidget {
                           value: model.stats?.hasLastTxAt() ?? false
                               ? _formatTimeAgo(model.stats!.lastTxAt.toDateTime().toLocal())
                               : 'No activity',
-                          subtitle: model.stats?.hasLastTxAt() ?? false
-                              ? 'at block ${formatWithThousandSpacers(model.stats!.lastTxBlockHeight)}'
-                              : '',
+                          subtitle: lastActivitySubtitle(model.stats),
                           icon: SailSVGAsset.activity,
                         ),
                       ],

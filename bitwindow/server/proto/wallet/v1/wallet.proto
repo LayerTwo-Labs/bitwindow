@@ -323,9 +323,10 @@ message GetStatsResponse {
   int64 transaction_count_total = 5;
   int64 transaction_count_since_month = 6;
   int64 total_fees_sats = 7;
-  // Most-recent confirmed transaction in the wallet. Both unset when the
-  // wallet has no confirmed transactions yet.
+  // Newest wallet transaction: its block time, or the time the wallet saw it
+  // when unconfirmed. Unset when the wallet has no transaction.
   google.protobuf.Timestamp last_tx_at = 8;
+  // Block of the newest wallet transaction. 0 when it is unconfirmed.
   uint32 last_tx_block_height = 9;
 }
 

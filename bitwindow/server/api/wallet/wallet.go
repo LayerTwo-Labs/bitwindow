@@ -402,19 +402,21 @@ func (s *Server) listTransactions(ctx context.Context, walletID string, includeC
 			row.vout = tx.Details[0].Vout
 			row.send = row.send || tx.Details[0].Category == corepb.GetTransactionResponse_CATEGORY_SEND
 		}
+		// BlockTime is always nil for ListTransactions in btc-buf, use Time or TimeReceived instead
+		timestamp := tx.Time
+		if timestamp == nil {
+			timestamp = tx.TimeReceived
+		}
 		if tx.Confirmations > 0 {
 			row.confirmations = uint32(tx.Confirmations)
-			// BlockTime is always nil for ListTransactions in btc-buf, use Time or TimeReceived instead
-			timestamp := tx.Time
-			if timestamp == nil {
-				timestamp = tx.TimeReceived
-			}
 			if timestamp != nil {
 				row.confirmation = &pb.Confirmation{
 					Height:    engines.ConfirmedHeight(tip, tx.Confirmations),
 					Timestamp: timestamp,
 				}
 			}
+		} else if timestamp != nil {
+			row.confirmation = &pb.Confirmation{Timestamp: timestamp}
 		}
 		rows = append(rows, row)
 	}
@@ -459,6 +461,8 @@ func (s *Server) orchestratorTransactions(ctx context.Context, walletID string, 
 				Height:    t.BlockHeight,
 				Timestamp: &timestamppb.Timestamp{Seconds: t.BlockTime},
 			}
+		} else if t.Time > 0 {
+			row.confirmation = &pb.Confirmation{Timestamp: &timestamppb.Timestamp{Seconds: t.Time}}
 		}
 		rows = append(rows, row)
 	}
@@ -993,28 +997,41 @@ func (s *Server) GetStats(ctx context.Context, c *pb.GetStatsRequest) (*pb.GetSt
 	transactionCount := int64(len(txs))
 
 	// Count transactions since the start of the current month, sum
-	// lifetime fees paid, and find the most recent confirmed tx.
+	// lifetime fees paid, and find the newest tx.
 	now := time.Now()
 	currentYear, currentMonth, _ := now.Date()
 	currentMonthStart := time.Date(currentYear, currentMonth, 1, 0, 0, 0, 0, now.Location())
 	transactionCountSinceMonth := int64(0)
 	var totalFees int64
-	var lastTxAt *timestamppb.Timestamp
-	var lastTxBlockHeight uint32
+	var newestBlock, newestPending *pb.WalletTransaction
 	for _, tx := range txs {
 		totalFees += int64(tx.FeeSats)
-		if tx.ConfirmationTime != nil && tx.ConfirmationTime.Timestamp != nil {
-			t := tx.ConfirmationTime.Timestamp.AsTime()
-			if t.After(currentMonthStart) || t.Equal(currentMonthStart) {
-				transactionCountSinceMonth++
-			}
-			// Many txs can share one time, as in a burst of blocks; the newest block wins.
-			height := tx.ConfirmationTime.Height
-			if lastTxAt == nil || height > lastTxBlockHeight || (height == lastTxBlockHeight && t.After(lastTxAt.AsTime())) {
-				lastTxAt = tx.ConfirmationTime.Timestamp
-				lastTxBlockHeight = height
-			}
+		if tx.ConfirmationTime == nil || tx.ConfirmationTime.Timestamp == nil {
+			continue
 		}
+		if !tx.ConfirmationTime.Timestamp.AsTime().Before(currentMonthStart) {
+			transactionCountSinceMonth++
+		}
+		switch {
+		case tx.Abandoned:
+		case tx.Confirmations > 0:
+			if newestBlock == nil || laterBlock(tx, newestBlock) {
+				newestBlock = tx
+			}
+		case newestPending == nil || tx.ConfirmationTime.Timestamp.AsTime().After(newestPending.ConfirmationTime.Timestamp.AsTime()):
+			newestPending = tx
+		}
+	}
+	// An unconfirmed transaction is dated by when the wallet saw it.
+	newest := newestBlock
+	if newestPending != nil && (newest == nil || !newestPending.ConfirmationTime.Timestamp.AsTime().Before(newest.ConfirmationTime.Timestamp.AsTime())) {
+		newest = newestPending
+	}
+	var lastTxAt *timestamppb.Timestamp
+	var lastTxBlockHeight uint32
+	if newest != nil {
+		lastTxAt = newest.ConfirmationTime.Timestamp
+		lastTxBlockHeight = newest.ConfirmationTime.Height
 	}
 
 	// Only our own record knows this: an M5 looks like any other send on chain.
@@ -1034,6 +1051,13 @@ func (s *Server) GetStats(ctx context.Context, c *pb.GetStatsRequest) (*pb.GetSt
 		LastTxAt:                          lastTxAt,
 		LastTxBlockHeight:                 lastTxBlockHeight,
 	}, nil
+}
+
+// laterBlock reports whether confirmed a is newer than confirmed b. The higher
+// block wins, as block times can repeat and go back.
+func laterBlock(a, b *pb.WalletTransaction) bool {
+	ha, hb := a.ConfirmationTime.Height, b.ConfirmationTime.Height
+	return ha > hb || (ha == hb && a.ConfirmationTime.Timestamp.AsTime().After(b.ConfirmationTime.Timestamp.AsTime()))
 }
 
 // UnlockWallet implements walletv1connect.WalletServiceHandler.
