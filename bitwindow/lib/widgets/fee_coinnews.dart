@@ -72,7 +72,10 @@ class FeeCoinNewsView extends ViewModelWidget<FeeCoinNewsViewModel> {
               ),
               SailButton(
                 label: 'Broadcast',
-                onPressed: viewModel.selectedTopic != null ? () => displayBroadcastNewsDialog(context) : null,
+                onPressed: switch (viewModel.selectedTopic) {
+                  final topic? => () => displayBroadcastNewsDialog(context, topic: topic),
+                  null => null,
+                },
               ),
             ],
           ),
@@ -209,7 +212,7 @@ class FeeCoinNewsLargeView extends ViewModelWidget<FeeCoinNewsLargeViewModel> {
                       label: 'Broadcast News',
                       variant: ButtonVariant.primary,
                       icon: SailSVGAsset.newspaper,
-                      onPressed: () => displayBroadcastNewsDialog(context),
+                      onPressed: () => displayBroadcastNewsDialog(context, topic: viewModel.rightTopic),
                       skipLoading: true,
                     ),
                     ExtraActionsDropdown(

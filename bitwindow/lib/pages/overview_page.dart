@@ -398,12 +398,13 @@ class _LatestBlocksTableState extends State<LatestBlocksTable> {
   }
 }
 
-Future<void> displayBroadcastNewsDialog(BuildContext context) async {
+/// Opens the Broadcast News dialog on [topic], or on the topic of the last broadcast when [topic] is null.
+Future<void> displayBroadcastNewsDialog(BuildContext context, {String? topic}) async {
   await widgetDialog(
     context: context,
     title: 'Broadcast News',
     subtitle: 'Broadcast News to the whole world',
-    child: BroadcastNewsView(),
+    child: BroadcastNewsView(topic: topic),
   );
 }
 
@@ -465,14 +466,15 @@ void _showNewsHelp(BuildContext context) {
 }
 
 class BroadcastNewsView extends StatelessWidget {
-  const BroadcastNewsView({
-    super.key,
-  });
+  /// The topic that the dialog selects first. Null selects the topic of the last broadcast.
+  final String? topic;
+
+  const BroadcastNewsView({super.key, this.topic});
 
   @override
   Widget build(BuildContext context) {
     return ViewModelBuilder<BroadcastNewsViewModel>.reactive(
-      viewModelBuilder: () => BroadcastNewsViewModel(),
+      viewModelBuilder: () => BroadcastNewsViewModel(topic: topic),
       builder: (context, viewModel, child) {
         return SingleChildScrollView(
           child: SailColumn(
@@ -691,9 +693,11 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   String? broadcastError;
 
-  BroadcastNewsViewModel() {
+  BroadcastNewsViewModel({String? topic}) : _topicId = topic {
     _newsProvider.addListener(notifyListeners);
-    _loadLastUsedTopic();
+    if (topic == null) {
+      _loadLastUsedTopic();
+    }
     messageController.addListener(_onInputChanged);
     feeController.addListener(_onInputChanged);
     urlController.addListener(_onInputChanged);
@@ -717,14 +721,13 @@ class BroadcastNewsViewModel extends BaseViewModel {
     });
   }
 
-  void setTopic(String? topicId) async {
+  void setTopic(String? topicId) {
     if (topicId == null) {
       return;
     }
 
     _topicId = topicId;
     broadcastError = null;
-    await _settings.setValue(LastUsedTopicSetting(newValue: topicId));
 
     // Defer notifyListeners to avoid mouse tracker assertion during dropdown interaction
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -769,6 +772,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
         feeSats: feeSats,
       );
 
+      await _settings.setValue(LastUsedTopicSetting(newValue: topicId));
       unawaited(_newsProvider.fetch());
 
       GetIt.I.get<NotificationProvider>().add(

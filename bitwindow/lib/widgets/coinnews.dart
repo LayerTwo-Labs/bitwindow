@@ -107,7 +107,7 @@ class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
                     SailButton(
                       label: 'Broadcast',
                       onPressed: viewModel.selectedTopicIds.isNotEmpty
-                          ? () => displayBroadcastNewsDialog(context)
+                          ? () => displayBroadcastNewsDialog(context, topic: viewModel.broadcastTopic)
                           : null,
                     ),
                   ],
@@ -598,6 +598,9 @@ class CoinNewsViewModel extends BaseViewModel {
 
   List<String>? _selectedTopicIds = [];
   List<String> get selectedTopicIds => _selectedTopicIds ?? topics.map((topic) => topic.topic).toList();
+
+  /// The topic for a new story: the one selected topic, or null when more topics are selected.
+  String? get broadcastTopic => selectedTopicIds.length == 1 ? selectedTopicIds.single : null;
 
   CoinNewsViewModel() {
     _newsProvider.addListener(notifyListeners);
