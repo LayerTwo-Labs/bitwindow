@@ -20,6 +20,7 @@ import 'test_utils.dart';
 class _FakeWalletRPC implements OrchestratorWalletRPC {
   String warningMessage = '';
   int locktime = 0;
+  bool paysOwnAddress = false;
 
   /// The decode reports both inputs signed once a PSBT holds this mark.
   String signedMark = 'cHNidP8B';
@@ -85,7 +86,10 @@ class _FakeWalletRPC implements OrchestratorWalletRPC {
   @override
   Future<wmpb.ListReceiveAddressesResponse> listReceiveAddresses(String walletId) async {
     return wmpb.ListReceiveAddressesResponse(
-      addresses: [wmpb.ReceiveAddress(address: 'tb1qchange', isChange: true)],
+      addresses: [
+        wmpb.ReceiveAddress(address: 'tb1qchange', isChange: true),
+        if (paysOwnAddress) wmpb.ReceiveAddress(address: 'tb1qpayment'),
+      ],
     );
   }
 
@@ -280,6 +284,20 @@ void main() {
     // The PSBT derivation records mark output 1 as change.
     expect(find.textContaining('change · back to'), findsOneWidget);
     expect(find.text('payment'), findsOneWidget);
+  });
+
+  testWidgets('a payment to a receive address stays in the draft summary', (tester) async {
+    final draftId = await setUpPanelDeps(oneKey: true);
+    orchestrator.wallet.paysOwnAddress = true;
+
+    await tester.pumpSailPage(DraftPanel(walletId: 'wallet-1', draftId: draftId));
+    await tester.pumpAndSettle();
+
+    expect(find.text('payment'), findsOneWidget);
+    expect(find.textContaining('change · back to'), findsOneWidget);
+    final summary = find.byType(DraftSummaryCard);
+    expect(find.descendant(of: summary, matching: find.text('1')), findsOneWidget);
+    expect(find.descendant(of: summary, matching: find.text('0.2000,0000 BTC')), findsOneWidget);
   });
 
   testWidgets('only an eligible cosigner shows Sign', (tester) async {
