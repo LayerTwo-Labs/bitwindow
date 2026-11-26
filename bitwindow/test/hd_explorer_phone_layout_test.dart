@@ -13,6 +13,8 @@ const _mnemonic = 'abandon abandon abandon abandon abandon abandon abandon aband
 const _xpub =
     'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8';
 
+const _descriptor = "wpkh([73c5da0a/84'/0'/0']$_xpub/<0;1>/*)#g8l47ngv";
+
 class _FakeWallet implements OrchestratorWalletRPC {
   @override
   Future<wmpb.ExploreSeedResponse> exploreSeed({
@@ -27,6 +29,7 @@ class _FakeWallet implements OrchestratorWalletRPC {
     xprv: 'xprv-master',
     xpub: _xpub,
     bip47PaymentCode: 'PM8code',
+    watchDescriptor: _descriptor,
     keys: [wmpb.ExploredKey(path: '$basePath/0', address: 'addr-0', publicKey: 'pub-0', wif: 'wif-0')],
   );
 
@@ -99,7 +102,7 @@ void main() {
     expect(copy.left, greaterThanOrEqualTo(label.right));
     expect(value.top, greaterThan(label.bottom));
     expect(value.left, label.left);
-    expect(find.byType(SailStackedValueRow), findsNWidgets(4));
+    expect(find.byType(SailStackedValueRow), findsNWidgets(5));
   });
 
   testWidgets('on a phone the mnemonic field spans the card, with its buttons on rows around it', (tester) async {
@@ -132,6 +135,14 @@ void main() {
     final value = tester.getRect(find.text(_xpub));
     expect(value.left, greaterThanOrEqualTo(label.right));
     expect(value.center.dy, closeTo(label.center.dy, 2));
+  });
+
+  testWidgets('the Watch Descriptor row shows under XPUB', (tester) async {
+    await _pumpDerived(tester, phone: false);
+
+    final label = tester.getRect(find.text('Watch Descriptor:'));
+    expect(label.top, greaterThan(tester.getRect(find.text('XPUB:')).bottom));
+    expect(find.text(_descriptor), findsOneWidget);
   });
 
   testWidgets('Derive Addresses comes back on when a good path follows an empty one', (tester) async {

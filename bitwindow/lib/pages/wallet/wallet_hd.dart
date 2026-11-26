@@ -437,6 +437,7 @@ class HDWalletViewModel extends BaseViewModel {
     ('Master Seed', masterSeed, true),
     ('XPRIV', xpriv, true),
     ('XPUB', xpub, false),
+    ('Watch Descriptor', watchDescriptor, false),
   ];
 
   String _displayKey(String value, bool secret) =>
