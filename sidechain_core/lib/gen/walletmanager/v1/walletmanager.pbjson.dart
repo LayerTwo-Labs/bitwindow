@@ -2078,6 +2078,7 @@ const ExploreSeedResponse$json = {
     {'1': 'keys', '3': 5, '4': 3, '5': 11, '6': '.walletmanager.v1.ExploredKey', '10': 'keys'},
     {'1': 'base_path', '3': 6, '4': 1, '5': 9, '10': 'basePath'},
     {'1': 'mnemonic', '3': 7, '4': 1, '5': 9, '10': 'mnemonic'},
+    {'1': 'watch_descriptor', '3': 8, '4': 1, '5': 9, '10': 'watchDescriptor'},
   ],
 };
 
@@ -2087,7 +2088,8 @@ final $typed_data.Uint8List exploreSeedResponseDescriptor =
         'YYAiABKAlSBHhwcnYSEgoEeHB1YhgDIAEoCVIEeHB1YhIsChJiaXA0N19wYXltZW50X2NvZGUY'
         'BCABKAlSEGJpcDQ3UGF5bWVudENvZGUSMQoEa2V5cxgFIAMoCzIdLndhbGxldG1hbmFnZXIudj'
         'EuRXhwbG9yZWRLZXlSBGtleXMSGwoJYmFzZV9wYXRoGAYgASgJUghiYXNlUGF0aBIaCghtbmVt'
-        'b25pYxgHIAEoCVIIbW5lbW9uaWM=');
+        'b25pYxgHIAEoCVIIbW5lbW9uaWMSKQoQd2F0Y2hfZGVzY3JpcHRvchgIIAEoCVIPd2F0Y2hEZX'
+        'NjcmlwdG9y');
 
 @$core.Deprecated('Use generateMnemonicRequestDescriptor instead')
 const GenerateMnemonicRequest$json = {

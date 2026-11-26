@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -98,6 +99,43 @@ func TestExploreSeedGivesTheWalletPaymentCode(t *testing.T) {
 	require.Equal(t, want, out.PaymentCode)
 	_, err = bip47.ParsePaymentCode(out.PaymentCode)
 	require.NoError(t, err)
+}
+
+func TestExploreSeedGivesTheAccountWatchDescriptor(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	for _, base := range []string{"m/84'/1'/0'/0", "m/84'/1'/0'/1", "m/86'/1'/2'/0", "m/49'/1'/0'/0", "m/44'/1'/0'/1", "m/0'/0"} {
+		out, err := ExploreSeed(testMnemonic, "TREZOR", base, 3, 1, net)
+		require.NoError(t, err, base)
+		desc, err := ParseDescriptor(out.WatchDescriptor)
+		require.NoError(t, err, base)
+		require.False(t, desc.Keys[0].Account.IsPrivate(), base)
+		script, _, err := desc.DeriveScript(strings.HasSuffix(base, "/1"), 3, net)
+		require.NoError(t, err, base)
+		require.Equal(t, out.Keys[0].Address, script.address.EncodeAddress(), base)
+	}
+
+	out, err := ExploreSeed(testMnemonic, "", "m/84'/1'/0'/0", 0, 0, net)
+	require.NoError(t, err)
+	require.Regexp(t, `^wpkh\(\[73c5da0a/84'/1'/0'\]tpub\w+/<0;1>/\*\)#\w{8}$`, out.WatchDescriptor)
+
+	for _, base := range []string{"m/84'/1'/0'", "m/84'/1'/0'/2", "m/84'/1'/0'/0'", "m/0"} {
+		out, err := ExploreSeed(testMnemonic, "", base, 0, 1, net)
+		require.NoError(t, err, base)
+		require.Empty(t, out.WatchDescriptor, base)
+	}
+}
+
+func TestExploreWalletGivesTheWatchDescriptorOfTheWallet(t *testing.T) {
+	net := &chaincfg.RegressionNetParams
+	w := explorerTestWallet("TREZOR", 2)
+	out, err := ExploreWallet(w, "", 0, 1, net)
+	require.NoError(t, err)
+	require.Contains(t, out.WatchDescriptor, "/84'/1'/2']")
+	desc, err := ParseDescriptor(out.WatchDescriptor)
+	require.NoError(t, err)
+	script, _, err := desc.DeriveScript(false, 0, net)
+	require.NoError(t, err)
+	require.Equal(t, out.Keys[0].Address, script.address.EncodeAddress())
 }
 
 func explorerTestWallet(passphrase string, account uint32) *WalletData {

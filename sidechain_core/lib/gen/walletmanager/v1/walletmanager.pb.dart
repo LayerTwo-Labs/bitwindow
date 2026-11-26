@@ -8844,6 +8844,7 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     $core.Iterable<ExploredKey>? keys,
     $core.String? basePath,
     $core.String? mnemonic,
+    $core.String? watchDescriptor,
   }) {
     final result = ExploreSeedResponse._();
     if (seedHex != null) result.seedHex = seedHex;
@@ -8853,6 +8854,7 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     if (keys != null) result.keys.addAll(keys);
     if (basePath != null) result.basePath = basePath;
     if (mnemonic != null) result.mnemonic = mnemonic;
+    if (watchDescriptor != null) result.watchDescriptor = watchDescriptor;
     return result;
   }
 
@@ -8875,6 +8877,7 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
     ..pPM<ExploredKey>(5, _omitFieldNames ? '' : 'keys', subBuilder: ExploredKey.$_createMessage)
     ..aOS(6, _omitFieldNames ? '' : 'basePath')
     ..aOS(7, _omitFieldNames ? '' : 'mnemonic')
+    ..aOS(8, _omitFieldNames ? '' : 'watchDescriptor')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -8953,6 +8956,17 @@ class ExploreSeedResponse extends $pb.GeneratedMessage {
   $core.bool hasMnemonic() => $_has(6);
   @$pb.TagNumber(7)
   void clearMnemonic() => $_clearField(7);
+
+  /// Watch-only descriptor of the account of base_path. Empty when base_path is
+  /// not a receive or change chain.
+  @$pb.TagNumber(8)
+  $core.String get watchDescriptor => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set watchDescriptor($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasWatchDescriptor() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearWatchDescriptor() => $_clearField(8);
 }
 
 class GenerateMnemonicRequest extends $pb.GeneratedMessage {
