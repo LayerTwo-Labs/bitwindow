@@ -7,6 +7,7 @@ import 'package:bitwindow/pages/overview_page.dart';
 import 'package:bitwindow/providers/blockchain_provider.dart';
 import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
+import 'package:bitwindow/utils/web_link.dart';
 import 'package:bitwindow/widgets/news_cost.dart';
 import 'package:bitwindow/widgets/pagination.dart';
 import 'package:flutter/widgets.dart';
@@ -16,7 +17,6 @@ import 'package:intl/intl.dart' show Intl;
 import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:sail_ui/sail_ui.dart';
 
-class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
 /// The kinds of a story, by the number that the chain holds.
 const storyKinds = {0: 'Link', 1: 'Text', 2: 'Ask', 3: 'Show', 4: 'Poll', 5: 'Job'};
 
@@ -32,6 +32,7 @@ String storyMeta(CoinNews news, {required String? topicName, required String dat
   ].join(separator);
 }
 
+class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
   const CoinNewsView({super.key});
 
   @override
@@ -1207,10 +1208,13 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
                               Container(height: 1, color: theme.colors.divider),
                               const SailSpacing(SailStyleValues.padding20),
                               if (widget.news.url.isNotEmpty) ...[
-                                GestureDetector(
-                                  onTap: () async => openUrl(Uri.parse(widget.news.url)),
-                                  child: SailText.primary13(widget.news.url, color: theme.colors.primary),
-                                ),
+                                if (webLink(widget.news.url) case final link?)
+                                  GestureDetector(
+                                    onTap: () async => openUrl(link),
+                                    child: SailText.primary13(widget.news.url, color: theme.colors.primary),
+                                  )
+                                else
+                                  SailText.primary13(widget.news.url, color: theme.colors.textSecondary),
                                 const SailSpacing(SailStyleValues.padding16),
                               ],
                               MarkdownBody(
@@ -1240,10 +1244,11 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
                                   codeblockPadding: const EdgeInsets.all(12),
                                 ),
                                 onTapLink: (_, href, _) async {
-                                  if (href == null) {
+                                  final link = href == null ? null : webLink(href);
+                                  if (link == null) {
                                     return;
                                   }
-                                  await openUrl(Uri.parse(href));
+                                  await openUrl(link);
                                 },
                               ),
                               const SailSpacing(SailStyleValues.padding32),
