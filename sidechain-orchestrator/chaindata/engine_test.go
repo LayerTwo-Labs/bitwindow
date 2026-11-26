@@ -508,3 +508,28 @@ func TestEngineGivesTheTxidOfAWriteBeforeItsEvent(t *testing.T) {
 	default:
 	}
 }
+
+func TestCacheKeepsTheFullWalletHistoryUntilAWalletEvent(t *testing.T) {
+	core := newFakeCore()
+	e := startEngine(t, core)
+	e.zmqUp.Store(true)
+	var fetches atomic.Int32
+	fetch := func(context.Context) (json.RawMessage, error) {
+		fetches.Add(1)
+		return json.RawMessage(`{"transactions":[]}`), nil
+	}
+	params := []any{"", 1, true, true, true}
+
+	for range 3 {
+		_, err := e.Call(t.Context(), "w", "listsinceblock", params, fetch)
+		require.NoError(t, err)
+	}
+	require.Equal(t, int32(1), fetches.Load())
+
+	e.Fire(EventBlock)
+	require.Eventually(t, func() bool {
+		_, err := e.Call(t.Context(), "w", "listsinceblock", params, fetch)
+		require.NoError(t, err)
+		return fetches.Load() == 2
+	}, time.Second, time.Millisecond)
+}
