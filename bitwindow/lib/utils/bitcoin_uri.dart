@@ -11,6 +11,13 @@ String _decode(String text) {
   }
 }
 
+/// [sats] as a BIP-0021 amount: whole coins, with no trailing zeros.
+String bip21Amount(int sats) {
+  final whole = sats ~/ 100000000;
+  final fraction = (sats % 100000000).toString().padLeft(8, '0').replaceFirst(RegExp(r'0+$'), '');
+  return fraction.isEmpty ? '$whole' : '$whole.$fraction';
+}
+
 class BitcoinURI {
   final String address;
   final double? amount;
@@ -89,6 +96,16 @@ class BitcoinURI {
           (key, _) => ['amount', 'label', 'message'].contains(key),
         ),
     );
+  }
+
+  /// The BIP-0021 URI for this request. A request with no amount, label or message is the plain address.
+  String format() {
+    final params = [
+      if (amountSats != null) 'amount=${bip21Amount(amountSats!)}',
+      if (label?.isNotEmpty ?? false) 'label=${Uri.encodeComponent(label!)}',
+      if (message?.isNotEmpty ?? false) 'message=${Uri.encodeComponent(message!)}',
+    ];
+    return params.isEmpty ? address : 'bitcoin:$address?${params.join('&')}';
   }
 
   /// Validates if a string could be a valid Bitcoin URI
