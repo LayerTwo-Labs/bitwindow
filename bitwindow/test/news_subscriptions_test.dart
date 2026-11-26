@@ -22,7 +22,10 @@ class RecordingMisc extends MockMiscAPI {
     if (failTopics) {
       throw StateError('Topics unavailable');
     }
-    return [Topic(topic: 'a1a1a1a1', name: 'Saved Topic', confirmed: true)];
+    return [
+      Topic(topic: 'a1a1a1a1', name: 'Saved Topic', confirmed: true),
+      Topic(topic: 'a3a3a3a3', name: 'Waiting Topic'),
+    ];
   }
 
   @override
@@ -35,12 +38,12 @@ class RecordingMisc extends MockMiscAPI {
 
   @override
   Future<CreateTopicResponse> createTopic(String topic, String name, {int retentionDays = 7}) async {
-    sent.add((topic, retentionDays));
-    return CreateTopicResponse(txid: 'ab' * 32);
-  }
     if (name == 'Refused Topic') {
       throw StateError('title cannot be longer than 64 bytes');
     }
+    sent.add((topic, retentionDays));
+    return CreateTopicResponse(txid: 'ab' * 32);
+  }
 }
 
 class TopicAPI extends MockAPI {
@@ -85,6 +88,17 @@ void main() {
 
     expect(find.textContaining('Could not read the topics'), findsNothing);
     expect(find.text('Saved Topic'), findsOneWidget);
+  });
+
+  testWidgets('Your Topics shows Pending in the readable orange of the theme', (tester) async {
+    await open(tester);
+
+    final pending = tester.widget<SailTableCell>(
+      find.byWidgetPredicate((widget) => widget is SailTableCell && widget.value == 'Pending'),
+    );
+    final colors = SailTheme.of(tester.element(find.text('Pending'))).colors;
+    expect(pending.textColor, colors.orange);
+    expect(pending.textColor, isNot(colors.orangeLight));
   });
 
   testWidgets('Create Topic rejects invalid retention text', (tester) async {
@@ -134,7 +148,6 @@ void main() {
 
     expect(api.sent, [('ba042002', 0)]);
   });
-}
 
   testWidgets('Import shows why a topic failed', (tester) async {
     final api = await open(tester);
@@ -158,3 +171,4 @@ void main() {
       findsOneWidget,
     );
   });
+}
