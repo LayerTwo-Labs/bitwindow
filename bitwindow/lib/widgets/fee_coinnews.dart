@@ -92,7 +92,9 @@ class FeeCoinNewsViewModel extends BaseViewModel {
   final NewsProvider _newsProvider = GetIt.I.get<NewsProvider>();
   final ClientSettings _settings = GetIt.I.get<ClientSettings>();
 
-  String? selectedTopic;
+  String? _savedTopic;
+
+  String? get selectedTopic => _newsProvider.topicOnChain(_savedTopic);
 
   FeeCoinNewsViewModel() {
     _newsProvider.addListener(notifyListeners);
@@ -120,12 +122,12 @@ class FeeCoinNewsViewModel extends BaseViewModel {
     }
 
     final loaded = (await _settings.getValue(FeeTopicSetting(_topicKey))).value;
-    selectedTopic = loaded.isNotEmpty ? loaded : (topics.isNotEmpty ? topics.first.topic : null);
+    _savedTopic = loaded.isEmpty ? null : loaded;
     notifyListeners();
   }
 
   Future<void> setTopic(String topic) async {
-    selectedTopic = topic;
+    _savedTopic = topic;
     await _settings.setValue(FeeTopicSetting(_topicKey, newValue: topic));
     notifyListeners();
   }
@@ -262,8 +264,11 @@ class FeeCoinNewsLargeViewModel extends BaseViewModel {
   final NewsProvider _newsProvider = GetIt.I.get<NewsProvider>();
   final ClientSettings _settings = GetIt.I.get<ClientSettings>();
 
-  String leftTopic = 'a1a1a1a1';
-  String rightTopic = 'a2a2a2a2';
+  String? _savedLeftTopic;
+  String? _savedRightTopic;
+
+  String get leftTopic => _newsProvider.topicOnChain(_savedLeftTopic) ?? '';
+  String get rightTopic => _newsProvider.topicOnChain(_savedRightTopic, fallback: 1) ?? '';
 
   FeeCoinNewsLargeViewModel() {
     _newsProvider.addListener(notifyListeners);
@@ -296,19 +301,19 @@ class FeeCoinNewsLargeViewModel extends BaseViewModel {
     final left = (await _settings.getValue(FeeTopicSetting(_leftKey))).value;
     final right = (await _settings.getValue(FeeTopicSetting(_rightKey))).value;
 
-    leftTopic = left.isNotEmpty ? left : (topics.isNotEmpty ? topics.first.topic : leftTopic);
-    rightTopic = right.isNotEmpty ? right : (topics.length > 1 ? topics[1].topic : leftTopic);
+    _savedLeftTopic = left.isEmpty ? null : left;
+    _savedRightTopic = right.isEmpty ? null : right;
     notifyListeners();
   }
 
   Future<void> setLeftTopic(String topic) async {
-    leftTopic = topic;
+    _savedLeftTopic = topic;
     await _settings.setValue(FeeTopicSetting(_leftKey, newValue: topic));
     notifyListeners();
   }
 
   Future<void> setRightTopic(String topic) async {
-    rightTopic = topic;
+    _savedRightTopic = topic;
     await _settings.setValue(FeeTopicSetting(_rightKey, newValue: topic));
     notifyListeners();
   }

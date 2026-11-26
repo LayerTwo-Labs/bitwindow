@@ -50,6 +50,30 @@ class NewsProvider extends ChangeNotifier {
 
   String? topicName(String id) => topics.firstWhereOrNull((t) => t.topic == id)?.name;
 
+  bool _onChain(String topic) => topics.any((t) => t.topic == topic);
+
+  /// [saved] when this chain has that topic, else the topic at [fallback], else the first topic.
+  /// With no topic list, [saved].
+  String? topicOnChain(String? saved, {int fallback = 0}) {
+    if (topics.isEmpty || (saved != null && _onChain(saved))) {
+      return saved;
+    }
+    return topics.elementAtOrNull(fallback)?.topic ?? topics.firstOrNull?.topic;
+  }
+
+  /// The topics of [saved] that this chain has. Null, or a list with no topic
+  /// of this chain, gives each topic of this chain. With no topic list, [saved].
+  List<String> topicsOnChain(List<String>? saved) {
+    if (topics.isEmpty) {
+      return saved ?? [];
+    }
+    final known = saved?.where(_onChain).toList();
+    if (known == null || (known.isEmpty && saved!.isNotEmpty)) {
+      return topics.map((t) => t.topic).toList();
+    }
+    return known;
+  }
+
   /// True until the first read of news and topics, when no read failed.
   bool get loading => !initialized && error == null;
 

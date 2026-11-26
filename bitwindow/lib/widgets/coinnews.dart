@@ -362,8 +362,11 @@ class CoinNewsLargeViewModel extends BaseViewModel {
   final ClientSettings _settings = GetIt.I.get<ClientSettings>();
   late final Future<void> _topicsLoaded;
 
-  String leftTopic = 'a1a1a1a1';
-  String rightTopic = 'a2a2a2a2';
+  String? _savedLeftTopic;
+  String? _savedRightTopic;
+
+  String get leftTopic => _newsProvider.topicOnChain(_savedLeftTopic) ?? '';
+  String get rightTopic => _newsProvider.topicOnChain(_savedRightTopic, fallback: 1) ?? '';
 
   /// Stories past their topic's retention are hidden until the user asks.
   bool showOutdated = false;
@@ -379,8 +382,8 @@ class CoinNewsLargeViewModel extends BaseViewModel {
 
   Future<void> _loadTopics() async {
     final config = (await _settings.getValue(SelectedTopicsSetting())).value;
-    leftTopic = config.leftTopic ?? leftTopic;
-    rightTopic = config.rightTopic ?? rightTopic;
+    _savedLeftTopic = config.leftTopic;
+    _savedRightTopic = config.rightTopic;
     notifyListeners();
   }
 
@@ -389,7 +392,7 @@ class CoinNewsLargeViewModel extends BaseViewModel {
       return;
     }
     await _topicsLoaded;
-    leftTopic = topic;
+    _savedLeftTopic = topic;
     await _settings.mergeValue(SelectedTopicsSetting(), (config) => config.copyWith(leftTopic: topic));
     notifyListeners();
   }
@@ -399,7 +402,7 @@ class CoinNewsLargeViewModel extends BaseViewModel {
       return;
     }
     await _topicsLoaded;
-    rightTopic = topic;
+    _savedRightTopic = topic;
     await _settings.mergeValue(SelectedTopicsSetting(), (config) => config.copyWith(rightTopic: topic));
     notifyListeners();
   }
@@ -597,7 +600,7 @@ class CoinNewsViewModel extends BaseViewModel {
   List<Topic> get topics => _newsProvider.topics;
 
   List<String>? _selectedTopicIds = [];
-  List<String> get selectedTopicIds => _selectedTopicIds ?? topics.map((topic) => topic.topic).toList();
+  List<String> get selectedTopicIds => _newsProvider.topicsOnChain(_selectedTopicIds);
 
   CoinNewsViewModel() {
     _newsProvider.addListener(notifyListeners);
