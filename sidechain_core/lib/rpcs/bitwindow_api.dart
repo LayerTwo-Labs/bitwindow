@@ -691,7 +691,10 @@ abstract class WalletAPI {
   Future<Cheque> getCheque(String walletId, int id);
   Future<List<Cheque>> listCheques(String walletId);
   Future<CheckChequeFundingResponse> checkChequeFunding(String walletId, int id);
-  Future<SweepPreview> previewSweep(String privateKeyWif, {int feeSatPerVbyte = 0});
+
+  /// Reads what a private key holds. [destinationAddress] sizes the fee for
+  /// that output; empty sizes it for a P2WPKH output.
+  Future<SweepPreview> previewSweep(String privateKeyWif, {int feeSatPerVbyte = 0, String destinationAddress = ''});
   Future<SweepChequeResult> sweepCheque(
     String walletId,
     String privateKeyWif,
@@ -1025,10 +1028,18 @@ class _WalletAPILive implements WalletAPI {
   }
 
   @override
-  Future<SweepPreview> previewSweep(String privateKeyWif, {int feeSatPerVbyte = 0}) async {
+  Future<SweepPreview> previewSweep(
+    String privateKeyWif, {
+    int feeSatPerVbyte = 0,
+    String destinationAddress = '',
+  }) async {
     try {
       final response = await _client.previewSweep(
-        PreviewSweepRequest(privateKeyWif: privateKeyWif, feeSatPerVbyte: Int64(feeSatPerVbyte)),
+        PreviewSweepRequest(
+          privateKeyWif: privateKeyWif,
+          feeSatPerVbyte: Int64(feeSatPerVbyte),
+          destinationAddress: destinationAddress,
+        ),
       );
       return SweepPreview(
         address: response.address,

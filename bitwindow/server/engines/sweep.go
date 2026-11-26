@@ -149,6 +149,23 @@ func SweepFeeSats(source SweepSource, feeSatPerVbyte uint64, outputVbytes uint64
 // ErrInvalidSweep marks a sweep that the caller input makes impossible.
 var ErrInvalidSweep = errors.New("invalid sweep")
 
+// SweepOutputScript is the output script of a sweep to destAddress.
+func SweepOutputScript(destAddress string, params *chaincfg.Params) ([]byte, error) {
+	destAddr, err := btcutil.DecodeAddress(destAddress, params)
+	if err != nil {
+		return nil, fmt.Errorf("%w: decode destination address: %w", ErrInvalidSweep, err)
+	}
+	if !destAddr.IsForNet(params) {
+		return nil, fmt.Errorf("%w: destination address is for another network", ErrInvalidSweep)
+	}
+
+	pkScript, err := txscript.PayToAddrScript(destAddr)
+	if err != nil {
+		return nil, fmt.Errorf("create output script: %w", err)
+	}
+	return pkScript, nil
+}
+
 // BuildSweepTx builds the unsigned sweep, paying everything the source holds
 // minus the fee to one destination.
 func BuildSweepTx(
@@ -161,17 +178,9 @@ func BuildSweepTx(
 		return nil, fmt.Errorf("%w: fee rate %d sat/vB is above the cap of %d sat/vB", ErrInvalidSweep, feeSatPerVbyte, orchwallet.MaxFeeRateSatPerVB)
 	}
 
-	destAddr, err := btcutil.DecodeAddress(destAddress, params)
+	pkScript, err := SweepOutputScript(destAddress, params)
 	if err != nil {
-		return nil, fmt.Errorf("%w: decode destination address: %w", ErrInvalidSweep, err)
-	}
-	if !destAddr.IsForNet(params) {
-		return nil, fmt.Errorf("%w: destination address is for another network", ErrInvalidSweep)
-	}
-
-	pkScript, err := txscript.PayToAddrScript(destAddr)
-	if err != nil {
-		return nil, fmt.Errorf("create output script: %w", err)
+		return nil, err
 	}
 
 	totalSats := source.TotalSats()

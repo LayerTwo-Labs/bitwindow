@@ -411,6 +411,8 @@ message PreviewSweepRequest {
   string private_key_wif = 1;
   // Zero asks the backend for its own estimate.
   uint64 fee_sat_per_vbyte = 2;
+  // Where the sweep pays. Empty sizes the fee for a P2WPKH output.
+  string destination_address = 3;
 }
 
 // What a private key holds, and what sweeping it would cost. Reads only.

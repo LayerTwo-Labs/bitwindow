@@ -1254,8 +1254,20 @@ func (s *Server) PreviewSweep(ctx context.Context, c *pb.PreviewSweepRequest) (*
 		return nil, err
 	}
 
+	outputVbytes := uint64(engines.OutputVbytes)
+	if c.DestinationAddress != "" {
+		pkScript, err := engines.SweepOutputScript(c.DestinationAddress, s.chequeEngine.GetChainParams())
+		switch {
+		case errors.Is(err, engines.ErrInvalidSweep):
+			return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+		case err != nil:
+			return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
+		}
+		outputVbytes = engines.ScriptOutputVbytes(pkScript)
+	}
+
 	amountSats := source.TotalSats()
-	feeSats := engines.SweepFeeSats(source, feeSatPerVbyte, engines.OutputVbytes)
+	feeSats := engines.SweepFeeSats(source, feeSatPerVbyte, outputVbytes)
 
 	var receiveSats uint64
 	if amountSats > feeSats {

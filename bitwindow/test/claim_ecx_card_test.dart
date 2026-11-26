@@ -31,7 +31,11 @@ class _FakeWalletApi implements WalletAPI {
   String? sweptTo;
 
   @override
-  Future<SweepPreview> previewSweep(String privateKeyWif, {int feeSatPerVbyte = 0}) async {
+  Future<SweepPreview> previewSweep(
+    String privateKeyWif, {
+    int feeSatPerVbyte = 0,
+    String destinationAddress = '',
+  }) async {
     if (previewError != null) {
       throw previewError!;
     }
