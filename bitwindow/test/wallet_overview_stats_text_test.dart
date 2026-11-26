@@ -19,4 +19,10 @@ void main() {
     expect(lastActivitySubtitle(GetStatsResponse()), '');
     expect(lastActivitySubtitle(null), '');
   });
+
+  test('the fees subtitle counts one transaction in the singular', () {
+    expect(feesSubtitle(0), 'across 0 transactions');
+    expect(feesSubtitle(1), 'across 1 transaction');
+    expect(feesSubtitle(14), 'across 14 transactions');
+  });
 }
