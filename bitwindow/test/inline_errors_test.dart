@@ -137,35 +137,31 @@ void main() {
   });
 
   group('cash check', () {
-    testWidgets('an empty key shows the error next to the form', (tester) async {
+    testWidgets('a key that the app cannot read shows the error next to the form', (tester) async {
       await pump(tester, const CashCheckPage());
+      await tester.enterText(find.byType(SailTextField), 'cVt4o7BGAig1UXywgGSmARhxMdzP5qvQsxKkSsc1XEkw3tDTQFpy');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
 
-      await tapButton(tester, 'Cash Check');
-
-      expect(_inline('Please enter a private key'), findsOneWidget);
-      expect(find.textContaining('Please enter a private key'), findsOneWidget);
+      expect(_inline('Failed to cash check'), findsOneWidget);
+      expect(
+        tester.widget<SailButton>(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Cash Check')).disabled,
+        isTrue,
+      );
     });
 
     testWidgets('typing a key clears the error', (tester) async {
       await pump(tester, const CashCheckPage());
-      await tapButton(tester, 'Cash Check');
+      await tester.enterText(find.byType(SailTextField), 'cVt4o7BGAig1UXywgGSmARhxMdzP5qvQsxKkSsc1XEkw3tDTQFpy');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
       expect(find.byType(SailInlineError), findsOneWidget);
 
-      await tester.enterText(find.byType(SailTextField), 'cVt4o7BGAig1UXywgGSmARhxMdzP5qvQsxKkSsc1XEkw3tDTQFpy');
+      await tester.enterText(find.byType(SailTextField), 'cVt4o7BGAig1UXywgGSmARhxMdzP5qvQsxKkSsc1XEkw3tDTQFp');
       await tester.pump();
 
       expect(find.byType(SailInlineError), findsNothing);
-    });
-
-    testWidgets('a failed sweep shows the error next to the form', (tester) async {
-      await pump(tester, const CashCheckPage());
-      await tester.enterText(find.byType(SailTextField), 'cVt4o7BGAig1UXywgGSmARhxMdzP5qvQsxKkSsc1XEkw3tDTQFpy');
-      await tester.pump();
-
-      await tapButton(tester, 'Cash Check');
-
-      expect(_inline('Failed to cash check'), findsOneWidget);
-      expect(find.textContaining('Failed to cash check'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 500));
     });
   });
 

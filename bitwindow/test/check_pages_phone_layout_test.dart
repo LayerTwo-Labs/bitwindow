@@ -73,21 +73,50 @@ class _FakeOrchestrator implements OrchestratorRPC {
 }
 
 class _FakeWalletAPI implements WalletAPI {
+  _FakeWalletAPI({this.keyAmountSats = 123456});
+
+  final int keyAmountSats;
+  String? previewDestination;
+  (String, int)? sweep;
+
+  @override
+  Future<SweepPreview> previewSweep(
+    String privateKeyWif, {
+    int feeSatPerVbyte = 0,
+    String destinationAddress = '',
+  }) async {
+    previewDestination = destinationAddress;
+    return SweepPreview(
+      address: _address,
+      addressKind: bwpb.SweepAddressKind.SWEEP_ADDRESS_KIND_P2WPKH,
+      amountSats: keyAmountSats,
+      outputCount: keyAmountSats == 0 ? 0 : 1,
+      feeSatPerVbyte: 2,
+      feeSats: 220,
+      receiveSats: keyAmountSats == 0 ? 0 : keyAmountSats - 220,
+    );
+  }
+
   @override
   Future<SweepChequeResult> sweepCheque(
     String walletId,
     String privateKeyWif,
     String destinationAddress,
     int feeSatPerVbyte,
-  ) async => SweepChequeResult(txid: _txid, amountSats: 123456, receiveSats: 123236);
+  ) async {
+    sweep = (destinationAddress, feeSatPerVbyte);
+    return SweepChequeResult(txid: _txid, amountSats: 123456, receiveSats: 123236);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeBitwindow implements BitwindowRPC {
+  _FakeBitwindow({int keyAmountSats = 123456}) : wallet = _FakeWalletAPI(keyAmountSats: keyAmountSats);
+
   @override
-  final WalletAPI wallet = _FakeWalletAPI();
+  final _FakeWalletAPI wallet;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -101,13 +130,13 @@ class _CashCheckRouter extends AppRouter {
   ];
 }
 
-void _registerFakes({bool funded = false, bool swept = false}) {
+void _registerFakes({bool funded = false, bool swept = false, int keyAmountSats = 123456}) {
   final providers = _FakeProviders();
   GetIt.I.registerSingleton<CheckProvider>(_FakeCheckProvider(funded: funded, swept: swept));
   GetIt.I.registerSingleton<TransactionProvider>(providers);
   GetIt.I.registerSingleton<WalletReaderProvider>(providers);
   GetIt.I.registerSingleton<OrchestratorRPC>(_FakeOrchestrator());
-  GetIt.I.registerSingleton<BitwindowRPC>(_FakeBitwindow());
+  GetIt.I.registerSingleton<BitwindowRPC>(_FakeBitwindow(keyAmountSats: keyAmountSats));
 }
 
 Future<void> _pump(WidgetTester tester, Widget page, {required bool phone}) async {
@@ -181,6 +210,61 @@ void main() {
     await tester.pump();
 
     expect(find.text('Please enter a valid amount'), findsOneWidget);
+  });
+
+  group('Cash Check before the sweep', () {
+    Future<void> typeKey(WidgetTester tester) async {
+      await tester.enterText(find.byType(EditableText), 'qa-check-key');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+    }
+
+    bool cashOff(WidgetTester tester) => tester
+        .widget<SailButton>(find.byWidgetPredicate((widget) => widget is SailButton && widget.label == 'Cash Check'))
+        .disabled;
+
+    for (final phone in [false, true]) {
+      testWidgets('shows the amount, the fee and the received amount (phone: $phone)', (tester) async {
+        _registerFakes();
+        await _pump(tester, const CashCheckPage(), phone: phone);
+        expect(cashOff(tester), isTrue);
+
+        await typeKey(tester);
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('0.00123456 ${activeTicker.symbol}'), findsOneWidget);
+        expect(find.text('0.00000220 ${activeTicker.symbol}'), findsOneWidget);
+        expect(find.text('0.00123236 ${activeTicker.symbol}'), findsOneWidget);
+        expect(cashOff(tester), isFalse);
+        final wallet = (GetIt.I.get<BitwindowRPC>() as _FakeBitwindow).wallet;
+        expect(wallet.previewDestination, _address);
+        expect(wallet.sweep, isNull);
+      });
+    }
+
+    testWidgets('a key with no coins shows the reason and keeps Cash Check off', (tester) async {
+      _registerFakes(keyAmountSats: 0);
+      await _pump(tester, const CashCheckPage(), phone: false);
+
+      await typeKey(tester);
+
+      expect(find.text('This key holds no coins.'), findsOneWidget);
+      expect(find.text('Network fee:'), findsNothing);
+      expect(cashOff(tester), isTrue);
+    });
+
+    testWidgets('a changed key removes the numbers of the old key', (tester) async {
+      _registerFakes();
+      await _pump(tester, const CashCheckPage(), phone: false);
+      await typeKey(tester);
+
+      await tester.enterText(find.byType(EditableText), 'qa-check-key-2');
+      await tester.pump();
+
+      expect(find.text('Network fee:'), findsNothing);
+      expect(cashOff(tester), isTrue);
+      await tester.pump(const Duration(milliseconds: 500));
+    });
   });
 
   group('check details', () {
@@ -265,12 +349,15 @@ void main() {
         await tester.pumpAndSettle();
 
         await tester.enterText(find.byType(EditableText), 'qa-check-key');
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pump();
         await tester.tap(find.byWidgetPredicate((widget) => widget is SailButton && widget.label == 'Cash Check'));
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
         expect(find.text('0.00123236 ${activeTicker.symbol}'), findsOneWidget);
         expect(find.text('0.00123456 ${activeTicker.symbol}'), findsNothing);
+        expect((GetIt.I.get<BitwindowRPC>() as _FakeBitwindow).wallet.sweep, (_address, 2));
       });
     }
 
