@@ -1235,6 +1235,7 @@ class NewGraffitiView extends StatelessWidget {
             SailTextField(
               label: 'Message',
               controller: viewModel.messageController,
+              onChanged: viewModel._onMessageEdited,
               hintText: 'Enter a message',
               size: TextFieldSize.small,
               minLines: 1,
@@ -1278,6 +1279,8 @@ class NewGraffitiViewModel extends BaseViewModel {
   final OrchestratorWalletRPC _orchestratorWallet = GetIt.I<OrchestratorRPC>().wallet;
   WalletReaderProvider get _walletReader => GetIt.I<WalletReaderProvider>();
 
+  int _draftRevision = 0;
+
   String? graffitiError;
   NotificationLink? graffitiResult;
 
@@ -1290,8 +1293,13 @@ class NewGraffitiViewModel extends BaseViewModel {
     notifyListeners();
   }
 
+  void _onMessageEdited(String _) {
+    _draftRevision++;
+  }
+
   Future<void> createGraffiti(BuildContext context) async {
     final message = messageController.text;
+    final draftRevision = _draftRevision;
     if (message.isEmpty) {
       return;
     }
@@ -1324,7 +1332,7 @@ class NewGraffitiViewModel extends BaseViewModel {
         links: [link],
       );
 
-      if (!context.mounted || messageController.text != message) {
+      if (!context.mounted || _draftRevision != draftRevision) {
         return;
       }
       messageController.clear();
