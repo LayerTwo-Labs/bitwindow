@@ -1128,7 +1128,6 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 	if frozenErr != nil {
 		return nil, nil, nil, frozenErr
 	}
-	sort.Slice(remaining, func(i, j int) bool { return remaining[i].amountSats > remaining[j].amountSats })
 
 	// A rate the caller did not set must come from the chain, never from a
 	// stand-in: a send at a made-up rate cannot confirm on a busy chain.
@@ -1178,6 +1177,30 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 		return estimateFeeSats(inTotal, outVsize, feeRate)
 	}
 
+	if len(selected) == 0 && len(req.ExternalInputs) == 0 && req.CoinOrder != CoinOrderBackend {
+		coins := lo.Map(remaining, func(u electrumUTXO, _ int) orderedCoin[electrumUTXO] {
+			return orderedCoin[electrumUTXO]{coin: u, sats: u.amountSats}
+		})
+		need := func(in []electrumUTXO, change bool) int64 {
+			if req.SubtractFeeFromAmount {
+				return totalOutSats
+			}
+			withChange = change
+			defer func() { withChange = true }()
+			return totalOutSats + feeSats(in)
+		}
+		changeCostSats := changeDust
+		if req.FixedFeeSats <= 0 {
+			changeCostSats += int64(math.Ceil(float64(outputVsizeForKind(d.Kind)) * feeRate))
+		}
+		picked, err := pickCoins(coins, req.CoinOrder, need, changeCostSats)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		selected = picked
+		selectedSats = lo.SumBy(picked, func(u electrumUTXO) int64 { return u.amountSats })
+	}
+	sort.Slice(remaining, func(i, j int) bool { return remaining[i].amountSats > remaining[j].amountSats })
 	i := 0
 	for {
 		fee := feeSats(selected)
@@ -1189,6 +1212,14 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 		}
 		if len(selected) > 0 && selectedSats >= target {
 			break
+		}
+		// Coins that pay the send with no change need no more coins.
+		if len(selected) > 0 && !req.SubtractFeeFromAmount {
+			withChange = false
+			if selectedSats >= totalOutSats+feeSats(selected) {
+				break
+			}
+			withChange = true
 		}
 		if i >= len(remaining) {
 			return nil, nil, nil, fmt.Errorf("insufficient funds: need %d sats, have %d sats", target, selectedSats)
@@ -1232,7 +1263,7 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 		effect.replacedTxID = txid
 		effect.evicted = evicted
 	}
-	if changeSats >= changeDust {
+	if withChange && changeSats >= changeDust {
 		changeAddr, err := p.nextUnusedAddrFromScan(walletID, scan, w.scriptKind(), true)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("derive change address: %w", err)

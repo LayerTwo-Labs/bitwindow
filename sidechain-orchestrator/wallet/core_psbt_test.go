@@ -191,7 +191,7 @@ func TestCoreBackendCreatePSBTPaysAFixedFee(t *testing.T) {
 	change := p2wpkhAddr(t, fixedKey(0x99), net)
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": strings.Repeat("22", 32), "vout": 1, "amount": 0.0006, "spendable": true},
+			{"txid": strings.Repeat("22", 32), "vout": 1, "amount": 0.0006, "spendable": true, "safe": true},
 		}, ""
 	})
 	fake.handle("getrawchangeaddress", func(bitcoindCall) (any, string) { return change, "" })
@@ -242,7 +242,7 @@ func TestCoreBackendCreatePSBTTakesAFixedFeeFromTheAmount(t *testing.T) {
 	change := p2wpkhAddr(t, fixedKey(0x99), net)
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": strings.Repeat("22", 32), "vout": 1, "amount": 1.0, "spendable": true},
+			{"txid": strings.Repeat("22", 32), "vout": 1, "amount": 1.0, "spendable": true, "safe": true},
 		}, ""
 	})
 	fake.handle("getrawchangeaddress", func(bitcoindCall) (any, string) { return change, "" })
@@ -299,8 +299,8 @@ func TestCoreBackendCreatePSBTHoldsFrozenCoinsWhileCoreFunds(t *testing.T) {
 			locked := map[string]bool{}
 			fake.handle("listunspent", func(bitcoindCall) (any, string) {
 				return []map[string]any{
-					{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true, "confirmations": 3},
-					{"txid": freeCoinTxid, "vout": 0, "amount": 0.01, "spendable": true, "confirmations": 3},
+					{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true, "safe": true, "confirmations": 3},
+					{"txid": freeCoinTxid, "vout": 0, "amount": 0.01, "spendable": true, "safe": true, "confirmations": 3},
 				}, ""
 			})
 			fake.handle("lockunspent", func(c bitcoindCall) (any, string) {

@@ -99,7 +99,7 @@ func fundedCoreTx(t *testing.T, n int, net *chaincfg.Params) (string, []map[stri
 		require.NoError(t, err)
 		tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(hash, 1), nil, nil))
 		utxos = append(utxos, map[string]any{
-			"txid": hash.String(), "vout": 1, "amount": 0.00005, "spendable": true,
+			"txid": hash.String(), "vout": 1, "amount": 0.00005, "spendable": true, "safe": true,
 			"desc": "wpkh([d34db33f/84h/1h/0h/0/0]03a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd)",
 		})
 	}

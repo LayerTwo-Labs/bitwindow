@@ -979,6 +979,7 @@ func (p *CoreBackend) Send(ctx context.Context, walletID string, req SendRequest
 		len(req.RequiredInputs) > 0 ||
 		len(req.RawOutputs) > 0 ||
 		len(req.ExternalInputs) > 0 ||
+		req.CoinOrder != CoinOrderBackend ||
 		protect // custom serialization needs the raw-tx path
 
 	if len(req.ExcludedInputs) > 0 {
@@ -1031,6 +1032,11 @@ func (p *CoreBackend) Send(ctx context.Context, walletID string, req SendRequest
 		return p.signAndBroadcast(ctx, name, rawHex, len(req.ExternalInputs) > 0)
 	}
 
+	if len(req.ExternalInputs) == 0 {
+		if inputs, err = p.coinOrderInputs(ctx, walletID, req, inputs, outputs); err != nil {
+			return "", err
+		}
+	}
 	funded, err := p.fundWithCoreSelection(ctx, name, req, inputs, outputs, locktime, protect, "")
 	if err != nil {
 		return "", err
@@ -1075,7 +1081,7 @@ func (p *CoreBackend) fixedFeeRawTx(
 	neededSats := totalDestinationSats + feeOnTopSats
 	if len(req.RequiredInputs) == 0 && selectedInputAmountSats < neededSats {
 		extra, extraSats, err := p.selectInputsForFixedFee(
-			ctx, walletID, neededSats-selectedInputAmountSats,
+			ctx, walletID, neededSats-selectedInputAmountSats, req.CoinOrder,
 		)
 		if err != nil {
 			return "", err
@@ -1266,32 +1272,88 @@ func (p *CoreBackend) prevOutValueSats(ctx context.Context, in RequiredInput) (i
 
 // selectInputsForFixedFee picks spendable UTXOs largest-first until they
 // cover requiredSats.
-func (p *CoreBackend) selectInputsForFixedFee(ctx context.Context, walletID string, requiredSats int64) ([]RawInput, int64, error) {
+func (p *CoreBackend) selectInputsForFixedFee(
+	ctx context.Context, walletID string, requiredSats int64, order CoinOrder,
+) ([]RawInput, int64, error) {
+	coins, err := p.selectableCoins(ctx, walletID)
+	if err != nil {
+		return nil, 0, err
+	}
+	selected, err := pickCoins(coins, order, func([]UTXO, bool) int64 { return requiredSats }, fixedFeeChangeDustSats)
+	if err != nil {
+		return nil, 0, err
+	}
+	inputs := lo.Map(selected, func(u UTXO, _ int) RawInput { return RawInput{TxID: u.TxID, Vout: u.Vout} })
+	return inputs, lo.SumBy(selected, utxoSats), nil
+}
+
+// fixedFeeChangeDustSats is the smallest change a fixed-fee send keeps.
+const fixedFeeChangeDustSats = 546
+
+// selectableCoins lists the coins Core's own selection may spend: spendable,
+// safe, and not locked.
+func (p *CoreBackend) selectableCoins(ctx context.Context, walletID string) ([]orderedCoin[UTXO], error) {
 	utxos, err := p.ListUnspent(ctx, walletID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list unspent: %w", err)
+		return nil, fmt.Errorf("list unspent: %w", err)
 	}
-	sort.Slice(utxos, func(i, j int) bool {
-		return utxos[i].Amount > utxos[j].Amount
-	})
-
-	selected := make([]RawInput, 0)
-	totalSats := int64(0)
-	for _, utxo := range utxos {
-		if !utxo.Spendable {
-			continue
-		}
-		selected = append(selected, RawInput{TxID: utxo.TxID, Vout: utxo.Vout})
-		totalSats += int64(math.Round(utxo.Amount * 1e8))
-		if totalSats >= requiredSats {
-			break
+	var coins []orderedCoin[UTXO]
+	for _, u := range utxos {
+		if u.Spendable && u.Safe {
+			coins = append(coins, orderedCoin[UTXO]{coin: u, sats: utxoSats(u)})
 		}
 	}
+	return coins, nil
+}
 
-	if totalSats < requiredSats {
-		return nil, 0, fmt.Errorf("insufficient funds: need %d sats, have %d sats", requiredSats, totalSats)
+func utxoSats(u UTXO) int64 { return int64(math.Round(u.Amount * 1e8)) }
+
+// coinOrderInputs selects the inputs of a fee-rate send in req.CoinOrder. It
+// returns inputs as they are when the send pins coins or uses Core's selection.
+func (p *CoreBackend) coinOrderInputs(
+	ctx context.Context, walletID string, req SendRequest, inputs []RawInput, outputs []TxOutSpec,
+) ([]RawInput, error) {
+	if len(inputs) > 0 || req.CoinOrder == CoinOrderBackend || req.CoinOrder == CoinOrderBranchAndBound {
+		return inputs, nil
 	}
-	return selected, totalSats, nil
+	if req.FeeRateSatPerVB <= 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "a coin order needs a fee rate or a fixed fee")
+	}
+	coins, err := p.selectableCoins(ctx, walletID)
+	if err != nil {
+		return nil, err
+	}
+	totalSats := lo.Sum(lo.Values(req.DestinationsSats))
+	outVsize := lo.SumBy(outputs, func(o TxOutSpec) int { return outputVsize(o, p.net()) })
+	// Core picks the change type from the destinations, so size it as the largest.
+	changeVsize := outputVsizeForKind(ScriptTaproot)
+	var sizeErr error
+	need := func(selected []UTXO, withChange bool) int64 {
+		if req.SubtractFeeFromAmount {
+			return totalSats
+		}
+		inVsize := 0
+		for _, u := range selected {
+			weight, err := InputWeightUnits(u.Descriptor)
+			if err != nil {
+				sizeErr = fmt.Errorf("size input %s:%d: %w", u.TxID, u.Vout, err)
+			}
+			inVsize += (weight + 3) / 4
+		}
+		out := outVsize
+		if withChange {
+			out += changeVsize
+		}
+		return totalSats + estimateFeeSats(inVsize, out, float64(req.FeeRateSatPerVB))
+	}
+	selected, err := pickCoins(coins, req.CoinOrder, need, 0)
+	if sizeErr != nil {
+		return nil, sizeErr
+	}
+	if err != nil {
+		return nil, err
+	}
+	return lo.Map(selected, func(u UTXO, _ int) RawInput { return RawInput{TxID: u.TxID, Vout: u.Vout} }), nil
 }
 
 // signAndBroadcast signs via Core and broadcasts. Any replay locktime is
@@ -1338,9 +1400,6 @@ func (p *CoreBackend) CreatePSBT(ctx context.Context, walletID string, req SendR
 		return RawInput{TxID: in.TxID, Vout: in.Vout}
 	})
 	options := map[string]interface{}{}
-	if len(inputs) > 0 {
-		options["add_inputs"] = false
-	}
 	if req.FeeRateSatPerVB > 0 {
 		options["fee_rate"] = req.FeeRateSatPerVB
 	}
@@ -1376,6 +1435,12 @@ func (p *CoreBackend) CreatePSBT(ctx context.Context, walletID string, req SendR
 			return "", fmt.Errorf("fill psbt: %w", err)
 		}
 		return filled.PSBT, nil
+	}
+	if inputs, err = p.coinOrderInputs(ctx, walletID, req, inputs, outputs); err != nil {
+		return "", err
+	}
+	if len(inputs) > 0 {
+		options["add_inputs"] = false
 	}
 	funded, err := p.rpc.WalletCreateFundedPSBT(ctx, name, inputs, rpcOutputs(outputs), locktime, options)
 	if err != nil {

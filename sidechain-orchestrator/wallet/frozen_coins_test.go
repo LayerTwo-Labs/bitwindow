@@ -180,8 +180,8 @@ func TestCoreBackendSendSkipsACoinABidHolds(t *testing.T) {
 		}
 		coins := []map[string]any{}
 		for _, c := range []map[string]any{
-			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true},
-			{"txid": freeCoinTxid, "vout": 0, "amount": 0.01, "spendable": true},
+			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true, "safe": true},
+			{"txid": freeCoinTxid, "vout": 0, "amount": 0.01, "spendable": true, "safe": true},
 		} {
 			if !locked[fmt.Sprintf("%s:%d", c["txid"], c["vout"])] {
 				coins = append(coins, c)
@@ -258,7 +258,7 @@ func TestCoreBackendUnlocksAfterACanceledSend(t *testing.T) {
 
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
-			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true},
+			{"txid": frozenCoinTxid, "vout": 1, "amount": 0.04, "spendable": true, "safe": true},
 		}, ""
 	})
 	var locks []bool
@@ -318,7 +318,7 @@ func TestCoreCpfpRejectsACoinABidHolds(t *testing.T) {
 	})
 	childAddr := p2wpkhAddr(t, fixedKey(0x77), &chaincfg.RegressionNetParams)
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
-		return []map[string]any{{"txid": frozenCoinTxid, "vout": 1, "amount": 0.002, "spendable": true}}, ""
+		return []map[string]any{{"txid": frozenCoinTxid, "vout": 1, "amount": 0.002, "spendable": true, "safe": true}}, ""
 	})
 	fake.handle("getmempoolentry", func(bitcoindCall) (any, string) {
 		return map[string]any{"vsize": 150, "fees": map[string]any{"base": 0.0000015}}, ""

@@ -330,6 +330,17 @@ message RemoveEncryptionResponse {}
 // List/Switch/Update/Delete Wallets
 // ============================================================================
 
+// CoinOrder selects the coins of a send that pins no input.
+enum CoinOrder {
+  // The backend selection: Bitcoin Core's own for a fee rate, else largest first.
+  COIN_ORDER_UNSPECIFIED = 0;
+  COIN_ORDER_LARGEST_FIRST = 1;
+  COIN_ORDER_SMALLEST_FIRST = 2;
+  COIN_ORDER_RANDOM = 3;
+  // A set of coins that pays the send with no change, else the backend selection.
+  COIN_ORDER_BRANCH_AND_BOUND = 4;
+}
+
 enum WalletType {
   WALLET_TYPE_UNSPECIFIED = 0;
   WALLET_TYPE_BITCOIN_CORE = 1;
@@ -793,6 +804,7 @@ message PreviewSendRequest {
   // Raw OP_RETURN payload hex. A preview with no destination can use a zero
   // rate, which is the send default.
   string op_return_hex = 8;
+  CoinOrder coin_order = 9;
 }
 
 message PreviewSendResponse {
@@ -858,6 +870,7 @@ message CreatePsbtRequest {
   // magic nLockTime (499999999) on every PSBT; this drops that stamp for one
   // PSBT.
   bool allow_replay = 11;
+  CoinOrder coin_order = 12;
 }
 
 message CreatePsbtResponse {
