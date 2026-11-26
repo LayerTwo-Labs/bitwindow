@@ -16,7 +16,8 @@ service MiscService {
   rpc CommentNews(CommentNewsRequest) returns (CommentNewsResponse);
   // Returns the full reply thread rooted at an Item, highest fee first.
   rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
-  // What a story or comment would cost to broadcast. Builds nothing.
+  // The fee that the active wallet pays for a story or a comment with no fee
+  // choice. Broadcasts nothing.
   rpc EstimateNewsFee(EstimateNewsFeeRequest) returns (EstimateNewsFeeResponse);
 
   // File timestamping
@@ -124,6 +125,10 @@ message EstimateNewsFeeRequest {
   string body = 2;
   string headline = 3;
   string url = 4;
+  // Story fields that change the size of the payload.
+  string lang = 5;
+  int32 subtype = 6;
+  bool nsfw = 7;
 }
 
 message EstimateNewsFeeResponse {

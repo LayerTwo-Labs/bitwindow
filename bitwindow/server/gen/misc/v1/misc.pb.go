@@ -749,9 +749,13 @@ type EstimateNewsFeeRequest struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	Action NewsAction             `protobuf:"varint,1,opt,name=action,proto3,enum=misc.v1.NewsAction" json:"action,omitempty"`
 	// Text the action carries.
-	Body          string `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
-	Headline      string `protobuf:"bytes,3,opt,name=headline,proto3" json:"headline,omitempty"`
-	Url           string `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
+	Body     string `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
+	Headline string `protobuf:"bytes,3,opt,name=headline,proto3" json:"headline,omitempty"`
+	Url      string `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
+	// Story fields that change the size of the payload.
+	Lang          string `protobuf:"bytes,5,opt,name=lang,proto3" json:"lang,omitempty"`
+	Subtype       int32  `protobuf:"varint,6,opt,name=subtype,proto3" json:"subtype,omitempty"`
+	Nsfw          bool   `protobuf:"varint,7,opt,name=nsfw,proto3" json:"nsfw,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -812,6 +816,27 @@ func (x *EstimateNewsFeeRequest) GetUrl() string {
 		return x.Url
 	}
 	return ""
+}
+
+func (x *EstimateNewsFeeRequest) GetLang() string {
+	if x != nil {
+		return x.Lang
+	}
+	return ""
+}
+
+func (x *EstimateNewsFeeRequest) GetSubtype() int32 {
+	if x != nil {
+		return x.Subtype
+	}
+	return 0
+}
+
+func (x *EstimateNewsFeeRequest) GetNsfw() bool {
+	if x != nil {
+		return x.Nsfw
+	}
+	return false
 }
 
 type EstimateNewsFeeResponse struct {
@@ -1880,12 +1905,15 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\x04txid\x18\x06 \x01(\tR\x04txid\x12%\n" +
 	"\x0eretention_days\x18\a \x01(\x05R\rretentionDays\"<\n" +
 	"\x12ListTopicsResponse\x12&\n" +
-	"\x06topics\x18\x01 \x03(\v2\x0e.misc.v1.TopicR\x06topics\"\x87\x01\n" +
+	"\x06topics\x18\x01 \x03(\v2\x0e.misc.v1.TopicR\x06topics\"\xc9\x01\n" +
 	"\x16EstimateNewsFeeRequest\x12+\n" +
 	"\x06action\x18\x01 \x01(\x0e2\x13.misc.v1.NewsActionR\x06action\x12\x12\n" +
 	"\x04body\x18\x02 \x01(\tR\x04body\x12\x1a\n" +
 	"\bheadline\x18\x03 \x01(\tR\bheadline\x12\x10\n" +
-	"\x03url\x18\x04 \x01(\tR\x03url\"u\n" +
+	"\x03url\x18\x04 \x01(\tR\x03url\x12\x12\n" +
+	"\x04lang\x18\x05 \x01(\tR\x04lang\x12\x18\n" +
+	"\asubtype\x18\x06 \x01(\x05R\asubtype\x12\x12\n" +
+	"\x04nsfw\x18\a \x01(\bR\x04nsfw\"u\n" +
 	"\x17EstimateNewsFeeResponse\x12\x14\n" +
 	"\x05vsize\x18\x01 \x01(\x04R\x05vsize\x12)\n" +
 	"\x11fee_sat_per_vbyte\x18\x02 \x01(\x01R\x0efeeSatPerVbyte\x12\x19\n" +

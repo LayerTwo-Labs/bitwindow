@@ -498,15 +498,33 @@ func TestService_Comments(t *testing.T) {
 		require.ErrorContains(t, err, "body or url")
 	})
 
-	t.Run("comment fee estimate counts the url", func(t *testing.T) {
-		t.Parallel()
+	// walletPreviewing prices a preview at 21 sat/vB, and records each payload.
+	walletPreviewing := func(t *testing.T, previewed, sent *[]string) *mocks.MockWalletManagerServiceClient {
+		t.Helper()
 		mockOrch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
 		apitests.ExpectOrchestratorReads(mockOrch)
 		mockOrch.EXPECT().
-			EstimateFee(gomock.Any(), gomock.Any()).
-			Return(&orchpb.EstimateFeeResponse{SatPerVbyte: 1}, nil).
-			AnyTimes()
-		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(mockOrch)))
+			PreviewSend(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req *orchpb.PreviewSendRequest) (*orchpb.PreviewSendResponse, error) {
+				*previewed = append(*previewed, req.OpReturnHex)
+				assert.NotEmpty(t, req.WalletId, "the active wallet prices the send")
+				assert.Zero(t, req.FeeRateSatPerVbyte, "the wallet uses its send default")
+				vsize := int64(110 + len(req.OpReturnHex)/2)
+				return &orchpb.PreviewSendResponse{FeeSats: 21 * vsize, VsizeVbytes: vsize}, nil
+			}).AnyTimes()
+		mockOrch.EXPECT().
+			SendTransaction(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req *orchpb.SendTransactionRequest) (*orchpb.SendTransactionResponse, error) {
+				*sent = append(*sent, req.OpReturnHex)
+				return &orchpb.SendTransactionResponse{Txid: "test-txid"}, nil
+			}).AnyTimes()
+		return mockOrch
+	}
+
+	t.Run("comment fee estimate counts the url", func(t *testing.T) {
+		t.Parallel()
+		var previewed, sent []string
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(walletPreviewing(t, &previewed, &sent))))
 
 		estimate := func(body, url string) (*miscv1.EstimateNewsFeeResponse, error) {
 			return cli.EstimateNewsFee(t.Context(), &miscv1.EstimateNewsFeeRequest{
@@ -528,6 +546,96 @@ func TestService_Comments(t *testing.T) {
 		_, err = estimate("  ", "")
 		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 		assert.Contains(t, err.Error(), "body or url")
+	})
+
+	t.Run("comment fee estimate is the wallet preview of the comment bytes", func(t *testing.T) {
+		t.Parallel()
+		var previewed, sent []string
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(walletPreviewing(t, &previewed, &sent))))
+
+		estimate, err := cli.EstimateNewsFee(t.Context(), &miscv1.EstimateNewsFeeRequest{
+			Action: miscv1.NewsAction_NEWS_ACTION_COMMENT,
+			Body:   "great article æøå",
+		})
+		require.NoError(t, err)
+		_, err = cli.CommentNews(t.Context(), &miscv1.CommentNewsRequest{ParentId: validItemID, Body: "great article æøå"})
+		require.NoError(t, err)
+
+		require.Len(t, previewed, 1)
+		require.Len(t, sent, 1)
+		assert.Len(t, previewed[0], len(sent[0]), "the estimate prices a payload of the size that the comment sends")
+		assert.EqualValues(t, 110+len(sent[0])/2, estimate.Vsize)
+		assert.Equal(t, 21*estimate.Vsize, estimate.FeeSats)
+		assert.InDelta(t, 21, estimate.FeeSatPerVbyte, 1e-9)
+	})
+
+	t.Run("story fee estimate is the wallet preview of the story bytes", func(t *testing.T) {
+		t.Parallel()
+		var previewed, sent []string
+		db := database.Test(t)
+		topicID := validTopicID()
+		seedCurrentTopic(t, t.Context(), db, topicID, "Test Topic", 50)
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db, apitests.WithOrchestrator(walletPreviewing(t, &previewed, &sent))))
+
+		estimate, err := cli.EstimateNewsFee(t.Context(), &miscv1.EstimateNewsFeeRequest{
+			Action:   miscv1.NewsAction_NEWS_ACTION_STORY,
+			Headline: "Ask: what does a story cost?",
+			Body:     "The body, with æøå.",
+			Url:      "https://example.com/story",
+			Subtype:  2,
+			Nsfw:     true,
+		})
+		require.NoError(t, err)
+		_, err = cli.BroadcastNews(t.Context(), &miscv1.BroadcastNewsRequest{
+			Topic:    topicID.String(),
+			Headline: "Ask: what does a story cost?",
+			Content:  "The body, with æøå.",
+			Url:      "https://example.com/story",
+			Subtype:  2,
+			Nsfw:     true,
+		})
+		require.NoError(t, err)
+
+		require.Len(t, previewed, 1)
+		require.Len(t, sent, 1)
+		assert.Len(t, previewed[0], len(sent[0]), "the estimate prices a payload of the size that the story sends")
+		assert.Equal(t, 21*estimate.Vsize, estimate.FeeSats)
+
+		plain, err := cli.EstimateNewsFee(t.Context(), &miscv1.EstimateNewsFeeRequest{
+			Action:   miscv1.NewsAction_NEWS_ACTION_STORY,
+			Headline: "Ask: what does a story cost?",
+			Body:     "The body, with æøå.",
+			Url:      "https://example.com/story",
+		})
+		require.NoError(t, err)
+		assert.Less(t, plain.Vsize, estimate.Vsize, "the kind and the NSFW mark add bytes")
+	})
+
+	t.Run("story fee estimate rejects the headline that the broadcast rejects", func(t *testing.T) {
+		t.Parallel()
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t)))
+		_, err := cli.EstimateNewsFee(t.Context(), &miscv1.EstimateNewsFeeRequest{
+			Action:   miscv1.NewsAction_NEWS_ACTION_STORY,
+			Headline: strings.Repeat("a", 65),
+		})
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+		assert.Contains(t, err.Error(), "64 bytes")
+	})
+
+	t.Run("fee estimate gives the reason when the wallet cannot pay", func(t *testing.T) {
+		t.Parallel()
+		mockOrch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
+		apitests.ExpectOrchestratorReads(mockOrch)
+		mockOrch.EXPECT().
+			PreviewSend(gomock.Any(), gomock.Any()).
+			Return(nil, connect.NewError(connect.CodeFailedPrecondition, "insufficient funds"))
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(mockOrch)))
+
+		_, err := cli.EstimateNewsFee(t.Context(), &miscv1.EstimateNewsFeeRequest{
+			Action:   miscv1.NewsAction_NEWS_ACTION_STORY,
+			Headline: "A story",
+		})
+		require.ErrorContains(t, err, "insufficient funds")
 	})
 
 	t.Run("list comments includes the comments in the mempool", func(t *testing.T) {

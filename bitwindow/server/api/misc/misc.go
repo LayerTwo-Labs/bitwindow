@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 	"time"
@@ -125,30 +124,22 @@ func (s *Server) BroadcastNews(ctx context.Context, req *miscv1.BroadcastNewsReq
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
-	if strings.TrimSpace(req.Headline) == "" {
-		err := errors.New("headline must be set")
-		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
-	}
-	if len([]byte(req.Headline)) > 64 {
-		err := errors.New("headline cannot be longer than 64 bytes")
-		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
-	}
-	exists, err := opreturns.TopicExists(ctx, s.database, topicID)
-	if err != nil {
-		return nil, fmt.Errorf("check if topic exists: %w", err)
-	}
-	if !exists {
-		err := errors.New("topic does not exist")
-		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
-	}
-
-	storyBytes, err := opreturns.EncodeNewsMessageWithOptions(topicID, req.Headline, req.Content, opreturns.StoryOptions{
+	storyBytes, err := storyPayload(topicID, req.Headline, req.Content, opreturns.StoryOptions{
 		URL:     req.Url,
 		Lang:    req.Lang,
 		Subtype: req.Subtype,
 		NSFW:    req.Nsfw,
 	})
 	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+	}
+
+	exists, err := opreturns.TopicExists(ctx, s.database, topicID)
+	if err != nil {
+		return nil, fmt.Errorf("check if topic exists: %w", err)
+	}
+	if !exists {
+		err := errors.New("topic does not exist")
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
@@ -178,24 +169,38 @@ func parseItemID(hexID, field string) (codec.ItemID, error) {
 	return id, nil
 }
 
+// storyPayload checks the headline and encodes the bytes that a story puts in
+// the OP_RETURN.
+func storyPayload(topic opreturns.TopicID, headline, content string, opts opreturns.StoryOptions) ([]byte, error) {
+	if strings.TrimSpace(headline) == "" {
+		return nil, errors.New("headline must be set")
+	}
+	if len([]byte(headline)) > 64 {
+		return nil, errors.New("headline cannot be longer than 64 bytes")
+	}
+	return opreturns.EncodeNewsMessageWithOptions(topic, headline, content, opts)
+}
+
 // EstimateNewsFee implements miscv1connect.MiscServiceHandler. It encodes the
-// payload the action would broadcast and prices the transaction that holds it.
+// payload of the action, and the active wallet prices the send as it builds it.
 func (s *Server) EstimateNewsFee(ctx context.Context, req *miscv1.EstimateNewsFeeRequest) (*miscv1.EstimateNewsFeeResponse, error) {
 	payload, err := newsPayloadFor(req)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
-	rate, err := s.walletEngine.EstimateFeeRate(ctx, 6)
+	feeSats, vsize, err := s.walletEngine.PreviewOpReturn(ctx, payload)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, fmt.Sprintf("estimate fee rate: %s", err)).WithCause(err)
+		return nil, fmt.Errorf("estimate news fee: %w", err)
+	}
+	if feeSats <= 0 || vsize <= 0 {
+		return nil, fmt.Errorf("estimate news fee: the wallet gave fee %d sats and size %d vB", feeSats, vsize)
 	}
 
-	vsize := engines.OpReturnTxVbytes(len(payload))
 	return &miscv1.EstimateNewsFeeResponse{
-		Vsize:          vsize,
-		FeeSatPerVbyte: rate,
-		FeeSats:        uint64(math.Ceil(float64(vsize) * rate)),
+		Vsize:          uint64(vsize),
+		FeeSatPerVbyte: float64(feeSats) / float64(vsize),
+		FeeSats:        uint64(feeSats),
 	}, nil
 }
 
@@ -208,16 +213,16 @@ func newsPayloadFor(req *miscv1.EstimateNewsFeeRequest) ([]byte, error) {
 			return nil, errors.New("comment must have a body or url")
 		}
 		return codec.EncodeComment(codec.Comment{
-			TLVs: commentTLVs(&miscv1.CommentNewsRequest{Body: req.Body, Url: req.Url}),
+			TLVs: commentTLVs(&miscv1.CommentNewsRequest{Body: req.Body, Url: req.Url, Lang: req.Lang}),
 		})
 
 	case miscv1.NewsAction_NEWS_ACTION_STORY:
-		if strings.TrimSpace(req.Headline) == "" {
-			return nil, errors.New("headline must be set")
-		}
-		return opreturns.EncodeNewsMessageWithOptions(
-			opreturns.TopicID{}, req.Headline, req.Body, opreturns.StoryOptions{URL: req.Url},
-		)
+		return storyPayload(opreturns.TopicID{}, req.Headline, req.Body, opreturns.StoryOptions{
+			URL:     req.Url,
+			Lang:    req.Lang,
+			Subtype: req.Subtype,
+			NSFW:    req.Nsfw,
+		})
 
 	case miscv1.NewsAction_NEWS_ACTION_UNSPECIFIED:
 		return nil, errors.New("action must be set")
