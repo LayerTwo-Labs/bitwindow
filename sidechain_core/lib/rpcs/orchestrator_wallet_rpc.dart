@@ -727,13 +727,21 @@ class OrchestratorWalletRPC {
   }
 
   /// [blockHash] names the block of a txid [input], when the caller knows it.
+  /// With [checkOwnership], the change outputs are the ones [walletId] owns on
+  /// its change branch, not the ones the PSBT names.
   Future<DecodedTransaction> decodeTransaction({
     required String input,
     String walletId = '',
     String blockHash = '',
+    bool checkOwnership = false,
   }) async {
     final response = await _unaryClient.decodeTransaction(
-      wmpb.DecodeTransactionRequest(input: input, walletId: walletId, blockHash: blockHash),
+      wmpb.DecodeTransactionRequest(
+        input: input,
+        walletId: walletId,
+        blockHash: blockHash,
+        checkOwnership: checkOwnership,
+      ),
     );
 
     return DecodedTransaction(
