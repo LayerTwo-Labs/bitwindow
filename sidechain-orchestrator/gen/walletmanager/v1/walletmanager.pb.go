@@ -7464,8 +7464,11 @@ type ExploreSeedResponse struct {
 	Keys             []*ExploredKey         `protobuf:"bytes,5,rep,name=keys,proto3" json:"keys,omitempty"`
 	BasePath         string                 `protobuf:"bytes,6,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"` // canonical parent path of keys
 	Mnemonic         string                 `protobuf:"bytes,7,opt,name=mnemonic,proto3" json:"mnemonic,omitempty"`                 // with wallet_id: the mnemonic of the wallet
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Watch-only descriptor of the account of base_path. Empty when base_path is
+	// not a receive or change chain.
+	WatchDescriptor string `protobuf:"bytes,8,opt,name=watch_descriptor,json=watchDescriptor,proto3" json:"watch_descriptor,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ExploreSeedResponse) Reset() {
@@ -7543,6 +7546,13 @@ func (x *ExploreSeedResponse) GetBasePath() string {
 func (x *ExploreSeedResponse) GetMnemonic() string {
 	if x != nil {
 		return x.Mnemonic
+	}
+	return ""
+}
+
+func (x *ExploreSeedResponse) GetWatchDescriptor() string {
+	if x != nil {
+		return x.WatchDescriptor
 	}
 	return ""
 }
@@ -12271,7 +12281,7 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x03 \x01(\tR\tpublicKey\x12\x10\n" +
-	"\x03wif\x18\x04 \x01(\tR\x03wif\"\xf2\x01\n" +
+	"\x03wif\x18\x04 \x01(\tR\x03wif\"\x9d\x02\n" +
 	"\x13ExploreSeedResponse\x12\x19\n" +
 	"\bseed_hex\x18\x01 \x01(\tR\aseedHex\x12\x12\n" +
 	"\x04xprv\x18\x02 \x01(\tR\x04xprv\x12\x12\n" +
@@ -12279,7 +12289,8 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x12bip47_payment_code\x18\x04 \x01(\tR\x10bip47PaymentCode\x121\n" +
 	"\x04keys\x18\x05 \x03(\v2\x1d.walletmanager.v1.ExploredKeyR\x04keys\x12\x1b\n" +
 	"\tbase_path\x18\x06 \x01(\tR\bbasePath\x12\x1a\n" +
-	"\bmnemonic\x18\a \x01(\tR\bmnemonic\"\x19\n" +
+	"\bmnemonic\x18\a \x01(\tR\bmnemonic\x12)\n" +
+	"\x10watch_descriptor\x18\b \x01(\tR\x0fwatchDescriptor\"\x19\n" +
 	"\x17GenerateMnemonicRequest\"6\n" +
 	"\x18GenerateMnemonicResponse\x12\x1a\n" +
 	"\bmnemonic\x18\x01 \x01(\tR\bmnemonic\"5\n" +

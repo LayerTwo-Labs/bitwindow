@@ -87,6 +87,22 @@ func TestExploreSeedOfAWalletUsesItsOwnSeed(t *testing.T) {
 	require.NotEqual(t, first.Keys[0].Address, out.Keys[0].Address)
 }
 
+func TestExploreSeedDescriptorMakesAWatchOnlyWallet(t *testing.T) {
+	h := newSeedHandler(t, &chaincfg.RegressionNetParams)
+	w, err := h.svc.GenerateWalletWithPath("one", seedHandlerMnemonic, "", 0, "", "", nil)
+	require.NoError(t, err)
+
+	out, err := h.ExploreSeed(context.Background(), &pb.ExploreSeedRequest{WalletId: w.ID})
+	require.NoError(t, err)
+	require.NotEmpty(t, out.WatchDescriptor)
+
+	created, err := h.CreateWatchOnlyWallet(context.Background(), &pb.CreateWatchOnlyWalletRequest{
+		Name: "watch", XpubOrDescriptor: out.WatchDescriptor,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, w.ID, created.WalletId)
+}
+
 func TestExploreSeedOfAWalletRefusesBadInput(t *testing.T) {
 	h := newSeedHandler(t, &chaincfg.RegressionNetParams)
 	w, err := h.svc.GenerateWalletWithPath("one", "", "", 0, "", "", nil)

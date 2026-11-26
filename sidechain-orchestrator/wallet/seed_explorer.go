@@ -33,7 +33,10 @@ type SeedExplorer struct {
 	Xpub        string
 	PaymentCode string // BIP47 v1, as the wallet gives it
 	BasePath    string // canonical parent path of Keys
-	Keys        []ExploredKey
+	// WatchDescriptor is the watch-only descriptor of the account of BasePath.
+	// It is empty when BasePath is not a receive or change chain.
+	WatchDescriptor string
+	Keys            []ExploredKey
 }
 
 // ExploreSeed derives the master keys of a mnemonic and the keys at
@@ -110,11 +113,17 @@ func exploreSeedBytes(seed []byte, w *WalletData, basePath string, start, count 
 	}
 
 	parent := master
+	account := master
 	for _, level := range levels {
+		account = parent
 		parent, err = parent.Derive(level)
 		if err != nil {
 			return SeedExplorer{}, fmt.Errorf("derive %s: %w", base, err)
 		}
+	}
+	watchDescriptor, err := accountWatchDescriptor(account, path, kind, seedHex, net)
+	if err != nil {
+		return SeedExplorer{}, err
 	}
 
 	keys := make([]ExploredKey, 0, count)
@@ -128,13 +137,35 @@ func exploreSeedBytes(seed []byte, w *WalletData, basePath string, start, count 
 	}
 
 	return SeedExplorer{
-		SeedHex:     seedHex,
-		Xprv:        master.String(),
-		Xpub:        masterPub.String(),
-		PaymentCode: paymentCode,
-		BasePath:    base,
-		Keys:        keys,
+		SeedHex:         seedHex,
+		Xprv:            master.String(),
+		Xpub:            masterPub.String(),
+		PaymentCode:     paymentCode,
+		BasePath:        base,
+		WatchDescriptor: watchDescriptor,
+		Keys:            keys,
 	}, nil
+}
+
+// accountWatchDescriptor gives the watch-only descriptor of account, the parent
+// key of the chain that chainPath ends with. It is empty unless that chain is
+// the receive chain or the change chain of an account.
+func accountWatchDescriptor(account *hdkeychain.ExtendedKey, chainPath AccountPath, kind ScriptKind, seedHex string, net *chaincfg.Params) (string, error) {
+	steps := chainPath.steps()
+	chain := steps[len(steps)-1]
+	if len(steps) < 2 || chain.Hardened || chain.Index > 1 {
+		return "", nil
+	}
+	accountPub, err := account.Neuter()
+	if err != nil {
+		return "", fmt.Errorf("neuter account key: %w", err)
+	}
+	fingerprint, err := seedMasterFingerprint(seedHex, net)
+	if err != nil {
+		return "", fmt.Errorf("master fingerprint: %w", err)
+	}
+	origin := AccountPath{Steps: steps[:len(steps)-1]}.Origin("'")
+	return singleSigWatchDescriptor(kind, fingerprint, origin, accountPub.String())
 }
 
 func exploreChild(parent *hdkeychain.ExtendedKey, index uint32, kind ScriptKind, net *chaincfg.Params) (ExploredKey, error) {

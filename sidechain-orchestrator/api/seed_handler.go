@@ -60,6 +60,7 @@ func exploredResponse(out wallet.SeedExplorer) *pb.ExploreSeedResponse {
 		Xpub:             out.Xpub,
 		Bip47PaymentCode: out.PaymentCode,
 		BasePath:         out.BasePath,
+		WatchDescriptor:  out.WatchDescriptor,
 		Keys:             keys,
 	}
 }

@@ -1062,6 +1062,9 @@ message ExploreSeedResponse {
   repeated ExploredKey keys = 5;
   string base_path = 6; // canonical parent path of keys
   string mnemonic = 7; // with wallet_id: the mnemonic of the wallet
+  // Watch-only descriptor of the account of base_path. Empty when base_path is
+  // not a receive or change chain.
+  string watch_descriptor = 8;
 }
 
 message GenerateMnemonicRequest {}
