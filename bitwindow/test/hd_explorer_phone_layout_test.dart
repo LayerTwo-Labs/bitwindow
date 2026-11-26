@@ -134,6 +134,19 @@ void main() {
     expect(value.center.dy, closeTo(label.center.dy, 2));
   });
 
+  testWidgets('Derive Addresses comes back on when a good path follows an empty one', (tester) async {
+    await _pumpDerived(tester, phone: false);
+    SailButton derive() => tester.widget<SailButton>(find.widgetWithText(SailButton, 'Derive Addresses'));
+
+    await tester.enterText(find.byType(SailTextField).last, '');
+    await tester.pump();
+    expect(derive().onPressed, isNull);
+
+    await tester.enterText(find.byType(SailTextField).last, "m/0'/0");
+    await tester.pump();
+    expect(derive().onPressed, isNotNull);
+  });
+
   testWidgets('on a phone Show Private Keys shows the WIF of each address', (tester) async {
     await _pumpDerived(tester, phone: true);
     expect(find.text('wif-0'), findsNothing);

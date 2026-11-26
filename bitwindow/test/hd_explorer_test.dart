@@ -147,6 +147,87 @@ void main() {
     expect(model.derivedEntries.first.path, "m/84'/0'/0'/0/10");
   });
 
+  test('a failed page keeps the page on the screen and its number', () async {
+    final model = HDWalletViewModel()..mnemonicController.text = _mnemonic;
+    await model.deriveAddresses();
+    wallet.exploreError = Exception('connection refused');
+
+    await model.changePage(true);
+
+    expect(model.currentPage, 0);
+    expect(model.derivedEntries.first.path, "m/84'/0'/0'/0/0");
+    expect(model.errorMessage, contains('connection refused'));
+
+    wallet.exploreError = null;
+    await model.changePage(true);
+
+    expect(model.currentPage, 1);
+    expect(model.derivedEntries.first.path, "m/84'/0'/0'/0/10");
+    expect(model.errorMessage, isNull);
+  });
+
+  test('a new derive starts at the first page', () async {
+    final model = HDWalletViewModel()..mnemonicController.text = _mnemonic;
+    await model.deriveAddresses();
+    await model.changePage(true);
+    await model.changePage(true);
+
+    await model.deriveAddresses();
+
+    expect(model.currentPage, 0);
+    expect(wallet.explores.last.startIndex, 0);
+  });
+
+  test('an edit of the mnemonic or of the path drops the keys of the old one', () async {
+    for (final edit in <void Function(HDWalletViewModel)>[
+      (m) => m.mnemonicController.text = '$_mnemonic about',
+      (m) => m.derivationPathController.text = "m/86'/0'/0'/0",
+    ]) {
+      final model = HDWalletViewModel()..mnemonicController.text = _mnemonic;
+      await model.deriveAddresses();
+      await model.changePage(true);
+      expect(model.xpriv, isNotEmpty);
+
+      edit(model);
+
+      expect(model.masterSeed, isEmpty);
+      expect(model.xpriv, isEmpty);
+      expect(model.xpub, isEmpty);
+      expect(model.bip47PaymentCode, isEmpty);
+      expect(model.derivedEntries, isEmpty);
+      expect(model.currentPage, 0);
+      expect(model.canGoNext, isFalse);
+    }
+  });
+
+  test('an answer for an older mnemonic does not show', () async {
+    wallet.gate = Completer<void>();
+    final model = HDWalletViewModel()..mnemonicController.text = _mnemonic;
+
+    final pending = model.deriveAddresses();
+    model.mnemonicController.text = '$_mnemonic about';
+    wallet.gate!.complete();
+    await pending;
+
+    expect(model.xpriv, isEmpty);
+    expect(model.derivedEntries, isEmpty);
+  });
+
+  test('the orchestrator alone decides if a path is valid', () async {
+    final model = HDWalletViewModel()..mnemonicController.text = _mnemonic;
+    var changes = 0;
+    model.addListener(() => changes++);
+
+    for (final path in ["m/0'/0", '84h/0h/0h/0', "m/48'/0'/0'/2'/0", 'm/0']) {
+      model.derivationPathController.text = path;
+      expect(model.canDeriveAddresses, isTrue, reason: path);
+    }
+    expect(changes, 4);
+
+    model.derivationPathController.text = ' ';
+    expect(model.canDeriveAddresses, isFalse);
+  });
+
   test('shows the reason when the orchestrator refuses', () async {
     wallet.exploreError = Exception('invalid mnemonic');
     final model = HDWalletViewModel()..mnemonicController.text = 'abandon abandon';
