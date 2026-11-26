@@ -1,5 +1,6 @@
 import 'package:bitwindow/signing/psbt_signer.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
+import 'package:connectrpc/connect.dart' show Code, ConnectException;
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -22,16 +23,44 @@ Future<String?> signAndBroadcast(
   return broadcastSignedPsbt(walletId: walletId, unsignedPsbtBase64: unsignedPsbtBase64, signedPsbtBase64: signed);
 }
 
+/// A signed PSBT that the wallet cannot broadcast as it is.
+class SignedPsbtException implements Exception {
+  final String message;
+  const SignedPsbtException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+Future<String> _psbtStep(Future<String> Function() step, String refused) async {
+  try {
+    return await step();
+  } on ConnectException catch (e) {
+    if (e.code == Code.invalidArgument) {
+      throw SignedPsbtException(refused);
+    }
+    rethrow;
+  }
+}
+
 /// Combines [signedPsbtBase64] with [unsignedPsbtBase64], finalizes it and
-/// broadcasts it over the chain of [walletId]. Returns the txid.
+/// broadcasts it over the chain of [walletId]. Returns the txid. Throws a
+/// [SignedPsbtException] for a PSBT of another transaction or with too few
+/// signatures.
 Future<String> broadcastSignedPsbt({
   required String walletId,
   required String unsignedPsbtBase64,
   required String signedPsbtBase64,
 }) async {
   final wallet = GetIt.I<OrchestratorRPC>().wallet;
-  final combined = await wallet.combinePsbt(psbtsBase64: [unsignedPsbtBase64, signedPsbtBase64]);
-  final rawTxHex = await wallet.finalizePsbt(psbtBase64: combined);
+  final combined = await _psbtStep(
+    () => wallet.combinePsbt(psbtsBase64: [unsignedPsbtBase64, signedPsbtBase64]),
+    'This PSBT is for another transaction',
+  );
+  final rawTxHex = await _psbtStep(
+    () => wallet.finalizePsbt(psbtBase64: combined),
+    'The signer did not sign every input',
+  );
   // Broadcast over the wallet's own chain source, which also refreshes its scan.
   final txid = await wallet.broadcastTransaction(walletId: walletId, txHex: rawTxHex);
 

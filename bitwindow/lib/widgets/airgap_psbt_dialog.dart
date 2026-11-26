@@ -26,10 +26,12 @@ class AirgapPsbtDialog extends StatefulWidget {
 
 class _AirgapPsbtDialogState extends State<AirgapPsbtDialog> {
   bool _broadcasting = false;
-  String? _broadcastTxid;
   String? _error;
 
   Future<void> _finalizeAndBroadcast(String signedPsbtBase64) async {
+    if (_broadcasting) {
+      return;
+    }
     setState(() {
       _broadcasting = true;
       _error = null;
@@ -41,67 +43,40 @@ class _AirgapPsbtDialogState extends State<AirgapPsbtDialog> {
         signedPsbtBase64: signedPsbtBase64,
       );
 
-      _broadcastTxid = txid;
       widget.onBroadcast?.call(txid);
 
       if (mounted) {
         showSailToast(context, 'Transaction broadcast', variant: SailToastVariant.success);
         Navigator.of(context).pop(true);
       }
+    } on SignedPsbtException catch (e) {
+      _fail(e.message);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _broadcasting = false;
-          _error = 'Failed to broadcast: $e';
-        });
-      }
+      _fail('Failed to broadcast: ${extractConnectException(e)}');
     }
+  }
+
+  void _fail(String error) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _broadcasting = false;
+      _error = error;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return SailModal(
       constraints: const BoxConstraints(maxWidth: 560, maxHeight: 760),
-      child: _card(),
-    );
-  }
-
-  Widget _card() {
-    if (_broadcasting) {
-      return SailCard(
-        title: 'External signer (airgap)',
-        subtitle: 'Combining, finalizing and broadcasting',
-        child: SailColumn(
-          spacing: SailStyleValues.padding16,
-          children: [
-            const SizedBox(height: 40),
-            const Center(child: LoadingIndicator()),
-            if (_broadcastTxid != null) SailText.secondary12('txid: $_broadcastTxid'),
-          ],
-        ),
-      );
-    }
-    if (_error != null) {
-      return SailCard(
-        title: 'External signer (airgap)',
+      child: AirgapSignStep(
+        unsignedPsbtBase64: widget.unsignedPsbtBase64,
+        onSigned: _finalizeAndBroadcast,
+        onCancel: () => Navigator.of(context).pop(false),
         error: _error,
-        child: SailRow(
-          mainAxisAlignment: MainAxisAlignment.end,
-          spacing: SailStyleValues.padding08,
-          children: [
-            SailButton(
-              label: 'Back',
-              variant: ButtonVariant.ghost,
-              onPressed: () async => setState(() => _error = null),
-            ),
-          ],
-        ),
-      );
-    }
-    return AirgapSignStep(
-      unsignedPsbtBase64: widget.unsignedPsbtBase64,
-      onSigned: _finalizeAndBroadcast,
-      onCancel: () => Navigator.of(context).pop(false),
+        busy: _broadcasting,
+      ),
     );
   }
 }
