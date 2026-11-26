@@ -13,6 +13,7 @@ import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/utils/web_link.dart';
 import 'package:bitwindow/widgets/coinnews.dart';
 import 'package:bitwindow/widgets/headline_highlight_text_field.dart';
+import 'package:bitwindow/widgets/news_cost.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -497,7 +498,7 @@ class BroadcastNewsView extends StatelessWidget {
                 controller: viewModel.messageController,
                 label: 'Message (highlighted = headline)',
                 hintText: 'First 64 bytes (or until Enter) is the headline',
-                minLines: 10,
+                minLines: 9,
               ),
               SailTextField(
                 controller: viewModel.urlController,
@@ -520,13 +521,26 @@ class BroadcastNewsView extends StatelessWidget {
                   ),
                 ],
               ),
-              SailTextField(
-                controller: viewModel.feeController,
-                hintText: 'Fee (optional)',
-                suffixWidget: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: SailText.secondary12(viewModel.feeUnit.symbol),
-                ),
+              SailColumn(
+                spacing: SailStyleValues.padding08,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SailTextField(
+                    controller: viewModel.feeController,
+                    hintText: 'Fee (optional)',
+                    suffixWidget: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: SailText.secondary12(viewModel.feeUnit.symbol),
+                    ),
+                  ),
+                  if (viewModel.feeEstimatePending)
+                    SailText.secondary12('Checking the fee…')
+                  else if (viewModel.feeEstimate case final estimate?)
+                    SailText.secondary12('Network fee: ${formatFee(estimate)}')
+                  else if (viewModel.feeEstimateError case final error?)
+                    SailText.secondary12(error, color: context.sailTheme.colors.error),
+                ],
               ),
               if (viewModel.broadcastError != null) SailInlineError(viewModel.broadcastError!),
               SailRow(
@@ -598,13 +612,61 @@ class BroadcastNewsViewModel extends BaseViewModel {
       return;
     }
     subtype = value;
-    broadcastError = null;
-    notifyListeners();
+    _onInputChanged();
   }
 
   void setNsfw(bool value) {
     nsfw = value;
-    broadcastError = null;
+    _onInputChanged();
+  }
+
+  /// The fee that the wallet pays for the story when the fee field is empty.
+  NewsFeeEstimate? feeEstimate;
+
+  /// Why the wallet gave no fee for the story.
+  String? feeEstimateError;
+
+  /// True from an input until the wallet gives the fee of the changed story.
+  bool feeEstimatePending = false;
+
+  Timer? _estimateTimer;
+  int _estimates = 0;
+
+  /// Prices the story a short time after the last input.
+  void _estimateFeeLater() {
+    _estimateTimer?.cancel();
+    final read = ++_estimates;
+    feeEstimate = null;
+    feeEstimateError = null;
+    feeEstimatePending = headline.trim().isNotEmpty && feeController.text.trim().isEmpty;
+    if (!feeEstimatePending) {
+      return;
+    }
+    _estimateTimer = Timer(const Duration(milliseconds: 400), () => _estimateFee(read));
+  }
+
+  Future<void> _estimateFee(int read) async {
+    NewsFeeEstimate? estimate;
+    String? error;
+    try {
+      estimate = await _api.misc.estimateNewsFee(
+        NewsAction.NEWS_ACTION_STORY,
+        headline: headline,
+        body: content,
+        url: urlController.text.trim(),
+        subtype: subtype,
+        nsfw: nsfw,
+      );
+    } catch (e) {
+      final reason = e is BitwindowException ? e.message : e.toString();
+      error = reason.isEmpty ? reason : '${reason[0].toUpperCase()}${reason.substring(1)}';
+    }
+    if (disposed || read != _estimates) {
+      return;
+    }
+    feeEstimate = estimate;
+    feeEstimateError = error;
+    feeEstimatePending = false;
     notifyListeners();
   }
 
@@ -638,6 +700,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   void _onInputChanged() {
     broadcastError = null;
+    _estimateFeeLater();
     notifyListeners();
   }
 
@@ -724,6 +787,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   @override
   void dispose() {
+    _estimateTimer?.cancel();
     _newsProvider.removeListener(notifyListeners);
     messageController.removeListener(_onInputChanged);
     messageController.dispose();

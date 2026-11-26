@@ -1381,6 +1381,7 @@ const PreviewSendRequest$json = {
     {'1': 'required_inputs', '3': 5, '4': 3, '5': 11, '6': '.walletmanager.v1.UnspentOutput', '10': 'requiredInputs'},
     {'1': 'allow_replay', '3': 6, '4': 1, '5': 8, '10': 'allowReplay'},
     {'1': 'notification_only', '3': 7, '4': 1, '5': 8, '10': 'notificationOnly'},
+    {'1': 'op_return_hex', '3': 8, '4': 1, '5': 9, '10': 'opReturnHex'},
   ],
   '3': [PreviewSendRequest_DestinationsEntry$json],
 };
@@ -1404,8 +1405,9 @@ final $typed_data.Uint8List previewSendRequestDescriptor =
         'BCABKAhSFXN1YnRyYWN0RmVlRnJvbUFtb3VudBJICg9yZXF1aXJlZF9pbnB1dHMYBSADKAsyHy'
         '53YWxsZXRtYW5hZ2VyLnYxLlVuc3BlbnRPdXRwdXRSDnJlcXVpcmVkSW5wdXRzEiEKDGFsbG93'
         'X3JlcGxheRgGIAEoCFILYWxsb3dSZXBsYXkSKwoRbm90aWZpY2F0aW9uX29ubHkYByABKAhSEG'
-        '5vdGlmaWNhdGlvbk9ubHkaPwoRRGVzdGluYXRpb25zRW50cnkSEAoDa2V5GAEgASgJUgNrZXkS'
-        'FAoFdmFsdWUYAiABKANSBXZhbHVlOgI4AQ==');
+        '5vdGlmaWNhdGlvbk9ubHkSIgoNb3BfcmV0dXJuX2hleBgIIAEoCVILb3BSZXR1cm5IZXgaPwoR'
+        'RGVzdGluYXRpb25zRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSFAoFdmFsdWUYAiABKANSBXZhbH'
+        'VlOgI4AQ==');
 
 @$core.Deprecated('Use previewSendResponseDescriptor instead')
 const PreviewSendResponse$json = {

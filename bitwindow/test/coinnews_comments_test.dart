@@ -62,6 +62,8 @@ class _MiscAPI extends MockMiscAPI {
     String body = '',
     String headline = '',
     String url = '',
+    int subtype = 0,
+    bool nsfw = false,
   }) async {
     estimated.add(body);
     if (failEstimate) {

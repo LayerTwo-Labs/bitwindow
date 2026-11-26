@@ -458,6 +458,8 @@ class MockMiscAPI implements MiscAPI {
     String body = '',
     String headline = '',
     String url = '',
+    int subtype = 0,
+    bool nsfw = false,
   }) async {
     return NewsFeeEstimate(vsize: 152, feeSatPerVbyte: 1, feeSats: 152);
   }
