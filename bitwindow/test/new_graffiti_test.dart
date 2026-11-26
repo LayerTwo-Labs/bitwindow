@@ -122,4 +122,23 @@ void main() {
     expect(wallet.messages, ['First 🧪']);
     expect(tester.widget<EditableText>(field).controller.text, 'Next draft');
   });
+
+  testWidgets('Broadcast keeps a draft that returns to the submitted text', (tester) async {
+    const message = 'First 🧪\nSecond line';
+    final wallet = _WalletRPC();
+    GetIt.I.registerSingleton<OrchestratorRPC>(_Orchestrator(wallet));
+    await tester.pumpSailPage(const NewGraffitiView());
+    await tester.enterText(field, message);
+    await tester.pump();
+    await tester.tap(broadcast);
+
+    await tester.enterText(field, 'Next draft');
+    await tester.enterText(field, message);
+    wallet.address.complete(wmpb.GetNewAddressResponse(address: 'own-address'));
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+
+    expect(wallet.messages, [message]);
+    expect(find.text('Graffiti broadcast'), findsOneWidget);
+    expect(tester.widget<EditableText>(field).controller.text, message);
+  });
 }
