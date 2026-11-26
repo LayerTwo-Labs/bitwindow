@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bitwindow/signing/psbt_text.dart';
 import 'package:bitwindow/widgets/animated_ur_qr.dart';
 import 'package:bitwindow/widgets/ur_qr_scanner.dart';
 import 'package:file_picker/file_picker.dart';
@@ -17,11 +18,19 @@ class AirgapSignStep extends StatefulWidget {
   final void Function(String signedPsbtBase64) onSigned;
   final void Function() onCancel;
 
+  /// Why the owner refused the last signed PSBT.
+  final String? error;
+
+  /// The owner works on the signed PSBT.
+  final bool busy;
+
   const AirgapSignStep({
     super.key,
     required this.unsignedPsbtBase64,
     required this.onSigned,
     required this.onCancel,
+    this.error,
+    this.busy = false,
   });
 
   @override
@@ -94,8 +103,23 @@ class _AirgapSignStepState extends State<AirgapSignStep> {
     setState(() {
       _signedController.text = psbtBase64;
       _scanning = false;
+      _error = null;
     });
     widget.onSigned(psbtBase64);
+  }
+
+  void _confirmSigned() {
+    final signed = _signedController.text.replaceAll(RegExp(r'\s'), '');
+    if (signed.isEmpty) {
+      setState(() => _error = 'Provide the signed PSBT first');
+      return;
+    }
+    if (!isBase64Psbt(signed)) {
+      setState(() => _error = 'Not a valid base64 PSBT');
+      return;
+    }
+    setState(() => _error = null);
+    widget.onSigned(signed);
   }
 
   @override
@@ -103,7 +127,7 @@ class _AirgapSignStepState extends State<AirgapSignStep> {
     return SailCard(
       title: 'External signer (airgap)',
       subtitle: _stage == _Stage.export ? 'Show this unsigned PSBT to your signer' : 'Import the signed PSBT',
-      error: _error,
+      error: _error ?? (_stage == _Stage.import ? widget.error : null),
       child: _stage == _Stage.export
           ? Column(
               mainAxisSize: MainAxisSize.min,
@@ -187,18 +211,13 @@ class _AirgapSignStepState extends State<AirgapSignStep> {
               SailButton(
                 label: 'Back',
                 variant: ButtonVariant.ghost,
+                disabled: widget.busy,
                 onPressed: () async => setState(() => _stage = _Stage.export),
               ),
               SailButton(
                 label: 'Confirm signed',
-                onPressed: () async {
-                  final signed = _signedController.text.replaceAll(RegExp(r'\s'), '');
-                  if (signed.isEmpty) {
-                    setState(() => _error = 'Provide the signed PSBT first');
-                    return;
-                  }
-                  widget.onSigned(signed);
-                },
+                loading: widget.busy,
+                onPressed: () async => _confirmSigned(),
               ),
             ],
           ),

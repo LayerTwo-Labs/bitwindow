@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bitwindow/pages/wallet/psbt_signer_tab.dart';
+import 'package:bitwindow/signing/psbt_text.dart';
 import 'package:bitwindow/widgets/airgap_sign_step.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
