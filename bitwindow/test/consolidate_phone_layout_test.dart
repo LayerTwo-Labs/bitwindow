@@ -215,6 +215,20 @@ void main() {
     expect(tester.getSize(find.text(label)).width, lessThan(260));
   });
 
+  testWidgets('a coin with no own label shows the label of its address', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final transactions = GetIt.I<TransactionProvider>() as _FakeTransactions;
+    transactions.utxos.first.label = 'Address label';
+    transactions.utxos[1].label = 'Hidden address label';
+    (GetIt.I<CoinSelectionProvider>() as _FakeCoinSelection).labels['${'1' * 64}:0'] = 'Own label';
+    await _pump(tester, phone: false);
+
+    expect(find.text('Address label'), findsOneWidget);
+    expect(find.text('Own label'), findsOneWidget);
+    expect(find.text('Hidden address label'), findsNothing);
+  });
+
   testWidgets('the button is off, with the reason above it, while the last run waits', (tester) async {
     const reason =
         'The last consolidation still waits. Let it confirm, or unfreeze its coins, before you start another.';

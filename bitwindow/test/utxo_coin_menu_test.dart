@@ -91,6 +91,7 @@ class _Bitwindow extends MockAPI {
 final _coin = UnspentOutput(
   output: '${'a' * 64}:0',
   address: 'bcrt1qcoin',
+  label: 'Address label',
   valueSats: Int64(150000),
   confirmations: 3,
   derivationPath: "m/84'/1'/0'/0/7",
@@ -180,6 +181,14 @@ void main() {
     expect(find.textContaining('BitWindow could not save the label'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  test('a coin label falls back to the label of its address', () async {
+    expect(coinLabel(_coin), 'Address label');
+
+    await GetIt.I<CoinSelectionProvider>().setLabel(_coin.output, 'Own label');
+
+    expect(coinLabel(_coin), 'Own label');
   });
 
   test('setFrozen throws when the write fails', () async {
