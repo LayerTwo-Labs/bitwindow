@@ -546,6 +546,7 @@ class BroadcastNewsView extends StatelessWidget {
               SailRow(
                 spacing: SailStyleValues.padding08,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisSize: MainAxisSize.max,
                 children: [
                   SailButton(
                     label: 'Help',
