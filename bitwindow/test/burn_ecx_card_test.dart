@@ -164,6 +164,7 @@ class _FakeRpc implements OrchestratorWalletRPC {
     required String input,
     String walletId = '',
     String blockHash = '',
+    bool checkOwnership = false,
   }) async {
     walletIds.add(walletId);
     previews.add(input);

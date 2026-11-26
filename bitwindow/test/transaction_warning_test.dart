@@ -41,6 +41,7 @@ class _WalletRPC implements OrchestratorWalletRPC {
     required String input,
     String walletId = '',
     String blockHash = '',
+    bool checkOwnership = false,
   }) async {
     decodedBlockHashes.add(blockHash);
     final error = decodeError;

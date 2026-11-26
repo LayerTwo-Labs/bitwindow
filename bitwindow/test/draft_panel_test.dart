@@ -44,6 +44,7 @@ class _FakeWalletRPC implements OrchestratorWalletRPC {
     required String input,
     String walletId = '',
     String blockHash = '',
+    bool checkOwnership = false,
   }) async {
     return DecodedTransaction(
       form: wmpb.DecodedForm.DECODED_FORM_PSBT,
