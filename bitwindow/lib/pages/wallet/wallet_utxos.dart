@@ -120,20 +120,15 @@ class _UTXOsTabState extends State<UTXOsTab> {
                             );
                           },
                         ),
-                        child: SailStyleValues.phoneLayout(context)
-                            ? UTXOPhoneBars(
-                                utxos: model.entries,
-                                onBucketContextMenu: (bucket, position) {
-                                  _showBucketContextMenu(context, bucket, position);
-                                },
-                              )
-                            : UTXODistributionChart(
-                                utxos: model.entries,
-                                onBucketContextMenu: (bucket, position) {
-                                  _showBucketContextMenu(context, bucket, position);
-                                },
-                                onConsolidate: (_) => WalletPage.openSubtab(WalletPage.consolidateSubtabLabel),
-                              ),
+                        child: UTXOBars(
+                          utxos: model.entries,
+                          onBucketContextMenu: (bucket, position) {
+                            _showBucketContextMenu(context, bucket, position);
+                          },
+                          onConsolidate: SailStyleValues.phoneLayout(context)
+                              ? null
+                              : () => WalletPage.openSubtab(WalletPage.consolidateSubtabLabel),
+                        ),
                       ),
                     ),
                   ),

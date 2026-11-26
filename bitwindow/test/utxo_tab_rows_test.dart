@@ -135,8 +135,9 @@ void main() {
 
     await tester.pumpSailPage(const Column(children: [Expanded(child: UTXOsTab())]));
     await tester.pumpAndSettle();
-    final chart = find.byType(UTXODistributionChart);
-    expect(find.descendant(of: chart, matching: find.text('1 UTXO')), findsOneWidget);
+    final chart = find.byType(UTXOBars);
+    Finder count(String n) => find.descendant(of: chart, matching: find.text(n));
+    expect(count('1'), findsOneWidget);
 
     transactions.utxos = [
       _coin(1),
@@ -146,8 +147,35 @@ void main() {
     transactions.notifyListeners();
     await tester.pumpAndSettle();
 
-    expect(find.descendant(of: chart, matching: find.text('2 UTXOs')), findsOneWidget);
-    expect(find.descendant(of: chart, matching: find.text('1 UTXO')), findsOneWidget);
+    expect(count('2'), findsOneWidget);
+    expect(count('1'), findsOneWidget);
+  });
+
+  testWidgets('the chart counts every coin of a wide spread of values', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final values = [600, 1000, 5000, 20000, 60000, 90000, 100000, 250000, 3000000, 20000000, 5000000000, 5000000000];
+    transactions.utxos = [
+      for (var i = 0; i < values.length; i++)
+        UnspentOutput(
+          output: '${i.toRadixString(16).padLeft(64, '0')}:0',
+          valueSats: Int64(values[i]),
+          confirmations: 1,
+        ),
+    ];
+
+    await tester.pumpSailPage(const Column(children: [Expanded(child: UTXOsTab())]));
+    await tester.pumpAndSettle();
+
+    final chart = find.byType(UTXOBars);
+    final counts = [
+      for (final text in tester.widgetList<Text>(find.descendant(of: chart, matching: find.byType(Text))))
+        int.tryParse(text.data ?? ''),
+    ].whereType<int>();
+    expect(counts.fold<int>(0, (sum, n) => sum + n), values.length);
+    expect(find.text('> 10'), findsOneWidget);
+    expect(find.text('Consolidate Small UTXOs'), findsOneWidget);
   });
 
   testWidgets('a long label ends in its column and the path column stays in the card', (tester) async {
