@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+// The smallest amount the wallet sends to one address.
+const _minSats = 546;
 const _maxSats = 21000000 * 100000000;
 
 @RoutePage()
@@ -101,7 +103,7 @@ class _CreateCheckPageState extends State<CreateCheckPage> {
     }
 
     final sats = btcToSatoshi(btcAmount);
-    if (sats > _maxSats) {
+    if (sats < _minSats || sats > _maxSats) {
       setState(() => _error = 'Please enter a valid amount');
       return;
     }
