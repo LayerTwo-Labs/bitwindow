@@ -809,7 +809,7 @@ class _YourTopicsTab extends StatelessWidget {
                 SailTableCell(value: topic.topic, monospace: true),
                 SailTableCell(
                   value: topic.confirmed ? 'Confirmed' : 'Pending',
-                  textColor: topic.confirmed ? context.sailTheme.colors.success : context.sailTheme.colors.orangeLight,
+                  textColor: topic.confirmed ? context.sailTheme.colors.success : context.sailTheme.colors.orange,
                 ),
               ];
             },
