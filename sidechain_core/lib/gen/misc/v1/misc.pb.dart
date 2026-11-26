@@ -1061,6 +1061,7 @@ class CoinNews extends $pb.GeneratedMessage {
     $core.bool? nsfw,
     $core.String? txid,
     $core.int? vout,
+    $core.bool? outdated,
   }) {
     final result = CoinNews._();
     if (id != null) result.id = id;
@@ -1075,6 +1076,7 @@ class CoinNews extends $pb.GeneratedMessage {
     if (nsfw != null) result.nsfw = nsfw;
     if (txid != null) result.txid = txid;
     if (vout != null) result.vout = vout;
+    if (outdated != null) result.outdated = outdated;
     return result;
   }
 
@@ -1100,6 +1102,7 @@ class CoinNews extends $pb.GeneratedMessage {
     ..aOB(13, _omitFieldNames ? '' : 'nsfw')
     ..aOS(14, _omitFieldNames ? '' : 'txid')
     ..aI(15, _omitFieldNames ? '' : 'vout', fieldType: $pb.PbFieldType.OU3)
+    ..aOB(16, _omitFieldNames ? '' : 'outdated')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1236,6 +1239,16 @@ class CoinNews extends $pb.GeneratedMessage {
   $core.bool hasVout() => $_has(11);
   @$pb.TagNumber(15)
   void clearVout() => $_clearField(15);
+
+  /// True for a story older than the retention of its topic.
+  @$pb.TagNumber(16)
+  $core.bool get outdated => $_getBF(12);
+  @$pb.TagNumber(16)
+  set outdated($core.bool value) => $_setBool(12, value);
+  @$pb.TagNumber(16)
+  $core.bool hasOutdated() => $_has(12);
+  @$pb.TagNumber(16)
+  void clearOutdated() => $_clearField(16);
 }
 
 class ListCoinNewsResponse extends $pb.GeneratedMessage {

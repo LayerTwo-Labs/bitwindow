@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -151,25 +152,22 @@ func TestListCoinNews_ReadsCanonicalStories(t *testing.T) {
 	assert.Equal(t, "Known", got[0].TopicName)
 }
 
-// Per-topic retention is applied at SQL time; rows past the cutoff drop.
-func TestListCoinNews_RetentionFilteredAtSQL(t *testing.T) {
+// A story past the retention of its topic stays in the list, with the outdated flag.
+func TestListCoinNews_FlagsOutdatedStories(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	db := database.Test(t)
 
 	topic := mustTopicID(t, "b2b2b2b2")
-	// 7-day retention.
 	seedCurrentTopic(t, ctx, db, topic, "Weekly", 7, 1)
 
-	old := time.Now().AddDate(0, 0, -30) // way past the 7-day cutoff
-	fresh := time.Now()
-	seedCurrentNews(t, ctx, db, topic, "stale", "stale", "old-news", 0, 2, old)
-	seedCurrentNews(t, ctx, db, topic, "fresh", "fresh", "fresh-news", 1, 3, fresh)
+	seedCurrentNews(t, ctx, db, topic, "stale", "stale", "old-news", 0, 2, time.Now().AddDate(0, 0, -30))
+	seedCurrentNews(t, ctx, db, topic, "fresh", "fresh", "fresh-news", 1, 3, time.Now())
 
 	got, err := ListCoinNews(ctx, db)
 	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, "fresh", got[0].Headline)
+	outdated := lo.SliceToMap(got, func(n CoinNews) (string, bool) { return n.Headline, n.Outdated })
+	assert.Equal(t, map[string]bool{"stale": true, "fresh": false}, outdated)
 }
 
 func TestListCoinNews_RetentionIgnoresTimeZone(t *testing.T) {
@@ -188,8 +186,18 @@ func TestListCoinNews_RetentionIgnoresTimeZone(t *testing.T) {
 
 	got, err := ListCoinNews(ctx, db)
 	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, "inside", got[0].Headline)
+	outdated := lo.SliceToMap(got, func(n CoinNews) (string, bool) { return n.Headline, n.Outdated })
+	assert.Equal(t, map[string]bool{"outside": true, "inside": false}, outdated)
+}
+
+func TestOutdated(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 25, 12, 0, 0, 0, time.UTC)
+
+	assert.False(t, Outdated(now.AddDate(-5, 0, 0), 0, now), "a retention of 0 keeps a story forever")
+	assert.False(t, Outdated(now.Add(-24*time.Hour), 1, now), "a story at the limit stays current")
+	assert.True(t, Outdated(now.Add(-24*time.Hour-time.Second), 1, now))
+	assert.False(t, Outdated(now.Add(time.Hour), 1, now), "a block time ahead of the clock is current")
 }
 
 // A caller mutating the returned slice must not corrupt the cache.
@@ -258,9 +266,7 @@ func TestListCoinNews_TopicCreationRowFiltered(t *testing.T) {
 	assert.Equal(t, "real", got[0].Headline)
 }
 
-// retention_days = 0 means "keep forever" — even years-old rows must
-// come back. The SQL WHERE clause uses an OR for this case; if it
-// regressed to a strict cutoff the row would silently drop.
+// retention_days = 0 means "keep forever": a story of any age stays current.
 func TestListCoinNews_ZeroRetentionKeepsForever(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -276,6 +282,7 @@ func TestListCoinNews_ZeroRetentionKeepsForever(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "old", got[0].Headline)
+	assert.False(t, got[0].Outdated)
 }
 
 // Junk rows where headline is blank-or-padding-only must not surface.

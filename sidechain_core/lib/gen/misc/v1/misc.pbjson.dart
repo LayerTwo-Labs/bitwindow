@@ -276,6 +276,7 @@ const CoinNews$json = {
     {'1': 'nsfw', '3': 13, '4': 1, '5': 8, '10': 'nsfw'},
     {'1': 'txid', '3': 14, '4': 1, '5': 9, '10': 'txid'},
     {'1': 'vout', '3': 15, '4': 1, '5': 13, '10': 'vout'},
+    {'1': 'outdated', '3': 16, '4': 1, '5': 8, '10': 'outdated'},
   ],
   '9': [
     {'1': 8, '2': 9},
@@ -292,8 +293,9 @@ final $typed_data.Uint8List coinNewsDescriptor =
         'YXRzGAUgASgDUgdmZWVTYXRzEjsKC2NyZWF0ZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYn'
         'VmLlRpbWVzdGFtcFIKY3JlYXRlVGltZRIXCgdpdGVtX2lkGAcgASgJUgZpdGVtSWQSEAoDdXJs'
         'GAsgASgJUgN1cmwSGAoHc3VidHlwZRgMIAEoBVIHc3VidHlwZRISCgRuc2Z3GA0gASgIUgRuc2'
-        'Z3EhIKBHR4aWQYDiABKAlSBHR4aWQSEgoEdm91dBgPIAEoDVIEdm91dEoECAgQCUoECAkQCkoE'
-        'CAoQC1IHdXB2b3Rlc1IJZG93bnZvdGVzUgVzY29yZQ==');
+        'Z3EhIKBHR4aWQYDiABKAlSBHR4aWQSEgoEdm91dBgPIAEoDVIEdm91dBIaCghvdXRkYXRlZBgQ'
+        'IAEoCFIIb3V0ZGF0ZWRKBAgIEAlKBAgJEApKBAgKEAtSB3Vwdm90ZXNSCWRvd252b3Rlc1IFc2'
+        'NvcmU=');
 
 @$core.Deprecated('Use listCoinNewsResponseDescriptor instead')
 const ListCoinNewsResponse$json = {

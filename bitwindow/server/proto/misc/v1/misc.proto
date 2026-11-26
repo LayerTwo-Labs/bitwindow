@@ -160,6 +160,8 @@ message CoinNews {
   // which case the client hides its explorer link.
   string txid = 14;
   uint32 vout = 15;
+  // True for a story older than the retention of its topic.
+  bool outdated = 16;
 }
 
 message ListCoinNewsResponse {
