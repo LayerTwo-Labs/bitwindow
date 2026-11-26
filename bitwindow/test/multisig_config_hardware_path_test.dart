@@ -197,4 +197,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(SailTextField, _defaultPath), findsOneWidget);
   });
+
+  Future<SingleSigResult> addKeyAndNext(WidgetTester tester, Future<void> Function() addKey) async {
+    WalletSetupResult? result;
+    addTearDown(() => tester.pumpWidget(const SizedBox()));
+    await tester.pumpSailPage(MultisigConfigStep(onConfigured: (r) async => result = r));
+    await tester.pumpAndSettle();
+    await addKey();
+    await tester.tap(find.text('Next'));
+    await tester.pump(const Duration(milliseconds: 500));
+    return result!.single!;
+  }
+
+  testWidgets('a pasted xpub is watched by Bitcoin Core on a full node', (tester) async {
+    const key =
+        '[73c5da0a/84h/1h/0h]tpubDC8msFGeGuwnKG9Upg7DM2b4DaRqg3CUZa5g8v2SRQ6K4NSkxUgd7HsL2XVWbVm39yBA4LAxysQAm397zwQSQoQgewGiYZqrA9DsP4zbQ1M';
+    final single = await addKeyAndNext(tester, () async {
+      await tester.tap(find.text('xPub/ Watch Only').hitTestable().first);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.enterText(find.byType(EditableText).last, key);
+      await tester.tap(find.text('Add'));
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    expect(single.provider, 'core');
+    expect(single.mnemonic, isNull);
+    expect(single.xpubOrDescriptor, 'wpkh($key)');
+  });
+
+  testWidgets('a hardware key stays on electrum, which signs with the device', (tester) async {
+    final single = await addKeyAndNext(tester, () async {
+      await tester.tap(find.text('Hardware Wallet').hitTestable().first);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('Trezor T'));
+      await tester.pumpAndSettle();
+    });
+
+    expect(single.provider, 'electrum');
+    expect(single.hardwareDeviceType, 'trezor');
+  });
 }

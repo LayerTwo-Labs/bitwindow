@@ -616,6 +616,7 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
                 )
               : SingleSigResult(
                   scriptType: _singleHotScriptType(),
+                  provider: _effectiveProvider,
                   xpubOrDescriptor: descriptor,
                   hardwareDeviceType: k.hardwareDeviceType,
                   hardwareFingerprint: k.fingerprint,
@@ -849,9 +850,9 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
     );
   }
 
-  // Core takes a seed, so it cannot back a watch-only or hardware key, and the
-  // backend only watches multisig through Electrum.
-  bool get _coreAvailable => _isSingle && _keystores.first.held;
+  // Core cannot sign with a hardware key, and the backend only watches multisig
+  // through Electrum.
+  bool get _coreAvailable => _isSingle && !_keystores.first.isHardware;
 
   // Light mode runs no local node, so Bitcoin Core has nothing to talk to.
   bool get _bitcoinCoreAvailable => _coreAvailable && NodeModeProvider.runsLocalBackends;

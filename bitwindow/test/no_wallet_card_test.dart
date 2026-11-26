@@ -41,6 +41,16 @@ class _FakeWriter extends WalletWriterProvider {
   }
 
   @override
+  Future<void> createWatchOnlyWallet({
+    required String name,
+    required String xpubOrDescriptor,
+    required WalletGradient gradient,
+  }) async {
+    calls.add('core watch-only');
+    descriptor = xpubOrDescriptor;
+  }
+
+  @override
   Future<void> createMultisigWallet({
     required String name,
     required WalletGradient gradient,
@@ -207,9 +217,21 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('a single-sig descriptor makes an electrum wallet', (tester) async {
+  testWidgets('a single-sig descriptor makes a Core watch-only wallet on a full node', (tester) async {
     const descriptor = "wpkh([d34db33f/84'/0'/0']xpub6CUGRUo/0/*)";
     rpc.policy = wmpb.ValidateDescriptorResponse(scriptType: 'wpkh', m: 1, n: 1, descriptor: descriptor);
+    GetIt.I.registerSingleton<NodeModeProvider>(NodeModeProvider()..mode = wmpb.NodeMode.NODE_MODE_FULL);
+
+    await importDescriptor(tester, descriptor);
+
+    expect(writer.calls, ['core watch-only']);
+    expect(writer.descriptor, descriptor);
+  });
+
+  testWidgets('a single-sig descriptor makes an electrum wallet in light mode', (tester) async {
+    const descriptor = "wpkh([d34db33f/84'/0'/0']xpub6CUGRUo/0/*)";
+    rpc.policy = wmpb.ValidateDescriptorResponse(scriptType: 'wpkh', m: 1, n: 1, descriptor: descriptor);
+    GetIt.I.registerSingleton<NodeModeProvider>(NodeModeProvider()..mode = wmpb.NodeMode.NODE_MODE_LIGHT);
 
     await importDescriptor(tester, descriptor);
 
@@ -240,7 +262,7 @@ void main() {
 
     await importDescriptor(tester, "External: $receive\nInternal: wpkh([d34db33f/84'/0'/0']xpub6CUGRUo/1/*)");
 
-    expect(writer.calls, ['electrum']);
+    expect(writer.calls, ['core watch-only']);
     expect(writer.descriptor, receive);
   });
 
