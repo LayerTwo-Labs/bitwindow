@@ -167,8 +167,14 @@ class PsbtDraftProvider extends ChangeNotifier implements NetworkScoped {
     return saved;
   }
 
+  /// Saves a new label. A failure goes to [modelError], which the draft panel shows.
   Future<void> rename(String id, String label) async {
-    await _serializedSave(id, (d) async => d.label = label);
+    try {
+      await _serializedSave(id, (d) async => d.label = label);
+    } catch (e) {
+      modelError = e.toString();
+      notifyListeners();
+    }
   }
 
   Future<void> setTxid(String id, String txid) async {

@@ -54,7 +54,7 @@ class SendTab extends ViewModelWidget<SendPageViewModel> {
               viewModel.selectSendTab(0);
             }
           },
-          onLabelChanged: (label) => viewModel.renameDraft(draft.id, label),
+          onLabelChanged: (label) => viewModel.draftProvider.rename(draft.id, label),
           child: walletId == null
               ? const SizedBox.shrink()
               : DraftPanel(key: ValueKey('draft_panel_${draft.id}'), walletId: walletId, draftId: draft.id),
@@ -966,15 +966,6 @@ class SendPageViewModel extends BaseViewModel {
     notifyListeners();
   }
 
-  Future<void> renameDraft(String id, String label) async {
-    try {
-      await draftProvider.rename(id, label);
-    } catch (error) {
-      log.e('Error renaming draft: $error');
-      setError(error.toString());
-    }
-  }
-
   BitcoinUnit get currentUnit => settingsProvider.bitcoinUnit;
 
   List<AddressBookEntry> get addressBookEntries => addressBookProvider.sendEntries;
@@ -1212,9 +1203,15 @@ class SendPageViewModel extends BaseViewModel {
     }
   }
 
+  /// Saves the strategy. A failure shows under the send buttons.
   Future<void> setCoinSelectionStrategy(CoinSelectionStrategy strategy) async {
-    await bitwindowd.wallet.setCoinSelectionStrategy(_toProto(strategy));
-    await coinSelectionProvider.fetch();
+    try {
+      await bitwindowd.wallet.setCoinSelectionStrategy(_toProto(strategy));
+      await coinSelectionProvider.refresh();
+    } catch (error) {
+      setSendError(error.toString());
+      return;
+    }
     notifyListeners();
   }
 
@@ -1316,8 +1313,7 @@ class SendPageViewModel extends BaseViewModel {
       recipient.amountController.text = amountTextInUnit(plan.amountSats, currentUnit);
       notifyListeners();
     } catch (error) {
-      log.e('Error calculating available balance: $error');
-      setError(error.toString());
+      setSendError(error.toString());
     }
   }
 

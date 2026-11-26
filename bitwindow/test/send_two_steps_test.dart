@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart' hide CoinSelectionStrategy;
+import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart' as pb show CoinSelectionStrategy;
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 import 'package:sidechain_core/gen/walletpsbt/v1/walletpsbt.pb.dart';
 
@@ -45,6 +46,9 @@ class _Coins extends ChangeNotifier implements CoinSelectionProvider {
 
   @override
   CoinSelectionStrategy strategy = CoinSelectionStrategy.largestFirst;
+
+  @override
+  Future<void> refresh() async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -128,6 +132,30 @@ class _Orchestrator implements OrchestratorRPC {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _StrategyWallet implements WalletAPI {
+  Object? saveError;
+  pb.CoinSelectionStrategy? saved;
+
+  @override
+  Future<void> setCoinSelectionStrategy(pb.CoinSelectionStrategy strategy) async {
+    if (saveError case final error?) {
+      throw error;
+    }
+    saved = strategy;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Bitwindow extends ChangeNotifier implements BitwindowRPC {
+  @override
+  final _StrategyWallet wallet = _StrategyWallet();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   group('SendPageViewModel', () {
     late _Balance balance;
@@ -136,6 +164,7 @@ void main() {
     late _Drafts drafts;
     late SendPageViewModel model;
     late _Orchestrator orchestrator;
+    late _Bitwindow bitwindow;
 
     UnspentOutput coin(String output, int sats) => UnspentOutput(output: output, valueSats: Int64(sats));
 
@@ -154,6 +183,8 @@ void main() {
       GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader());
       orchestrator = _Orchestrator();
       GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
+      bitwindow = _Bitwindow();
+      GetIt.I.registerSingleton<BitwindowRPC>(bitwindow);
       model = _SendViewModel()..selectedConfTarget = null;
     });
 
@@ -188,6 +219,21 @@ void main() {
       await model.buildUnsignedPsbtForAirgap(tester.element(find.byType(SizedBox)));
 
       expect(orchestrator.wallet.psbtCoinOrder, wmpb.CoinOrder.COIN_ORDER_SMALLEST_FIRST);
+    });
+
+    test('a strategy save shows its failure', () async {
+      bitwindow.wallet.saveError = Exception('bitwindowd is down');
+
+      await model.setCoinSelectionStrategy(CoinSelectionStrategy.random);
+
+      expect(model.sendError, contains('bitwindowd is down'));
+    });
+
+    test('a strategy save stores the strategy', () async {
+      await model.setCoinSelectionStrategy(CoinSelectionStrategy.random);
+
+      expect(bitwindow.wallet.saved, pb.CoinSelectionStrategy.COIN_SELECTION_STRATEGY_RANDOM);
+      expect(model.sendError, isNull);
     });
 
     test('MAX keeps the BIP47 notification cost with a fixed fee', () async {
