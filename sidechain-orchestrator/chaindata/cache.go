@@ -33,6 +33,7 @@ var policies = map[string]policy{
 	"getmempoolinfo":    {events: EventBlock | EventMempool},
 	"getbalances":       {events: walletEvents},
 	"listtransactions":  {events: walletEvents},
+	"listsinceblock":    {events: walletEvents},
 	"listunspent":       {events: walletEvents},
 	"listwallets":       {events: EventWrite},
 	"getpeerinfo":       {ttl: 5 * time.Second},
