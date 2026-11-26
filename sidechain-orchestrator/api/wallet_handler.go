@@ -1098,8 +1098,8 @@ func mapRequiredInputs(inputs []*pb.UnspentOutput) []wallet.RequiredInput {
 }
 
 func (h *WalletHandler) PreviewSend(ctx context.Context, req *pb.PreviewSendRequest) (*pb.PreviewSendResponse, error) {
-	if len(req.Destinations) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, "must provide at least one destination")
+	if len(req.Destinations) == 0 && req.OpReturnHex == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "must provide at least one destination or an OP_RETURN payload")
 	}
 	if err := h.requireEngine(); err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
@@ -1150,6 +1150,7 @@ func (h *WalletHandler) PreviewSend(ctx context.Context, req *pb.PreviewSendRequ
 	preview, err := h.engine.Backend().PreviewSend(ctx, walletID, wallet.SendRequest{
 		DestinationsSats:      destinations,
 		FeeRateSatPerVB:       req.FeeRateSatPerVbyte,
+		OpReturnHex:           req.OpReturnHex,
 		SubtractFeeFromAmount: req.SubtractFeeFromAmount,
 		AllowReplay:           req.AllowReplay,
 		RequiredInputs:        requiredInputs,

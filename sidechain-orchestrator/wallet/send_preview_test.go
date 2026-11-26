@@ -232,3 +232,55 @@ func TestCoreBackendPreviewSendStampsTheNetworkLockTime(t *testing.T) {
 		})
 	}
 }
+
+func TestElectrumPreviewSendPricesAnOpReturnAtTheSendDefault(t *testing.T) {
+	p, fake, w, addr := newElectrumFixture(t)
+	fundManyCoins(fake, addr)
+	fake.feeRate = 3
+	req := SendRequest{OpReturnHex: strings.Repeat("ab", 120)}
+
+	preview, err := p.PreviewSend(context.Background(), w.ID, req)
+	require.NoError(t, err)
+	assert.Empty(t, fake.broadcast, "a preview broadcasts nothing")
+
+	_, err = p.Send(context.Background(), w.ID, req)
+	require.NoError(t, err)
+	require.Len(t, fake.broadcast, 1)
+	raw, err := hex.DecodeString(fake.broadcast[0])
+	require.NoError(t, err)
+	var tx wire.MsgTx
+	require.NoError(t, tx.Deserialize(bytes.NewReader(raw)))
+	paid := int64(len(tx.TxIn)) * previewCoinSats
+	for _, out := range tx.TxOut {
+		paid -= out.Value
+	}
+	assert.Equal(t, preview.FeeSats, paid, "the send pays the fee the preview showed")
+	assert.GreaterOrEqual(t, preview.FeeSats, 3*(preview.VsizeVBytes-int64(len(tx.TxIn))), "the fee uses the chain estimate")
+}
+
+func TestCoreBackendPreviewSendLetsCorePriceAnOpReturn(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+
+	fundedHex, utxos := fundedCoreTx(t, 1, &chaincfg.RegressionNetParams)
+	fake.handle("createrawtransaction", func(bitcoindCall) (any, string) { return "deadbeef", "" })
+	fake.handle("fundrawtransaction", func(bitcoindCall) (any, string) {
+		return map[string]any{"hex": fundedHex, "fee": 0.00004200, "changepos": 1}, ""
+	})
+	fake.handle("listunspent", func(bitcoindCall) (any, string) { return utxos, "" })
+
+	payload := strings.Repeat("ab", 120)
+	preview, err := backend.PreviewSend(context.Background(), coreID, SendRequest{OpReturnHex: payload})
+	require.NoError(t, err)
+	assert.Equal(t, int64(4_200), preview.FeeSats)
+
+	creates := fake.callsFor("createrawtransaction")
+	require.Len(t, creates, 1)
+	assert.Contains(t, string(creates[0].Params[1]), payload)
+	funds := fake.callsFor("fundrawtransaction")
+	require.Len(t, funds, 1)
+	var opts map[string]any
+	require.NoError(t, json.Unmarshal(funds[0].Params[1], &opts))
+	assert.NotContains(t, opts, "fee_rate", "Core prices a send with no rate")
+	assert.Empty(t, fake.callsFor("sendrawtransaction"))
+}

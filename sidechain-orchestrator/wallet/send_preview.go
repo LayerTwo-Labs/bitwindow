@@ -53,8 +53,10 @@ func refuseExcludedRequiredInputs(req SendRequest) error {
 	return nil
 }
 
+// requireSendPreviewRate refuses a payment preview with no rate. A send with
+// only an OP_RETURN output can take the send default.
 func requireSendPreviewRate(req SendRequest) error {
-	if req.FeeRateSatPerVB <= 0 {
+	if req.FeeRateSatPerVB <= 0 && len(req.DestinationsSats) > 0 {
 		return connect.NewError(connect.CodeInvalidArgument, "a send preview needs a fee rate")
 	}
 	return nil

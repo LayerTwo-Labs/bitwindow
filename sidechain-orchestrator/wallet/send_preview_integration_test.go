@@ -458,3 +458,40 @@ func TestFixedFeeBip47RejectsAnUnfundedPayment(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, preview.NotificationFeeSats)
 }
+
+// TestPreviewSendMatchesAnOpReturnBroadcast previews an OP_RETURN send with no
+// rate, and holds the preview to the transaction in the mempool of Core.
+func TestPreviewSendMatchesAnOpReturnBroadcast(t *testing.T) {
+	h := testharness.New(t, 1)
+	defer h.Close()
+
+	node := h.Nodes[0]
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	client := node.WalletClient
+
+	node.FundWallet(t)
+	node.WaitForBalance(t)
+	wallets, err := client.ListWallets(ctx, &pb.ListWalletsRequest{})
+	require.NoError(t, err)
+	var fundedID string
+	for _, w := range wallets.Wallets {
+		if w.Name == node.Name+"-core" {
+			fundedID = w.Id
+		}
+	}
+	require.NotEmpty(t, fundedID, "FundWallet mines to the Core wallet")
+
+	payload := strings.Repeat("ab", 150)
+	preview, err := client.PreviewSend(ctx, &pb.PreviewSendRequest{WalletId: fundedID, OpReturnHex: payload})
+	require.NoError(t, err)
+
+	sent, err := client.SendTransaction(ctx, &pb.SendTransactionRequest{WalletId: fundedID, OpReturnHex: payload})
+	require.NoError(t, err)
+	entry, err := node.CoreRPC.GetMempoolEntry(ctx, sent.Txid)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(math.Round(entry.Fees.Base*1e8)), preview.FeeSats, "the send pays the fee the preview showed")
+	assert.GreaterOrEqual(t, preview.VsizeVbytes, entry.Vsize)
+	assert.LessOrEqual(t, preview.VsizeVbytes-entry.Vsize, int64(1))
+}

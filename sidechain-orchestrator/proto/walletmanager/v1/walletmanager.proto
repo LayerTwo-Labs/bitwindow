@@ -790,6 +790,9 @@ message PreviewSendRequest {
   bool allow_replay = 6;
   // Price only the first BIP47 notification. A zero rate uses the send default.
   bool notification_only = 7;
+  // Raw OP_RETURN payload hex. A preview with no destination can use a zero
+  // rate, which is the send default.
+  string op_return_hex = 8;
 }
 
 message PreviewSendResponse {
