@@ -28,6 +28,8 @@ class MessageSigner extends StatelessWidget {
   }
 }
 
+String _errorText(Object e) => e is WalletException ? e.message : e.toString();
+
 class SignMessageTab extends StatefulWidget {
   const SignMessageTab({super.key});
 
@@ -41,7 +43,15 @@ class _SignMessageTabState extends State<SignMessageTab> {
   final TextEditingController _signatureController = TextEditingController();
   final WalletAPI _wallet = GetIt.I.get<BitwindowRPC>().wallet;
   WalletReaderProvider get _walletReader => GetIt.I<WalletReaderProvider>();
+  (String, String)? _signed;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _addressController.addListener(_dropSignature);
+    _messageController.addListener(_dropSignature);
+  }
 
   @override
   void dispose() {
@@ -51,21 +61,37 @@ class _SignMessageTabState extends State<SignMessageTab> {
     super.dispose();
   }
 
+  // A signature covers one address and one message only.
+  void _dropSignature() {
+    final signed = _signed;
+    if (signed != null && signed != (_addressController.text, _messageController.text)) {
+      _signed = null;
+      _signatureController.clear();
+    }
+  }
+
   Future<void> _signMessage() async {
     try {
       setState(() => _error = null);
       final walletId = _walletReader.activeWalletId;
       if (walletId == null) {
-        throw Exception('No active wallet');
+        throw WalletException('No active wallet');
       }
 
-      final signed = await _wallet.signMessage(walletId, _messageController.text, _addressController.text);
+      final message = _messageController.text;
+      final address = _addressController.text;
+      final signed = await _wallet.signMessage(walletId, message, address);
+      if (!mounted || message != _messageController.text || address != _addressController.text) {
+        return;
+      }
       setState(() {
+        _signed = (address, message);
         _signatureController.text = signed.signature;
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = _errorText(e);
+        _signed = null;
         _signatureController.clear();
       });
     }
@@ -128,7 +154,27 @@ class _VerifyMessageTabState extends State<VerifyMessageTab> {
   final WalletAPI _wallet = GetIt.I.get<BitwindowRPC>().wallet;
   WalletReaderProvider get _walletReader => GetIt.I<WalletReaderProvider>();
   bool? _isValid;
+  (String, String, String)? _checked;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final controller in [_addressController, _messageController, _signatureController]) {
+      controller.addListener(_dropResult);
+    }
+  }
+
+  // A result covers the text it checked only.
+  void _dropResult() {
+    final checked = _checked;
+    if (checked != null && checked != (_addressController.text, _messageController.text, _signatureController.text)) {
+      setState(() {
+        _checked = null;
+        _isValid = null;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -143,21 +189,27 @@ class _VerifyMessageTabState extends State<VerifyMessageTab> {
       setState(() => _error = null);
       final walletId = _walletReader.activeWalletId;
       if (walletId == null) {
-        throw Exception('No active wallet');
+        throw WalletException('No active wallet');
       }
 
-      final isValid = await _wallet.verifyMessage(
-        walletId,
-        _messageController.text,
-        _signatureController.text,
-        _addressController.text,
-      );
+      final message = _messageController.text;
+      final signature = _signatureController.text;
+      final address = _addressController.text;
+      final isValid = await _wallet.verifyMessage(walletId, message, signature, address);
+      if (!mounted ||
+          message != _messageController.text ||
+          signature != _signatureController.text ||
+          address != _addressController.text) {
+        return;
+      }
       setState(() {
+        _checked = (address, message, signature);
         _isValid = isValid;
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = _errorText(e);
+        _checked = null;
         _isValid = null;
       });
     }
