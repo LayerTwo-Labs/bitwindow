@@ -14,6 +14,9 @@ const _xpub =
     'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8';
 
 const _descriptor = "wpkh([73c5da0a/84'/0'/0']$_xpub/<0;1>/*)#g8l47ngv";
+const _taproot = 'bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr';
+const _publicKey = '0330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c';
+const _wif = 'KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d';
 
 class _FakeWallet implements OrchestratorWalletRPC {
   @override
@@ -30,8 +33,12 @@ class _FakeWallet implements OrchestratorWalletRPC {
     xpub: _xpub,
     bip47PaymentCode: 'PM8code',
     watchDescriptor: _descriptor,
-    keys: [wmpb.ExploredKey(path: '$basePath/0', address: 'addr-0', publicKey: 'pub-0', wif: 'wif-0')],
+    keys: longKeys
+        ? [wmpb.ExploredKey(path: '$basePath/0', address: _taproot, publicKey: _publicKey, wif: _wif)]
+        : [wmpb.ExploredKey(path: '$basePath/0', address: 'addr-0', publicKey: 'pub-0', wif: 'wif-0')],
   );
+
+  bool longKeys = false;
 
   @override
   Future<String> generateMnemonic() async => _mnemonic;
@@ -56,13 +63,13 @@ class _Conf extends ChangeNotifier implements BitcoinConfProvider {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Future<void> _pumpDerived(WidgetTester tester, {required bool phone}) async {
+Future<void> _pumpDerived(WidgetTester tester, {required bool phone, double width = 1200}) async {
   SailStyleValues.phoneLayoutOverride = phone;
   await tester.pumpSailPage(const HDWalletTab());
   if (phone) {
     await tester.binding.setSurfaceSize(const Size(390, 1600));
   } else {
-    await tester.binding.setSurfaceSize(const Size(1200, 1200));
+    await tester.binding.setSurfaceSize(Size(width, 1200));
   }
   await tester.pump();
   await tester.tap(find.widgetWithText(SailButton, 'Random'));
@@ -136,6 +143,38 @@ void main() {
     expect(value.left, greaterThanOrEqualTo(label.right));
     expect(value.center.dy, closeTo(label.center.dy, 2));
   });
+
+  testWidgets('the desktop page controls sit above the addresses', (tester) async {
+    await _pumpDerived(tester, phone: false);
+
+    final next = tester.getRect(find.widgetWithText(SailButton, 'Next'));
+    final show = tester.getRect(find.widgetWithText(SailButton, 'Show Private Keys'));
+    expect(next.center.dy, closeTo(show.center.dy, 1));
+    expect(tester.getRect(find.text('addr-0')).top, greaterThan(next.bottom));
+  });
+
+  for (final width in [1280.0, 1024.0]) {
+    testWidgets('at $width px the four key columns fit the card, with and without the WIF', (tester) async {
+      (GetIt.I.get<OrchestratorRPC>().wallet as _FakeWallet).longKeys = true;
+      await _pumpDerived(tester, phone: false, width: width);
+      await tester.pumpAndSettle();
+
+      for (final shown in [false, true]) {
+        if (shown) {
+          await tester.tap(find.widgetWithText(SailButton, 'Show Private Keys'));
+          await tester.pumpAndSettle();
+        }
+        expect(tester.takeException(), isNull);
+        final card = tester.getRect(find.byType(SailCard).last);
+        expect(tester.getRect(find.text('Private Key (WIF)')).right, lessThanOrEqualTo(card.right));
+        expect(tester.getRect(find.text(_taproot)).right, lessThanOrEqualTo(card.right));
+        expect(tester.getRect(find.text(_publicKey)).right, lessThanOrEqualTo(card.right));
+        if (shown) {
+          expect(tester.getRect(find.text(_wif)).right, lessThanOrEqualTo(card.right));
+        }
+      }
+    });
+  }
 
   testWidgets('the Watch Descriptor row shows under XPUB', (tester) async {
     await _pumpDerived(tester, phone: false);

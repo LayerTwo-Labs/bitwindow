@@ -280,104 +280,40 @@ class _AddressesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (SailStyleValues.phoneLayout(context)) {
-      return SailCard(
-        title: 'Derived Addresses',
-        subtitle: '${model.derivedEntries.length} address(es)',
-        bottomPadding: false,
-        child: SailColumn(
-          spacing: SailStyleValues.padding08,
-          children: [
-            Row(
-              children: [
-                SailButton(
-                  label: model.hidePrivateKeys ? 'Show Private Keys' : 'Hide Private Keys',
-                  onPressed: () async => model.togglePrivateKeyVisibility(),
-                  variant: ButtonVariant.secondary,
-                  small: true,
-                ),
-                const Spacer(),
-                SailButton(
-                  label: 'Prev',
-                  onPressed: model.canGoPrevious ? () async => await model.changePage(false) : null,
-                  variant: ButtonVariant.secondary,
-                  small: true,
-                ),
-                const SizedBox(width: SailStyleValues.padding08),
-                SailText.primary13('Page ${model.currentPage + 1}'),
-                const SizedBox(width: SailStyleValues.padding08),
-                SailButton(
-                  label: 'Next',
-                  onPressed: model.canGoNext ? () async => await model.changePage(true) : null,
-                  variant: ButtonVariant.secondary,
-                  small: true,
-                ),
-              ],
-            ),
-            AddressTable(entries: model.derivedEntries, hidePrivateKeys: model.hidePrivateKeys),
-          ],
-        ),
-      );
-    }
     return SailCard(
       title: 'Derived Addresses',
       subtitle: '${model.derivedEntries.length} address(es)',
       bottomPadding: false,
       child: SailColumn(
-        spacing: 0,
+        spacing: SailStyleValues.padding08,
         children: [
-          // Table
-          AddressTable(
-            entries: model.derivedEntries,
-            hidePrivateKeys: model.hidePrivateKeys,
-          ),
-          // Bottom Controls
-          Container(
-            padding: const EdgeInsets.all(SailStyleValues.padding16),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: context.sailTheme.colors.divider,
-                  width: 1,
-                ),
+          Row(
+            children: [
+              SailButton(
+                label: model.hidePrivateKeys ? 'Show Private Keys' : 'Hide Private Keys',
+                onPressed: () async => model.togglePrivateKeyVisibility(),
+                variant: ButtonVariant.secondary,
+                small: true,
               ),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    SailButton(
-                      label: model.hidePrivateKeys ? 'Show Private Keys' : 'Hide Private Keys',
-                      onPressed: () async => model.togglePrivateKeyVisibility(),
-                      variant: ButtonVariant.outline,
-                      small: true,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: SailStyleValues.padding16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SailButton(
-                      label: 'Prev',
-                      onPressed: model.canGoPrevious ? () async => await model.changePage(false) : null,
-                      variant: ButtonVariant.secondary,
-                      small: true,
-                    ),
-                    const SizedBox(width: SailStyleValues.padding16),
-                    SailText.primary13('Page ${model.currentPage + 1}'),
-                    const SizedBox(width: SailStyleValues.padding16),
-                    SailButton(
-                      label: 'Next',
-                      onPressed: model.canGoNext ? () async => await model.changePage(true) : null,
-                      variant: ButtonVariant.secondary,
-                      small: true,
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              const Spacer(),
+              SailButton(
+                label: 'Prev',
+                onPressed: model.canGoPrevious ? () async => await model.changePage(false) : null,
+                variant: ButtonVariant.secondary,
+                small: true,
+              ),
+              const SizedBox(width: SailStyleValues.padding08),
+              SailText.primary13('Page ${model.currentPage + 1}'),
+              const SizedBox(width: SailStyleValues.padding08),
+              SailButton(
+                label: 'Next',
+                onPressed: model.canGoNext ? () async => await model.changePage(true) : null,
+                variant: ButtonVariant.secondary,
+                small: true,
+              ),
+            ],
           ),
+          AddressTable(entries: model.derivedEntries, hidePrivateKeys: model.hidePrivateKeys),
         ],
       ),
     );
@@ -440,8 +376,7 @@ class HDWalletViewModel extends BaseViewModel {
     ('Watch Descriptor', watchDescriptor, false),
   ];
 
-  String _displayKey(String value, bool secret) =>
-      secret && hideSecrets && value.isNotEmpty ? '••••••••••••••••••••••••••••••••' : value;
+  String _displayKey(String value, bool secret) => secret && hideSecrets && value.isNotEmpty ? _hiddenKey * 2 : value;
 
   OrchestratorWalletRPC get _orchestratorWallet => GetIt.I.get<OrchestratorRPC>().wallet;
 
@@ -658,56 +593,20 @@ class AddressTable extends StatelessWidget {
       drawGrid: true,
       shrinkWrap: true,
       headerBuilder: (context) => [
-        const SailTableHeaderCell(name: 'Path                                   '),
-        const SailTableHeaderCell(name: 'Address                                                           '),
-        const SailTableHeaderCell(
-          name: 'Public Key                                                                             ',
-        ),
-        const SailTableHeaderCell(name: 'Private Key (WIF)                                                         '),
+        const SailTableHeaderCell(name: 'Path'),
+        const SailTableHeaderCell(name: 'Address'),
+        const SailTableHeaderCell(name: 'Public Key'),
+        const SailTableHeaderCell(name: 'Private Key (WIF)'),
       ],
       rowBuilder: (context, row, selected) {
         final entry = entries[row];
         return [
-          SailTableCell(
-            value: entry.path,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SailText.primary12(
-                entry.path,
-                monospace: true,
-              ),
-            ),
-          ),
-          SailTableCell(
-            value: entry.address,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SailText.primary12(
-                entry.address,
-                monospace: true,
-              ),
-            ),
-          ),
-          SailTableCell(
-            value: entry.publicKey,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SailText.primary12(
-                entry.publicKey,
-                monospace: true,
-              ),
-            ),
-          ),
-          SailTableCell(
-            value: hidePrivateKeys ? '••••••••••••••••••••••••••••••••' : entry.privateKey,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SailText.primary12(
-                hidePrivateKeys ? '••••••••••••••••••••••••••••••••' : entry.privateKey,
-                monospace: true,
-              ),
-            ),
-          ),
+          SailTableCell(value: entry.path, monospace: true, hugContent: true),
+          SailTableCell(value: entry.address, monospace: true, hugContent: true),
+          _keyCell(entry.publicKey, fill: true),
+          hidePrivateKeys
+              ? const SailTableCell(value: _hiddenKey, monospace: true, hugContent: true)
+              : _keyCell(entry.privateKey),
         ];
       },
       rowCount: entries.isEmpty ? 0 : entries.length,
@@ -715,6 +614,18 @@ class AddressTable extends StatelessWidget {
     );
   }
 }
+
+const _hiddenKey = '••••••••••••••••';
+
+/// A key cell. A key longer than the column ends with an ellipsis, and a copy gives the full key.
+SailTableCell _keyCell(String key, {bool fill = false}) => SailTableCell(
+  value: key.characters.take(_hiddenKey.length).toString(),
+  copyValue: key,
+  monospace: true,
+  fill: fill,
+  hugContent: !fill,
+  child: SailText.primary13(key, monospace: true, overflow: TextOverflow.ellipsis),
+);
 
 class HDWalletEntry {
   final String path;
