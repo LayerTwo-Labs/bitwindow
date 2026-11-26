@@ -133,7 +133,8 @@ extension type MiscServiceClient(connect.Transport _transport) {
     );
   }
 
-  /// What a story or comment would cost to broadcast. Builds nothing.
+  /// The fee that the active wallet pays for a story, a comment or a topic with no fee
+  /// choice. Broadcasts nothing.
   Future<miscv1misc.EstimateNewsFeeResponse> estimateNewsFee(
     miscv1misc.EstimateNewsFeeRequest input, {
     connect.Headers? headers,

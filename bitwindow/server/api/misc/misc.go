@@ -224,6 +224,9 @@ func newsPayloadFor(req *miscv1.EstimateNewsFeeRequest) ([]byte, error) {
 			NSFW:    req.Nsfw,
 		})
 
+	case miscv1.NewsAction_NEWS_ACTION_TOPIC:
+		return topicPayload(opreturns.TopicID{}, req.TopicName, req.RetentionDays)
+
 	case miscv1.NewsAction_NEWS_ACTION_UNSPECIFIED:
 		return nil, errors.New("action must be set")
 
@@ -234,19 +237,12 @@ func newsPayloadFor(req *miscv1.EstimateNewsFeeRequest) ([]byte, error) {
 
 // CreateTopic implements miscv1connect.MiscServiceHandler.
 func (s *Server) CreateTopic(ctx context.Context, req *miscv1.CreateTopicRequest) (*miscv1.CreateTopicResponse, error) {
-	if req.RetentionDays < 0 || req.RetentionDays > 255 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, "retention days must be between 0 and 255")
-	}
 	topicID, err := opreturns.ValidNewsTopicID(req.Topic)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
-	if req.Name == "" {
-		err := errors.New("title must be set")
-		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
-	}
-	if len([]byte(req.Name)) > 64 {
-		err := errors.New("title cannot be longer than 64 bytes")
+	topicCreationBytes, err := topicPayload(topicID, req.Name, req.RetentionDays)
+	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
@@ -254,16 +250,11 @@ func (s *Server) CreateTopic(ctx context.Context, req *miscv1.CreateTopicRequest
 	if err != nil {
 		return nil, err
 	}
-
 	if exists {
 		err := errors.New("topic already exists")
-		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+		return nil, connect.NewError(connect.CodeAlreadyExists, err.Error()).WithCause(err)
 	}
 
-	topicCreationBytes, err := opreturns.EncodeTopicCreationMessageNewFormat(topicID, req.Name, req.RetentionDays)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
-	}
 	txid, err := s.walletEngine.BroadcastOpReturn(ctx, topicCreationBytes, 0, 0)
 	if err != nil {
 		return nil, fmt.Errorf("broadcast topic creation: %w", err)
@@ -279,6 +270,21 @@ func (s *Server) CreateTopic(ctx context.Context, req *miscv1.CreateTopicRequest
 	return &miscv1.CreateTopicResponse{
 		Txid: txid,
 	}, nil
+}
+
+// topicPayload checks the title and the retention, and encodes the bytes that
+// a topic creation puts in the OP_RETURN.
+func topicPayload(topic opreturns.TopicID, name string, retentionDays int32) ([]byte, error) {
+	if retentionDays < 0 || retentionDays > 255 {
+		return nil, errors.New("retention days must be between 0 and 255")
+	}
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("title must be set")
+	}
+	if len([]byte(name)) > 64 {
+		return nil, errors.New("title cannot be longer than 64 bytes")
+	}
+	return opreturns.EncodeTopicCreationMessageNewFormat(topic, name, retentionDays)
 }
 
 // ListTopics implements miscv1connect.MiscServiceHandler.

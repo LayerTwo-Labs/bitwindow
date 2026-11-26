@@ -16,7 +16,7 @@ service MiscService {
   rpc CommentNews(CommentNewsRequest) returns (CommentNewsResponse);
   // Returns the full reply thread rooted at an Item, highest fee first.
   rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
-  // The fee that the active wallet pays for a story or a comment with no fee
+  // The fee that the active wallet pays for a story, a comment or a topic with no fee
   // choice. Broadcasts nothing.
   rpc EstimateNewsFee(EstimateNewsFeeRequest) returns (EstimateNewsFeeResponse);
 
@@ -117,6 +117,7 @@ enum NewsAction {
   NEWS_ACTION_UNSPECIFIED = 0;
   NEWS_ACTION_COMMENT = 2;
   NEWS_ACTION_STORY = 3;
+  NEWS_ACTION_TOPIC = 4;
 }
 
 message EstimateNewsFeeRequest {
@@ -129,6 +130,9 @@ message EstimateNewsFeeRequest {
   string lang = 5;
   int32 subtype = 6;
   bool nsfw = 7;
+  // Topic fields that change the size of the payload.
+  string topic_name = 8;
+  int32 retention_days = 9;
 }
 
 message EstimateNewsFeeResponse {

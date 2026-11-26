@@ -622,6 +622,46 @@ func TestService_Comments(t *testing.T) {
 		assert.Contains(t, err.Error(), "64 bytes")
 	})
 
+	t.Run("topic fee estimate is the wallet preview of the topic bytes", func(t *testing.T) {
+		t.Parallel()
+		var previewed, sent []string
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(walletPreviewing(t, &previewed, &sent))))
+
+		estimate, err := cli.EstimateNewsFee(t.Context(), &miscv1.EstimateNewsFeeRequest{
+			Action:        miscv1.NewsAction_NEWS_ACTION_TOPIC,
+			TopicName:     "Nyheter æøå",
+			RetentionDays: 30,
+		})
+		require.NoError(t, err)
+		_, err = cli.CreateTopic(t.Context(), &miscv1.CreateTopicRequest{
+			Topic:         "c3c3c3c3",
+			Name:          "Nyheter æøå",
+			RetentionDays: 30,
+		})
+		require.NoError(t, err)
+
+		require.Len(t, previewed, 1)
+		require.Len(t, sent, 1)
+		assert.Len(t, previewed[0], len(sent[0]), "the estimate prices a payload of the size that the topic sends")
+		assert.EqualValues(t, 110+len(sent[0])/2, estimate.Vsize)
+		assert.Equal(t, 21*estimate.Vsize, estimate.FeeSats)
+	})
+
+	for name, req := range map[string]*miscv1.EstimateNewsFeeRequest{
+		"title must be set":                        {TopicName: "  "},
+		"title cannot be longer than 64 bytes":     {TopicName: strings.Repeat("æ", 33)},
+		"retention days must be between 0 and 255": {TopicName: "Topic", RetentionDays: 256},
+	} {
+		t.Run("topic fee estimate rejects: "+name, func(t *testing.T) {
+			t.Parallel()
+			req.Action = miscv1.NewsAction_NEWS_ACTION_TOPIC
+			cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database.Test(t)))
+			_, err := cli.EstimateNewsFee(t.Context(), req)
+			require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+			assert.Contains(t, err.Error(), name)
+		})
+	}
+
 	t.Run("fee estimate gives the reason when the wallet cannot pay", func(t *testing.T) {
 		t.Parallel()
 		mockOrch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
@@ -817,6 +857,7 @@ func TestService_CreateTopic(t *testing.T) {
 			Name:  "New Topic",
 		})
 		require.ErrorContains(t, err, "topic already exists")
+		require.Equal(t, connect.CodeAlreadyExists, connect.CodeOf(err))
 	})
 
 	t.Run("create topic whose creation waits in the mempool", func(t *testing.T) {
@@ -833,6 +874,7 @@ func TestService_CreateTopic(t *testing.T) {
 			Name:  "Pending Topic",
 		})
 		require.ErrorContains(t, err, "topic already exists")
+		require.Equal(t, connect.CodeAlreadyExists, connect.CodeOf(err))
 	})
 }
 
