@@ -126,7 +126,7 @@ void main() {
     expect(call.mnemonic, _mnemonic);
     expect(call.basePath, "m/84'/0'/0'/0");
     expect(call.startIndex, 0);
-    expect(call.count, 10);
+    expect(call.count, 20);
     expect(model.errorMessage, isNull);
     expect(model.masterSeed, 'seed');
     expect(model.xpriv, 'xprv-master');
@@ -138,14 +138,14 @@ void main() {
     ]);
   });
 
-  test('the next page starts ten keys later', () async {
+  test('the next page starts twenty keys later', () async {
     final model = HDWalletViewModel()..mnemonicController.text = _mnemonic;
     await model.deriveAddresses();
 
     await model.changePage(true);
 
-    expect(wallet.explores.last.startIndex, 10);
-    expect(model.derivedEntries.first.path, "m/84'/0'/0'/0/10");
+    expect(wallet.explores.last.startIndex, 20);
+    expect(model.derivedEntries.first.path, "m/84'/0'/0'/0/20");
   });
 
   test('a failed page keeps the page on the screen and its number', () async {
@@ -163,7 +163,7 @@ void main() {
     await model.changePage(true);
 
     expect(model.currentPage, 1);
-    expect(model.derivedEntries.first.path, "m/84'/0'/0'/0/10");
+    expect(model.derivedEntries.first.path, "m/84'/0'/0'/0/20");
     expect(model.errorMessage, isNull);
   });
 

@@ -332,7 +332,7 @@ class HDWalletViewModel extends BaseViewModel {
   List<HDWalletEntry> _derivedEntries = [];
   String? _errorMessage;
   int _currentPage = 0;
-  static const int _entriesPerPage = 10;
+  static const int _entriesPerPage = 20;
 
   String _masterSeed = '';
   String _xpriv = '';
