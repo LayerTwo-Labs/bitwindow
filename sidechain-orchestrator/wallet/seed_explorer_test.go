@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -189,12 +190,20 @@ func TestExploreWalletTakesAnOtherPath(t *testing.T) {
 
 func TestExploreWalletRefusesAWalletWithNoSeed(t *testing.T) {
 	net := &chaincfg.RegressionNetParams
-	_, err := ExploreWallet(&WalletData{ID: "watch"}, "", 0, 1, net)
-	require.ErrorContains(t, err, "holds no single seed")
+	watch := &WalletData{ID: "D9D74389C23042F863BD29D71C34515D", Name: "Cold", WatchOnly: json.RawMessage(`{"xpub":"tpub"}`)}
+	_, err := ExploreWallet(watch, "", 0, 1, net)
+	require.ErrorIs(t, err, ErrNoSingleSeed)
+	require.EqualError(t, err, `"Cold" is a watch-only wallet and holds no single seed to explore`)
+
 	multisig := explorerTestWallet("", 0)
+	multisig.Name = "Vault"
 	multisig.Multisig = &MultisigWalletData{M: 1, N: 2}
 	_, err = ExploreWallet(multisig, "", 0, 1, net)
-	require.ErrorContains(t, err, "holds no single seed")
+	require.ErrorIs(t, err, ErrNoSingleSeed)
+	require.EqualError(t, err, `"Vault" is a multisig wallet and holds no single seed to explore`)
+
+	_, err = ExploreWallet(&WalletData{ID: "D9D74389", Name: "Spare"}, "", 0, 1, net)
+	require.EqualError(t, err, `"Spare" holds no single seed to explore`)
 }
 
 func TestExploreWalletUsesScriptTypeForCustomPath(t *testing.T) {
