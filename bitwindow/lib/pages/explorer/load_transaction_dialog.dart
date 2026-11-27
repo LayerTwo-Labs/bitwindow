@@ -148,6 +148,14 @@ class _LoadTransactionDialogState extends State<LoadTransactionDialog> {
   }
 }
 
+/// The fee rate of [decoded], or 'Unknown' when its fee or size is unknown.
+String feeRateText(DecodedTransaction decoded) {
+  if (!decoded.hasFee || decoded.details.vsizeVbytes <= 0) {
+    return 'Unknown';
+  }
+  return '${decoded.details.feeRateSatVb.toStringAsFixed(2)} ${activeTicker.feeRate}';
+}
+
 class _DecodedView extends StatelessWidget {
   final DecodedTransaction decoded;
 
@@ -224,6 +232,7 @@ class _Overview extends StatelessWidget {
   Widget build(BuildContext context) {
     final details = decoded.details;
     final formatter = GetIt.I<FormatterProvider>();
+    final sized = details.vsizeVbytes > 0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(SailStyleValues.padding16),
@@ -238,9 +247,9 @@ class _Overview extends StatelessWidget {
           const SailSpacing(SailStyleValues.padding16),
           SailText.primary13('Size'),
           const SailSpacing(SailStyleValues.padding08),
-          DetailRow(label: 'Size', value: '${details.sizeBytes} bytes'),
-          DetailRow(label: 'Virtual Size', value: '${details.vsizeVbytes} vbytes'),
-          DetailRow(label: 'Weight', value: '${details.weightWu} WU'),
+          DetailRow(label: 'Size', value: sized ? '${details.sizeBytes} bytes' : 'Unknown'),
+          DetailRow(label: 'Virtual Size', value: sized ? '${details.vsizeVbytes} vbytes' : 'Unknown'),
+          DetailRow(label: 'Weight', value: sized ? '${details.weightWu} WU' : 'Unknown'),
           const SailSpacing(SailStyleValues.padding16),
           SailText.primary13('Fee'),
           const SailSpacing(SailStyleValues.padding08),
@@ -248,10 +257,7 @@ class _Overview extends StatelessWidget {
             label: 'Fee',
             value: decoded.hasFee ? formatter.formatSats(details.feeSats.toInt()) : 'Unknown',
           ),
-          DetailRow(
-            label: 'Fee Rate',
-            value: decoded.hasFee ? '${details.feeRateSatVb.toStringAsFixed(2)} ${activeTicker.feeRate}' : 'Unknown',
-          ),
+          DetailRow(label: 'Fee Rate', value: feeRateText(decoded)),
           const SailSpacing(SailStyleValues.padding16),
           SailText.primary13('Totals'),
           const SailSpacing(SailStyleValues.padding08),
