@@ -754,12 +754,12 @@ message SendTransactionRequest {
   option (buf.validate.message).cel = {
     id: "send.fees"
     message: "the request cannot set both fee rate and fixed fee"
-    expression: "this.fee_rate_sat_per_vbyte <= 0 || this.fixed_fee_sats <= 0"
+    expression: "this.fee_rate_sat_per_vbyte <= 0.0 || this.fixed_fee_sats <= 0"
   };
 
   string wallet_id = 1;  // empty = active wallet
   map<string, int64> destinations = 2;  // address -> satoshis
-  int64 fee_rate_sat_per_vbyte = 3;     // 0 = use default
+  double fee_rate_sat_per_vbyte = 3;    // 0 = use default
   bool subtract_fee_from_amount = 4;
   // Raw OP_RETURN payload hex.
   string op_return_hex = 5;
@@ -795,7 +795,7 @@ message SendTransactionResponse {
 message PreviewSendRequest {
   string wallet_id = 1;  // empty = active wallet
   map<string, int64> destinations = 2;  // address -> satoshis
-  int64 fee_rate_sat_per_vbyte = 3;  // must be above 0 for a payment preview
+  double fee_rate_sat_per_vbyte = 3;  // must be above 0 for a payment preview
   bool subtract_fee_from_amount = 4;
   repeated UnspentOutput required_inputs = 5;
   bool allow_replay = 6;
@@ -858,7 +858,7 @@ message ExternalInput {
 message CreatePsbtRequest {
   string wallet_id = 1;  // empty = active wallet
   map<string, int64> destinations = 2;  // address -> satoshis
-  int64 fee_rate_sat_per_vbyte = 3;     // 0 = use default
+  double fee_rate_sat_per_vbyte = 3;    // 0 = use default
   bool subtract_fee_from_amount = 4;
   string op_return_hex = 5;
   int64 fixed_fee_sats = 6;

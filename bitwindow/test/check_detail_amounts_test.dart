@@ -58,13 +58,13 @@ class _FakeWalletReader extends ChangeNotifier implements WalletReaderProvider {
 }
 
 class _FakeOrchestratorWallet implements OrchestratorWalletRPC {
-  final sends = <(Map<String, int>, int?)>[];
+  final sends = <(Map<String, int>, double?)>[];
 
   @override
   Future<wmpb.SendTransactionResponse> sendTransaction({
     required String walletId,
     required Map<String, int> destinations,
-    int? feeRateSatPerVbyte,
+    double? feeRateSatPerVbyte,
     int? fixedFeeSats,
     bool subtractFeeFromAmount = false,
     String? opReturnMessage,

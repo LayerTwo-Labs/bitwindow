@@ -86,12 +86,18 @@ class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
 class _Wallet implements OrchestratorWalletRPC {
   Map<String, int>? psbtDestinations;
   wmpb.CoinOrder? psbtCoinOrder;
+  double? psbtFeeRate;
+  double? estimate;
+  final previewRates = <double>[];
+
+  @override
+  Future<double?> estimateFee(int confTarget) async => estimate;
 
   @override
   Future<String> createPsbt({
     required String walletId,
     required Map<String, int> destinations,
-    int? feeRateSatPerVbyte,
+    double? feeRateSatPerVbyte,
     int? fixedFeeSats,
     bool subtractFeeFromAmount = false,
     String? opReturnMessage,
@@ -102,6 +108,7 @@ class _Wallet implements OrchestratorWalletRPC {
   }) async {
     psbtDestinations = destinations;
     psbtCoinOrder = coinOrder;
+    psbtFeeRate = feeRateSatPerVbyte;
     return 'unsigned';
   }
 
@@ -109,12 +116,16 @@ class _Wallet implements OrchestratorWalletRPC {
   Future<wmpb.PreviewSendResponse> previewSend({
     required String walletId,
     required Map<String, int> destinations,
-    required int feeRateSatPerVbyte,
+    required double feeRateSatPerVbyte,
     bool subtractFeeFromAmount = false,
     bool notificationOnly = false,
     List<UnspentOutput>? requiredInputs,
     wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
   }) async {
+    if (estimate != null) {
+      previewRates.add(feeRateSatPerVbyte);
+      return wmpb.PreviewSendResponse(feeSats: Int64((feeRateSatPerVbyte * 141).ceil()), vsizeVbytes: Int64(141));
+    }
     expect(notificationOnly, isTrue);
     expect(feeRateSatPerVbyte, 0);
     return wmpb.PreviewSendResponse(notificationFeeSats: Int64(520));
@@ -219,6 +230,21 @@ void main() {
       await model.buildUnsignedPsbtForAirgap(tester.element(find.byType(SizedBox)));
 
       expect(orchestrator.wallet.psbtCoinOrder, wmpb.CoinOrder.COIN_ORDER_SMALLEST_FIRST);
+    });
+
+    testWidgets('a fractional estimate prices and builds at its exact rate', (tester) async {
+      orchestrator.wallet.estimate = 2.501;
+      model.recipients.single.addressController.text = 'bcrt1qvx7nwqp6cpqgl33m40fmk55zhh29e849f3uv69';
+      model.recipients.single.amountController.text = '0.00013';
+      await tester.pumpWidget(const SizedBox());
+
+      await model.selectFeeTarget(1);
+      await tester.pump();
+      await model.buildUnsignedPsbtForAirgap(tester.element(find.byType(SizedBox)));
+
+      expect(orchestrator.wallet.previewRates, [2.501]);
+      expect(model.feeSats, 353);
+      expect(orchestrator.wallet.psbtFeeRate, 2.501);
     });
 
     test('a strategy save shows its failure', () async {

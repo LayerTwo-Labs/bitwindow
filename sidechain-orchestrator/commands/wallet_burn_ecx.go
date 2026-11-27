@@ -34,7 +34,7 @@ func newWalletBurnECXCommand(burnAddress string, minimumSats int64) *cli.Command
 		ArgsUsage: "[wallet-id]",
 		Flags: []cli.Flag{
 			&cli.Int64Flag{Name: "sats", Usage: "amount to burn in satoshis", Required: true},
-			&cli.Int64Flag{Name: "fee-rate", Usage: "fee rate in sat/vB (0 = default)"},
+			&cli.Float64Flag{Name: "fee-rate", Usage: "fee rate in sat/vB (0 = default)"},
 			&cli.BoolFlag{Name: "preview", Usage: "show the transaction without a signature or broadcast"},
 			&cli.BoolFlag{Name: "yes", Usage: "approve the burn without a prompt"},
 			&cli.StringFlag{Name: "psbt-out", Usage: "export the PSBT to a new file without a broadcast"},
@@ -145,7 +145,7 @@ func runWalletBurnECX(cctx *cli.Context, client rpc.WalletManagerServiceClient, 
 	if amount < minimumSats {
 		return fmt.Errorf("the burn must be at least %d satoshis", minimumSats)
 	}
-	if cctx.Int64("fee-rate") < 0 {
+	if cctx.Float64("fee-rate") < 0 {
 		return fmt.Errorf("the fee rate cannot be negative")
 	}
 	inputPath, outputPath := cctx.String("psbt-in"), cctx.String("psbt-out")
@@ -200,7 +200,7 @@ func runWalletBurnECX(cctx *cli.Context, client rpc.WalletManagerServiceClient, 
 		created, err := client.CreatePsbt(cctx.Context, &pb.CreatePsbtRequest{
 			WalletId:           state.walletID,
 			Destinations:       map[string]int64{burnAddress: amount},
-			FeeRateSatPerVbyte: cctx.Int64("fee-rate"),
+			FeeRateSatPerVbyte: cctx.Float64("fee-rate"),
 			OpReturnHex:        hex.EncodeToString([]byte(address)),
 		})
 		if err != nil {

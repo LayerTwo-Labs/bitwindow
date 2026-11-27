@@ -510,7 +510,7 @@ func (e *WalletEngine) BroadcastOpReturn(ctx context.Context, data []byte, feeSa
 	}
 	switch {
 	case feeSatPerVByte > 0:
-		req.FeeRateSatPerVbyte = int64(feeSatPerVByte)
+		req.FeeRateSatPerVbyte = float64(feeSatPerVByte)
 	case feeSats > 0:
 		req.FixedFeeSats = int64(feeSats)
 	}

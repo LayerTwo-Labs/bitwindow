@@ -448,7 +448,7 @@ class ConsolidationProvider extends ChangeNotifier implements NetworkScoped {
       final response = await _wallet.sendTransaction(
         walletId: walletId,
         destinations: {address: batch.inputSats},
-        feeRateSatPerVbyte: batch.feeRateSatPerVbyte,
+        feeRateSatPerVbyte: batch.feeRateSatPerVbyte.toDouble(),
         subtractFeeFromAmount: true,
         requiredInputs: batch.inputs,
       );

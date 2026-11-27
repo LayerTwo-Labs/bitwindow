@@ -252,7 +252,7 @@ func (h *MultisigLoungeHandler) PublishGroup(
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 		}
-		send.FeeRateSatPerVB = int64(math.Ceil(rate))
+		send.FeeRateSatPerVB = rate
 	}
 	txid, err := h.engine.Backend().Send(ctx, walletID, send)
 	if err != nil {

@@ -470,7 +470,7 @@ func newStoreTestEngine(t *testing.T) (*BitDriveEngine, *[]string) {
 		SendTransaction(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, req *orchpb.SendTransactionRequest) (*orchpb.SendTransactionResponse, error) {
 			assert.Equal(t, "a", req.WalletId)
-			assert.Equal(t, int64(7), req.FeeRateSatPerVbyte)
+			assert.Equal(t, 7.0, req.FeeRateSatPerVbyte)
 			data, err := hex.DecodeString(req.OpReturnHex)
 			require.NoError(t, err)
 			sent = append(sent, string(data))

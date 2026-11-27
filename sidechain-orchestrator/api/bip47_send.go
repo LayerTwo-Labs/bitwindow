@@ -100,7 +100,7 @@ func (h *WalletHandler) expandBip47Destinations(
 	ctx context.Context,
 	walletID string,
 	destinations map[string]int64,
-	feeRate int64,
+	feeRate float64,
 	pinnedNotification *wallet.RequiredInput,
 	paymentInputs []wallet.RequiredInput,
 ) (*bip47Expansion, error) {
@@ -189,7 +189,7 @@ func (h *WalletHandler) resolveSendFeeRate(ctx context.Context, walletID string,
 	if err != nil {
 		return connect.NewError(connect.CodeUnavailable, fmt.Errorf("no fee estimate for the payment: %w", err).Error())
 	}
-	req.FeeRateSatPerVB = int64(math.Ceil(rate))
+	req.FeeRateSatPerVB = rate
 	return nil
 }
 
@@ -230,7 +230,7 @@ func (h *WalletHandler) releaseBip47Index(walletID string, expansion *bip47Expan
 func (h *WalletHandler) bip47NotificationCoin(
 	ctx context.Context,
 	walletID string,
-	feeRate int64,
+	feeRate float64,
 	pinned *wallet.RequiredInput,
 	exclude []wallet.RequiredInput,
 ) (wallet.UTXO, int64, error) {
@@ -243,7 +243,7 @@ func (h *WalletHandler) bip47NotificationCoin(
 		skip[(wallet.Outpoint{TxID: in.TxID, Vout: in.Vout}).Key()] = true
 	}
 
-	rate := float64(feeRate)
+	rate := feeRate
 	if rate <= 0 {
 		if rater, ok := h.engine.FeeRaterFor(walletID); ok {
 			rate, err = rater.FeeRateForTarget(ctx, wallet.SendFeeTarget)
@@ -256,7 +256,7 @@ func (h *WalletHandler) bip47NotificationCoin(
 		return wallet.UTXO{}, 0, connect.Errorf(connect.CodeFailedPrecondition,
 			"the fee rate of %.0f sat/vB for the bip47 notification is above the limit of %d sat/vB", rate, wallet.MaxFeeRateSatPerVB)
 	}
-	feeSats := bip47send.EstimateNotificationFee(int64(math.Ceil(rate)))
+	feeSats := bip47send.EstimateNotificationFee(rate)
 	minRequired := bip47NotificationDustSats + feeSats + bip47NotificationDustSats
 
 	// The smallest coin keeps the most value for the payment, which cannot
@@ -365,7 +365,7 @@ func (h *WalletHandler) buildBip47NotificationTx(
 	walletID, seedHex string,
 	recipient *bip47.PaymentCode,
 	netParams *chaincfg.Params,
-	feeRate int64,
+	feeRate float64,
 	pinned *wallet.RequiredInput,
 	exclude []wallet.RequiredInput,
 ) (string, string, int64, error) {

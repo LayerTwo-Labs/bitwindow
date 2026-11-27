@@ -5449,7 +5449,7 @@ class SendTransactionRequest extends $pb.GeneratedMessage {
   factory SendTransactionRequest({
     $core.String? walletId,
     $core.Iterable<$core.MapEntry<$core.String, $fixnum.Int64>>? destinations,
-    $fixnum.Int64? feeRateSatPerVbyte,
+    $core.double? feeRateSatPerVbyte,
     $core.bool? subtractFeeFromAmount,
     $core.String? opReturnHex,
     $fixnum.Int64? fixedFeeSats,
@@ -5494,7 +5494,7 @@ class SendTransactionRequest extends $pb.GeneratedMessage {
         keyFieldType: $pb.PbFieldType.OS,
         valueFieldType: $pb.PbFieldType.O6,
         packageName: const $pb.PackageName('walletmanager.v1'))
-    ..aInt64(3, _omitFieldNames ? '' : 'feeRateSatPerVbyte')
+    ..aD(3, _omitFieldNames ? '' : 'feeRateSatPerVbyte')
     ..aOB(4, _omitFieldNames ? '' : 'subtractFeeFromAmount')
     ..aOS(5, _omitFieldNames ? '' : 'opReturnHex')
     ..aInt64(6, _omitFieldNames ? '' : 'fixedFeeSats')
@@ -5539,9 +5539,9 @@ class SendTransactionRequest extends $pb.GeneratedMessage {
   $pb.PbMap<$core.String, $fixnum.Int64> get destinations => $_getMap(1);
 
   @$pb.TagNumber(3)
-  $fixnum.Int64 get feeRateSatPerVbyte => $_getI64(2);
+  $core.double get feeRateSatPerVbyte => $_getN(2);
   @$pb.TagNumber(3)
-  set feeRateSatPerVbyte($fixnum.Int64 value) => $_setInt64(2, value);
+  set feeRateSatPerVbyte($core.double value) => $_setDouble(2, value);
   @$pb.TagNumber(3)
   $core.bool hasFeeRateSatPerVbyte() => $_has(2);
   @$pb.TagNumber(3)
@@ -5687,7 +5687,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
   factory PreviewSendRequest({
     $core.String? walletId,
     $core.Iterable<$core.MapEntry<$core.String, $fixnum.Int64>>? destinations,
-    $fixnum.Int64? feeRateSatPerVbyte,
+    $core.double? feeRateSatPerVbyte,
     $core.bool? subtractFeeFromAmount,
     $core.Iterable<UnspentOutput>? requiredInputs,
     $core.bool? allowReplay,
@@ -5726,7 +5726,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
         keyFieldType: $pb.PbFieldType.OS,
         valueFieldType: $pb.PbFieldType.O6,
         packageName: const $pb.PackageName('walletmanager.v1'))
-    ..aInt64(3, _omitFieldNames ? '' : 'feeRateSatPerVbyte')
+    ..aD(3, _omitFieldNames ? '' : 'feeRateSatPerVbyte')
     ..aOB(4, _omitFieldNames ? '' : 'subtractFeeFromAmount')
     ..pPM<UnspentOutput>(5, _omitFieldNames ? '' : 'requiredInputs', subBuilder: UnspentOutput.$_createMessage)
     ..aOB(6, _omitFieldNames ? '' : 'allowReplay')
@@ -5768,9 +5768,9 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
   $pb.PbMap<$core.String, $fixnum.Int64> get destinations => $_getMap(1);
 
   @$pb.TagNumber(3)
-  $fixnum.Int64 get feeRateSatPerVbyte => $_getI64(2);
+  $core.double get feeRateSatPerVbyte => $_getN(2);
   @$pb.TagNumber(3)
-  set feeRateSatPerVbyte($fixnum.Int64 value) => $_setInt64(2, value);
+  set feeRateSatPerVbyte($core.double value) => $_setDouble(2, value);
   @$pb.TagNumber(3)
   $core.bool hasFeeRateSatPerVbyte() => $_has(2);
   @$pb.TagNumber(3)
@@ -6271,7 +6271,7 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
   factory CreatePsbtRequest({
     $core.String? walletId,
     $core.Iterable<$core.MapEntry<$core.String, $fixnum.Int64>>? destinations,
-    $fixnum.Int64? feeRateSatPerVbyte,
+    $core.double? feeRateSatPerVbyte,
     $core.bool? subtractFeeFromAmount,
     $core.String? opReturnHex,
     $fixnum.Int64? fixedFeeSats,
@@ -6314,7 +6314,7 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
         keyFieldType: $pb.PbFieldType.OS,
         valueFieldType: $pb.PbFieldType.O6,
         packageName: const $pb.PackageName('walletmanager.v1'))
-    ..aInt64(3, _omitFieldNames ? '' : 'feeRateSatPerVbyte')
+    ..aD(3, _omitFieldNames ? '' : 'feeRateSatPerVbyte')
     ..aOB(4, _omitFieldNames ? '' : 'subtractFeeFromAmount')
     ..aOS(5, _omitFieldNames ? '' : 'opReturnHex')
     ..aInt64(6, _omitFieldNames ? '' : 'fixedFeeSats')
@@ -6358,9 +6358,9 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
   $pb.PbMap<$core.String, $fixnum.Int64> get destinations => $_getMap(1);
 
   @$pb.TagNumber(3)
-  $fixnum.Int64 get feeRateSatPerVbyte => $_getI64(2);
+  $core.double get feeRateSatPerVbyte => $_getN(2);
   @$pb.TagNumber(3)
-  set feeRateSatPerVbyte($fixnum.Int64 value) => $_setInt64(2, value);
+  set feeRateSatPerVbyte($core.double value) => $_setDouble(2, value);
   @$pb.TagNumber(3)
   $core.bool hasFeeRateSatPerVbyte() => $_has(2);
   @$pb.TagNumber(3)

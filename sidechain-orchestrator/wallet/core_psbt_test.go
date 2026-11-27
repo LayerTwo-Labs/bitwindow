@@ -72,6 +72,33 @@ func TestCoreBackendCreatePSBTFundsTheOutputs(t *testing.T) {
 	assert.Equal(t, map[string]any{"fee_rate": float64(3)}, call.options)
 }
 
+func TestCoreBackendCreatePSBTKeepsAFractionalFeeRate(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	calls := stubFundedPSBT(t, fake, nil)
+	dest := p2wpkhAddr(t, fixedKey(0xAA), &chaincfg.RegressionNetParams)
+
+	// estimatesmartfee gives 0.00002501 BTC/kvB, which converts to 2.5010000000000003.
+	_, err := backend.CreatePSBT(context.Background(), coreID, SendRequest{
+		DestinationsSats: map[string]int64{dest: 125_000},
+		FeeRateSatPerVB:  0.00002501 * 1e8 / 1000,
+	})
+	require.NoError(t, err)
+	require.Len(t, *calls, 1)
+	assert.Equal(t, map[string]any{"fee_rate": 2.501}, (*calls)[0].options)
+}
+
+func TestCoreFeeRate(t *testing.T) {
+	for _, tc := range []struct{ in, want float64 }{
+		{1, 1},
+		{2.5010000000000003, 2.501},
+		{2.5011, 2.502},
+		{0.1, 0.1},
+	} {
+		assert.Equal(t, tc.want, coreFeeRate(tc.in), "rate %v", tc.in)
+	}
+}
+
 func TestCoreBackendCreatePSBTReplayProtection(t *testing.T) {
 	for _, network := range replayNetworks {
 		t.Run(network.name, func(t *testing.T) {

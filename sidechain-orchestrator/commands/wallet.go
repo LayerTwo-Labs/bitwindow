@@ -810,7 +810,7 @@ var walletSendCommand = &cli.Command{
 		&cli.StringFlag{Name: "to", Usage: "recipient address (single-recipient shortcut)"},
 		&cli.Int64Flag{Name: "sats", Usage: "amount in satoshis for --to"},
 		&cli.StringSliceFlag{Name: "destination", Usage: "ADDR:SATS (repeatable)"},
-		&cli.Int64Flag{Name: "fee-rate", Usage: "sat/vbyte (0 = default)"},
+		&cli.Float64Flag{Name: "fee-rate", Usage: "sat/vbyte (0 = default)"},
 		&cli.Int64Flag{Name: "fixed-fee-sats", Usage: "exact fee in sats"},
 		&cli.BoolFlag{Name: "subtract-fee", Usage: "deduct fee from the recipient amount"},
 		&cli.StringFlag{Name: "op-return", Usage: "OP_RETURN payload, UTF-8"},
@@ -843,7 +843,7 @@ var walletSendCommand = &cli.Command{
 		resp, err := client.SendTransaction(cctx.Context, &pb.SendTransactionRequest{
 			WalletId:              walletID,
 			Destinations:          destinations,
-			FeeRateSatPerVbyte:    cctx.Int64("fee-rate"),
+			FeeRateSatPerVbyte:    cctx.Float64("fee-rate"),
 			FixedFeeSats:          cctx.Int64("fixed-fee-sats"),
 			SubtractFeeFromAmount: cctx.Bool("subtract-fee"),
 			OpReturnHex:           opReturnHex,
@@ -1148,8 +1148,8 @@ func describeSend(walletID string, dests map[string]int64, cctx *cli.Context) st
 	for addr, sats := range dests {
 		fmt.Fprintf(&b, "  → %s: %s BTC (%d sats)\n", addr, satsToBtcInt(sats), sats)
 	}
-	if fr := cctx.Int64("fee-rate"); fr > 0 {
-		fmt.Fprintf(&b, "fee rate: %d sat/vB\n", fr)
+	if fr := cctx.Float64("fee-rate"); fr > 0 {
+		fmt.Fprintf(&b, "fee rate: %g sat/vB\n", fr)
 	}
 	if ff := cctx.Int64("fixed-fee-sats"); ff > 0 {
 		fmt.Fprintf(&b, "fixed fee: %d sats\n", ff)

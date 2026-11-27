@@ -1131,7 +1131,7 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 
 	// A rate the caller did not set must come from the chain, never from a
 	// stand-in: a send at a made-up rate cannot confirm on a busy chain.
-	feeRate := float64(req.FeeRateSatPerVB)
+	feeRate := req.FeeRateSatPerVB
 	if feeRate <= 0 && req.FixedFeeSats <= 0 {
 		estimate, err := p.client.FeeRateForTarget(ctx, SendFeeTarget)
 		if err != nil {

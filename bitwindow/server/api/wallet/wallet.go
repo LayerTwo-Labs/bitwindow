@@ -119,7 +119,7 @@ func (s *Server) SendTransaction(ctx context.Context, c *pb.SendTransactionReque
 		Destinations: lo.MapValues(c.Destinations, func(sats uint64, _ string) int64 {
 			return int64(sats)
 		}),
-		FeeRateSatPerVbyte: int64(c.FeeSatPerVbyte),
+		FeeRateSatPerVbyte: float64(c.FeeSatPerVbyte),
 		FixedFeeSats:       int64(c.FixedFeeSats),
 		RequiredInputs:     requiredInputs,
 	})

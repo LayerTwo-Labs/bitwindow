@@ -220,8 +220,8 @@ type SignRawTransactionResult struct {
 // and replay control. Backends reject fields they cannot honor.
 type SendRequest struct {
 	DestinationsSats      map[string]int64
-	FeeRateSatPerVB       int64 // 0 = backend's own fee estimation
-	FixedFeeSats          int64 // mutually exclusive with FeeRateSatPerVB
+	FeeRateSatPerVB       float64 // 0 = backend's own fee estimation
+	FixedFeeSats          int64   // mutually exclusive with FeeRateSatPerVB
 	OpReturnHex           string
 	RequiredInputs        []RequiredInput
 	SubtractFeeFromAmount bool
