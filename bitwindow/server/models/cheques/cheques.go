@@ -311,6 +311,40 @@ func recordFundingOutputs(ctx context.Context, tx *sql.Tx, chequeID int64, outpu
 	return nil
 }
 
+// RecordSweep marks a cheque swept by txid, and stores the outputs the sweep
+// spent and their total as the cheque amount.
+func RecordSweep(ctx context.Context, db *sql.DB, walletID string, id int64, txid string, spent []FundingOutput) error {
+	var total uint64
+	for _, out := range spent {
+		total += uint64(out.ValueSats)
+	}
+	now := time.Now()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer database.SafeDefer(ctx, tx.Rollback)
+
+	if err := database.CheckOne(tx.ExecContext(ctx, `
+		UPDATE cheques
+		SET actual_amount_sats = ?, funded_at = COALESCE(funded_at, ?),
+		    swept_txid = ?, swept_at = ?
+		WHERE wallet_id = ? AND id = ?
+	`, total, now, txid, now, walletID, id)); err != nil {
+		return fmt.Errorf("record sweep: %w", err)
+	}
+
+	if err := recordFundingOutputs(ctx, tx, id, spent); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit sweep: %w", err)
+	}
+	return nil
+}
+
 func UpdateSwept(ctx context.Context, db *sql.DB, walletID string, id int64, txid string) error {
 	now := time.Now()
 
