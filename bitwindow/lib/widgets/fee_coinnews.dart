@@ -115,8 +115,7 @@ class FeeCoinNewsViewModel extends BaseViewModel {
       return [...dummyData];
     }
 
-    return _newsProvider.currentNews.where((news) => news.topic == selectedTopic).toList()
-      ..sort((a, b) => b.feeSats.compareTo(a.feeSats));
+    return _newsProvider.currentNews.where((news) => news.topic == selectedTopic).toList();
   }
 
   Future<void> _loadTopic() async {
@@ -292,8 +291,7 @@ class FeeCoinNewsLargeViewModel extends BaseViewModel {
       return [...dummyData];
     }
 
-    return _newsProvider.currentNews.where((news) => news.topic == topic).toList()
-      ..sort((a, b) => b.feeSats.compareTo(a.feeSats));
+    return _newsProvider.currentNews.where((news) => news.topic == topic).toList();
   }
 
   Future<void> _loadTopics() async {

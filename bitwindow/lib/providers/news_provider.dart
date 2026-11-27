@@ -14,7 +14,7 @@ class NewsProvider extends ChangeNotifier {
   BlockchainProvider get blockchainProvider => GetIt.I.get<BlockchainProvider>();
   SyncProvider get _syncProvider => GetIt.I.get<SyncProvider>();
 
-  /// Each story of the last read, with the outdated stories.
+  /// Each story of the last read, with the outdated stories, in the rank of the server.
   List<CoinNews> news = [];
 
   /// The stories inside the retention of their topic.
