@@ -424,9 +424,7 @@ class CoinNewsLargeViewModel extends BaseViewModel {
   }
 
   List<CoinNews> entriesFor(String topic) {
-    final entries = _allFor(topic).where((news) => showOutdated || !news.outdated).toList();
-    entries.sort((a, b) => b.feeSats.compareTo(a.feeSats));
-    return entries;
+    return _allFor(topic).where((news) => showOutdated || !news.outdated).toList();
   }
 
   List<CoinNews> _allFor(String topic) {

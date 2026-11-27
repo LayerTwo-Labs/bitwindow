@@ -1,5 +1,6 @@
 import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/widgets/coinnews.dart';
+import 'package:bitwindow/widgets/fee_coinnews.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -84,6 +85,23 @@ void main() {
     final model = await table();
 
     expect(headlines(model.entries), headlines(ranked));
+  });
+
+  test('the news cards keep the server rank of stories with one fee', () async {
+    final ranked = [for (var i = 39; i >= 0; i--) story('Tie $i', topic: 'a2a2a2a2')];
+    final provider = await seed(ranked);
+    final fee = FeeCoinNewsLargeViewModel();
+    addTearDown(fee.dispose);
+    final feeHalf = FeeCoinNewsViewModel();
+    addTearDown(feeHalf.dispose);
+    final hacker = CoinNewsLargeViewModel();
+    addTearDown(hacker.dispose);
+    await hacker.setLeftTopic('a2a2a2a2');
+    await feeHalf.setTopic('a2a2a2a2');
+
+    expect(headlines(fee.rightEntries), headlines(provider.news));
+    expect(headlines(feeHalf.entries), headlines(provider.news));
+    expect(headlines(hacker.entriesFor('a2a2a2a2')), headlines(provider.news));
   });
 
   testWidgets('the table header shows the sorted column and its direction', (tester) async {
