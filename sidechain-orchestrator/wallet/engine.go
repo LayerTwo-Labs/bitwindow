@@ -189,7 +189,16 @@ func (e *WalletEngine) ElectrumAvailable() bool {
 	return eb.Available()
 }
 
+// RefreshElectrumScan scans an electrum wallet again over its chain source. A
+// Bitcoin Core wallet has no scan, so it returns nil for one.
 func (e *WalletEngine) RefreshElectrumScan(ctx context.Context, walletID string) error {
+	w := e.svc.GetWalletByID(walletID)
+	if w == nil {
+		return fmt.Errorf("wallet %s not found", walletID)
+	}
+	if w.WalletType != WalletTypeElectrum {
+		return nil
+	}
 	eb, err := e.electrumBackend()
 	if err != nil {
 		return nil
