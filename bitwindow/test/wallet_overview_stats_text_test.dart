@@ -21,8 +21,13 @@ void main() {
   });
 
   test('the fees subtitle counts one transaction in the singular', () {
-    expect(feesSubtitle(0), 'across 0 transactions');
-    expect(feesSubtitle(1), 'across 1 transaction');
-    expect(feesSubtitle(14), 'across 14 transactions');
+    expect(feesSubtitle(null), 'across 0 transactions');
+    expect(feesSubtitle(GetStatsResponse(feeTransactionCount: Int64(1))), 'across 1 transaction');
+    expect(feesSubtitle(GetStatsResponse(feeTransactionCount: Int64(14))), 'across 14 transactions');
+  });
+
+  test('the fees subtitle counts only the transactions with a paid fee', () {
+    final stats = GetStatsResponse(transactionCountTotal: Int64(102), feeTransactionCount: Int64(0));
+    expect(feesSubtitle(stats), 'across 0 transactions');
   });
 }

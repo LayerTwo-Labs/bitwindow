@@ -2376,6 +2376,7 @@ class GetStatsResponse extends $pb.GeneratedMessage {
     $fixnum.Int64? totalFeesSats,
     $0.Timestamp? lastTxAt,
     $core.int? lastTxBlockHeight,
+    $fixnum.Int64? feeTransactionCount,
   }) {
     final result = GetStatsResponse._();
     if (utxosCurrent != null) result.utxosCurrent = utxosCurrent;
@@ -2388,6 +2389,7 @@ class GetStatsResponse extends $pb.GeneratedMessage {
     if (totalFeesSats != null) result.totalFeesSats = totalFeesSats;
     if (lastTxAt != null) result.lastTxAt = lastTxAt;
     if (lastTxBlockHeight != null) result.lastTxBlockHeight = lastTxBlockHeight;
+    if (feeTransactionCount != null) result.feeTransactionCount = feeTransactionCount;
     return result;
   }
 
@@ -2415,6 +2417,7 @@ class GetStatsResponse extends $pb.GeneratedMessage {
     ..aInt64(7, _omitFieldNames ? '' : 'totalFeesSats')
     ..aOM<$0.Timestamp>(8, _omitFieldNames ? '' : 'lastTxAt', subBuilder: $0.Timestamp.$_createMessage)
     ..aI(9, _omitFieldNames ? '' : 'lastTxBlockHeight', fieldType: $pb.PbFieldType.OU3)
+    ..aInt64(10, _omitFieldNames ? '' : 'feeTransactionCount')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2522,6 +2525,16 @@ class GetStatsResponse extends $pb.GeneratedMessage {
   $core.bool hasLastTxBlockHeight() => $_has(8);
   @$pb.TagNumber(9)
   void clearLastTxBlockHeight() => $_clearField(9);
+
+  /// Transactions this wallet paid a fee for. total_fees_sats is their sum.
+  @$pb.TagNumber(10)
+  $fixnum.Int64 get feeTransactionCount => $_getI64(9);
+  @$pb.TagNumber(10)
+  set feeTransactionCount($fixnum.Int64 value) => $_setInt64(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasFeeTransactionCount() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearFeeTransactionCount() => $_clearField(10);
 }
 
 /// Wallet unlock/lock messages

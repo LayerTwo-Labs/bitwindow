@@ -1937,8 +1937,10 @@ type GetStatsResponse struct {
 	LastTxAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_tx_at,json=lastTxAt,proto3" json:"last_tx_at,omitempty"`
 	// Block of the newest wallet transaction. 0 when it is unconfirmed.
 	LastTxBlockHeight uint32 `protobuf:"varint,9,opt,name=last_tx_block_height,json=lastTxBlockHeight,proto3" json:"last_tx_block_height,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Transactions this wallet paid a fee for. total_fees_sats is their sum.
+	FeeTransactionCount int64 `protobuf:"varint,10,opt,name=fee_transaction_count,json=feeTransactionCount,proto3" json:"fee_transaction_count,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *GetStatsResponse) Reset() {
@@ -2030,6 +2032,13 @@ func (x *GetStatsResponse) GetLastTxAt() *timestamppb.Timestamp {
 func (x *GetStatsResponse) GetLastTxBlockHeight() uint32 {
 	if x != nil {
 		return x.LastTxBlockHeight
+	}
+	return 0
+}
+
+func (x *GetStatsResponse) GetFeeTransactionCount() int64 {
+	if x != nil {
+		return x.FeeTransactionCount
 	}
 	return 0
 }
@@ -4576,7 +4585,7 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	"public_key\x18\x04 \x01(\tR\tpublicKey\x12*\n" +
 	"\x11signer_public_key\x18\x05 \x01(\tR\x0fsignerPublicKey\"-\n" +
 	"\x15VerifyMessageResponse\x12\x14\n" +
-	"\x05valid\x18\x01 \x01(\bR\x05valid\"\x86\x04\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\"\xba\x04\n" +
 	"\x10GetStatsResponse\x12#\n" +
 	"\rutxos_current\x18\x01 \x01(\x04R\futxosCurrent\x124\n" +
 	"\x16utxos_unique_addresses\x18\x02 \x01(\x04R\x14utxosUniqueAddresses\x128\n" +
@@ -4587,7 +4596,9 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	"\x0ftotal_fees_sats\x18\a \x01(\x03R\rtotalFeesSats\x128\n" +
 	"\n" +
 	"last_tx_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\blastTxAt\x12/\n" +
-	"\x14last_tx_block_height\x18\t \x01(\rR\x11lastTxBlockHeight\"1\n" +
+	"\x14last_tx_block_height\x18\t \x01(\rR\x11lastTxBlockHeight\x122\n" +
+	"\x15fee_transaction_count\x18\n" +
+	" \x01(\x03R\x13feeTransactionCount\"1\n" +
 	"\x13UnlockWalletRequest\x12\x1a\n" +
 	"\bpassword\x18\x01 \x01(\tR\bpassword\"d\n" +
 	"\x13CreateChequeRequest\x12\x1b\n" +

@@ -35,8 +35,11 @@ String _formatTimeAgo(DateTime when) {
   return '$s second${s == 1 ? '' : 's'} ago';
 }
 
-/// The subtitle of the lifetime fees card.
-String feesSubtitle(int transactions) => 'across $transactions transaction${transactions == 1 ? '' : 's'}';
+/// The subtitle of the lifetime fees card: the count of transactions the wallet paid a fee for.
+String feesSubtitle(GetStatsResponse? stats) {
+  final transactions = stats?.feeTransactionCount.toInt() ?? 0;
+  return 'across $transactions transaction${transactions == 1 ? '' : 's'}';
+}
 
 /// The subtitle of the last activity card: the block of the newest transaction.
 String lastActivitySubtitle(GetStatsResponse? stats) {
@@ -75,7 +78,7 @@ class OverviewTab extends StatelessWidget {
                           value: formatter
                               .formatSats(model.stats?.totalFeesSats.toInt() ?? 0)
                               .replaceAll(' ${formatter.currentUnit.symbol}', ''),
-                          subtitle: feesSubtitle(model.stats?.transactionCountTotal.toInt() ?? 0),
+                          subtitle: feesSubtitle(model.stats),
                           bitcoinAmount: true,
                           icon: SailSVGAsset.bitcoin,
                         ),
