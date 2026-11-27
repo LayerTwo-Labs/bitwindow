@@ -67,6 +67,12 @@ void main() {
 
   tearDown(() => GetIt.I.reset());
 
+  void readNews(List<CoinNews> news) {
+    final provider = GetIt.I.get<NewsProvider>();
+    provider.news = news;
+    provider.notifyListeners();
+  }
+
   test('storyTime gives Pending for a story in the mempool and the time for a story in a block', () {
     expect(storyTime(pending, formatDate), 'Pending');
     expect(storyTime(confirmed, formatDate), formatDate(mined));
@@ -84,5 +90,49 @@ void main() {
 
     expect(find.text('Pending'), findsOneWidget);
     expect(find.text(formatDate(seen, long: false)), findsNothing);
+  });
+
+  testWidgets('the article panel shows the comments after the block of an open pending story', (tester) async {
+    await tester.pumpSailPage(
+      SizedBox(
+        width: 1000,
+        height: 600,
+        child: CoinNewsArticlePanel(news: pending, onClose: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('US Weekly  ·  Pending'), findsOneWidget);
+    expect(find.text('Comments open when the story is in a block.'), findsOneWidget);
+    expect(find.widgetWithText(SailButton, 'Comment'), findsNothing);
+    expect(rpc.misc.reads, isEmpty);
+
+    readNews([confirmed]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('US Weekly  ·  ${formatDate(mined)}'), findsOneWidget);
+    expect(find.text('No comments yet. Be the first.'), findsOneWidget);
+    expect(find.widgetWithText(SailButton, 'Comment'), findsWidgets);
+    expect(rpc.misc.reads, [_itemId]);
+  });
+
+  testWidgets('the article panel closes the comments when a reorg sends the story back to the mempool', (tester) async {
+    readNews([confirmed]);
+    await tester.pumpSailPage(
+      SizedBox(
+        width: 1000,
+        height: 600,
+        child: CoinNewsArticlePanel(news: confirmed, onClose: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(SailButton, 'Comment'), findsWidgets);
+
+    readNews([pending]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('US Weekly  ·  Pending'), findsOneWidget);
+    expect(find.text('Comments open when the story is in a block.'), findsOneWidget);
+    expect(find.widgetWithText(SailButton, 'Comment'), findsNothing);
   });
 }

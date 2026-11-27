@@ -10,6 +10,7 @@ import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/utils/web_link.dart';
 import 'package:bitwindow/widgets/news_cost.dart';
 import 'package:bitwindow/widgets/pagination.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get_it/get_it.dart';
@@ -1086,31 +1087,61 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
   int _reads = 0;
   final TextEditingController _controller = TextEditingController();
 
-  String get _itemId => widget.news.itemId;
+  /// The newest read of the story. A story in the mempool gets its block time and item ID from a later read.
+  late CoinNews _story = _newest() ?? widget.news;
+
+  String get _itemId => _story.itemId;
 
   @override
   void initState() {
     super.initState();
-    if (_itemId.isNotEmpty) {
-      _blockchain.addListener(_load);
-      _blockchain.recentChanged.addListener(_load);
-      _load();
-    } else {
-      _loading = false;
-    }
+    _newsProvider.addListener(_onNews);
+    _blockchain.addListener(_load);
+    _blockchain.recentChanged.addListener(_load);
+    _load();
   }
 
   @override
   void dispose() {
+    _newsProvider.removeListener(_onNews);
     _blockchain.removeListener(_load);
     _blockchain.recentChanged.removeListener(_load);
     _controller.dispose();
     super.dispose();
   }
 
+  CoinNews? _newest() {
+    final txid = widget.news.txid;
+    if (txid.isEmpty) {
+      return null;
+    }
+    return _newsProvider.news.firstWhereOrNull((n) => n.txid == txid && n.vout == widget.news.vout);
+  }
+
+  void _onNews() {
+    final story = _newest();
+    if (story == null || story == _story) {
+      return;
+    }
+    final itemChanged = story.itemId != _itemId;
+    setState(() => _story = story);
+    if (itemChanged) {
+      unawaited(_load());
+    }
+  }
+
   /// Reads the thread. Only the newest read changes the panel.
   Future<void> _load() async {
     final read = ++_reads;
+    if (_itemId.isEmpty) {
+      setState(() {
+        _comments = [];
+        _replyTo = null;
+        _loadError = null;
+        _loading = false;
+      });
+      return;
+    }
     List<Comment>? comments;
     String? error;
     try {
@@ -1210,15 +1241,15 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SailText.primary24(widget.news.headline, bold: true),
+                              SailText.primary24(_story.headline, bold: true),
                               const SailSpacing(SailStyleValues.padding12),
                               ListenableBuilder(
                                 listenable: _newsProvider,
                                 builder: (context, _) {
-                                  final date = storyTime(widget.news, formatDate);
-                                  final topicName = _newsProvider.topicName(widget.news.topic);
+                                  final date = storyTime(_story, formatDate);
+                                  final topicName = _newsProvider.topicName(_story.topic);
                                   return SailText.secondary13(
-                                    storyMeta(widget.news, topicName: topicName, date: date, separator: '  ·  '),
+                                    storyMeta(_story, topicName: topicName, date: date, separator: '  ·  '),
                                     color: theme.colors.textTertiary,
                                   );
                                 },
@@ -1226,18 +1257,18 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
                               const SailSpacing(SailStyleValues.padding16),
                               Container(height: 1, color: theme.colors.divider),
                               const SailSpacing(SailStyleValues.padding20),
-                              if (widget.news.url.isNotEmpty) ...[
-                                if (webLink(widget.news.url) case final link?)
+                              if (_story.url.isNotEmpty) ...[
+                                if (webLink(_story.url) case final link?)
                                   GestureDetector(
                                     onTap: () async => openUrl(link),
-                                    child: SailText.primary13(widget.news.url, color: theme.colors.primary),
+                                    child: SailText.primary13(_story.url, color: theme.colors.primary),
                                   )
                                 else
-                                  SailText.primary13(widget.news.url, color: theme.colors.textSecondary),
+                                  SailText.primary13(_story.url, color: theme.colors.textSecondary),
                                 const SailSpacing(SailStyleValues.padding16),
                               ],
                               MarkdownBody(
-                                data: widget.news.content,
+                                data: _story.content,
                                 styleSheet: MarkdownStyleSheet(
                                   p: SailStyleValues.fifteen.copyWith(color: theme.colors.text, height: 1.6),
                                   h1: SailStyleValues.twentyTwo.copyWith(color: theme.colors.text),
@@ -1271,11 +1302,10 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
                                 },
                               ),
                               const SailSpacing(SailStyleValues.padding32),
-                              if (_itemId.isNotEmpty)
-                                ListenableBuilder(
-                                  listenable: _formatter,
-                                  builder: (context, _) => _commentsThread(context),
-                                ),
+                              ListenableBuilder(
+                                listenable: _formatter,
+                                builder: (context, _) => _commentsThread(context),
+                              ),
                             ],
                           ),
                         ),
@@ -1309,7 +1339,9 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
           SailText.secondary12(_loadError!, color: theme.colors.error),
           const SailSpacing(SailStyleValues.padding12),
         ],
-        if (_loading)
+        if (_itemId.isEmpty)
+          SailText.secondary12('Comments open when the story is in a block.')
+        else if (_loading)
           SailText.secondary12('Loading comments…')
         else if (roots.isEmpty && _loadError == null)
           SailText.secondary12('No comments yet. Be the first.')
