@@ -4425,3 +4425,46 @@ func TestElectrumSignPSBTRefusesAForeignPrevTx(t *testing.T) {
 }
 
 func ptrHash(h chainhash.Hash) *chainhash.Hash { return &h }
+
+func TestElectrumSendToOwnAddressKeepsTheCoinInTheCache(t *testing.T) {
+	p, fake, w, addr := newElectrumFixture(t)
+	ctx := context.Background()
+
+	fake.stats[addr] = EsploraAddressStats{
+		Address:    addr,
+		ChainStats: EsploraTxoStats{FundedTxoCount: 2, FundedTxoSum: 300_000, TxCount: 2},
+	}
+	fake.utxos[addr] = []EsploraUTXO{
+		{TxID: strings.Repeat("1", 64), Vout: 0, Value: 200_000, Status: EsploraStatus{Confirmed: true, BlockHeight: 100}},
+		{TxID: strings.Repeat("2", 64), Vout: 0, Value: 100_000, Status: EsploraStatus{Confirmed: true, BlockHeight: 100}},
+	}
+	_, _, _, err := p.Balance(ctx, w.ID)
+	require.NoError(t, err)
+
+	own, err := p.NextReceiveAddress(ctx, w.ID, w.scriptKind())
+	require.NoError(t, err)
+	require.NotEqual(t, addr, own.Address)
+
+	txid, err := p.Send(ctx, w.ID, SendRequest{
+		DestinationsSats:      map[string]int64{own.Address: 300_000},
+		FeeRateSatPerVB:       1,
+		SubtractFeeFromAmount: true,
+		RequiredInputs: []RequiredInput{
+			{TxID: strings.Repeat("1", 64), Vout: 0},
+			{TxID: strings.Repeat("2", 64), Vout: 0},
+		},
+	})
+	require.NoError(t, err)
+
+	utxos, err := p.ListUnspent(ctx, w.ID)
+	require.NoError(t, err)
+	require.Len(t, utxos, 1, "the consolidated coin replaces both inputs")
+	assert.Equal(t, txid, utxos[0].TxID)
+	assert.Equal(t, own.Address, utxos[0].Address)
+
+	confirmed, pending, _, err := p.Balance(ctx, w.ID)
+	require.NoError(t, err)
+	assert.InDelta(t, utxos[0].Amount, confirmed+pending, 1e-9)
+	assert.Less(t, utxos[0].Amount, 0.003)
+	assert.Greater(t, utxos[0].Amount, 0.00299)
+}
