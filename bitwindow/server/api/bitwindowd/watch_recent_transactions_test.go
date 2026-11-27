@@ -2,6 +2,7 @@ package bitwindowd_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -84,6 +85,11 @@ func TestWatchRecentTransactionsSendsEachNewTx(t *testing.T) {
 			Msg: &corepb.GetBlockResponse{Height: 1, Hash: "blockhash1", Time: timestamppb.New(time.Unix(1, 0))},
 		}, nil).
 		Times(1)
+	// The parser reads each transaction of a late mempool snapshot. Core has no fake transaction.
+	bitcoind.EXPECT().
+		GetRawTransaction(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("No such mempool or blockchain transaction")).
+		AnyTimes()
 
 	mempool := &feedMempool{fakeMempool: &fakeMempool{}, changed: make(chan struct{})}
 	cli := v1connect.NewBitwindowdServiceClient(apitests.RPC(t, database.Test(t), apitests.WithBitcoind(bitcoind), apitests.WithMempool(mempool)))
