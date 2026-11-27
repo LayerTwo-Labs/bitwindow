@@ -579,11 +579,7 @@ func (p *ElectrumBackend) AddressHDPath(ctx context.Context, walletID, address s
 	if err != nil {
 		return "", err
 	}
-	a, ok := scan.byAddr[address]
-	if !ok {
-		return "", fmt.Errorf("address %s not found in wallet", address)
-	}
-	return a.hdPath, nil
+	return scan.byAddr[address].hdPath, nil
 }
 
 func (p *ElectrumBackend) OwnedAddresses(ctx context.Context, walletID string, addresses []string) (map[string]bool, error) {

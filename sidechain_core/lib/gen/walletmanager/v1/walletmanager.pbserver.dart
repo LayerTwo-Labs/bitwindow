@@ -104,6 +104,8 @@ abstract class WalletManagerServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.MultisigPsbtStatusRequest request);
   $async.Future<$3.BroadcastTransactionResponse> broadcastTransaction(
       $pb.ServerContext ctx, $3.BroadcastTransactionRequest request);
+  $async.Future<$3.GetAddressDerivationPathResponse> getAddressDerivationPath(
+      $pb.ServerContext ctx, $3.GetAddressDerivationPathRequest request);
   $async.Future<$3.GetAddressUnspentResponse> getAddressUnspent(
       $pb.ServerContext ctx, $3.GetAddressUnspentRequest request);
   $async.Future<$3.BroadcastElectrumTransactionResponse> broadcastElectrumTransaction(
@@ -252,6 +254,8 @@ abstract class WalletManagerServiceBase extends $pb.GeneratedService {
         return $3.MultisigPsbtStatusRequest();
       case 'BroadcastTransaction':
         return $3.BroadcastTransactionRequest();
+      case 'GetAddressDerivationPath':
+        return $3.GetAddressDerivationPathRequest();
       case 'GetAddressUnspent':
         return $3.GetAddressUnspentRequest();
       case 'BroadcastElectrumTransaction':
@@ -418,6 +422,8 @@ abstract class WalletManagerServiceBase extends $pb.GeneratedService {
         return multisigPsbtStatus(ctx, request as $3.MultisigPsbtStatusRequest);
       case 'BroadcastTransaction':
         return broadcastTransaction(ctx, request as $3.BroadcastTransactionRequest);
+      case 'GetAddressDerivationPath':
+        return getAddressDerivationPath(ctx, request as $3.GetAddressDerivationPathRequest);
       case 'GetAddressUnspent':
         return getAddressUnspent(ctx, request as $3.GetAddressUnspentRequest);
       case 'BroadcastElectrumTransaction':

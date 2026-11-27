@@ -56,11 +56,14 @@ type configg struct {
 	network    config.Network
 	password   bool
 	watchOnly  bool
-	authDir    string
-	onShutdown func(ctx context.Context)
-	control    orchctlrpc.OrchestratorServiceHandler
-	dials      *atomic.Int32
-	mempool    mempoolrpc.MempoolServiceHandler
+	// addressPaths is the derivation path the fixture orchestrator reports for
+	// each address of the fixture wallet.
+	addressPaths map[string]string
+	authDir      string
+	onShutdown   func(ctx context.Context)
+	control      orchctlrpc.OrchestratorServiceHandler
+	dials        *atomic.Int32
+	mempool      mempoolrpc.MempoolServiceHandler
 }
 
 type ServerOpt func(opt *configg)
@@ -129,6 +132,12 @@ func WithPasswordWallet() ServerOpt {
 // WithWatchOnlyWallet makes the fixture wallet a watch-only one with no seed.
 func WithWatchOnlyWallet() ServerOpt {
 	return func(opt *configg) { opt.watchOnly = true }
+}
+
+// WithAddressPaths makes the fixture orchestrator report paths[address] as the
+// derivation path of address. It reports no path for any other address.
+func WithAddressPaths(paths map[string]string) ServerOpt {
+	return func(opt *configg) { opt.addressPaths = paths }
 }
 
 // WithOrchestrator injects the wallet-manager client cheque reads go through.
@@ -214,7 +223,7 @@ func API(t *testing.T, database *sql.DB, options ...ServerOpt) (*http.Client, st
 		makeWalletWatchOnly(t, walletDir)
 	}
 	if conf.orchestrator == nil {
-		conf.orchestrator = fixtureOrchestrator(t, walletDir)
+		conf.orchestrator = fixtureOrchestrator(t, walletDir, conf.addressPaths)
 	}
 
 	orchestratorAddr := orchestratorServer(t, conf.control, conf.mempool)
@@ -496,7 +505,7 @@ func (o openWallet) GetWalletStatus(
 
 // fixtureOrchestrator returns an orchestrator client in full mode whose
 // wallet calls go to a real orchestrator wallet service on walletDir.
-func fixtureOrchestrator(t *testing.T, walletDir string) orchrpc.WalletManagerServiceClient {
+func fixtureOrchestrator(t *testing.T, walletDir string, addressPaths map[string]string) orchrpc.WalletManagerServiceClient {
 	t.Helper()
 	svc := orchwallet.NewService(walletDir, zerolog.Nop())
 	require.NoError(t, svc.Init())
@@ -504,7 +513,7 @@ func fixtureOrchestrator(t *testing.T, walletDir string) orchrpc.WalletManagerSe
 
 	mux := http.NewServeMux()
 	srv := connect.NewServer()
-	orchrpc.RegisterWalletManagerServiceHandler(srv, fixtureWalletManager{wallets: orchapi.NewWalletHandler(svc)})
+	orchrpc.RegisterWalletManagerServiceHandler(srv, fixtureWalletManager{wallets: orchapi.NewWalletHandler(svc), addressPaths: addressPaths})
 	connecthttp.Mount(mux, srv, connecthttp.WithReadMaxBytes(0))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
@@ -517,12 +526,23 @@ func PasswordWalletOrchestrator(t *testing.T) orchrpc.WalletManagerServiceClient
 	t.Helper()
 	walletDir := t.TempDir()
 	writeEncryptedWallet(t, walletDir)
-	return fixtureOrchestrator(t, walletDir)
+	return fixtureOrchestrator(t, walletDir, nil)
 }
 
 type fixtureWalletManager struct {
 	coreWalletManager
-	wallets *orchapi.WalletHandler
+	wallets      *orchapi.WalletHandler
+	addressPaths map[string]string
+}
+
+func (m fixtureWalletManager) GetAddressDerivationPath(
+	_ context.Context, req *orchpb.GetAddressDerivationPathRequest,
+) (*orchpb.GetAddressDerivationPathResponse, error) {
+	path, ok := m.addressPaths[req.Address]
+	if !ok {
+		return nil, connect.Errorf(connect.CodeNotFound, "the wallet holds no key for address %s", req.Address)
+	}
+	return &orchpb.GetAddressDerivationPathResponse{DerivationPath: path}, nil
 }
 
 func (m fixtureWalletManager) GetWalletStatus(

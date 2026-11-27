@@ -516,7 +516,9 @@ func TestService_SignMessage(t *testing.T) {
 	t.Run("a change address signs its message", func(t *testing.T) {
 		t.Parallel()
 
-		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t)))
+		paths := map[string]string{}
+		keys := map[uint32]*btcec.PublicKey{}
+		addresses := map[uint32]btcutil.Address{}
 		for _, purpose := range []uint32{84, 86} {
 			pub := fixtureBranchKey(t, purpose, 1, 3)
 			var address btcutil.Address
@@ -530,6 +532,13 @@ func TestService_SignMessage(t *testing.T) {
 				require.NoError(t, err)
 				address = addr
 			}
+			paths[address.EncodeAddress()] = fmt.Sprintf("m/%dh/1h/0h/1/3", purpose)
+			keys[purpose] = pub
+			addresses[purpose] = address
+		}
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t), apitests.WithAddressPaths(paths)))
+		for _, purpose := range []uint32{84, 86} {
+			pub, address := keys[purpose], addresses[purpose]
 			const message = "Change address proof\nBjørn æøå"
 			signed, err := cli.SignMessage(t.Context(), &walletv1.SignMessageRequest{
 				WalletId: testWalletID,
@@ -553,10 +562,11 @@ func TestService_SignMessage(t *testing.T) {
 	t.Run("space around a pasted address and signature does not count", func(t *testing.T) {
 		t.Parallel()
 
-		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t)))
 		pub := fixtureBranchKey(t, 84, 0, 0)
 		addr, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pub.SerializeCompressed()), &chaincfg.SigNetParams)
 		require.NoError(t, err)
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t),
+			apitests.WithAddressPaths(map[string]string{addr.EncodeAddress(): "m/84h/1h/0h/0/0"})))
 		const message = " keep this space "
 
 		signed, err := cli.SignMessage(t.Context(), &walletv1.SignMessageRequest{
@@ -596,7 +606,10 @@ func TestService_SignMessage(t *testing.T) {
 	t.Run("a signature verifies without a node", func(t *testing.T) {
 		t.Parallel()
 
-		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t)))
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t), apitests.WithAddressPaths(map[string]string{
+			fixtureSegwitAddress(t, 2):  "m/84h/1h/0h/0/2",
+			fixtureTaprootAddress(t, 1): "m/86h/1h/0h/0/1",
+		})))
 		const message = "signed by Bjørn"
 		for _, key := range []struct {
 			address string
@@ -670,8 +683,34 @@ func TestService_SignMessage(t *testing.T) {
 			Address:  "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl",
 			Message:  "hello",
 		})
-		require.ErrorContains(t, err, "is not one of the wallet's first")
-		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+		require.ErrorContains(t, err, "the wallet holds no key for address tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl")
+		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+	})
+
+	t.Run("an address far past the first hundred signs its message", func(t *testing.T) {
+		t.Parallel()
+
+		pub := fixtureBranchKey(t, 84, 0, 150)
+		addr, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pub.SerializeCompressed()), &chaincfg.SigNetParams)
+		require.NoError(t, err)
+		cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t),
+			apitests.WithAddressPaths(map[string]string{addr.EncodeAddress(): "m/84h/1h/0h/0/150"})))
+
+		const message = "address 150"
+		signed, err := cli.SignMessage(t.Context(), &walletv1.SignMessageRequest{
+			WalletId: testWalletID,
+			Address:  addr.EncodeAddress(),
+			Message:  message,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, hex.EncodeToString(pub.SerializeCompressed()), signed.PublicKey)
+		verified, err := cli.VerifyMessage(t.Context(), &walletv1.VerifyMessageRequest{
+			PublicKey: addr.EncodeAddress(),
+			Message:   message,
+			Signature: signed.Signature,
+		})
+		require.NoError(t, err)
+		assert.True(t, verified.Valid)
 	})
 
 	t.Run("a wallet with no seed is a failed precondition", func(t *testing.T) {

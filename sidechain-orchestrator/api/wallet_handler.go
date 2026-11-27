@@ -699,6 +699,28 @@ func (h *WalletHandler) BroadcastTransaction(ctx context.Context, req *pb.Broadc
 	return &pb.BroadcastTransactionResponse{Txid: txid}, nil
 }
 
+func (h *WalletHandler) GetAddressDerivationPath(ctx context.Context, req *pb.GetAddressDerivationPathRequest) (*pb.GetAddressDerivationPathResponse, error) {
+	if err := h.requireEngine(); err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
+	}
+	walletID, err := h.engine.ResolveWalletID(req.WalletId)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+	}
+	address := strings.TrimSpace(req.Address)
+	if address == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "address is required")
+	}
+	path, err := h.engine.Backend().AddressHDPath(ctx, walletID, address)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	if path == "" {
+		return nil, connect.Errorf(connect.CodeNotFound, "the wallet holds no key for address %s", address)
+	}
+	return &pb.GetAddressDerivationPathResponse{DerivationPath: path}, nil
+}
+
 func (h *WalletHandler) RescanWallet(ctx context.Context, req *pb.RescanWalletRequest) (*pb.RescanWalletResponse, error) {
 	if err := h.requireEngine(); err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)

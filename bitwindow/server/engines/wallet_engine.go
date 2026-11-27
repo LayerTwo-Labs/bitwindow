@@ -316,6 +316,19 @@ func (e *WalletEngine) GetWalletSeed(ctx context.Context, walletID string) (stri
 	return resp.SeedHex, nil
 }
 
+// GetAddressDerivationPath returns the BIP32 path the wallet reports for one
+// of its addresses.
+func (e *WalletEngine) GetAddressDerivationPath(ctx context.Context, walletID, address string) (string, error) {
+	resp, err := e.orchClient.GetAddressDerivationPath(ctx, &orchpb.GetAddressDerivationPathRequest{
+		WalletId: walletID,
+		Address:  address,
+	})
+	if err != nil {
+		return "", fmt.Errorf("get derivation path of %s: %w", address, err)
+	}
+	return resp.DerivationPath, nil
+}
+
 func (e *WalletEngine) GetActiveWallet(ctx context.Context) (*WalletInfo, error) {
 	wallets, activeID, err := e.listWallets(ctx)
 	if err != nil {

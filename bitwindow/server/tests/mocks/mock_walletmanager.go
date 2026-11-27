@@ -448,6 +448,21 @@ func (mr *MockWalletManagerServiceClientMockRecorder) GenerateWallet(arg0, arg1 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateWallet", reflect.TypeOf((*MockWalletManagerServiceClient)(nil).GenerateWallet), arg0, arg1)
 }
 
+// GetAddressDerivationPath mocks base method.
+func (m *MockWalletManagerServiceClient) GetAddressDerivationPath(arg0 context.Context, arg1 *walletmanagerv1.GetAddressDerivationPathRequest) (*walletmanagerv1.GetAddressDerivationPathResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAddressDerivationPath", arg0, arg1)
+	ret0, _ := ret[0].(*walletmanagerv1.GetAddressDerivationPathResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAddressDerivationPath indicates an expected call of GetAddressDerivationPath.
+func (mr *MockWalletManagerServiceClientMockRecorder) GetAddressDerivationPath(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAddressDerivationPath", reflect.TypeOf((*MockWalletManagerServiceClient)(nil).GetAddressDerivationPath), arg0, arg1)
+}
+
 // GetAddressUnspent mocks base method.
 func (m *MockWalletManagerServiceClient) GetAddressUnspent(arg0 context.Context, arg1 *walletmanagerv1.GetAddressUnspentRequest) (*walletmanagerv1.GetAddressUnspentResponse, error) {
 	m.ctrl.T.Helper()
@@ -1655,6 +1670,21 @@ func (m *MockWalletManagerServiceHandler) GenerateWallet(arg0 context.Context, a
 func (mr *MockWalletManagerServiceHandlerMockRecorder) GenerateWallet(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateWallet", reflect.TypeOf((*MockWalletManagerServiceHandler)(nil).GenerateWallet), arg0, arg1)
+}
+
+// GetAddressDerivationPath mocks base method.
+func (m *MockWalletManagerServiceHandler) GetAddressDerivationPath(arg0 context.Context, arg1 *walletmanagerv1.GetAddressDerivationPathRequest) (*walletmanagerv1.GetAddressDerivationPathResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAddressDerivationPath", arg0, arg1)
+	ret0, _ := ret[0].(*walletmanagerv1.GetAddressDerivationPathResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAddressDerivationPath indicates an expected call of GetAddressDerivationPath.
+func (mr *MockWalletManagerServiceHandlerMockRecorder) GetAddressDerivationPath(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAddressDerivationPath", reflect.TypeOf((*MockWalletManagerServiceHandler)(nil).GetAddressDerivationPath), arg0, arg1)
 }
 
 // GetAddressUnspent mocks base method.

@@ -450,6 +450,15 @@ abstract final class WalletManagerService {
     walletmanagerv1walletmanager.BroadcastTransactionResponse.new,
   );
 
+  /// GetAddressDerivationPath returns the BIP32 path of one wallet address.
+  /// Fails with NotFound for an address the wallet has no HD key for.
+  static const getAddressDerivationPath = connect.Spec(
+    '/$name/GetAddressDerivationPath',
+    connect.StreamType.unary,
+    walletmanagerv1walletmanager.GetAddressDerivationPathRequest.new,
+    walletmanagerv1walletmanager.GetAddressDerivationPathResponse.new,
+  );
+
   /// Address reads that belong to no wallet — cheque addresses, whose funds are
   /// not the user's to spend. Always electrum-backed, whatever wallet is active.
   static const getAddressUnspent = connect.Spec(

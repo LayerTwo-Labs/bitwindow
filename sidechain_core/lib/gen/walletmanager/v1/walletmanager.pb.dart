@@ -14460,6 +14460,131 @@ class CreateDepositResponse extends $pb.GeneratedMessage {
   void clearTxid() => $_clearField(1);
 }
 
+class GetAddressDerivationPathRequest extends $pb.GeneratedMessage {
+  factory GetAddressDerivationPathRequest({
+    $core.String? walletId,
+    $core.String? address,
+  }) {
+    final result = GetAddressDerivationPathRequest._();
+    if (walletId != null) result.walletId = walletId;
+    if (address != null) result.address = address;
+    return result;
+  }
+
+  GetAddressDerivationPathRequest._();
+
+  factory GetAddressDerivationPathRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GetAddressDerivationPathRequest()..mergeFromBuffer(data, registry);
+  factory GetAddressDerivationPathRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GetAddressDerivationPathRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetAddressDerivationPathRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'walletmanager.v1'),
+      createEmptyInstance: GetAddressDerivationPathRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'walletId')
+    ..aOS(2, _omitFieldNames ? '' : 'address')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetAddressDerivationPathRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetAddressDerivationPathRequest copyWith(void Function(GetAddressDerivationPathRequest) updates) =>
+      super.copyWith((message) => updates(message as GetAddressDerivationPathRequest))
+          as GetAddressDerivationPathRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use GetAddressDerivationPathRequest() / GetAddressDerivationPathRequest.new instead')
+  static GetAddressDerivationPathRequest create() => GetAddressDerivationPathRequest._();
+  static $pb.GeneratedMessage $_createMessage() => GetAddressDerivationPathRequest._();
+  @$core.override
+  GetAddressDerivationPathRequest createEmptyInstance() => GetAddressDerivationPathRequest._();
+  @$core.pragma('dart2js:noInline')
+  static GetAddressDerivationPathRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetAddressDerivationPathRequest>(
+          GetAddressDerivationPathRequest.$_createMessage);
+  static GetAddressDerivationPathRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get walletId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set walletId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasWalletId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearWalletId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get address => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set address($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAddress() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAddress() => $_clearField(2);
+}
+
+class GetAddressDerivationPathResponse extends $pb.GeneratedMessage {
+  factory GetAddressDerivationPathResponse({
+    $core.String? derivationPath,
+  }) {
+    final result = GetAddressDerivationPathResponse._();
+    if (derivationPath != null) result.derivationPath = derivationPath;
+    return result;
+  }
+
+  GetAddressDerivationPathResponse._();
+
+  factory GetAddressDerivationPathResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GetAddressDerivationPathResponse()..mergeFromBuffer(data, registry);
+  factory GetAddressDerivationPathResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GetAddressDerivationPathResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetAddressDerivationPathResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'walletmanager.v1'),
+      createEmptyInstance: GetAddressDerivationPathResponse.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'derivationPath')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetAddressDerivationPathResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetAddressDerivationPathResponse copyWith(void Function(GetAddressDerivationPathResponse) updates) =>
+      super.copyWith((message) => updates(message as GetAddressDerivationPathResponse))
+          as GetAddressDerivationPathResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use GetAddressDerivationPathResponse() / GetAddressDerivationPathResponse.new instead')
+  static GetAddressDerivationPathResponse create() => GetAddressDerivationPathResponse._();
+  static $pb.GeneratedMessage $_createMessage() => GetAddressDerivationPathResponse._();
+  @$core.override
+  GetAddressDerivationPathResponse createEmptyInstance() => GetAddressDerivationPathResponse._();
+  @$core.pragma('dart2js:noInline')
+  static GetAddressDerivationPathResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetAddressDerivationPathResponse>(
+          GetAddressDerivationPathResponse.$_createMessage);
+  static GetAddressDerivationPathResponse? _defaultInstance;
+
+  /// Full path from the master key, e.g. "m/84h/1h/0h/0/106".
+  @$pb.TagNumber(1)
+  $core.String get derivationPath => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set derivationPath($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasDerivationPath() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearDerivationPath() => $_clearField(1);
+}
+
 class WalletManagerServiceApi {
   final $pb.RpcClient _client;
 
@@ -14695,6 +14820,13 @@ class WalletManagerServiceApi {
           $pb.ClientContext? ctx, BroadcastTransactionRequest request) =>
       _client.invoke<BroadcastTransactionResponse>(
           ctx, 'WalletManagerService', 'BroadcastTransaction', request, BroadcastTransactionResponse());
+
+  /// GetAddressDerivationPath returns the BIP32 path of one wallet address.
+  /// Fails with NotFound for an address the wallet has no HD key for.
+  $async.Future<GetAddressDerivationPathResponse> getAddressDerivationPath(
+          $pb.ClientContext? ctx, GetAddressDerivationPathRequest request) =>
+      _client.invoke<GetAddressDerivationPathResponse>(
+          ctx, 'WalletManagerService', 'GetAddressDerivationPath', request, GetAddressDerivationPathResponse());
 
   /// Address reads that belong to no wallet — cheque addresses, whose funds are
   /// not the user's to spend. Always electrum-backed, whatever wallet is active.

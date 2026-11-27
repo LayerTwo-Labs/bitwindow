@@ -57,9 +57,20 @@ func DescriptorFor(w *WalletData, kind ScriptKind, net *chaincfg.Params) (*Descr
 	}
 }
 
-// SigningKey returns the key for an address within depth of either branch.
-// A taproot key includes the tweak for its address.
-func SigningKey(w *WalletData, net *chaincfg.Params, address string, depth uint32) (*btcec.PrivateKey, error) {
+// SigningKey returns the key for an address at hdPath, the path the wallet
+// reports for it. The chain and index at the end of hdPath select the key, and
+// the address must derive from the wallet there. A taproot key includes the
+// tweak for its address.
+func SigningKey(w *WalletData, net *chaincfg.Params, address, hdPath string) (*btcec.PrivateKey, error) {
+	levels, ok := parseOriginPath(hdPath)
+	if !ok || len(levels) < 2 {
+		return nil, fmt.Errorf("invalid derivation path %q for address %s", hdPath, address)
+	}
+	chain, index := levels[len(levels)-2], levels[len(levels)-1]
+	if chain > 1 || index >= hdkeychain.HardenedKeyStart {
+		return nil, fmt.Errorf("derivation path %q of address %s names no receive or change key", hdPath, address)
+	}
+	change := chain == 1
 	descriptors, err := WalletDescriptors(w, net)
 	if err != nil {
 		return nil, err
@@ -68,30 +79,26 @@ func SigningKey(w *WalletData, net *chaincfg.Params, address string, depth uint3
 		if len(d.Keys) != 1 {
 			continue
 		}
-		for _, change := range []bool{false, true} {
-			for index := uint32(0); index < depth; index++ {
-				ds, _, err := d.DeriveScript(change, index, net)
-				if err != nil {
-					return nil, err
-				}
-				if ds.address.EncodeAddress() != address {
-					continue
-				}
-				priv, ok, err := deriveChildPrivIfPossible(d.Keys[0].Account, chainIndex(change), index)
-				if err != nil {
-					return nil, err
-				}
-				if !ok {
-					return nil, fmt.Errorf("the wallet holds no private key for address %s", address)
-				}
-				if d.Kind == ScriptTaproot {
-					return txscript.TweakTaprootPrivKey(*priv, []byte{}), nil
-				}
-				return priv, nil
-			}
+		ds, _, err := d.DeriveScript(change, index, net)
+		if err != nil {
+			return nil, err
 		}
+		if ds.address.EncodeAddress() != address {
+			continue
+		}
+		priv, ok, err := deriveChildPrivIfPossible(d.Keys[0].Account, chain, index)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("the wallet holds no private key for address %s", address)
+		}
+		if d.Kind == ScriptTaproot {
+			return txscript.TweakTaprootPrivKey(*priv, []byte{}), nil
+		}
+		return priv, nil
 	}
-	return nil, fmt.Errorf("address %s is not one of the wallet's first %d receiving addresses", address, depth)
+	return nil, fmt.Errorf("address %s does not derive from the wallet at %s", address, hdPath)
 }
 
 // multisigDescriptor builds the multisig descriptor with each held cosigner as

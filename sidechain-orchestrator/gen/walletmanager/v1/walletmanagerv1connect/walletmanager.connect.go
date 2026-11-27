@@ -193,6 +193,9 @@ const (
 	// WalletManagerServiceBroadcastTransactionProcedure is the procedure name of the
 	// WalletManagerService's BroadcastTransaction RPC.
 	WalletManagerServiceBroadcastTransactionProcedure = "/walletmanager.v1.WalletManagerService/BroadcastTransaction"
+	// WalletManagerServiceGetAddressDerivationPathProcedure is the procedure name of the
+	// WalletManagerService's GetAddressDerivationPath RPC.
+	WalletManagerServiceGetAddressDerivationPathProcedure = "/walletmanager.v1.WalletManagerService/GetAddressDerivationPath"
 	// WalletManagerServiceGetAddressUnspentProcedure is the procedure name of the
 	// WalletManagerService's GetAddressUnspent RPC.
 	WalletManagerServiceGetAddressUnspentProcedure = "/walletmanager.v1.WalletManagerService/GetAddressUnspent"
@@ -657,6 +660,13 @@ var (
 			Procedure:  WalletManagerServiceBroadcastTransactionProcedure,
 		}
 	})
+	walletManagerServiceGetAddressDerivationPathSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_walletmanager_v1_walletmanager_proto.Services().ByName("WalletManagerService").Methods().ByName("GetAddressDerivationPath"),
+			Procedure:  WalletManagerServiceGetAddressDerivationPathProcedure,
+		}
+	})
 	walletManagerServiceGetAddressUnspentSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -923,6 +933,9 @@ type WalletManagerServiceClient interface {
 	// BroadcastTransaction broadcasts a finalized raw transaction over the
 	// wallet's chain source and returns its txid.
 	BroadcastTransaction(context.Context, *v1.BroadcastTransactionRequest) (*v1.BroadcastTransactionResponse, error)
+	// GetAddressDerivationPath returns the BIP32 path of one wallet address.
+	// Fails with NotFound for an address the wallet has no HD key for.
+	GetAddressDerivationPath(context.Context, *v1.GetAddressDerivationPathRequest) (*v1.GetAddressDerivationPathResponse, error)
 	// Address reads that belong to no wallet — cheque addresses, whose funds are
 	// not the user's to spend. Always electrum-backed, whatever wallet is active.
 	GetAddressUnspent(context.Context, *v1.GetAddressUnspentRequest) (*v1.GetAddressUnspentResponse, error)
@@ -1139,6 +1152,9 @@ type WalletManagerServiceHandler interface {
 	// BroadcastTransaction broadcasts a finalized raw transaction over the
 	// wallet's chain source and returns its txid.
 	BroadcastTransaction(context.Context, *v1.BroadcastTransactionRequest) (*v1.BroadcastTransactionResponse, error)
+	// GetAddressDerivationPath returns the BIP32 path of one wallet address.
+	// Fails with NotFound for an address the wallet has no HD key for.
+	GetAddressDerivationPath(context.Context, *v1.GetAddressDerivationPathRequest) (*v1.GetAddressDerivationPathResponse, error)
 	// Address reads that belong to no wallet — cheque addresses, whose funds are
 	// not the user's to spend. Always electrum-backed, whatever wallet is active.
 	GetAddressUnspent(context.Context, *v1.GetAddressUnspentRequest) (*v1.GetAddressUnspentResponse, error)
@@ -1243,6 +1259,7 @@ func RegisterWalletManagerServiceHandler(server *connect.Server, svc WalletManag
 		connect.Method{Spec: walletManagerServiceFinalizePsbtSpec(), Handler: adapter.finalizePsbt},
 		connect.Method{Spec: walletManagerServiceMultisigPsbtStatusSpec(), Handler: adapter.multisigPsbtStatus},
 		connect.Method{Spec: walletManagerServiceBroadcastTransactionSpec(), Handler: adapter.broadcastTransaction},
+		connect.Method{Spec: walletManagerServiceGetAddressDerivationPathSpec(), Handler: adapter.getAddressDerivationPath},
 		connect.Method{Spec: walletManagerServiceGetAddressUnspentSpec(), Handler: adapter.getAddressUnspent},
 		connect.Method{Spec: walletManagerServiceBroadcastElectrumTransactionSpec(), Handler: adapter.broadcastElectrumTransaction},
 		connect.Method{Spec: walletManagerServiceEnumerateHardwareDevicesSpec(), Handler: adapter.enumerateHardwareDevices},
@@ -1542,6 +1559,10 @@ func (UnimplementedWalletManagerServiceHandler) MultisigPsbtStatus(context.Conte
 
 func (UnimplementedWalletManagerServiceHandler) BroadcastTransaction(context.Context, *v1.BroadcastTransactionRequest) (*v1.BroadcastTransactionResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "walletmanager.v1.WalletManagerService.BroadcastTransaction is not implemented")
+}
+
+func (UnimplementedWalletManagerServiceHandler) GetAddressDerivationPath(context.Context, *v1.GetAddressDerivationPathRequest) (*v1.GetAddressDerivationPathResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "walletmanager.v1.WalletManagerService.GetAddressDerivationPath is not implemented")
 }
 
 func (UnimplementedWalletManagerServiceHandler) GetAddressUnspent(context.Context, *v1.GetAddressUnspentRequest) (*v1.GetAddressUnspentResponse, error) {
@@ -2083,6 +2104,14 @@ func (c *walletManagerServiceClient) MultisigPsbtStatus(ctx context.Context, req
 func (c *walletManagerServiceClient) BroadcastTransaction(ctx context.Context, req *v1.BroadcastTransactionRequest) (*v1.BroadcastTransactionResponse, error) {
 	var res v1.BroadcastTransactionResponse
 	if err := c.client.CallUnary(ctx, walletManagerServiceBroadcastTransactionSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *walletManagerServiceClient) GetAddressDerivationPath(ctx context.Context, req *v1.GetAddressDerivationPathRequest) (*v1.GetAddressDerivationPathResponse, error) {
+	var res v1.GetAddressDerivationPathResponse
+	if err := c.client.CallUnary(ctx, walletManagerServiceGetAddressDerivationPathSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -2936,6 +2965,18 @@ func (h walletManagerServiceHandler) broadcastTransaction(ctx context.Context, _
 		return err
 	}
 	res, err := h.svc.BroadcastTransaction(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h walletManagerServiceHandler) getAddressDerivationPath(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetAddressDerivationPathRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetAddressDerivationPath(ctx, &req)
 	if err != nil {
 		return err
 	}

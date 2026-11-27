@@ -114,6 +114,10 @@ service WalletManagerService {
   // wallet's chain source and returns its txid.
   rpc BroadcastTransaction(BroadcastTransactionRequest) returns (BroadcastTransactionResponse);
 
+  // GetAddressDerivationPath returns the BIP32 path of one wallet address.
+  // Fails with NotFound for an address the wallet has no HD key for.
+  rpc GetAddressDerivationPath(GetAddressDerivationPathRequest) returns (GetAddressDerivationPathResponse);
+
   // Address reads that belong to no wallet — cheque addresses, whose funds are
   // not the user's to spend. Always electrum-backed, whatever wallet is active.
   rpc GetAddressUnspent(GetAddressUnspentRequest) returns (GetAddressUnspentResponse);
@@ -1657,3 +1661,12 @@ message CreateDepositResponse {
   string txid = 1;
 }
 
+message GetAddressDerivationPathRequest {
+  string wallet_id = 1;
+  string address = 2;
+}
+
+message GetAddressDerivationPathResponse {
+  // Full path from the master key, e.g. "m/84h/1h/0h/0/106".
+  string derivation_path = 1;
+}

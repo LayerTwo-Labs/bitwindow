@@ -868,7 +868,7 @@ func TestServiceCreateElectrumDescriptorWalletSigns(t *testing.T) {
 	require.NoError(t, err)
 	ds, _, err := d.DeriveScript(false, 0, net)
 	require.NoError(t, err)
-	key, err := SigningKey(w, net, ds.address.EncodeAddress(), 1)
+	key, err := SigningKey(w, net, ds.address.EncodeAddress(), "m/84h/1h/0h/0/0")
 	require.NoError(t, err)
 	assert.NotNil(t, key)
 
