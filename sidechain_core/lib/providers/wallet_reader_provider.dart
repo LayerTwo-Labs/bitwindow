@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:connectrpc/connect.dart' show Code, ConnectException;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:get_it/get_it.dart';
@@ -9,6 +10,19 @@ import 'package:sidechain_core/env.dart';
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 import 'package:sidechain_core/rpcs/stream_supervisor.dart';
 import 'package:sidechain_core/sidechain_core.dart';
+
+/// True when [error] is the backend refusing a wallet password.
+bool isWrongPassword(Object error) => error is ConnectException && error.code == Code.unauthenticated;
+
+/// An unlock that the backend accepted but that did not complete.
+class WalletUnlockException implements Exception {
+  final String message;
+
+  const WalletUnlockException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 /// Wallet reader provider backed by orchestrator's WalletManagerService.
 ///
@@ -395,28 +409,29 @@ class WalletReaderProvider extends ChangeNotifier implements NetworkScoped {
     }
   }
 
+  /// Unlocks the wallet. Returns false for a wrong password, and throws on any other failure.
   Future<bool> unlockWallet(String password) async {
     try {
       await _client.unlockWallet(password);
-      // isWalletUnlocked is wallets.isNotEmpty; the watch stream lags on cold
-      // boot, so without an eager seed PasswordGuard reads stale-empty state
-      // when UnlockWalletRoute pops and rejects the resume navigation —
-      // user lands on a blank route. Mirror the init() seed pattern.
-      if (wallets.isEmpty && GetIt.I.isRegistered<OrchestratorRPC>()) {
-        await _seedWalletsIfEmpty('unlock');
-      }
-      if (wallets.isEmpty && !await _waitForWalletState(unlockStateWait)) {
-        _logger.w(
-          'WalletReaderProvider: unlock succeeded but wallet state did not load',
-        );
+    } catch (e) {
+      if (isWrongPassword(e)) {
         return false;
       }
-      notifyListeners();
-      return true;
-    } catch (e) {
       _logger.e('WalletReaderProvider: unlock failed: $e');
-      return false;
+      rethrow;
     }
+    // isWalletUnlocked is wallets.isNotEmpty; the watch stream lags on cold
+    // boot, so without an eager seed PasswordGuard reads stale-empty state
+    // when UnlockWalletRoute pops and rejects the resume navigation —
+    // user lands on a blank route. Mirror the init() seed pattern.
+    if (wallets.isEmpty && GetIt.I.isRegistered<OrchestratorRPC>()) {
+      await _seedWalletsIfEmpty('unlock');
+    }
+    if (wallets.isEmpty && !await _waitForWalletState(unlockStateWait)) {
+      throw const WalletUnlockException('the wallet unlocked, but its wallets did not load');
+    }
+    notifyListeners();
+    return true;
   }
 
   Future<void> lockWallet() async {

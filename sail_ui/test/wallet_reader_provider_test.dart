@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:connectrpc/connect.dart';
 import 'package:connectrpc/http2.dart';
 import 'package:connectrpc/protobuf.dart';
 import 'package:connectrpc/protocol/connect.dart' as connect;
@@ -31,10 +32,15 @@ class _FakeWalletRPC extends OrchestratorWalletRPC {
   List<wmpb.WalletMetadata> walletsToReturn = const [];
   String activeWalletIdToReturn = '';
   bool hasWalletToReturn = true;
+  Object? unlockError;
 
   @override
   Future<wmpb.UnlockWalletResponse> unlockWallet(String password) async {
     unlockCalls++;
+    final error = unlockError;
+    if (error != null) {
+      throw error;
+    }
     return wmpb.UnlockWalletResponse();
   }
 
@@ -253,21 +259,36 @@ void main() {
     expect(notifications, greaterThanOrEqualTo(1), reason: 'listeners must fire so guards re-evaluate');
   });
 
-  test('unlockWallet does not report success until wallet state is loaded', () async {
+  test('unlockWallet throws when the unlocked wallet state does not load', () async {
     final fake = _FakeWalletRPC();
     GetIt.I.registerSingleton<OrchestratorRPC>(_FakeOrchestratorRPC(fake));
     addTearDown(() => GetIt.I.unregister<OrchestratorRPC>());
 
     final provider = WalletReaderProvider(Directory.systemTemp)..unlockStateWait = const Duration(milliseconds: 1);
 
-    final ok = await provider.unlockWallet('hunter2');
-
-    expect(ok, isFalse);
+    await expectLater(provider.unlockWallet('hunter2'), throwsA(isA<WalletUnlockException>()));
     expect(fake.unlockCalls, 1);
     expect(fake.listCalls, 1);
     expect(fake.statusCalls, 1);
     expect(provider.isWalletUnlocked, isFalse);
     expect(provider.wallets, isEmpty);
+  });
+
+  test('unlockWallet returns false only when the backend refuses the password', () async {
+    final fake = _FakeWalletRPC()..unlockError = ConnectException(Code.unauthenticated, 'incorrect password');
+    GetIt.I.registerSingleton<OrchestratorRPC>(_FakeOrchestratorRPC(fake));
+    addTearDown(() => GetIt.I.unregister<OrchestratorRPC>());
+
+    expect(await WalletReaderProvider(Directory.systemTemp).unlockWallet('wrong'), isFalse);
+  });
+
+  test('unlockWallet throws a failure that is not a wrong password', () async {
+    final failure = ConnectException(Code.internal, 'read wallet file: permission denied');
+    final fake = _FakeWalletRPC()..unlockError = failure;
+    GetIt.I.registerSingleton<OrchestratorRPC>(_FakeOrchestratorRPC(fake));
+    addTearDown(() => GetIt.I.unregister<OrchestratorRPC>());
+
+    await expectLater(WalletReaderProvider(Directory.systemTemp).unlockWallet('hunter2'), throwsA(same(failure)));
   });
 
   test('isWatchOnly is carried as its own flag, independent of walletType', () {

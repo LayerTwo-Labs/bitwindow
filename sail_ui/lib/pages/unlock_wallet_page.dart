@@ -133,7 +133,7 @@ class _UnlockWalletPageState extends State<UnlockWalletPage> {
         return;
       }
       setState(() {
-        _errorMessage = 'Error unlocking wallet: $e';
+        _errorMessage = 'Error unlocking wallet: ${extractConnectException(e)}';
         _isUnlocking = false;
       });
     }
