@@ -28,6 +28,7 @@ abstract final class MiscService {
     miscv1misc.BroadcastNewsResponse.new,
   );
 
+  /// Broadcasts a topic creation and subscribes to the topic.
   static const createTopic = connect.Spec(
     '/$name/CreateTopic',
     connect.StreamType.unary,
@@ -35,11 +36,28 @@ abstract final class MiscService {
     miscv1misc.CreateTopicResponse.new,
   );
 
+  /// Lists the topics that the user subscribes to.
   static const listTopics = connect.Spec(
     '/$name/ListTopics',
     connect.StreamType.unary,
     googleprotobufempty.Empty.new,
     miscv1misc.ListTopicsResponse.new,
+  );
+
+  /// Lists each topic in a block or in the mempool, subscribed or not.
+  static const listChainTopics = connect.Spec(
+    '/$name/ListChainTopics',
+    connect.StreamType.unary,
+    googleprotobufempty.Empty.new,
+    miscv1misc.ListTopicsResponse.new,
+  );
+
+  /// Subscribes to a topic in a block or in the mempool, or leaves a topic.
+  static const setTopicSubscribed = connect.Spec(
+    '/$name/SetTopicSubscribed',
+    connect.StreamType.unary,
+    miscv1misc.SetTopicSubscribedRequest.new,
+    googleprotobufempty.Empty.new,
   );
 
   static const listCoinNews = connect.Spec(

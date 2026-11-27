@@ -825,10 +825,12 @@ class _YourTopicsTab extends StatelessWidget {
         Expanded(
           child: SailTable(
             getRowId: (index) => viewModel.topics[index].topic,
+            phoneColumns: const [0, 2, 3],
             headerBuilder: (context) => [
               const SailTableHeaderCell(name: 'Name'),
               const SailTableHeaderCell(name: 'Identifier'),
               const SailTableHeaderCell(name: 'Status'),
+              const SailTableHeaderCell(name: ''),
             ],
             rowBuilder: (context, row, selected) {
               final topic = viewModel.topics[row];
@@ -838,6 +840,16 @@ class _YourTopicsTab extends StatelessWidget {
                 SailTableCell(
                   value: topic.confirmed ? 'Confirmed' : 'Pending',
                   textColor: topic.confirmed ? context.sailTheme.colors.success : context.sailTheme.colors.orange,
+                ),
+                SailTableCell(
+                  value: 'Leave',
+                  child: SailButton(
+                    label: 'Leave',
+                    variant: ButtonVariant.ghost,
+                    small: true,
+                    insideTable: true,
+                    onPressed: () async => viewModel.leave(topic),
+                  ),
                 ),
               ];
             },
@@ -873,6 +885,7 @@ class _YourTopicsTab extends StatelessWidget {
             ),
           ],
         ),
+        if (viewModel.topicActionError case final error?) SailInlineError(error),
         if (viewModel.importError != null) SailInlineError(viewModel.importError!),
       ],
     );
@@ -918,12 +931,52 @@ class _SubscribeTab extends StatelessWidget {
           SailInlineError(viewModel.subscribeError!)
         else if (viewModel.listedTopic case final topic?)
           SailText.secondary12('${topic.name} (${topic.topic}) is already in Your Topics. It costs nothing.')
+        else if (viewModel.chainTopic case final topic?)
+          SailText.secondary12('${topic.name} (${topic.topic}) is on the chain. Add subscribes to it at no cost.')
         else if (viewModel.urlTopic case final line?)
           FeeQuoteText(
             quote: viewModel.subscribeFee,
             lead: 'No topic ${line.topic} is on the chain. Add creates it.  ',
           ),
-        const SailSpacing(SailStyleValues.padding16),
+        if (viewModel.otherTopics case final others when others.isNotEmpty) ...[
+          SailText.secondary13('Other topics on the chain:'),
+          Expanded(
+            child: SailTable(
+              getRowId: (index) => others[index].topic,
+              phoneColumns: const [0, 3],
+              headerBuilder: (context) => const [
+                SailTableHeaderCell(name: 'Name'),
+                SailTableHeaderCell(name: 'Identifier'),
+                SailTableHeaderCell(name: 'Status'),
+                SailTableHeaderCell(name: ''),
+              ],
+              rowBuilder: (context, row, selected) {
+                final topic = others[row];
+                return [
+                  SailTableCell(value: topic.name),
+                  SailTableCell(value: topic.topic, monospace: true),
+                  SailTableCell(
+                    value: topic.confirmed ? 'Confirmed' : 'Pending',
+                    textColor: topic.confirmed ? context.sailTheme.colors.success : context.sailTheme.colors.orange,
+                  ),
+                  SailTableCell(
+                    value: 'Subscribe',
+                    child: SailButton(
+                      label: 'Subscribe',
+                      variant: ButtonVariant.ghost,
+                      small: true,
+                      insideTable: true,
+                      onPressed: () async => viewModel.subscribe(context, topic),
+                    ),
+                  ),
+                ];
+              },
+              rowCount: others.length,
+              drawGrid: true,
+            ),
+          ),
+        ] else
+          const SailSpacing(SailStyleValues.padding16),
         SailText.secondary12(
           'URL format: {days}{identifier}Name\n'
           'Example: 7{a1a1a1a1}US Weekly means a topic named "US Weekly" with identifier a1a1a1a1 and 7 day retention',
@@ -1017,7 +1070,11 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   final BitwindowRPC _api = GetIt.I.get<BitwindowRPC>();
 
   List<Topic> get topics => _newsProvider.topics;
+  List<Topic> get chainTopics => _newsProvider.chainTopics;
   String? get topicReadError => _newsProvider.topicReadError;
+
+  /// The topics on the chain that are not in Your Topics.
+  List<Topic> get otherTopics => chainTopics.where((t) => _listed(t.topic.toLowerCase()) == null).toList();
 
   final TextEditingController identifierController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
@@ -1031,6 +1088,9 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   String? subscribeError;
   String? importError;
 
+  /// Why the last Leave failed.
+  String? topicActionError;
+
   /// The fee to create the topic of the Create Topic fields.
   late final FeeQuote createFee = FeeQuote(notifyListeners);
 
@@ -1043,9 +1103,14 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   /// The topic in Your Topics with the identifier of the URL.
   Topic? get listedTopic => _listed(urlTopic?.topic);
 
+  /// The topic of the URL when it is on the chain and not in Your Topics.
+  Topic? get chainTopic => listedTopic == null ? _onChain(urlTopic?.topic) : null;
+
   bool get canAdd => urlController.text.trim().isNotEmpty && listedTopic == null;
 
   Topic? _listed(String? topic) => topics.firstWhereOrNull((t) => t.topic.toLowerCase() == topic);
+
+  Topic? _onChain(String? topic) => chainTopics.firstWhereOrNull((t) => t.topic.toLowerCase() == topic);
 
   ManageNewsSubscriptionsViewModel() {
     _newsProvider.addListener(_onTopicsChanged);
@@ -1072,7 +1137,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   }
 
   void _onTopicsChanged() {
-    if (listedTopic != null) {
+    if (listedTopic != null || chainTopic != null) {
       subscribeFee.update(null);
     }
     notifyListeners();
@@ -1081,7 +1146,9 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   void _onUrlChanged() {
     subscribeError = null;
     final line = urlTopic = TopicLine.tryParse(urlController.text);
-    subscribeFee.update(line == null || listedTopic != null ? null : () => estimateTopicFee(line));
+    subscribeFee.update(
+      line == null || listedTopic != null || chainTopic != null ? null : () => estimateTopicFee(line),
+    );
     notifyListeners();
   }
 
@@ -1150,6 +1217,10 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     if (_listed(line.topic) != null) {
       return;
     }
+    if (_onChain(line.topic) case final topic?) {
+      await subscribe(context, topic);
+      return;
+    }
 
     try {
       final response = await _api.misc.createTopic(line.topic, line.name, retentionDays: line.retentionDays);
@@ -1164,6 +1235,43 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       notifyListeners();
     }
   }
+
+  /// Adds [topic], which is on the chain, to Your Topics. It costs nothing.
+  Future<void> subscribe(BuildContext context, Topic topic) async {
+    subscribeError = null;
+    notifyListeners();
+    try {
+      await _api.misc.setTopicSubscribed(topic.topic, true);
+    } catch (e) {
+      subscribeError = 'Could not subscribe to ${topic.name}. ${_reason(e)}';
+      notifyListeners();
+      return;
+    }
+    await _newsProvider.fetch();
+    if (urlTopic?.topic == topic.topic.toLowerCase()) {
+      urlController.clear();
+    }
+    if (!context.mounted) {
+      return;
+    }
+    showSailToast(context, 'Subscribed to "${topic.name}"');
+  }
+
+  /// Removes [topic] from Your Topics.
+  Future<void> leave(Topic topic) async {
+    topicActionError = null;
+    notifyListeners();
+    try {
+      await _api.misc.setTopicSubscribed(topic.topic, false);
+    } catch (e) {
+      topicActionError = 'Could not leave ${topic.name}. ${_reason(e)}';
+      notifyListeners();
+      return;
+    }
+    await _newsProvider.fetch();
+  }
+
+  String _reason(Object e) => e is BitwindowException ? e.message : '$e';
 
   Future<void> exportTopics(BuildContext context) async {
     final urls = topics.map((t) => '${t.retentionDays}{${t.topic}}${t.name}').join('\n');
@@ -1236,7 +1344,8 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     }
   }
 
-  /// Creates each topic of [lines] that is not in Your Topics, after the user
+  /// Adds each topic of [lines] that is not in Your Topics. A topic on the
+  /// chain costs nothing. The app creates the other topics after the user
   /// accepts the fees. Adds the reason of each failure to [failures]. Returns
   /// the number of new topics, or null when the user backs out.
   Future<int?> _createTopics(BuildContext context, List<TopicLine> lines, List<String> failures) async {
@@ -1247,27 +1356,39 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     if (unlisted.isEmpty) {
       return 0;
     }
+    final onChain = unlisted.where((l) => _onChain(l.topic) != null).toList();
+    final toCreate = unlisted.where((l) => _onChain(l.topic) == null).toList();
 
-    final priced = await priceNewTopics(unlisted);
-    if (!context.mounted) {
-      return null;
-    }
-    final listed = lines.map((l) => l.topic).toSet().length - unlisted.length;
-    if (!await confirmNewTopics(context, priced, listed: listed)) {
-      return null;
+    if (toCreate.isNotEmpty) {
+      final priced = await priceNewTopics(toCreate);
+      if (!context.mounted) {
+        return null;
+      }
+      final listed = lines.map((l) => l.topic).toSet().length - unlisted.length;
+      if (!await confirmNewTopics(context, priced, listed: listed)) {
+        return null;
+      }
     }
 
-    var created = 0;
-    for (final line in unlisted) {
+    var added = 0;
+    for (final line in onChain) {
+      try {
+        await _api.misc.setTopicSubscribed(line.topic, true);
+        added++;
+      } catch (e) {
+        failures.add('${line.name}: ${_reason(e)}');
+      }
+    }
+    for (final line in toCreate) {
       try {
         await _api.misc.createTopic(line.topic, line.name, retentionDays: line.retentionDays);
-        created++;
+        added++;
       } catch (e) {
-        failures.add('${line.name}: ${e is BitwindowException ? e.message : e}');
+        failures.add('${line.name}: ${_reason(e)}');
       }
     }
     await _newsProvider.fetch();
-    return created;
+    return added;
   }
 
   @override

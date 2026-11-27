@@ -19,10 +19,15 @@ class NewsProvider extends ChangeNotifier {
 
   /// The stories inside the retention of their topic.
   List<CoinNews> get currentNews => news.where((story) => !story.outdated).toList();
+
+  /// The topics that the user subscribes to.
   List<Topic> topics = [
     Topic(id: Int64(1), topic: 'a1a1a1a1', name: 'US Weekly'),
     Topic(id: Int64(2), topic: 'a2a2a2a2', name: 'Japan Weekly'),
   ];
+
+  /// Each topic in a block or in the mempool, subscribed or not.
+  List<Topic> chainTopics = [];
   bool initialized = false;
   String? error;
   String? _topicsError;
@@ -119,9 +124,11 @@ class NewsProvider extends ChangeNotifier {
     // Fetch topics independently
     try {
       final newTopics = await api.misc.listTopics();
+      final newChainTopics = await api.misc.listChainTopics();
       _topicsError = null;
-      if (!listEquals(topics, newTopics)) {
+      if (!listEquals(topics, newTopics) || !listEquals(chainTopics, newChainTopics)) {
         topics = newTopics;
+        chainTopics = newChainTopics;
         dataChanged = true;
       }
     } catch (e) {

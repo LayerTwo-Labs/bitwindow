@@ -61,4 +61,14 @@ void main() {
 
     expect(find.text('double-click to view tx'), findsOneWidget);
   });
+  testWidgets('on a phone Your Topics shows the name, the status and Leave', (tester) async {
+    SailStyleValues.phoneLayoutOverride = true;
+    await pumpTab(tester, 'Your Topics', 358);
+
+    expect(find.text('US Weekly'), findsOneWidget);
+    expect(find.text('a1a1a1a1'), findsNothing);
+    expect(find.text('Pending'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Leave'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
 }

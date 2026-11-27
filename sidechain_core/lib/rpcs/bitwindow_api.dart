@@ -225,6 +225,8 @@ class BitwindowRPCLive extends BitwindowRPC {
       'misc.v1.MiscService/ListCoinNews',
       'misc.v1.MiscService/ListOPReturn',
       'misc.v1.MiscService/ListTopics',
+      'misc.v1.MiscService/ListChainTopics',
+      'misc.v1.MiscService/SetTopicSubscribed',
       'm4.v1.M4Service/GetM4History',
       'm4.v1.M4Service/GetVotes',
       'm4.v1.M4Service/SetBundleUpvote',
@@ -1351,7 +1353,17 @@ abstract class MiscAPI {
   /// Lists the newest 1000 OP_RETURNs that match the request.
   Future<List<OPReturn>> listOPReturns(ListOPReturnRequest request);
   Future<List<CoinNews>> listCoinNews();
+
+  /// Lists the topics that the user subscribes to.
   Future<List<Topic>> listTopics();
+
+  /// Lists each topic in a block or in the mempool, subscribed or not.
+  Future<List<Topic>> listChainTopics();
+
+  /// Subscribes to a topic in a block or in the mempool, or leaves a topic.
+  Future<void> setTopicSubscribed(String topic, bool subscribed);
+
+  /// Broadcasts a topic creation and subscribes to the topic.
   Future<CreateTopicResponse> createTopic(String topic, String name, {int retentionDays = 7});
   Future<BroadcastNewsResponse> broadcastNews(
     String topic,
@@ -1570,6 +1582,32 @@ class _MiscAPILive implements MiscAPI {
       return response.topics;
     } catch (e) {
       final error = 'could not list topics: ${extractConnectException(e)}';
+      throw BitwindowException(error);
+    }
+  }
+
+  @override
+  Future<List<Topic>> listChainTopics() async {
+    try {
+      final response = await _client.listChainTopics(Empty());
+      return response.topics;
+    } catch (e) {
+      final error = 'could not list chain topics: ${extractConnectException(e)}';
+      throw BitwindowException(error);
+    }
+  }
+
+  @override
+  Future<void> setTopicSubscribed(String topic, bool subscribed) async {
+    try {
+      await _client.setTopicSubscribed(
+        SetTopicSubscribedRequest()
+          ..topic = topic
+          ..subscribed = subscribed,
+      );
+    } catch (e) {
+      final verb = subscribed ? 'subscribe to' : 'leave';
+      final error = 'could not $verb topic $topic: ${extractConnectException(e)}';
       throw BitwindowException(error);
     }
   }

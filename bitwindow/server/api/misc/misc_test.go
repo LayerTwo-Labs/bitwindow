@@ -918,7 +918,7 @@ func TestService_ListTopics(t *testing.T) {
 		assert.True(t, proto.Equal(first, second), "first %v, second %v", first, second)
 	})
 
-	t.Run("list topics with data", func(t *testing.T) {
+	t.Run("list subscribed topics with data", func(t *testing.T) {
 		t.Parallel()
 
 		database := database.Test(t)
@@ -927,6 +927,7 @@ func TestService_ListTopics(t *testing.T) {
 		seedCurrentTopic(t, ctx, database, topicID1, "Norway Weekly", 50)
 		topicID2 := validTopicID()
 		seedCurrentTopic(t, ctx, database, topicID2, "Bitcoin Weekly", 51)
+		seedChainTopic(t, ctx, database, validTopicID(), "Other Weekly", 52)
 
 		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
 
@@ -948,6 +949,7 @@ func TestService_ListTopics(t *testing.T) {
 		database := database.Test(t)
 		topicID := validTopicID()
 		txid := persistPendingTopic(t, database, topicID, "Pending Topic")
+		require.NoError(t, opreturns.SetTopicSubscribed(t.Context(), database, topicID, true))
 
 		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, database))
 
@@ -958,6 +960,144 @@ func TestService_ListTopics(t *testing.T) {
 		assert.Equal(t, "Pending Topic", topic.Name)
 		assert.False(t, topic.Confirmed)
 		assert.Equal(t, txid, topic.Txid)
+	})
+}
+
+func TestService_TopicSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	find := func(topics []*miscv1.Topic, topic opreturns.TopicID) (*miscv1.Topic, bool) {
+		return lo.Find(topics, func(tp *miscv1.Topic) bool { return tp.Topic == topic.String() })
+	}
+
+	t.Run("a topic of another user stays out until a subscribe", func(t *testing.T) {
+		t.Parallel()
+
+		db := database.Test(t)
+		ctx := t.Context()
+		other := validTopicID()
+		seedChainTopic(t, ctx, db, other, "Other Weekly", 60)
+		seedCurrentNews(t, ctx, db, other, "Other story", "Body", 61, time.Now())
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+
+		mine, err := cli.ListTopics(ctx, &emptypb.Empty{})
+		require.NoError(t, err)
+		_, ok := find(mine.Topics, other)
+		assert.False(t, ok)
+		assert.True(t, lo.EveryBy(mine.Topics, func(tp *miscv1.Topic) bool { return tp.Subscribed }))
+
+		chain, err := cli.ListChainTopics(ctx, &emptypb.Empty{})
+		require.NoError(t, err)
+		listed, ok := find(chain.Topics, other)
+		require.True(t, ok)
+		assert.False(t, listed.Subscribed)
+		assert.Equal(t, "Other Weekly", listed.Name)
+
+		news, err := cli.ListCoinNews(ctx, &miscv1.ListCoinNewsRequest{})
+		require.NoError(t, err)
+		assert.Empty(t, news.CoinNews)
+
+		_, err = cli.SetTopicSubscribed(ctx, &miscv1.SetTopicSubscribedRequest{Topic: other.String(), Subscribed: true})
+		require.NoError(t, err)
+
+		mine, err = cli.ListTopics(ctx, &emptypb.Empty{})
+		require.NoError(t, err)
+		listed, ok = find(mine.Topics, other)
+		require.True(t, ok)
+		assert.True(t, listed.Subscribed)
+		news, err = cli.ListCoinNews(ctx, &miscv1.ListCoinNewsRequest{})
+		require.NoError(t, err)
+		require.Len(t, news.CoinNews, 1)
+		assert.Equal(t, "Other story", news.CoinNews[0].Headline)
+
+		_, err = cli.SetTopicSubscribed(ctx, &miscv1.SetTopicSubscribedRequest{Topic: other.String()})
+		require.NoError(t, err)
+		mine, err = cli.ListTopics(ctx, &emptypb.Empty{})
+		require.NoError(t, err)
+		_, ok = find(mine.Topics, other)
+		assert.False(t, ok)
+		news, err = cli.ListCoinNews(ctx, &miscv1.ListCoinNewsRequest{})
+		require.NoError(t, err)
+		assert.Empty(t, news.CoinNews)
+	})
+
+	t.Run("leave a default topic", func(t *testing.T) {
+		t.Parallel()
+
+		db := database.Test(t)
+		ctx := t.Context()
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+
+		_, err := cli.SetTopicSubscribed(ctx, &miscv1.SetTopicSubscribedRequest{Topic: "a1a1a1a1"})
+		require.NoError(t, err)
+
+		mine, err := cli.ListTopics(ctx, &emptypb.Empty{})
+		require.NoError(t, err)
+		require.Len(t, mine.Topics, 1)
+		assert.Equal(t, "a2a2a2a2", mine.Topics[0].Topic)
+	})
+
+	t.Run("subscribe to a topic in the mempool", func(t *testing.T) {
+		t.Parallel()
+
+		db := database.Test(t)
+		ctx := t.Context()
+		topicID := validTopicID()
+		persistPendingTopic(t, db, topicID, "Pending Topic")
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+
+		_, err := cli.SetTopicSubscribed(ctx, &miscv1.SetTopicSubscribedRequest{Topic: topicID.String(), Subscribed: true})
+		require.NoError(t, err)
+
+		mine, err := cli.ListTopics(ctx, &emptypb.Empty{})
+		require.NoError(t, err)
+		listed, ok := find(mine.Topics, topicID)
+		require.True(t, ok)
+		assert.False(t, listed.Confirmed)
+	})
+
+	t.Run("reject a subscribe to a topic that no one created", func(t *testing.T) {
+		t.Parallel()
+
+		db := database.Test(t)
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+
+		_, err := cli.SetTopicSubscribed(t.Context(), &miscv1.SetTopicSubscribedRequest{Topic: "c3c3c3c3", Subscribed: true})
+		require.ErrorContains(t, err, "no topic c3c3c3c3 is in a block or in the mempool")
+		require.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+	})
+
+	t.Run("reject a bad topic ID", func(t *testing.T) {
+		t.Parallel()
+
+		db := database.Test(t)
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db))
+
+		_, err := cli.SetTopicSubscribed(t.Context(), &miscv1.SetTopicSubscribedRequest{Topic: "c3c3"})
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	})
+
+	t.Run("create a topic and subscribe to it", func(t *testing.T) {
+		t.Parallel()
+
+		mockOrch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
+		apitests.ExpectOrchestratorReads(mockOrch)
+		mockOrch.EXPECT().SendTransaction(gomock.Any(), gomock.Any()).
+			Return(&orchpb.SendTransactionResponse{Txid: "test-txid"}, nil)
+		db := database.Test(t)
+		ctx := t.Context()
+		topicID := validTopicID()
+		cli := miscv1connect.NewMiscServiceClient(apitests.RPC(t, db, apitests.WithOrchestrator(mockOrch)))
+
+		_, err := cli.CreateTopic(ctx, &miscv1.CreateTopicRequest{Topic: topicID.String(), Name: "New Topic", RetentionDays: 7})
+		require.NoError(t, err)
+		persistPendingTopic(t, db, topicID, "New Topic")
+
+		mine, err := cli.ListTopics(ctx, &emptypb.Empty{})
+		require.NoError(t, err)
+		listed, ok := find(mine.Topics, topicID)
+		require.True(t, ok)
+		assert.True(t, listed.Subscribed)
 	})
 }
 
@@ -1154,7 +1294,18 @@ func TestService_ListCoinNews(t *testing.T) {
 	})
 }
 
+// seedCurrentTopic indexes a topic creation and subscribes to the topic.
 func seedCurrentTopic(
+	t *testing.T, ctx context.Context, db *sql.DB,
+	topic opreturns.TopicID, name string, height int,
+) {
+	t.Helper()
+	seedChainTopic(t, ctx, db, topic, name, height)
+	require.NoError(t, opreturns.SetTopicSubscribed(ctx, db, topic, true))
+}
+
+// seedChainTopic indexes a topic creation of another user.
+func seedChainTopic(
 	t *testing.T, ctx context.Context, db *sql.DB,
 	topic opreturns.TopicID, name string, height int,
 ) {

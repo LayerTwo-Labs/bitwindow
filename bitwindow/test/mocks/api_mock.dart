@@ -519,6 +519,15 @@ class MockMiscAPI implements MiscAPI {
     return [];
   }
 
+  /// The topics of [listTopics], each subscribed.
+  @override
+  Future<List<Topic>> listChainTopics() async {
+    return [for (final topic in await listTopics()) topic.deepCopy()..subscribed = true];
+  }
+
+  @override
+  Future<void> setTopicSubscribed(String topic, bool subscribed) async {}
+
   @override
   Future<TimestampFileResponse> timestampFile(String filename, List<int> fileData) async {
     return TimestampFileResponse();

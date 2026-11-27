@@ -259,6 +259,9 @@ func (s *Server) CreateTopic(ctx context.Context, req *miscv1.CreateTopicRequest
 	if err != nil {
 		return nil, fmt.Errorf("broadcast topic creation: %w", err)
 	}
+	if err := opreturns.SetTopicSubscribed(ctx, s.database, topicID, true); err != nil {
+		return nil, fmt.Errorf("subscribe to topic %s of txid %s: %w", topicID, txid, err)
+	}
 
 	log := zerolog.Ctx(ctx)
 	log.Info().
@@ -289,6 +292,18 @@ func topicPayload(topic opreturns.TopicID, name string, retentionDays int32) ([]
 
 // ListTopics implements miscv1connect.MiscServiceHandler.
 func (s *Server) ListTopics(ctx context.Context, req *emptypb.Empty) (*miscv1.ListTopicsResponse, error) {
+	topics, err := subscribedTopics(ctx, s.database)
+	if err != nil {
+		return nil, err
+	}
+
+	return &miscv1.ListTopicsResponse{
+		Topics: lo.Map(topics, topicToProto),
+	}, nil
+}
+
+// ListChainTopics implements miscv1connect.MiscServiceHandler.
+func (s *Server) ListChainTopics(ctx context.Context, req *emptypb.Empty) (*miscv1.ListTopicsResponse, error) {
 	topics, err := opreturns.ListTopics(ctx, s.database)
 	if err != nil {
 		return nil, err
@@ -299,6 +314,36 @@ func (s *Server) ListTopics(ctx context.Context, req *emptypb.Empty) (*miscv1.Li
 	}, nil
 }
 
+// SetTopicSubscribed implements miscv1connect.MiscServiceHandler.
+func (s *Server) SetTopicSubscribed(ctx context.Context, req *miscv1.SetTopicSubscribedRequest) (*emptypb.Empty, error) {
+	topicID, err := opreturns.ValidNewsTopicID(req.Topic)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
+	}
+	if req.Subscribed {
+		exists, err := opreturns.TopicExists(ctx, s.database, topicID)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			err := fmt.Errorf("no topic %s is in a block or in the mempool", topicID)
+			return nil, connect.NewError(connect.CodeNotFound, err.Error()).WithCause(err)
+		}
+	}
+	if err := opreturns.SetTopicSubscribed(ctx, s.database, topicID, req.Subscribed); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func subscribedTopics(ctx context.Context, db *sql.DB) ([]opreturns.Topic, error) {
+	topics, err := opreturns.ListTopics(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	return lo.Filter(topics, func(t opreturns.Topic, _ int) bool { return t.Subscribed }), nil
+}
+
 func topicToProto(topic opreturns.Topic, _ int) *miscv1.Topic {
 	out := &miscv1.Topic{
 		Id:            topic.ID,
@@ -307,6 +352,7 @@ func topicToProto(topic opreturns.Topic, _ int) *miscv1.Topic {
 		Confirmed:     topic.Confirmed,
 		Txid:          topic.Txid,
 		RetentionDays: topic.RetentionDays,
+		Subscribed:    topic.Subscribed,
 	}
 	if !topic.CreatedAt.IsZero() {
 		out.CreateTime = timestamppb.New(topic.CreatedAt)
@@ -324,7 +370,8 @@ func (s *Server) ListCoinNews(ctx context.Context, req *miscv1.ListCoinNewsReque
 	if err != nil {
 		return nil, err
 	}
-	topics := lo.Map(known, func(t opreturns.Topic, _ int) opreturns.TopicID { return t.Topic })
+	subscribed := lo.Filter(known, func(t opreturns.Topic, _ int) bool { return t.Subscribed })
+	topics := lo.Map(subscribed, func(t opreturns.Topic, _ int) opreturns.TopicID { return t.Topic })
 	if req.Topic != nil {
 		topicID, err := opreturns.ValidNewsTopicID(*req.Topic)
 		if err != nil {

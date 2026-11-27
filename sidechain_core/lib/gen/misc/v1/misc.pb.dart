@@ -657,6 +657,7 @@ class Topic extends $pb.GeneratedMessage {
     $core.bool? confirmed,
     $core.String? txid,
     $core.int? retentionDays,
+    $core.bool? subscribed,
   }) {
     final result = Topic._();
     if (id != null) result.id = id;
@@ -666,6 +667,7 @@ class Topic extends $pb.GeneratedMessage {
     if (confirmed != null) result.confirmed = confirmed;
     if (txid != null) result.txid = txid;
     if (retentionDays != null) result.retentionDays = retentionDays;
+    if (subscribed != null) result.subscribed = subscribed;
     return result;
   }
 
@@ -686,6 +688,7 @@ class Topic extends $pb.GeneratedMessage {
     ..aOB(5, _omitFieldNames ? '' : 'confirmed')
     ..aOS(6, _omitFieldNames ? '' : 'txid')
     ..aI(7, _omitFieldNames ? '' : 'retentionDays')
+    ..aOB(8, _omitFieldNames ? '' : 'subscribed')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -773,6 +776,16 @@ class Topic extends $pb.GeneratedMessage {
   $core.bool hasRetentionDays() => $_has(6);
   @$pb.TagNumber(7)
   void clearRetentionDays() => $_clearField(7);
+
+  /// True for a topic that the user subscribes to.
+  @$pb.TagNumber(8)
+  $core.bool get subscribed => $_getBF(7);
+  @$pb.TagNumber(8)
+  set subscribed($core.bool value) => $_setBool(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasSubscribed() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearSubscribed() => $_clearField(8);
 }
 
 class ListTopicsResponse extends $pb.GeneratedMessage {
@@ -821,6 +834,72 @@ class ListTopicsResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $pb.PbList<Topic> get topics => $_getList(0);
+}
+
+class SetTopicSubscribedRequest extends $pb.GeneratedMessage {
+  factory SetTopicSubscribedRequest({
+    $core.String? topic,
+    $core.bool? subscribed,
+  }) {
+    final result = SetTopicSubscribedRequest._();
+    if (topic != null) result.topic = topic;
+    if (subscribed != null) result.subscribed = subscribed;
+    return result;
+  }
+
+  SetTopicSubscribedRequest._();
+
+  factory SetTopicSubscribedRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SetTopicSubscribedRequest()..mergeFromBuffer(data, registry);
+  factory SetTopicSubscribedRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SetTopicSubscribedRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetTopicSubscribedRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'misc.v1'),
+      createEmptyInstance: SetTopicSubscribedRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'topic')
+    ..aOB(2, _omitFieldNames ? '' : 'subscribed')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetTopicSubscribedRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SetTopicSubscribedRequest copyWith(void Function(SetTopicSubscribedRequest) updates) =>
+      super.copyWith((message) => updates(message as SetTopicSubscribedRequest)) as SetTopicSubscribedRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SetTopicSubscribedRequest() / SetTopicSubscribedRequest.new instead')
+  static SetTopicSubscribedRequest create() => SetTopicSubscribedRequest._();
+  static $pb.GeneratedMessage $_createMessage() => SetTopicSubscribedRequest._();
+  @$core.override
+  SetTopicSubscribedRequest createEmptyInstance() => SetTopicSubscribedRequest._();
+  @$core.pragma('dart2js:noInline')
+  static SetTopicSubscribedRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SetTopicSubscribedRequest>(SetTopicSubscribedRequest.$_createMessage);
+  static SetTopicSubscribedRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get topic => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set topic($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTopic() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTopic() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get subscribed => $_getBF(1);
+  @$pb.TagNumber(2)
+  set subscribed($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSubscribed() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSubscribed() => $_clearField(2);
 }
 
 class EstimateNewsFeeRequest extends $pb.GeneratedMessage {
@@ -2306,10 +2385,22 @@ class MiscServiceApi {
       _client.invoke<ListOPReturnResponse>(ctx, 'MiscService', 'ListOPReturn', request, ListOPReturnResponse());
   $async.Future<BroadcastNewsResponse> broadcastNews($pb.ClientContext? ctx, BroadcastNewsRequest request) =>
       _client.invoke<BroadcastNewsResponse>(ctx, 'MiscService', 'BroadcastNews', request, BroadcastNewsResponse());
+
+  /// Broadcasts a topic creation and subscribes to the topic.
   $async.Future<CreateTopicResponse> createTopic($pb.ClientContext? ctx, CreateTopicRequest request) =>
       _client.invoke<CreateTopicResponse>(ctx, 'MiscService', 'CreateTopic', request, CreateTopicResponse());
+
+  /// Lists the topics that the user subscribes to.
   $async.Future<ListTopicsResponse> listTopics($pb.ClientContext? ctx, $1.Empty request) =>
       _client.invoke<ListTopicsResponse>(ctx, 'MiscService', 'ListTopics', request, ListTopicsResponse());
+
+  /// Lists each topic in a block or in the mempool, subscribed or not.
+  $async.Future<ListTopicsResponse> listChainTopics($pb.ClientContext? ctx, $1.Empty request) =>
+      _client.invoke<ListTopicsResponse>(ctx, 'MiscService', 'ListChainTopics', request, ListTopicsResponse());
+
+  /// Subscribes to a topic in a block or in the mempool, or leaves a topic.
+  $async.Future<$1.Empty> setTopicSubscribed($pb.ClientContext? ctx, SetTopicSubscribedRequest request) =>
+      _client.invoke<$1.Empty>(ctx, 'MiscService', 'SetTopicSubscribed', request, $1.Empty());
   $async.Future<ListCoinNewsResponse> listCoinNews($pb.ClientContext? ctx, ListCoinNewsRequest request) =>
       _client.invoke<ListCoinNewsResponse>(ctx, 'MiscService', 'ListCoinNews', request, ListCoinNewsResponse());
 

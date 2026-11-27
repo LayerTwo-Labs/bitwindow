@@ -392,6 +392,8 @@ type Topic struct {
 	Confirmed     bool
 	Txid          string
 	RetentionDays int32
+	// Subscribed is true for a topic that the user subscribes to.
+	Subscribed bool
 
 	// CreatedAt is zero for a topic with no known creation time.
 	CreatedAt time.Time
@@ -426,7 +428,7 @@ func Outdated(blockTime time.Time, retentionDays int32, now time.Time) bool {
 }
 
 // ListTopics returns the confirmed topics, then each topic whose creation
-// waits in the mempool. The earliest creation of a topic wins.
+// waits in the mempool, subscribed or not. The earliest creation of a topic wins.
 func ListTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
 	topics, err := listConfirmedTopics(ctx, db)
 	if err != nil {
@@ -444,7 +446,47 @@ func ListTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {
 		known[topic.Topic] = true
 		topics = append(topics, topic)
 	}
+	subscribed, err := subscribedTopics(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	for i := range topics {
+		topics[i].Subscribed = subscribed[topics[i].Topic]
+	}
 	return topics, nil
+}
+
+func subscribedTopics(ctx context.Context, db *sql.DB) (map[TopicID]bool, error) {
+	rows, err := db.QueryContext(ctx, `SELECT topic FROM cn_subscriptions`)
+	if err != nil {
+		return nil, fmt.Errorf("list subscriptions: query: %w", err)
+	}
+	defer database.SafeDefer(ctx, rows.Close)
+
+	out := map[TopicID]bool{}
+	for rows.Next() {
+		var topic TopicID
+		if err := rows.Scan(&topic); err != nil {
+			return nil, fmt.Errorf("list subscriptions: scan: %w", err)
+		}
+		out[topic] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list subscriptions: iterate: %w", err)
+	}
+	return out, nil
+}
+
+// SetTopicSubscribed adds the topic to the subscriptions, or removes it.
+func SetTopicSubscribed(ctx context.Context, db *sql.DB, topic TopicID, subscribed bool) error {
+	query := `DELETE FROM cn_subscriptions WHERE topic = ?`
+	if subscribed {
+		query = `INSERT OR IGNORE INTO cn_subscriptions (topic) VALUES (?)`
+	}
+	if _, err := db.ExecContext(ctx, query, topic[:]); err != nil {
+		return fmt.Errorf("set topic %s subscribed=%t: %w", topic, subscribed, err)
+	}
+	return nil
 }
 
 func listConfirmedTopics(ctx context.Context, db *sql.DB) ([]Topic, error) {

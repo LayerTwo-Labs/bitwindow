@@ -1,5 +1,6 @@
 import 'package:bitwindow/pages/overview_page.dart';
 import 'package:bitwindow/providers/news_provider.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,15 +39,41 @@ class RecordingMisc extends MockMiscAPI {
     return NewsFeeEstimate(vsize: vsize, feeSatPerVbyte: 21, feeSats: 21 * vsize);
   }
 
+  final chain = [
+    Topic(topic: 'a1a1a1a1', name: 'Saved Topic', confirmed: true),
+    Topic(topic: 'a3a3a3a3', name: 'Waiting Topic'),
+    Topic(topic: 'c3c3c3c3', name: 'Other Topic', confirmed: true),
+  ];
+  final subscribed = {'a1a1a1a1', 'a3a3a3a3'};
+  final subscriptions = <(String, bool)>[];
+  bool failSubscribe = false;
+
   @override
   Future<List<Topic>> listTopics() async {
     if (failTopics) {
       throw StateError('Topics unavailable');
     }
     return [
-      Topic(topic: 'a1a1a1a1', name: 'Saved Topic', confirmed: true),
-      Topic(topic: 'a3a3a3a3', name: 'Waiting Topic'),
+      for (final topic in chain)
+        if (subscribed.contains(topic.topic)) topic.deepCopy()..subscribed = true,
     ];
+  }
+
+  @override
+  Future<List<Topic>> listChainTopics() async {
+    if (failTopics) {
+      throw StateError('Topics unavailable');
+    }
+    return [for (final topic in chain) topic.deepCopy()..subscribed = subscribed.contains(topic.topic)];
+  }
+
+  @override
+  Future<void> setTopicSubscribed(String topic, bool subscribed) async {
+    if (failSubscribe) {
+      throw BitwindowException('could not leave topic $topic: database is locked');
+    }
+    subscriptions.add((topic, subscribed));
+    subscribed ? this.subscribed.add(topic) : this.subscribed.remove(topic);
   }
 
   @override
@@ -329,5 +356,111 @@ void main() {
     expect(find.text('Network fee: unknown.'), findsOneWidget);
     await tester.tap(button('Cancel'));
     await settle(tester);
+  });
+  testWidgets('Your Topics lists only subscribed topics and Leave removes one', (tester) async {
+    final api = await open(tester);
+    expect(find.text('Saved Topic'), findsOneWidget);
+    expect(find.text('Other Topic'), findsNothing);
+
+    await tester.tap(button('Leave').first);
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+
+    expect(api.subscriptions, [('a1a1a1a1', false)]);
+    expect(api.sent, isEmpty);
+    expect(find.text('Saved Topic'), findsNothing);
+    expect(find.text('Waiting Topic'), findsOneWidget);
+    expect(GetIt.I<NewsProvider>().topics.map((t) => t.topic), ['a3a3a3a3']);
+  });
+
+  testWidgets('Leave shows why it failed and keeps the topic', (tester) async {
+    final api = await open(tester);
+    api.failSubscribe = true;
+
+    await tester.tap(button('Leave').first);
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Could not leave Saved Topic. could not leave topic a1a1a1a1: database is locked'),
+      findsOneWidget,
+    );
+    expect(find.text('Saved Topic'), findsOneWidget);
+  });
+
+  testWidgets('Subscribe adds a topic on the chain at no cost', (tester) async {
+    final api = await open(tester);
+    await typeUrl(tester, '7{C3C3C3C3}Other Topic');
+
+    expect(find.text('Other Topic (c3c3c3c3) is on the chain. Add subscribes to it at no cost.'), findsOneWidget);
+    expect(api.priced, isEmpty);
+
+    await tester.tap(button('Add'));
+    await settle(tester);
+
+    expect(api.subscriptions, [('c3c3c3c3', true)]);
+    expect(api.sent, isEmpty);
+    expect(GetIt.I<NewsProvider>().topics.map((t) => t.topic), contains('c3c3c3c3'));
+    expect(find.text('Other topics on the chain:'), findsNothing);
+  });
+
+  testWidgets('Subscribe lists the other topics on the chain, each with Subscribe', (tester) async {
+    final api = await open(tester);
+    await tester.tap(find.text('Subscribe'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Other topics on the chain:'), findsOneWidget);
+    expect(find.text('Other Topic'), findsOneWidget);
+    expect(find.text('Saved Topic'), findsNothing);
+
+    await tester.tap(button('Subscribe').last);
+    await settle(tester);
+
+    expect(api.subscriptions, [('c3c3c3c3', true)]);
+    expect(api.sent, isEmpty);
+    expect(find.text('Other topics on the chain:'), findsNothing);
+  });
+
+  testWidgets('Import subscribes to a topic on the chain and creates only the new one', (tester) async {
+    final api = await open(tester);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') {
+        return {'text': '7{c3c3c3c3}Other Topic\n5{e5e5e5e5}QA Imported'};
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await tester.tap(button('Import'));
+    await openDialog(tester);
+
+    expect(find.text('Create 1 topic?'), findsOneWidget);
+    expect(find.textContaining('Other Topic'), findsNothing);
+    await tester.tap(button('Create 1 topic'));
+    await settle(tester);
+
+    expect(api.subscriptions, [('c3c3c3c3', true)]);
+    expect(api.sent, [('e5e5e5e5', 5)]);
+  });
+
+  testWidgets('Import of topics on the chain asks nothing', (tester) async {
+    final api = await open(tester);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') {
+        return {'text': '7{c3c3c3c3}Other Topic'};
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await tester.tap(button('Import'));
+    await settle(tester);
+
+    expect(find.textContaining('Create 1'), findsNothing);
+    expect(api.subscriptions, [('c3c3c3c3', true)]);
+    expect(api.priced, isEmpty);
+    expect(api.sent, isEmpty);
   });
 }
