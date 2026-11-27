@@ -31,7 +31,6 @@ import 'package:bitwindow/widgets/node_mode_chip.dart';
 import 'package:bitwindow/widgets/datadir_network_notice.dart';
 import 'package:bitwindow/widgets/ecash_migration_dialog.dart';
 import 'package:bitwindow/widgets/edit_wallet_flow.dart';
-import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:bitwindow/widgets/fork_countdown_timer.dart';
 import 'package:bitwindow/widgets/proof_of_funds_modal.dart';
 import 'package:bitwindow/providers/blockchain_provider.dart';
@@ -956,8 +955,16 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
                                     return;
                                   }
 
-                                  final log = GetIt.I.get<Logger>();
-                                  log.i('Switching to wallet: $walletId');
+                                  void showSwitchError(Object e) {
+                                    GetIt.I.get<Logger>().e('Failed to switch wallet: $e');
+                                    if (mounted) {
+                                      showSailToast(
+                                        this.context,
+                                        'Could not switch wallet: ${extractConnectException(e)}',
+                                        variant: SailToastVariant.destructive,
+                                      );
+                                    }
+                                  }
 
                                   // Resolve anything the backend needs from the
                                   // user before the spinner goes up.
@@ -966,62 +973,26 @@ class _RootPageState extends State<RootPage> with WidgetsBindingObserver, Window
                                     switchDataDir = await _walletReader.resolveSwitchRequirements(context, walletId);
                                   } on NetworkChangeDeclined {
                                     return;
+                                  } catch (e) {
+                                    showSwitchError(e);
+                                    return;
                                   }
 
-                                  // Show loading immediately and schedule the actual switch
                                   setState(() => _isWalletSwitching = true);
-
-                                  // Run the switch in a microtask to allow UI to update first
-                                  await Future.microtask(() async {
-                                    try {
-                                      if (!mounted) {
-                                        return;
-                                      }
-                                      // Clear previous wallet data FIRST
-                                      GetIt.I.get<TransactionProvider>().clear();
-                                      GetIt.I.get<BalanceProvider>().clear();
-
-                                      // Step 1: Switch the active wallet (updates UI immediately)
-                                      log.i('Step 1: Switching active wallet');
-                                      await _walletReader
-                                          .switchWallet(walletId, dataDir: switchDataDir)
-                                          .timeout(
-                                            const Duration(minutes: 5),
-                                            onTimeout: () => throw TimeoutException('switchWallet timed out'),
-                                          );
-                                      log.i('Step 1: Complete');
-
-                                      // Reset providers in background
-                                      unawaited(() async {
-                                        try {
-                                          log.i('Step 2: Refreshing balance provider');
-                                          final balanceProvider = GetIt.I.get<BalanceProvider>();
-                                          await balanceProvider.fetch();
-                                          log.i('Step 2: Complete');
-                                        } catch (e) {
-                                          log.w('Step 2: Failed to refresh balance: $e');
-                                        }
-
-                                        try {
-                                          log.i('Step 3: Refreshing transaction provider');
-                                          final transactionProvider = GetIt.I.get<TransactionProvider>();
-                                          await transactionProvider.fetch();
-                                          log.i('Step 3: Complete');
-                                        } catch (e) {
-                                          log.w('Step 3: Failed to refresh transactions: $e');
-                                        }
-                                      }());
-
-                                      log.i('Wallet switch complete (background tasks continuing)');
-                                    } catch (e, stack) {
-                                      log.e('Failed to switch wallet: $e\n$stack');
-                                    } finally {
-                                      // Hide loading after core operations complete
-                                      if (mounted) {
-                                        setState(() => _isWalletSwitching = false);
-                                      }
+                                  try {
+                                    await _walletReader
+                                        .switchWallet(walletId, dataDir: switchDataDir)
+                                        .timeout(
+                                          const Duration(minutes: 5),
+                                          onTimeout: () => throw TimeoutException('switchWallet timed out'),
+                                        );
+                                  } catch (e) {
+                                    showSwitchError(e);
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() => _isWalletSwitching = false);
                                     }
-                                  });
+                                  }
                                 },
                                 onCreateWallet: () async {
                                   await GetIt.I.get<AppRouter>().push(CreateAnotherWalletRoute());
