@@ -173,11 +173,14 @@ void showArticleDetails(
   );
 }
 
-String expectedReadTime(String markdown) {
-  final words = markdown.split(' ').length;
+/// Minutes to read [text] at 200 words a minute, at least 1.
+int readTimeMinutes(String text) {
+  final words = RegExp(r'\S+').allMatches(text).length;
   final minutes = (words / 200).ceil();
-  return '$minutes min';
+  return minutes < 1 ? 1 : minutes;
 }
+
+String expectedReadTime(String markdown) => '${readTimeMinutes(markdown)} min';
 
 class Article {
   final String title;
