@@ -264,6 +264,7 @@ func TestGetWalletInfo(t *testing.T) {
 	require.Equal(t, "Alpha", active.Name)
 
 	_, err = engine.GetWalletInfo(t.Context(), "missing")
+	require.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	require.ErrorContains(t, err, "wallet missing not found")
 }
 
@@ -272,8 +273,24 @@ func TestGetWalletInfoWhileLocked(t *testing.T) {
 	orch.EXPECT().ListWallets(gomock.Any(), gomock.Any()).
 		Return(&orchpb.ListWalletsResponse{ActiveWalletId: "a"}, nil)
 
+	orch.EXPECT().GetWalletStatus(gomock.Any(), gomock.Any()).
+		Return(&orchpb.GetWalletStatusResponse{State: orchpb.WalletState_WALLET_STATE_LOCKED}, nil)
+
 	_, err := engine.GetWalletInfo(t.Context(), "a")
-	require.ErrorContains(t, err, "no wallet is unlocked")
+	require.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
+	require.EqualError(t, err, "failed_precondition: wallet is locked")
+}
+
+func TestGetWalletInfoWithNoWallet(t *testing.T) {
+	engine, orch := newSeedTestEngine(t)
+	orch.EXPECT().ListWallets(gomock.Any(), gomock.Any()).
+		Return(&orchpb.ListWalletsResponse{}, nil)
+	orch.EXPECT().GetWalletStatus(gomock.Any(), gomock.Any()).
+		Return(&orchpb.GetWalletStatusResponse{State: orchpb.WalletState_WALLET_STATE_NO_WALLET}, nil)
+
+	_, err := engine.GetWalletInfo(t.Context(), "a")
+	require.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
+	require.EqualError(t, err, "failed_precondition: no wallet exists")
 }
 
 func TestWalletEngineLockState(t *testing.T) {
