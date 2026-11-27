@@ -1,10 +1,13 @@
 package wallet
 
 import (
+	"encoding/hex"
+	"fmt"
 	"math"
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/wire"
 )
 
 // dustRelayFeeRate is Bitcoin Core's fixed dust relay fee (sat/vB). Dust is
@@ -93,11 +96,32 @@ func p2shMultisigInputVsize(threshold, nKeys int) int {
 }
 
 // outputVsize is the serialized vbytes of one output.
-func outputVsize(o TxOutSpec, net *chaincfg.Params) int {
+func outputVsize(o TxOutSpec, net *chaincfg.Params) (int, error) {
 	if o.OpReturnHex != "" {
-		return 8 + 1 + 2 + len(o.OpReturnHex)/2 // value + scriptlen + OP_RETURN + pushlen + data
+		data, err := hex.DecodeString(o.OpReturnHex)
+		if err != nil {
+			return 0, fmt.Errorf("decode op_return hex: %w", err)
+		}
+		script, err := opReturnScript(data)
+		if err != nil {
+			return 0, fmt.Errorf("build op_return script: %w", err)
+		}
+		return wire.NewTxOut(0, script).SerializeSize(), nil
 	}
-	return 8 + 1 + scriptPubKeyLen(addressKind(o.Address, net))
+	return 8 + 1 + scriptPubKeyLen(addressKind(o.Address, net)), nil
+}
+
+// outputsVsize is the serialized vbytes of the outputs.
+func outputsVsize(outputs []TxOutSpec, net *chaincfg.Params) (int, error) {
+	total := 0
+	for _, o := range outputs {
+		size, err := outputVsize(o, net)
+		if err != nil {
+			return 0, err
+		}
+		total += size
+	}
+	return total, nil
 }
 
 // outputVsizeForKind sizes an output of a script kind (used for the wallet's

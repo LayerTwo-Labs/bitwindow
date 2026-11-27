@@ -1360,7 +1360,10 @@ func (p *CoreBackend) coinOrderInputs(
 		return nil, err
 	}
 	totalSats := lo.Sum(lo.Values(req.DestinationsSats))
-	outVsize := lo.SumBy(outputs, func(o TxOutSpec) int { return outputVsize(o, p.net()) })
+	outVsize, err := outputsVsize(outputs, p.net())
+	if err != nil {
+		return nil, err
+	}
 	// Core picks the change type from the destinations, so size it as the largest.
 	changeVsize := outputVsizeForKind(ScriptTaproot)
 	var sizeErr error

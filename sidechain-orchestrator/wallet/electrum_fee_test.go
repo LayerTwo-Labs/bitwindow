@@ -181,3 +181,21 @@ func TestElectrumSendWithAFixedFeeNeedsNoEstimate(t *testing.T) {
 	require.Len(t, fake.broadcast, 1)
 	assert.Zero(t, fake.feeCalls, "a fixed fee needs no estimate")
 }
+
+// An OP_RETURN payload of any size pays at least the rate the chain answered.
+func TestElectrumSendOpReturnPaysTheRateAtEachSize(t *testing.T) {
+	for _, size := range []int{40, 75, 76, 120, 255, 256, 600, 2000} {
+		p, fake, w, addr := newElectrumFixture(t)
+		fundFeeTestWallet(fake, addr)
+		fake.feeRate = 1
+
+		_, err := p.Send(context.Background(), w.ID, SendRequest{
+			OpReturnHex: hex.EncodeToString(bytes.Repeat([]byte{'n'}, size)),
+		})
+		require.NoError(t, err, "payload of %d bytes", size)
+		require.Len(t, fake.broadcast, 1)
+		rate := broadcastFeeRate(t, fake.broadcast[0])
+		assert.GreaterOrEqual(t, rate, 1.0, "payload of %d bytes", size)
+		assert.InDelta(t, 1.0, rate, 0.01, "payload of %d bytes", size)
+	}
+}

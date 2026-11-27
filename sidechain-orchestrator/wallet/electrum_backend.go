@@ -1149,6 +1149,10 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 		return nil, nil, nil, err
 	}
 	inVsize := walletInputVsize(d)
+	outputsSize, err := outputsVsize(outputs, net)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	changeDust := dustThreshold(d.Kind)
 	withChange := true
 	feeSats := func(in []electrumUTXO) int64 {
@@ -1164,10 +1168,7 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 				inTotal += inVsize
 			}
 		}
-		outVsize := 0
-		for _, o := range outputs {
-			outVsize += outputVsize(o, net)
-		}
+		outVsize := outputsSize
 		if withChange {
 			outVsize += outputVsizeForKind(d.Kind)
 		}
