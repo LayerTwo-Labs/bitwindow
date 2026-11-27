@@ -591,7 +591,7 @@ func (h *BMMHandler) CreateBid(
 		Replaceable:    true,
 	}
 	if byRate {
-		sendReq.FeeRateSatPerVbyte = int64(math.Ceil(req.FeeRateSatVb))
+		sendReq.FeeRateSatPerVbyte = req.FeeRateSatVb
 	} else {
 		sendReq.FixedFeeSats = bidSats
 	}

@@ -1312,7 +1312,7 @@ const SendTransactionRequest$json = {
       '6': '.walletmanager.v1.SendTransactionRequest.DestinationsEntry',
       '10': 'destinations'
     },
-    {'1': 'fee_rate_sat_per_vbyte', '3': 3, '4': 1, '5': 3, '10': 'feeRateSatPerVbyte'},
+    {'1': 'fee_rate_sat_per_vbyte', '3': 3, '4': 1, '5': 1, '10': 'feeRateSatPerVbyte'},
     {'1': 'subtract_fee_from_amount', '3': 4, '4': 1, '5': 8, '10': 'subtractFeeFromAmount'},
     {'1': 'op_return_hex', '3': 5, '4': 1, '5': 9, '10': 'opReturnHex'},
     {'1': 'fixed_fee_sats', '3': 6, '4': 1, '5': 3, '10': 'fixedFeeSats'},
@@ -1352,7 +1352,7 @@ final $typed_data.Uint8List sendTransactionRequestDescriptor =
     $convert.base64Decode('ChZTZW5kVHJhbnNhY3Rpb25SZXF1ZXN0EhsKCXdhbGxldF9pZBgBIAEoCVIId2FsbGV0SWQSXg'
         'oMZGVzdGluYXRpb25zGAIgAygLMjoud2FsbGV0bWFuYWdlci52MS5TZW5kVHJhbnNhY3Rpb25S'
         'ZXF1ZXN0LkRlc3RpbmF0aW9uc0VudHJ5UgxkZXN0aW5hdGlvbnMSMgoWZmVlX3JhdGVfc2F0X3'
-        'Blcl92Ynl0ZRgDIAEoA1ISZmVlUmF0ZVNhdFBlclZieXRlEjcKGHN1YnRyYWN0X2ZlZV9mcm9t'
+        'Blcl92Ynl0ZRgDIAEoAVISZmVlUmF0ZVNhdFBlclZieXRlEjcKGHN1YnRyYWN0X2ZlZV9mcm9t'
         'X2Ftb3VudBgEIAEoCFIVc3VidHJhY3RGZWVGcm9tQW1vdW50EiIKDW9wX3JldHVybl9oZXgYBS'
         'ABKAlSC29wUmV0dXJuSGV4EiQKDmZpeGVkX2ZlZV9zYXRzGAYgASgDUgxmaXhlZEZlZVNhdHMS'
         'SAoPcmVxdWlyZWRfaW5wdXRzGAcgAygLMh8ud2FsbGV0bWFuYWdlci52MS5VbnNwZW50T3V0cH'
@@ -1362,12 +1362,12 @@ final $typed_data.Uint8List sendTransactionRequestDescriptor =
         'Z2VyLnYxLlJhd091dHB1dFIKcmF3T3V0cHV0cxJICg9leHRlcm5hbF9pbnB1dHMYCiADKAsyHy'
         '53YWxsZXRtYW5hZ2VyLnYxLkV4dGVybmFsSW5wdXRSDmV4dGVybmFsSW5wdXRzEiAKC3JlcGxh'
         'Y2VhYmxlGAsgASgIUgtyZXBsYWNlYWJsZRo/ChFEZXN0aW5hdGlvbnNFbnRyeRIQCgNrZXkYAS'
-        'ABKAlSA2tleRIUCgV2YWx1ZRgCIAEoA1IFdmFsdWU6AjgBOpkCukiVAhqTAQoMc2VuZC5vdXRw'
+        'ABKAlSA2tleRIUCgV2YWx1ZRgCIAEoA1IFdmFsdWU6AjgBOpsCukiXAhqTAQoMc2VuZC5vdXRw'
         'dXRzEix0aGUgcmVxdWVzdCBtdXN0IGluY2x1ZGUgYXQgbGVhc3Qgb25lIG91dHB1dBpVc2l6ZS'
         'h0aGlzLmRlc3RpbmF0aW9ucykgPiAwIHx8IHRoaXMub3BfcmV0dXJuX2hleCAhPSAnJyB8fCBz'
-        'aXplKHRoaXMucmF3X291dHB1dHMpID4gMBp9CglzZW5kLmZlZXMSMnRoZSByZXF1ZXN0IGNhbm'
-        '5vdCBzZXQgYm90aCBmZWUgcmF0ZSBhbmQgZml4ZWQgZmVlGjx0aGlzLmZlZV9yYXRlX3NhdF9w'
-        'ZXJfdmJ5dGUgPD0gMCB8fCB0aGlzLmZpeGVkX2ZlZV9zYXRzIDw9IDBKBAgIEAk=');
+        'aXplKHRoaXMucmF3X291dHB1dHMpID4gMBp/CglzZW5kLmZlZXMSMnRoZSByZXF1ZXN0IGNhbm'
+        '5vdCBzZXQgYm90aCBmZWUgcmF0ZSBhbmQgZml4ZWQgZmVlGj50aGlzLmZlZV9yYXRlX3NhdF9w'
+        'ZXJfdmJ5dGUgPD0gMC4wIHx8IHRoaXMuZml4ZWRfZmVlX3NhdHMgPD0gMEoECAgQCQ==');
 
 @$core.Deprecated('Use sendTransactionResponseDescriptor instead')
 const SendTransactionResponse$json = {
@@ -1394,7 +1394,7 @@ const PreviewSendRequest$json = {
       '6': '.walletmanager.v1.PreviewSendRequest.DestinationsEntry',
       '10': 'destinations'
     },
-    {'1': 'fee_rate_sat_per_vbyte', '3': 3, '4': 1, '5': 3, '10': 'feeRateSatPerVbyte'},
+    {'1': 'fee_rate_sat_per_vbyte', '3': 3, '4': 1, '5': 1, '10': 'feeRateSatPerVbyte'},
     {'1': 'subtract_fee_from_amount', '3': 4, '4': 1, '5': 8, '10': 'subtractFeeFromAmount'},
     {'1': 'required_inputs', '3': 5, '4': 3, '5': 11, '6': '.walletmanager.v1.UnspentOutput', '10': 'requiredInputs'},
     {'1': 'allow_replay', '3': 6, '4': 1, '5': 8, '10': 'allowReplay'},
@@ -1420,7 +1420,7 @@ final $typed_data.Uint8List previewSendRequestDescriptor =
     $convert.base64Decode('ChJQcmV2aWV3U2VuZFJlcXVlc3QSGwoJd2FsbGV0X2lkGAEgASgJUgh3YWxsZXRJZBJaCgxkZX'
         'N0aW5hdGlvbnMYAiADKAsyNi53YWxsZXRtYW5hZ2VyLnYxLlByZXZpZXdTZW5kUmVxdWVzdC5E'
         'ZXN0aW5hdGlvbnNFbnRyeVIMZGVzdGluYXRpb25zEjIKFmZlZV9yYXRlX3NhdF9wZXJfdmJ5dG'
-        'UYAyABKANSEmZlZVJhdGVTYXRQZXJWYnl0ZRI3ChhzdWJ0cmFjdF9mZWVfZnJvbV9hbW91bnQY'
+        'UYAyABKAFSEmZlZVJhdGVTYXRQZXJWYnl0ZRI3ChhzdWJ0cmFjdF9mZWVfZnJvbV9hbW91bnQY'
         'BCABKAhSFXN1YnRyYWN0RmVlRnJvbUFtb3VudBJICg9yZXF1aXJlZF9pbnB1dHMYBSADKAsyHy'
         '53YWxsZXRtYW5hZ2VyLnYxLlVuc3BlbnRPdXRwdXRSDnJlcXVpcmVkSW5wdXRzEiEKDGFsbG93'
         'X3JlcGxheRgGIAEoCFILYWxsb3dSZXBsYXkSKwoRbm90aWZpY2F0aW9uX29ubHkYByABKAhSEG'
@@ -1542,7 +1542,7 @@ const CreatePsbtRequest$json = {
       '6': '.walletmanager.v1.CreatePsbtRequest.DestinationsEntry',
       '10': 'destinations'
     },
-    {'1': 'fee_rate_sat_per_vbyte', '3': 3, '4': 1, '5': 3, '10': 'feeRateSatPerVbyte'},
+    {'1': 'fee_rate_sat_per_vbyte', '3': 3, '4': 1, '5': 1, '10': 'feeRateSatPerVbyte'},
     {'1': 'subtract_fee_from_amount', '3': 4, '4': 1, '5': 8, '10': 'subtractFeeFromAmount'},
     {'1': 'op_return_hex', '3': 5, '4': 1, '5': 9, '10': 'opReturnHex'},
     {'1': 'fixed_fee_sats', '3': 6, '4': 1, '5': 3, '10': 'fixedFeeSats'},
@@ -1573,7 +1573,7 @@ final $typed_data.Uint8List createPsbtRequestDescriptor =
     $convert.base64Decode('ChFDcmVhdGVQc2J0UmVxdWVzdBIbCgl3YWxsZXRfaWQYASABKAlSCHdhbGxldElkElkKDGRlc3'
         'RpbmF0aW9ucxgCIAMoCzI1LndhbGxldG1hbmFnZXIudjEuQ3JlYXRlUHNidFJlcXVlc3QuRGVz'
         'dGluYXRpb25zRW50cnlSDGRlc3RpbmF0aW9ucxIyChZmZWVfcmF0ZV9zYXRfcGVyX3ZieXRlGA'
-        'MgASgDUhJmZWVSYXRlU2F0UGVyVmJ5dGUSNwoYc3VidHJhY3RfZmVlX2Zyb21fYW1vdW50GAQg'
+        'MgASgBUhJmZWVSYXRlU2F0UGVyVmJ5dGUSNwoYc3VidHJhY3RfZmVlX2Zyb21fYW1vdW50GAQg'
         'ASgIUhVzdWJ0cmFjdEZlZUZyb21BbW91bnQSIgoNb3BfcmV0dXJuX2hleBgFIAEoCVILb3BSZX'
         'R1cm5IZXgSJAoOZml4ZWRfZmVlX3NhdHMYBiABKANSDGZpeGVkRmVlU2F0cxJICg9yZXF1aXJl'
         'ZF9pbnB1dHMYByADKAsyHy53YWxsZXRtYW5hZ2VyLnYxLlVuc3BlbnRPdXRwdXRSDnJlcXVpcm'

@@ -4821,7 +4821,7 @@ type SendTransactionRequest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	WalletId              string                 `protobuf:"bytes,1,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`                                                                    // empty = active wallet
 	Destinations          map[string]int64       `protobuf:"bytes,2,rep,name=destinations,proto3" json:"destinations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // address -> satoshis
-	FeeRateSatPerVbyte    int64                  `protobuf:"varint,3,opt,name=fee_rate_sat_per_vbyte,json=feeRateSatPerVbyte,proto3" json:"fee_rate_sat_per_vbyte,omitempty"`                               // 0 = use default
+	FeeRateSatPerVbyte    float64                `protobuf:"fixed64,3,opt,name=fee_rate_sat_per_vbyte,json=feeRateSatPerVbyte,proto3" json:"fee_rate_sat_per_vbyte,omitempty"`                              // 0 = use default
 	SubtractFeeFromAmount bool                   `protobuf:"varint,4,opt,name=subtract_fee_from_amount,json=subtractFeeFromAmount,proto3" json:"subtract_fee_from_amount,omitempty"`
 	// Raw OP_RETURN payload hex.
 	OpReturnHex string `protobuf:"bytes,5,opt,name=op_return_hex,json=opReturnHex,proto3" json:"op_return_hex,omitempty"`
@@ -4895,7 +4895,7 @@ func (x *SendTransactionRequest) GetDestinations() map[string]int64 {
 	return nil
 }
 
-func (x *SendTransactionRequest) GetFeeRateSatPerVbyte() int64 {
+func (x *SendTransactionRequest) GetFeeRateSatPerVbyte() float64 {
 	if x != nil {
 		return x.FeeRateSatPerVbyte
 	}
@@ -5013,7 +5013,7 @@ type PreviewSendRequest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	WalletId              string                 `protobuf:"bytes,1,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`                                                                    // empty = active wallet
 	Destinations          map[string]int64       `protobuf:"bytes,2,rep,name=destinations,proto3" json:"destinations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // address -> satoshis
-	FeeRateSatPerVbyte    int64                  `protobuf:"varint,3,opt,name=fee_rate_sat_per_vbyte,json=feeRateSatPerVbyte,proto3" json:"fee_rate_sat_per_vbyte,omitempty"`                               // must be above 0 for a payment preview
+	FeeRateSatPerVbyte    float64                `protobuf:"fixed64,3,opt,name=fee_rate_sat_per_vbyte,json=feeRateSatPerVbyte,proto3" json:"fee_rate_sat_per_vbyte,omitempty"`                              // must be above 0 for a payment preview
 	SubtractFeeFromAmount bool                   `protobuf:"varint,4,opt,name=subtract_fee_from_amount,json=subtractFeeFromAmount,proto3" json:"subtract_fee_from_amount,omitempty"`
 	RequiredInputs        []*UnspentOutput       `protobuf:"bytes,5,rep,name=required_inputs,json=requiredInputs,proto3" json:"required_inputs,omitempty"`
 	AllowReplay           bool                   `protobuf:"varint,6,opt,name=allow_replay,json=allowReplay,proto3" json:"allow_replay,omitempty"`
@@ -5071,7 +5071,7 @@ func (x *PreviewSendRequest) GetDestinations() map[string]int64 {
 	return nil
 }
 
-func (x *PreviewSendRequest) GetFeeRateSatPerVbyte() int64 {
+func (x *PreviewSendRequest) GetFeeRateSatPerVbyte() float64 {
 	if x != nil {
 		return x.FeeRateSatPerVbyte
 	}
@@ -5482,7 +5482,7 @@ type CreatePsbtRequest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	WalletId              string                 `protobuf:"bytes,1,opt,name=wallet_id,json=walletId,proto3" json:"wallet_id,omitempty"`                                                                    // empty = active wallet
 	Destinations          map[string]int64       `protobuf:"bytes,2,rep,name=destinations,proto3" json:"destinations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // address -> satoshis
-	FeeRateSatPerVbyte    int64                  `protobuf:"varint,3,opt,name=fee_rate_sat_per_vbyte,json=feeRateSatPerVbyte,proto3" json:"fee_rate_sat_per_vbyte,omitempty"`                               // 0 = use default
+	FeeRateSatPerVbyte    float64                `protobuf:"fixed64,3,opt,name=fee_rate_sat_per_vbyte,json=feeRateSatPerVbyte,proto3" json:"fee_rate_sat_per_vbyte,omitempty"`                              // 0 = use default
 	SubtractFeeFromAmount bool                   `protobuf:"varint,4,opt,name=subtract_fee_from_amount,json=subtractFeeFromAmount,proto3" json:"subtract_fee_from_amount,omitempty"`
 	OpReturnHex           string                 `protobuf:"bytes,5,opt,name=op_return_hex,json=opReturnHex,proto3" json:"op_return_hex,omitempty"`
 	FixedFeeSats          int64                  `protobuf:"varint,6,opt,name=fixed_fee_sats,json=fixedFeeSats,proto3" json:"fixed_fee_sats,omitempty"`
@@ -5542,7 +5542,7 @@ func (x *CreatePsbtRequest) GetDestinations() map[string]int64 {
 	return nil
 }
 
-func (x *CreatePsbtRequest) GetFeeRateSatPerVbyte() int64 {
+func (x *CreatePsbtRequest) GetFeeRateSatPerVbyte() float64 {
 	if x != nil {
 		return x.FeeRateSatPerVbyte
 	}
@@ -12176,11 +12176,11 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x15GetNewAddressResponse\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12'\n" +
-	"\x0fderivation_path\x18\x03 \x01(\tR\x0ederivationPath\"\x96\b\n" +
+	"\x0fderivation_path\x18\x03 \x01(\tR\x0ederivationPath\"\x98\b\n" +
 	"\x16SendTransactionRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12^\n" +
 	"\fdestinations\x18\x02 \x03(\v2:.walletmanager.v1.SendTransactionRequest.DestinationsEntryR\fdestinations\x122\n" +
-	"\x16fee_rate_sat_per_vbyte\x18\x03 \x01(\x03R\x12feeRateSatPerVbyte\x127\n" +
+	"\x16fee_rate_sat_per_vbyte\x18\x03 \x01(\x01R\x12feeRateSatPerVbyte\x127\n" +
 	"\x18subtract_fee_from_amount\x18\x04 \x01(\bR\x15subtractFeeFromAmount\x12\"\n" +
 	"\rop_return_hex\x18\x05 \x01(\tR\vopReturnHex\x12$\n" +
 	"\x0efixed_fee_sats\x18\x06 \x01(\x03R\ffixedFeeSats\x12H\n" +
@@ -12194,15 +12194,15 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\vreplaceable\x18\v \x01(\bR\vreplaceable\x1a?\n" +
 	"\x11DestinationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01:\x99\x02\xbaH\x95\x02\x1a\x93\x01\n" +
-	"\fsend.outputs\x12,the request must include at least one output\x1aUsize(this.destinations) > 0 || this.op_return_hex != '' || size(this.raw_outputs) > 0\x1a}\n" +
-	"\tsend.fees\x122the request cannot set both fee rate and fixed fee\x1a<this.fee_rate_sat_per_vbyte <= 0 || this.fixed_fee_sats <= 0J\x04\b\b\x10\t\"-\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01:\x9b\x02\xbaH\x97\x02\x1a\x93\x01\n" +
+	"\fsend.outputs\x12,the request must include at least one output\x1aUsize(this.destinations) > 0 || this.op_return_hex != '' || size(this.raw_outputs) > 0\x1a\x7f\n" +
+	"\tsend.fees\x122the request cannot set both fee rate and fixed fee\x1a>this.fee_rate_sat_per_vbyte <= 0.0 || this.fixed_fee_sats <= 0J\x04\b\b\x10\t\"-\n" +
 	"\x17SendTransactionResponse\x12\x12\n" +
 	"\x04txid\x18\x01 \x01(\tR\x04txid\"\xb5\x04\n" +
 	"\x12PreviewSendRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12Z\n" +
 	"\fdestinations\x18\x02 \x03(\v26.walletmanager.v1.PreviewSendRequest.DestinationsEntryR\fdestinations\x122\n" +
-	"\x16fee_rate_sat_per_vbyte\x18\x03 \x01(\x03R\x12feeRateSatPerVbyte\x127\n" +
+	"\x16fee_rate_sat_per_vbyte\x18\x03 \x01(\x01R\x12feeRateSatPerVbyte\x127\n" +
 	"\x18subtract_fee_from_amount\x18\x04 \x01(\bR\x15subtractFeeFromAmount\x12H\n" +
 	"\x0frequired_inputs\x18\x05 \x03(\v2\x1f.walletmanager.v1.UnspentOutputR\x0erequiredInputs\x12!\n" +
 	"\fallow_replay\x18\x06 \x01(\bR\vallowReplay\x12+\n" +
@@ -12241,7 +12241,7 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x11CreatePsbtRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12Y\n" +
 	"\fdestinations\x18\x02 \x03(\v25.walletmanager.v1.CreatePsbtRequest.DestinationsEntryR\fdestinations\x122\n" +
-	"\x16fee_rate_sat_per_vbyte\x18\x03 \x01(\x03R\x12feeRateSatPerVbyte\x127\n" +
+	"\x16fee_rate_sat_per_vbyte\x18\x03 \x01(\x01R\x12feeRateSatPerVbyte\x127\n" +
 	"\x18subtract_fee_from_amount\x18\x04 \x01(\bR\x15subtractFeeFromAmount\x12\"\n" +
 	"\rop_return_hex\x18\x05 \x01(\tR\vopReturnHex\x12$\n" +
 	"\x0efixed_fee_sats\x18\x06 \x01(\x03R\ffixedFeeSats\x12H\n" +

@@ -93,7 +93,7 @@ func TestSendTransactionRoutesPerWalletType(t *testing.T) {
 
 	assert.Equal(t, elecID, elecFake.lastSendWallet)
 	assert.Equal(t, int64(10_000), elecFake.lastSend.DestinationsSats["addr"])
-	assert.Equal(t, int64(2), elecFake.lastSend.FeeRateSatPerVB)
+	assert.Equal(t, 2.0, elecFake.lastSend.FeeRateSatPerVB)
 	assert.Equal(t, "beef", elecFake.lastSend.OpReturnHex)
 	require.Len(t, elecFake.lastSend.RequiredInputs, 1)
 	assert.Equal(t, wallet.RequiredInput{TxID: "pin", Vout: 3, AmountSats: 40_000}, elecFake.lastSend.RequiredInputs[0])
@@ -372,7 +372,7 @@ func TestSendTransactionRequestRules(t *testing.T) {
 					name: "both positive fees",
 					request: &pb.SendTransactionRequest{
 						Destinations:       map[string]int64{"addr": 10_000},
-						FeeRateSatPerVbyte: 2,
+						FeeRateSatPerVbyte: 2.5,
 						FixedFeeSats:       500,
 					},
 					wantErr: "the request cannot set both fee rate and fixed fee",
@@ -387,7 +387,7 @@ func TestSendTransactionRequestRules(t *testing.T) {
 					name: "fee rate",
 					request: &pb.SendTransactionRequest{
 						Destinations:       map[string]int64{"addr": 10_000},
-						FeeRateSatPerVbyte: 2,
+						FeeRateSatPerVbyte: 2.501,
 					},
 				},
 				{

@@ -351,7 +351,7 @@ class OrchestratorWalletRPC {
   Future<wmpb.SendTransactionResponse> sendTransaction({
     required String walletId,
     required Map<String, int> destinations,
-    int? feeRateSatPerVbyte,
+    double? feeRateSatPerVbyte,
     int? fixedFeeSats,
     bool subtractFeeFromAmount = false,
     String? opReturnMessage,
@@ -368,7 +368,7 @@ class OrchestratorWalletRPC {
       wmpb.SendTransactionRequest(
         walletId: walletId,
         destinations: destinations.entries.map((e) => MapEntry(e.key, Int64(e.value))),
-        feeRateSatPerVbyte: Int64(feeRateSatPerVbyte ?? 0),
+        feeRateSatPerVbyte: feeRateSatPerVbyte ?? 0,
         subtractFeeFromAmount: subtractFeeFromAmount,
         opReturnHex: resolvedOpReturnHex ?? '',
         fixedFeeSats: Int64(fixedFeeSats ?? 0),
@@ -384,7 +384,7 @@ class OrchestratorWalletRPC {
   Future<wmpb.PreviewSendResponse> previewSend({
     required String walletId,
     required Map<String, int> destinations,
-    required int feeRateSatPerVbyte,
+    required double feeRateSatPerVbyte,
     bool subtractFeeFromAmount = false,
     bool notificationOnly = false,
     List<bwpb.UnspentOutput>? requiredInputs,
@@ -395,7 +395,7 @@ class OrchestratorWalletRPC {
       wmpb.PreviewSendRequest(
         walletId: walletId,
         destinations: destinations.entries.map((e) => MapEntry(e.key, Int64(e.value))),
-        feeRateSatPerVbyte: Int64(feeRateSatPerVbyte),
+        feeRateSatPerVbyte: feeRateSatPerVbyte,
         subtractFeeFromAmount: subtractFeeFromAmount,
         notificationOnly: notificationOnly,
         requiredInputs: requiredInputs?.map(_mapRequiredInput).toList() ?? [],
@@ -409,7 +409,7 @@ class OrchestratorWalletRPC {
   Future<String> createPsbt({
     required String walletId,
     required Map<String, int> destinations,
-    int? feeRateSatPerVbyte,
+    double? feeRateSatPerVbyte,
     int? fixedFeeSats,
     bool subtractFeeFromAmount = false,
     String? opReturnMessage,
@@ -426,7 +426,7 @@ class OrchestratorWalletRPC {
       wmpb.CreatePsbtRequest(
         walletId: walletId,
         destinations: destinations.entries.map((e) => MapEntry(e.key, Int64(e.value))),
-        feeRateSatPerVbyte: Int64(feeRateSatPerVbyte ?? 0),
+        feeRateSatPerVbyte: feeRateSatPerVbyte ?? 0,
         subtractFeeFromAmount: subtractFeeFromAmount,
         opReturnHex: resolvedOpReturnHex ?? '',
         fixedFeeSats: Int64(fixedFeeSats ?? 0),

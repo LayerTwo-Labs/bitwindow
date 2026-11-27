@@ -14,7 +14,7 @@ class _PreviewWallet implements OrchestratorWalletRPC {
   Future<wmpb.PreviewSendResponse> previewSend({
     required String walletId,
     required Map<String, int> destinations,
-    required int feeRateSatPerVbyte,
+    required double feeRateSatPerVbyte,
     bool subtractFeeFromAmount = false,
     bool notificationOnly = false,
     List<UnspentOutput>? requiredInputs,

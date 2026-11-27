@@ -37,9 +37,9 @@ void main() {
   });
 
   group('sendFee', () {
-    test('an estimate goes as a rate, so the backend sizes the fee to its inputs', () {
+    test('an estimate goes at its exact rate, so the backend sizes the fee to its inputs', () {
       final fee = sendFee(estimatedSatPerVByte: 2.005, typedFeeSats: 750);
-      expect(fee.feeRateSatPerVbyte, 3);
+      expect(fee.feeRateSatPerVbyte, 2.005);
       expect(fee.fixedFeeSats, isNull);
     });
 
@@ -74,7 +74,7 @@ void main() {
   group('feePreviewKey', () {
     String key({
       Map<String, int> destinations = const {'a': 1000, 'b': 2000},
-      int rate = 3,
+      double rate = 3,
       bool subtract = false,
       List<String> outpoints = const ['x:0', 'y:1'],
       List<String> frozen = const ['z:2'],

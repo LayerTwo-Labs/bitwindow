@@ -522,7 +522,7 @@ class ForkProvider extends ChangeNotifier implements NetworkScoped {
       destinations: {address: amountSats},
       requiredInputs: inputs,
       subtractFeeFromAmount: true,
-      feeRateSatPerVbyte: sweepFeeRateSatPerVbyte,
+      feeRateSatPerVbyte: sweepFeeRateSatPerVbyte.toDouble(),
     );
     if (_drafts.generation != generation) {
       throw Exception('The network changed during the build. Create the split transaction again.');
@@ -556,7 +556,7 @@ class ForkProvider extends ChangeNotifier implements NetworkScoped {
       destinations: {address: amountSats},
       requiredInputs: inputs,
       subtractFeeFromAmount: true,
-      feeRateSatPerVbyte: sweepFeeRateSatPerVbyte,
+      feeRateSatPerVbyte: sweepFeeRateSatPerVbyte.toDouble(),
     )).txid;
 
     _log.i('Claimed eCash: wallet="${claim.walletName}" id=$walletId txid=$txid -> $address');

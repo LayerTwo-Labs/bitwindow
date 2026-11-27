@@ -1741,7 +1741,7 @@ class SendPageViewModel extends BaseViewModel {
     return estimateTxVBytes(numInputs: numInputs, numOutputs: numOutputs);
   }
 
-  int? get _feeRateSatPerVbyte => _estimatedSatPerVByte?.ceil();
+  double? get _feeRateSatPerVbyte => _estimatedSatPerVByte;
 
   Map<String, int>? _destinationsWith({int? index, int? sats}) => sendDestinations([
     for (var i = 0; i < recipients.length; i++)
@@ -1782,7 +1782,7 @@ class SendPageViewModel extends BaseViewModel {
         final probe = await _orchestratorWallet.previewSend(
           walletId: walletId,
           destinations: _destinationsWith(index: index, sats: dustSats)!,
-          feeRateSatPerVbyte: rate ?? 0,
+          feeRateSatPerVbyte: rate ?? 0.0,
           requiredInputs: selectedUtxos,
           notificationOnly: notificationOnly,
         );
@@ -1986,7 +1986,7 @@ class SendPageViewModel extends BaseViewModel {
     _setFeeFromSats(
       key != null && key == _pricedKey
           ? _pricedFeeSats
-          : feeSatsForRate(satPerVByte: satPerVByte.ceilToDouble(), txVBytes: _estimatedTxVBytes),
+          : feeSatsForRate(satPerVByte: satPerVByte, txVBytes: _estimatedTxVBytes),
     );
   }
 

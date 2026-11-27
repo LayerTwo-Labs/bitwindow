@@ -1168,7 +1168,7 @@ func (p *CoreBackend) fundWithCoreSelection(
 		options["changePosition"] = len(outputs)
 	}
 	if req.FeeRateSatPerVB > 0 {
-		options["fee_rate"] = req.FeeRateSatPerVB
+		options["fee_rate"] = coreFeeRate(req.FeeRateSatPerVB)
 	}
 	if req.SubtractFeeFromAmount && len(req.DestinationsSats) > 0 {
 		options["subtractFeeFromOutputs"] = lo.Range(len(req.DestinationsSats))
@@ -1379,7 +1379,7 @@ func (p *CoreBackend) coinOrderInputs(
 		if withChange {
 			out += changeVsize
 		}
-		return totalSats + estimateFeeSats(inVsize, out, float64(req.FeeRateSatPerVB))
+		return totalSats + estimateFeeSats(inVsize, out, req.FeeRateSatPerVB)
 	}
 	selected, err := pickCoins(coins, req.CoinOrder, need, 0)
 	if sizeErr != nil {
@@ -1436,7 +1436,7 @@ func (p *CoreBackend) CreatePSBT(ctx context.Context, walletID string, req SendR
 	})
 	options := map[string]interface{}{}
 	if req.FeeRateSatPerVB > 0 {
-		options["fee_rate"] = req.FeeRateSatPerVB
+		options["fee_rate"] = coreFeeRate(req.FeeRateSatPerVB)
 	}
 	if req.SubtractFeeFromAmount && len(req.DestinationsSats) > 0 {
 		options["subtractFeeFromOutputs"] = lo.Range(len(req.DestinationsSats))
@@ -2380,4 +2380,9 @@ func (p *CoreBackend) walletScriptKind(walletID string) ScriptKind {
 		return ScriptNativeSegwit
 	}
 	return w.scriptKind()
+}
+
+// coreFeeRate is satPerVB rounded up to the 0.001 sat/vB step that Bitcoin Core accepts.
+func coreFeeRate(satPerVB float64) float64 {
+	return math.Ceil(math.Round(satPerVB*1e6)/1e3) / 1e3
 }

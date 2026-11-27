@@ -21,7 +21,7 @@ class _Wallet implements OrchestratorWalletRPC {
   Future<wmpb.SendTransactionResponse> sendTransaction({
     required String walletId,
     required Map<String, int> destinations,
-    int? feeRateSatPerVbyte,
+    double? feeRateSatPerVbyte,
     int? fixedFeeSats,
     bool subtractFeeFromAmount = false,
     String? opReturnMessage,

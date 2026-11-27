@@ -180,11 +180,11 @@ func DerivePrivKeyFromHDPath(seedHex, hdkeypath string) (*btcec.PrivateKey, erro
 // EstimateNotificationFee picks a flat fee for the notification tx at the
 // given rate. 260 vB is an upper bound for one segwit or taproot input (a
 // P2WPKH input gives 236 vB). The receiver pays nothing.
-func EstimateNotificationFee(feeRateSatPerVbyte int64) int64 {
+func EstimateNotificationFee(feeRateSatPerVbyte float64) int64 {
 	if feeRateSatPerVbyte <= 0 {
 		feeRateSatPerVbyte = 2
 	}
-	return int64(math.Max(float64(feeRateSatPerVbyte*260), 500))
+	return int64(math.Max(math.Ceil(feeRateSatPerVbyte*260), 500))
 }
 
 // Sentinel errors for the wallet handler to map onto gRPC codes.

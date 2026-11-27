@@ -45,12 +45,12 @@ int feeSatsForRate({required double satPerVByte, required int txVBytes}) {
 
 /// The fee fields of a send request. An estimated rate goes to the backend as
 /// a rate, so the fee fits the inputs it picks. A typed fee goes as a fixed fee.
-({int? feeRateSatPerVbyte, int? fixedFeeSats}) sendFee({
+({double? feeRateSatPerVbyte, int? fixedFeeSats}) sendFee({
   required double? estimatedSatPerVByte,
   required int typedFeeSats,
 }) {
   if (estimatedSatPerVByte != null) {
-    return (feeRateSatPerVbyte: estimatedSatPerVByte.ceil(), fixedFeeSats: null);
+    return (feeRateSatPerVbyte: estimatedSatPerVByte, fixedFeeSats: null);
   }
   return (feeRateSatPerVbyte: null, fixedFeeSats: typedFeeSats);
 }
@@ -73,7 +73,7 @@ Map<String, int>? sendDestinations(Iterable<({String address, int sats})> recipi
 String feePreviewKey({
   required String walletId,
   required Map<String, int> destinations,
-  required int feeRateSatPerVbyte,
+  required double feeRateSatPerVbyte,
   required bool subtractFeeFromAmount,
   required Iterable<String> requiredOutpoints,
   required Iterable<String> frozenOutpoints,
