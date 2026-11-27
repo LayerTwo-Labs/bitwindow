@@ -783,7 +783,7 @@ class _SailCreateWalletPageState extends State<SailCreateWalletPage> {
 
   bool _isValidMnemonic(String mnemonic) {
     final words = mnemonic.trim().split(RegExp(r'\s+'));
-    return const {12, 15, 18, 21, 24}.contains(words.length);
+    return bip39WordCounts.contains(words.length);
   }
 
   void _handleContinue() {
