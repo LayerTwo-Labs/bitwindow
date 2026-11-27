@@ -85,9 +85,10 @@ Future<NewsFeeEstimate> estimateTopicFee(TopicLine line) => GetIt.I.get<Bitwindo
 Future<bool> confirmNewTopics(BuildContext context, List<NewTopic> topics, {required int listed}) async {
   final count = topics.length == 1 ? '1 topic' : '${topics.length} topics';
   final fees = [for (final topic in topics) topic.estimate?.feeSats];
+  final formatter = GetIt.I.get<FormatterProvider>();
   final total = fees.contains(null)
       ? 'Network fee: unknown.'
-      : 'Network fee: ≈ ${fees.fold(0, (sum, fee) => sum + fee!)} sats.';
+      : 'Network fee: ≈ ${formatter.formatSats(fees.fold(0, (sum, fee) => sum + fee!.toInt()))}.';
   var confirmed = false;
 
   await showThemedDialog(
@@ -114,7 +115,7 @@ Future<bool> confirmNewTopics(BuildContext context, List<NewTopic> topics, {requ
           for (final topic in topics)
             if (topic.estimate case final estimate?)
               SailText.primary13(
-                '${topic.line.name} (${topic.line.topic}), ${topic.line.days}  ·  ≈ ${estimate.feeSats} sats',
+                '${topic.line.name} (${topic.line.topic}), ${topic.line.days}  ·  ≈ ${formatter.formatSats(estimate.feeSats.toInt())}',
               )
             else
               SailText.primary13(

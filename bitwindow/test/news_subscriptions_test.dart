@@ -234,7 +234,7 @@ void main() {
     expect(api.sent, isEmpty);
     expect(
       find.text(
-        'No topic $topicId is on the chain. Add creates it.  Network fee: ≈ 3108 sats  ·  148 vB at 21.0 sat/vB',
+        'No topic $topicId is on the chain. Add creates it.  Network fee: ≈ 0.0000,3108 BTC  ·  148 vB at 21.0 sat/vB',
       ),
       findsOneWidget,
     );
@@ -267,7 +267,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.priced.last, ('Nyheter æøå', 0));
-    expect(find.text('Network fee: ≈ 3171 sats  ·  151 vB at 21.0 sat/vB'), findsOneWidget);
+    expect(find.text('Network fee: ≈ 0.0000,3171 BTC  ·  151 vB at 21.0 sat/vB'), findsOneWidget);
     expect(api.sent, isEmpty);
   });
 
@@ -286,8 +286,8 @@ void main() {
     await openDialog(tester);
 
     expect(find.text('Create 1 topic?'), findsOneWidget);
-    expect(find.text('QA Imported (e5e5e5e5), 5 days  ·  ≈ 3171 sats'), findsOneWidget);
-    expect(find.text('Network fee: ≈ 3171 sats. 1 topic is already in Your Topics.'), findsOneWidget);
+    expect(find.text('QA Imported (e5e5e5e5), 5 days  ·  ≈ 0.0000,3171 BTC'), findsOneWidget);
+    expect(find.text('Network fee: ≈ 0.0000,3171 BTC. 1 topic is already in Your Topics.'), findsOneWidget);
 
     await tester.tap(button('Cancel'));
     await settle(tester);

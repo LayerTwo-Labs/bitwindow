@@ -217,7 +217,7 @@ void main() {
 
     await type(tester, find.byType(EditableText).first, 'QA headline\nThe body');
     expect(api.misc.estimated.last, (headline: 'QA headline', body: 'The body', url: '', subtype: 0, nsfw: false));
-    final line = find.text('Network fee: ≈ 3549 sats  ·  169 vB at 21.0 sat/vB');
+    final line = find.text('Network fee: ≈ 0.0000,3549 BTC  ·  169 vB at 21.0 sat/vB');
     expect(line, findsOneWidget);
     final broadcast = find.widgetWithText(SailButton, 'Broadcast');
     expect(tester.getBottomLeft(line).dy, lessThan(tester.getTopLeft(broadcast).dy));
@@ -230,7 +230,18 @@ void main() {
 
     await type(tester, find.byType(EditableText).at(1), 'https://example.com');
     expect(api.misc.estimated.last.url, 'https://example.com');
-    expect(find.text('Network fee: ≈ 3948 sats  ·  188 vB at 21.0 sat/vB'), findsOneWidget);
+    expect(find.text('Network fee: ≈ 0.0000,3948 BTC  ·  188 vB at 21.0 sat/vB'), findsOneWidget);
+  });
+
+  testWidgets('the network fee shows in the unit of the fee field', (tester) async {
+    await tester.runAsync(() => GetIt.I<SettingsProvider>().updateBitcoinUnit(BitcoinUnit.sats));
+    addTearDown(() => GetIt.I<SettingsProvider>().updateBitcoinUnit(BitcoinUnit.btc));
+    await pumpDialog(tester);
+
+    await type(tester, find.byType(EditableText).first, 'QA headline\nThe body');
+    expect(find.text('Network fee: ≈ ${formatSatoshis(3549)}  ·  169 vB at 21.0 sat/vB'), findsOneWidget);
+    final suffix = tester.widget<SailTextField>(find.widgetWithText(SailTextField, 'Fee (optional)')).suffixWidget;
+    expect(find.descendant(of: find.byWidget(suffix!), matching: find.text(BitcoinUnit.sats.symbol)), findsOneWidget);
   });
 
   testWidgets('a fee in the field replaces the estimate', (tester) async {
@@ -274,7 +285,7 @@ void main() {
   testWidgets('a changed story does not keep the fee of the old story', (tester) async {
     await pumpDialog(tester);
     await type(tester, find.byType(EditableText).first, 'QA headline');
-    expect(find.text('Network fee: ≈ 3381 sats  ·  161 vB at 21.0 sat/vB'), findsOneWidget);
+    expect(find.text('Network fee: ≈ 0.0000,3381 BTC  ·  161 vB at 21.0 sat/vB'), findsOneWidget);
 
     tester.state<EditableTextState>(find.byType(EditableText).first).widget.controller.text =
         'QA headline\n${'A long body. ' * 40}';
@@ -286,7 +297,7 @@ void main() {
     await tester.pump();
     expect(find.text('Checking the fee…'), findsNothing);
     expect(find.textContaining('Network fee'), findsOneWidget);
-    expect(find.text('Network fee: ≈ 3381 sats  ·  161 vB at 21.0 sat/vB'), findsNothing);
+    expect(find.text('Network fee: ≈ 0.0000,3381 BTC  ·  161 vB at 21.0 sat/vB'), findsNothing);
   });
 
   testWidgets('the dialog with the fee line fits a 1024x700 window', (tester) async {

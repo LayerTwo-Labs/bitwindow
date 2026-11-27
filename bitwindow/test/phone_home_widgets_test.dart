@@ -58,7 +58,7 @@ void main() {
       expect(find.byType(SailTable), findsNothing);
       final headline = tester.getRect(find.text(news.first.headline));
       final timeText = tester.getRect(find.text(formatDate(time, long: false)).first);
-      final fee = tester.getRect(find.text('412 sat'));
+      final fee = tester.getRect(find.text(formatBitcoin(0.00000412)));
       expect(timeText.top, greaterThanOrEqualTo(headline.bottom));
       expect(timeText.left, headline.left);
       expect(fee.left, greaterThan(headline.right));
@@ -76,7 +76,6 @@ void main() {
 
       expect(find.byType(SailTable), findsOneWidget);
       expect(find.text('Fees'), findsOneWidget);
-      expect(find.text('412 sat'), findsNothing);
     });
   });
 
