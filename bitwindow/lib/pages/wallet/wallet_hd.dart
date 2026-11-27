@@ -631,14 +631,14 @@ class AddressTable extends StatelessWidget {
         final entry = entries[row];
         return [
           SailTableCell(value: entry.path, monospace: true, hugContent: true),
-          SailTableCell(value: entry.address, monospace: true, hugContent: true),
+          _keyCell(entry.address, fill: true),
           if (showWalletUse) ...[
             SailTableCell(value: entry.used == true ? 'Yes' : 'No', hugContent: true),
             SailTableCell(value: formatter.formatSats(entry.balanceSats ?? 0), monospace: true, hugContent: true),
           ],
-          _keyCell(entry.publicKey, fill: true),
+          _keyCell(entry.publicKey),
           hidePrivateKeys
-              ? const SailTableCell(value: _hiddenKey, monospace: true, hugContent: true)
+              ? SailTableCell(value: '•' * _keyPreviewLength, monospace: true, hugContent: true)
               : _keyCell(entry.privateKey),
         ];
       },
@@ -649,10 +649,12 @@ class AddressTable extends StatelessWidget {
 }
 
 const _hiddenKey = '••••••••••••••••';
+const _keyPreviewLength = 12;
 
-/// A key cell. A key longer than the column ends with an ellipsis, and a copy gives the full key.
+/// A key or address cell. A value longer than the column ends with an ellipsis, and a copy gives the full value.
+/// A fill cell takes the width the other columns leave; any other cell is [_keyPreviewLength] characters wide.
 SailTableCell _keyCell(String key, {bool fill = false}) => SailTableCell(
-  value: key.characters.take(_hiddenKey.length).toString(),
+  value: fill ? key : key.characters.take(_keyPreviewLength).toString(),
   copyValue: key,
   monospace: true,
   fill: fill,
