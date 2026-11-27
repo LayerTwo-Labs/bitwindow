@@ -373,7 +373,10 @@ func (e *ChequeEngine) Sweep(
 	}
 
 	if cheque != nil {
-		if err := cheques.UpdateSwept(ctx, e.db, cheque.WalletID, cheque.ID, txid); err != nil {
+		spent := lo.Map(source.UTXOs, func(utxo ChequeUTXO, _ int) cheques.FundingOutput {
+			return cheques.FundingOutput{Txid: utxo.TxID, Vout: utxo.Vout, ValueSats: utxo.ValueSats, BlockHeight: utxo.Height}
+		})
+		if err := cheques.RecordSweep(ctx, e.db, cheque.WalletID, cheque.ID, txid, spent); err != nil {
 			return ChequeSweep{}, connect.NewError(connect.CodeInternal, fmt.Errorf("mark cheque %d swept by %s: %w", cheque.ID, txid, err).Error()).WithCause(err)
 		}
 	}

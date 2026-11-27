@@ -401,3 +401,35 @@ func TestDelete(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestRecordSweepStoresWhatTheSweepSpent(t *testing.T) {
+	db := database.Test(t)
+	ctx := t.Context()
+
+	const first = "aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000"
+	const late = "dddd0000dddd0000dddd0000dddd0000dddd0000dddd0000dddd0000dddd0000"
+	const sweep = "cccc0000cccc0000cccc0000cccc0000cccc0000cccc0000cccc0000cccc0000"
+	id, err := cheques.Create(ctx, db, testWalletID, 0, 1000, "addr-sweep")
+	require.NoError(t, err)
+	require.NoError(t, cheques.UpdateFunding(ctx, db, testWalletID, id, []cheques.FundingOutput{{Txid: first, ValueSats: 1000, BlockHeight: 101}}, 1000))
+
+	spent := []cheques.FundingOutput{
+		{Txid: first, ValueSats: 1000, BlockHeight: 101},
+		{Txid: late, Vout: 1, ValueSats: 500},
+	}
+	require.ErrorIs(t, cheques.RecordSweep(ctx, db, "wallet-2", id, sweep, spent), sql.ErrNoRows)
+	require.NoError(t, cheques.RecordSweep(ctx, db, testWalletID, id, sweep, spent))
+
+	cheque, err := cheques.Get(ctx, db, testWalletID, id)
+	require.NoError(t, err)
+	require.NotNil(t, cheque.ActualAmountSats)
+	assert.EqualValues(t, 1500, *cheque.ActualAmountSats)
+	assert.ElementsMatch(t, []string{first, late}, cheque.FundedTxids)
+	require.NotNil(t, cheque.SweptTxid)
+	assert.Equal(t, sweep, *cheque.SweptTxid)
+	assert.NotNil(t, cheque.FundedAt)
+
+	outpoints, err := cheques.FundingOutpoints(ctx, db, id)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{first + ":0", late + ":1"}, outpoints)
+}
