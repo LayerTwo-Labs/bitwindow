@@ -377,6 +377,7 @@ func (p *ElectrumBackend) ListUnspent(ctx context.Context, walletID string) ([]U
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now().Unix()
 	out := lo.FlatMap(scan.addrs, func(a scannedAddr, _ int) []UTXO {
 		// Bitcoin Core does not list an immature coinbase output either.
 		mature := lo.Filter(a.utxos, func(u EsploraUTXO, _ int) bool {
@@ -394,7 +395,7 @@ func (p *ElectrumBackend) ListUnspent(ctx context.Context, walletID string) ([]U
 				// (we know the script) but not spendable.
 				Spendable:  !scan.watchOnly,
 				Solvable:   true,
-				ReceivedAt: u.Status.BlockTime,
+				ReceivedAt: p.txTime(u.TxID, u.Status, now),
 				HDPath:     a.hdPath,
 				// Electrum reports no descriptor, but the scan knows each
 				// address's script kind, so the weight is still exact.
@@ -434,7 +435,7 @@ func (p *ElectrumBackend) ListTransactionsRange(ctx context.Context, walletID st
 
 	now := time.Now().Unix()
 	rows := lo.FlatMap(lo.Values(txByID), func(tx EsploraTx, _ int) []WalletTransaction {
-		return walletRowsForTx(tx, scan, tip, p.txTime(tx, now))
+		return walletRowsForTx(tx, scan, tip, p.txTime(tx.TxID, tx.Status, now))
 	})
 
 	// Newest first, matching Core's listtransactions default ordering after
@@ -527,7 +528,7 @@ func (p *ElectrumBackend) ListReceivedByAddress(ctx context.Context, walletID st
 			if c := confsFor(tx.Status, tip); c > entry.Confirmations {
 				entry.Confirmations = c
 			}
-			entry.LastUsedAt = max(entry.LastUsedAt, p.txTime(tx, now))
+			entry.LastUsedAt = max(entry.LastUsedAt, p.txTime(tx.TxID, tx.Status, now))
 		}
 		out = append(out, entry)
 	}
@@ -568,7 +569,7 @@ func (p *ElectrumBackend) GetWalletTransaction(ctx context.Context, walletID, tx
 		Fee:           fee,
 		Confirmations: int32(confsFor(tx.Status, tip)),
 		BlockTime:     tx.Status.BlockTime,
-		Time:          tx.Status.BlockTime,
+		Time:          p.txTime(tx.TxID, tx.Status, time.Now().Unix()),
 		Hex:           rawHex,
 	}, nil
 }
@@ -3446,20 +3447,20 @@ func foreignInputSats(tx EsploraTx, scan *electrumScan, script string) int64 {
 
 // txTime is the block time of a confirmed tx. An index reports no time for a
 // mempool tx, so an unconfirmed tx gets the time this process first listed it.
-func (p *ElectrumBackend) txTime(tx EsploraTx, now int64) int64 {
-	if tx.Status.Confirmed {
-		return tx.Status.BlockTime
+func (p *ElectrumBackend) txTime(txid string, status EsploraStatus, now int64) int64 {
+	if status.Confirmed {
+		return status.BlockTime
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if seen, ok := p.firstSeen[tx.TxID]; ok {
+	if seen, ok := p.firstSeen[txid]; ok {
 		return seen
 	}
-	seen := tx.Status.BlockTime
+	seen := status.BlockTime
 	if seen == 0 {
 		seen = now
 	}
-	p.firstSeen[tx.TxID] = seen
+	p.firstSeen[txid] = seen
 	return seen
 }
 

@@ -4468,3 +4468,30 @@ func TestElectrumSendToOwnAddressKeepsTheCoinInTheCache(t *testing.T) {
 	assert.Less(t, utxos[0].Amount, 0.003)
 	assert.Greater(t, utxos[0].Amount, 0.00299)
 }
+
+func TestElectrumUnspentDatesAPendingCoinLikeItsHistoryRow(t *testing.T) {
+	p, fake, w, addr := newElectrumFixture(t)
+	ctx := context.Background()
+
+	fake.stats[addr] = EsploraAddressStats{
+		Address:      addr,
+		MempoolStats: EsploraTxoStats{FundedTxoCount: 1, FundedTxoSum: 20_000, TxCount: 1},
+	}
+	fake.utxos[addr] = []EsploraUTXO{{TxID: "pending", Vout: 0, Value: 20_000}}
+	fake.txs[addr] = []EsploraTx{{TxID: "pending", Vout: []EsploraVout{{ScriptPubKeyAddress: addr, Value: 20_000}}}}
+
+	before := time.Now().Unix()
+	utxos, err := p.ListUnspent(ctx, w.ID)
+	require.NoError(t, err)
+	require.Len(t, utxos, 1)
+	assert.GreaterOrEqual(t, utxos[0].ReceivedAt, before, "a mempool coin gets the time it was first seen")
+
+	rows, err := p.ListTransactions(ctx, w.ID, 0)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, rows[0].Time, utxos[0].ReceivedAt)
+
+	again, err := p.ListUnspent(ctx, w.ID)
+	require.NoError(t, err)
+	assert.Equal(t, utxos[0].ReceivedAt, again[0].ReceivedAt, "the first-seen time must not move")
+}
