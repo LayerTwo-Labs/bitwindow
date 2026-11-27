@@ -412,6 +412,8 @@ type CoinNews struct {
 	Vout      uint32
 	// Outdated is true for a story older than the retention of its topic.
 	Outdated bool
+	// Pending is true for a story in the mempool.
+	Pending bool
 
 	CreatedAt *time.Time
 }
@@ -773,6 +775,7 @@ func ListPendingCoinNews(ctx context.Context, db *sql.DB) ([]CoinNews, error) {
 			NSFW:      nsfw,
 			TxID:      row.TxID,
 			Vout:      uint32(row.Vout),
+			Pending:   true,
 			CreatedAt: row.CreatedAt,
 		})
 	}

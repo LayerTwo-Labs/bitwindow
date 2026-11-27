@@ -378,7 +378,7 @@ class FeeCoinNewsTable extends StatelessWidget {
             final entry = entries[row];
             return [
               SailTableCell(value: formatter.formatSats(entry.feeSats.toInt())),
-              SailTableCell(value: formatDate(entry.createTime.toDateTime(), long: false)),
+              SailTableCell(value: storyTime(entry, (time) => formatDate(time, long: false))),
               SailTableCell(value: _truncateHeadline(entry.headline)),
             ];
           },
@@ -472,7 +472,7 @@ class _FeeStoryRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SailText.primary13(_truncateHeadline(entry.headline), bold: true),
-                    SailText.secondary12(formatDate(entry.createTime.toDateTime(), long: false)),
+                    SailText.secondary12(storyTime(entry, (time) => formatDate(time, long: false))),
                   ],
                 ),
               ),

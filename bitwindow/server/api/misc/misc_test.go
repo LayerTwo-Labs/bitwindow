@@ -1142,6 +1142,8 @@ func TestService_ListCoinNews(t *testing.T) {
 		assert.Equal(t, pendingTxID, pending.Txid)
 		assert.EqualValues(t, 1, pending.Vout)
 		assert.Empty(t, pending.ItemId)
+		assert.True(t, pending.Pending)
+		assert.False(t, resp.CoinNews[1].Pending)
 
 		height := uint32(500)
 		require.NoError(t, opreturns.Persist(ctx, database, []opreturns.OPReturn{

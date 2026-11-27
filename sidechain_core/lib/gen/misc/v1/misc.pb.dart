@@ -1124,6 +1124,7 @@ class CoinNews extends $pb.GeneratedMessage {
     $core.String? txid,
     $core.int? vout,
     $core.bool? outdated,
+    $core.bool? pending,
   }) {
     final result = CoinNews._();
     if (id != null) result.id = id;
@@ -1139,6 +1140,7 @@ class CoinNews extends $pb.GeneratedMessage {
     if (txid != null) result.txid = txid;
     if (vout != null) result.vout = vout;
     if (outdated != null) result.outdated = outdated;
+    if (pending != null) result.pending = pending;
     return result;
   }
 
@@ -1165,6 +1167,7 @@ class CoinNews extends $pb.GeneratedMessage {
     ..aOS(14, _omitFieldNames ? '' : 'txid')
     ..aI(15, _omitFieldNames ? '' : 'vout', fieldType: $pb.PbFieldType.OU3)
     ..aOB(16, _omitFieldNames ? '' : 'outdated')
+    ..aOB(17, _omitFieldNames ? '' : 'pending')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1311,6 +1314,17 @@ class CoinNews extends $pb.GeneratedMessage {
   $core.bool hasOutdated() => $_has(12);
   @$pb.TagNumber(16)
   void clearOutdated() => $_clearField(16);
+
+  /// True for a story in the mempool. Its create_time is the time that the
+  /// node first saw it, and it has no item_id.
+  @$pb.TagNumber(17)
+  $core.bool get pending => $_getBF(13);
+  @$pb.TagNumber(17)
+  set pending($core.bool value) => $_setBool(13, value);
+  @$pb.TagNumber(17)
+  $core.bool hasPending() => $_has(13);
+  @$pb.TagNumber(17)
+  void clearPending() => $_clearField(17);
 }
 
 class ListCoinNewsResponse extends $pb.GeneratedMessage {
