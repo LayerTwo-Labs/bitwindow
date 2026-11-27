@@ -195,3 +195,4 @@ export 'widgets/enforcer_config_editor/actual_config_panel.dart';
 export 'widgets/enforcer_config_editor/configurator_panel.dart';
 export 'widgets/enforcer_config_editor/working_config_panel.dart';
 export 'widgets/reset/reset.dart';
+export 'widgets/unlock_wallet_dialog.dart';
