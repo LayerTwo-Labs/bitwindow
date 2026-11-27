@@ -1263,6 +1263,14 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 		effect.replacedTxID = txid
 		effect.evicted = evicted
 	}
+	// A consolidation or a send to self pays this wallet on the receive branch.
+	ownRecipients := map[int]scannedAddr{}
+	for i, out := range outputs {
+		if sa, owned := scan.byAddr[out.Address]; owned && out.Address != "" {
+			outputs[i] = out.describeOwned(sa)
+			ownRecipients[i] = sa
+		}
+	}
 	if withChange && changeSats >= changeDust {
 		changeAddr, err := p.nextUnusedAddrFromScan(walletID, scan, w.scriptKind(), true)
 		if err != nil {
@@ -1308,6 +1316,9 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 	packet, err := buildPSBT(psbtInputs, outputs, net, p.prevTxFetcher(ctx))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build psbt: %w", err)
+	}
+	for vout, sa := range ownRecipients {
+		effect.credited = append(effect.credited, walletCredit{addr: sa, sats: packet.UnsignedTx.TxOut[vout].Value, vout: vout})
 	}
 	// Multisig hardware signers need the cosigner xpubs to register the policy.
 	packet.XPubs = multisigGlobalXpubs(d)
