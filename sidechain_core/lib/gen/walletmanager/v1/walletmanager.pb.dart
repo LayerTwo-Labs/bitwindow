@@ -11105,6 +11105,8 @@ class DecodeTransactionResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(4)
   void clearLocktime() => $_clearField(4);
 
+  /// For a PSBT: the size once each input is signed, as analyzepsbt estimates
+  /// it. 0 when the PSBT does not show how an input spends.
   @$pb.TagNumber(5)
   $core.int get sizeBytes => $_getIZ(4);
   @$pb.TagNumber(5)
@@ -11184,6 +11186,7 @@ class DecodeTransactionResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(14)
   void clearHasFee() => $_clearField(14);
 
+  /// 0 when vsize_vbytes is 0.
   @$pb.TagNumber(15)
   $core.double get feeRateSatVb => $_getN(14);
   @$pb.TagNumber(15)

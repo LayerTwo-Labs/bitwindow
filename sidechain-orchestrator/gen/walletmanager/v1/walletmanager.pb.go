@@ -9139,23 +9139,26 @@ func (x *DecodeTransactionRequest) GetBlockHash() string {
 }
 
 type DecodeTransactionResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Form           DecodedForm            `protobuf:"varint,1,opt,name=form,proto3,enum=walletmanager.v1.DecodedForm" json:"form,omitempty"`
-	Txid           string                 `protobuf:"bytes,2,opt,name=txid,proto3" json:"txid,omitempty"`
-	Version        int32                  `protobuf:"varint,3,opt,name=version,proto3" json:"version,omitempty"`
-	Locktime       int32                  `protobuf:"varint,4,opt,name=locktime,proto3" json:"locktime,omitempty"`
-	SizeBytes      int32                  `protobuf:"varint,5,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
-	VsizeVbytes    int32                  `protobuf:"varint,6,opt,name=vsize_vbytes,json=vsizeVbytes,proto3" json:"vsize_vbytes,omitempty"`
-	WeightWu       int32                  `protobuf:"varint,7,opt,name=weight_wu,json=weightWu,proto3" json:"weight_wu,omitempty"`
-	Inputs         []*TransactionInput    `protobuf:"bytes,8,rep,name=inputs,proto3" json:"inputs,omitempty"`
-	Outputs        []*TransactionOutput   `protobuf:"bytes,9,rep,name=outputs,proto3" json:"outputs,omitempty"`
-	TotalInputSats int64                  `protobuf:"varint,10,opt,name=total_input_sats,json=totalInputSats,proto3" json:"total_input_sats,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Form     DecodedForm            `protobuf:"varint,1,opt,name=form,proto3,enum=walletmanager.v1.DecodedForm" json:"form,omitempty"`
+	Txid     string                 `protobuf:"bytes,2,opt,name=txid,proto3" json:"txid,omitempty"`
+	Version  int32                  `protobuf:"varint,3,opt,name=version,proto3" json:"version,omitempty"`
+	Locktime int32                  `protobuf:"varint,4,opt,name=locktime,proto3" json:"locktime,omitempty"`
+	// For a PSBT: the size once each input is signed, as analyzepsbt estimates
+	// it. 0 when the PSBT does not show how an input spends.
+	SizeBytes      int32                `protobuf:"varint,5,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	VsizeVbytes    int32                `protobuf:"varint,6,opt,name=vsize_vbytes,json=vsizeVbytes,proto3" json:"vsize_vbytes,omitempty"`
+	WeightWu       int32                `protobuf:"varint,7,opt,name=weight_wu,json=weightWu,proto3" json:"weight_wu,omitempty"`
+	Inputs         []*TransactionInput  `protobuf:"bytes,8,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	Outputs        []*TransactionOutput `protobuf:"bytes,9,rep,name=outputs,proto3" json:"outputs,omitempty"`
+	TotalInputSats int64                `protobuf:"varint,10,opt,name=total_input_sats,json=totalInputSats,proto3" json:"total_input_sats,omitempty"`
 	// True when every input value is known, so total_input_sats and fee are exact.
-	HasTotalInput   bool    `protobuf:"varint,11,opt,name=has_total_input,json=hasTotalInput,proto3" json:"has_total_input,omitempty"`
-	TotalOutputSats int64   `protobuf:"varint,12,opt,name=total_output_sats,json=totalOutputSats,proto3" json:"total_output_sats,omitempty"`
-	FeeSats         int64   `protobuf:"varint,13,opt,name=fee_sats,json=feeSats,proto3" json:"fee_sats,omitempty"`
-	HasFee          bool    `protobuf:"varint,14,opt,name=has_fee,json=hasFee,proto3" json:"has_fee,omitempty"`
-	FeeRateSatVb    float64 `protobuf:"fixed64,15,opt,name=fee_rate_sat_vb,json=feeRateSatVb,proto3" json:"fee_rate_sat_vb,omitempty"`
+	HasTotalInput   bool  `protobuf:"varint,11,opt,name=has_total_input,json=hasTotalInput,proto3" json:"has_total_input,omitempty"`
+	TotalOutputSats int64 `protobuf:"varint,12,opt,name=total_output_sats,json=totalOutputSats,proto3" json:"total_output_sats,omitempty"`
+	FeeSats         int64 `protobuf:"varint,13,opt,name=fee_sats,json=feeSats,proto3" json:"fee_sats,omitempty"`
+	HasFee          bool  `protobuf:"varint,14,opt,name=has_fee,json=hasFee,proto3" json:"has_fee,omitempty"`
+	// 0 when vsize_vbytes is 0.
+	FeeRateSatVb float64 `protobuf:"fixed64,15,opt,name=fee_rate_sat_vb,json=feeRateSatVb,proto3" json:"fee_rate_sat_vb,omitempty"`
 	// PSBT-only: how many inputs already carry a signature.
 	IsPsbt       bool  `protobuf:"varint,16,opt,name=is_psbt,json=isPsbt,proto3" json:"is_psbt,omitempty"`
 	SignedInputs int32 `protobuf:"varint,17,opt,name=signed_inputs,json=signedInputs,proto3" json:"signed_inputs,omitempty"`

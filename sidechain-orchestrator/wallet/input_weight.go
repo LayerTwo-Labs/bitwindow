@@ -70,24 +70,31 @@ func bareMultisigScriptBytes(keys int) int {
 // multisigWitnessBytes is the witness of an m-of-n P2WSH spend: the empty item
 // OP_CHECKMULTISIG pops, one signature per required key, and the script.
 func multisigWitnessBytes(required, keys int) int {
-	script := bareMultisigScriptBytes(keys)
+	return multisigWitnessBytesForScript(required, required*witnessItemBytes(maxECDSASignatureBytes), bareMultisigScriptBytes(keys))
+}
+
+// multisigWitnessBytesForScript is the witness of a P2WSH spend of a multisig
+// script of script bytes. signatures is the byte count of the signature items.
+func multisigWitnessBytesForScript(required, signatures, script int) int {
 	items := 1 + required + 1 // the empty item, the signatures, and the script
 
 	total := varIntLen(items)
 	total += witnessItemBytes(0)
-	total += required * witnessItemBytes(maxECDSASignatureBytes)
+	total += signatures
 	total += witnessItemBytes(script)
 	return total
 }
 
-// singleSigWitnessBytes is the witness of a P2WPKH spend.
-func singleSigWitnessBytes() int {
-	return varIntLen(2) + witnessItemBytes(maxECDSASignatureBytes) + witnessItemBytes(compressedPubKeyBytes)
+// singleSigWitnessBytes is the witness of a P2WPKH spend with a signature of
+// signature bytes.
+func singleSigWitnessBytes(signature int) int {
+	return varIntLen(2) + witnessItemBytes(signature) + witnessItemBytes(compressedPubKeyBytes)
 }
 
-// taprootKeyPathWitnessBytes is the witness of a taproot key path spend.
-func taprootKeyPathWitnessBytes() int {
-	return varIntLen(1) + witnessItemBytes(maxSchnorrSignatureBytes)
+// taprootKeyPathWitnessBytes is the witness of a taproot key path spend with
+// a signature of signature bytes.
+func taprootKeyPathWitnessBytes(signature int) int {
+	return varIntLen(1) + witnessItemBytes(signature)
 }
 
 // InputWeightUnitsForKind returns the largest weight one input of this script
@@ -99,11 +106,11 @@ func InputWeightUnitsForKind(kind ScriptKind) (int, error) {
 		scriptSig := pushBytes(maxECDSASignatureBytes) + pushBytes(compressedPubKeyBytes)
 		return inputWeight(scriptSig, 0), nil
 	case ScriptNativeSegwit:
-		return inputWeight(0, singleSigWitnessBytes()), nil
+		return inputWeight(0, singleSigWitnessBytes(maxECDSASignatureBytes)), nil
 	case ScriptNestedSegwit:
-		return inputWeight(pushBytes(witnessProgramKeyBytes), singleSigWitnessBytes()), nil
+		return inputWeight(pushBytes(witnessProgramKeyBytes), singleSigWitnessBytes(maxECDSASignatureBytes)), nil
 	case ScriptTaproot:
-		return inputWeight(0, taprootKeyPathWitnessBytes()), nil
+		return inputWeight(0, taprootKeyPathWitnessBytes(maxSchnorrSignatureBytes)), nil
 	default:
 		return 0, fmt.Errorf("cannot size input for script kind %v", kind)
 	}
@@ -133,7 +140,7 @@ func InputWeightUnits(descriptor string) (int, error) {
 		return inputWeight(scriptSig, 0), nil
 
 	case strings.HasPrefix(desc, "wpkh("):
-		return inputWeight(0, singleSigWitnessBytes()), nil
+		return inputWeight(0, singleSigWitnessBytes(maxECDSASignatureBytes)), nil
 
 	case strings.HasPrefix(desc, "tr("):
 		// tr(key) spends through the key path. tr(key,{tree}) may have to spend
@@ -146,10 +153,10 @@ func InputWeightUnits(descriptor string) (int, error) {
 		if len(args) > 1 {
 			return 0, fmt.Errorf("cannot size a taproot script path spend: %q", descriptor)
 		}
-		return inputWeight(0, taprootKeyPathWitnessBytes()), nil
+		return inputWeight(0, taprootKeyPathWitnessBytes(maxSchnorrSignatureBytes)), nil
 
 	case strings.HasPrefix(desc, "sh(wpkh("):
-		return inputWeight(pushBytes(witnessProgramKeyBytes), singleSigWitnessBytes()), nil
+		return inputWeight(pushBytes(witnessProgramKeyBytes), singleSigWitnessBytes(maxECDSASignatureBytes)), nil
 
 	case strings.HasPrefix(desc, "sh(wsh("):
 		required, keys, err := parseMultisigThreshold(desc)
