@@ -223,3 +223,49 @@ func assertBip47NotificationCode(t *testing.T, senderSeed string, tx *wire.MsgTx
 	require.NoError(t, err)
 	assert.Equal(t, want.Base58(), code.Base58())
 }
+
+// lyingPaths gives chosen addresses a path that does not derive their key, as
+// Core does for a key that the wallet imported alone.
+type lyingPaths struct {
+	*wallet.ElectrumBackend
+	paths map[string]string
+}
+
+func (l lyingPaths) AddressHDPath(ctx context.Context, walletID, address string) (string, error) {
+	if path, ok := l.paths[address]; ok {
+		return path, nil
+	}
+	return l.ElectrumBackend.AddressHDPath(ctx, walletID, address)
+}
+
+func TestBip47NotificationSkipsACoinItCannotDeriveTheKeyOf(t *testing.T) {
+	for name, path := range map[string]string{"master path": "m", "no path": ""} {
+		t.Run(name, func(t *testing.T) {
+			log := zerolog.New(zerolog.NewTestWriter(t))
+			svc := wallet.NewService(t.TempDir(), log)
+			svc.SetNetwork("signet")
+			require.NoError(t, svc.Init())
+			t.Cleanup(func() { svc.Close() })
+			w, err := svc.CreateElectrumWallet("Sender", nil, nil, "", "", "", "legacy", 0, "")
+			require.NoError(t, err)
+			net := &chaincfg.SigNetParams
+			addresses, err := wallet.DeriveWalletReceiveAddresses(w, net, 0, 2)
+			require.NoError(t, err)
+			chain := newBip47TestChain(t, addresses[0], 500_000, 5)
+			chain.addCoinTo(t, addresses[1], 300_000)
+			backend := lyingPaths{
+				ElectrumBackend: wallet.NewElectrumBackend(svc, chain, wallet.StaticParams(net), log),
+				paths:           map[string]string{addresses[1]: path},
+			}
+			h := NewWalletHandler(svc)
+			h.SetEngine(wallet.NewWalletEngine(svc, wallet.NewBackendRouter(svc, nil, backend), wallet.StaticParams(net), log))
+			h.SetBip47StateStore(bip47state.NewStore(t.TempDir()))
+
+			recipient, err := bip47.PaymentCodeFromSeed(strings.Repeat("ab", 32), net)
+			require.NoError(t, err)
+			_, address, _, err := h.buildBip47NotificationTx(context.Background(), w.ID, w.Master.SeedHex, recipient, net, 5, nil, nil)
+			require.NoError(t, err)
+			assert.Equal(t, addresses[0], address, "the blinding key must be the key of the spent coin")
+		})
+	}
+}

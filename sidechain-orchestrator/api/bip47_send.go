@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"connectrpc.com/connect/v2"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
@@ -294,6 +295,8 @@ func (h *WalletHandler) bip47NotificationCoin(
 		"no spendable UTXO supports BIP47. Use P2PKH, P2WPKH, or P2SH-P2WPKH with at least %d sats.", minRequired)
 }
 
+// bip47NotificationInputSupported reports whether the wallet seed derives the
+// key of coin, so the notification blinds with the key that signs the input.
 func (h *WalletHandler) bip47NotificationInputSupported(ctx context.Context, walletID string, coin wallet.UTXO) (bool, error) {
 	net := h.engine.Network()
 	address, err := btcutil.DecodeAddress(coin.Address, net)
@@ -301,35 +304,60 @@ func (h *WalletHandler) bip47NotificationInputSupported(ctx context.Context, wal
 		return false, fmt.Errorf("decode notification input address: %w", err)
 	}
 	switch address.(type) {
-	case *btcutil.AddressPubKeyHash, *btcutil.AddressWitnessPubKeyHash:
-		return true, nil
+	case *btcutil.AddressPubKeyHash, *btcutil.AddressWitnessPubKeyHash, *btcutil.AddressScriptHash:
+	default:
+		return false, nil
+	}
+	hdPath, err := h.engine.Backend().AddressHDPath(ctx, walletID, coin.Address)
+	if err != nil {
+		return false, fmt.Errorf("get notification input path: %w", err)
+	}
+	if hdPath == "" {
+		return false, nil
+	}
+	key, err := bip47send.DerivePrivKeyFromHDPath(h.walletSeedHex(walletID), hdPath)
+	if err != nil {
+		return false, fmt.Errorf("derive notification input key: %w", err)
+	}
+	derived, err := keyAddressLike(address, key.PubKey(), net)
+	if err != nil {
+		return false, fmt.Errorf("derive notification input address: %w", err)
+	}
+	return derived == coin.Address, nil
+}
+
+// keyAddressLike encodes pub as an address of the same type as like.
+func keyAddressLike(like btcutil.Address, pub *btcec.PublicKey, net *chaincfg.Params) (string, error) {
+	hash := btcutil.Hash160(pub.SerializeCompressed())
+	switch like.(type) {
+	case *btcutil.AddressPubKeyHash:
+		address, err := btcutil.NewAddressPubKeyHash(hash, net)
+		if err != nil {
+			return "", err
+		}
+		return address.EncodeAddress(), nil
+	case *btcutil.AddressWitnessPubKeyHash:
+		address, err := btcutil.NewAddressWitnessPubKeyHash(hash, net)
+		if err != nil {
+			return "", err
+		}
+		return address.EncodeAddress(), nil
 	case *btcutil.AddressScriptHash:
-		hdPath, err := h.engine.Backend().AddressHDPath(ctx, walletID, coin.Address)
+		witness, err := btcutil.NewAddressWitnessPubKeyHash(hash, net)
 		if err != nil {
-			return false, fmt.Errorf("get notification input path: %w", err)
-		}
-		if hdPath == "" {
-			return false, nil
-		}
-		key, err := bip47send.DerivePrivKeyFromHDPath(h.walletSeedHex(walletID), hdPath)
-		if err != nil {
-			return false, fmt.Errorf("derive notification input key: %w", err)
-		}
-		witness, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(key.PubKey().SerializeCompressed()), net)
-		if err != nil {
-			return false, fmt.Errorf("derive notification witness address: %w", err)
+			return "", err
 		}
 		script, err := txscript.PayToAddrScript(witness)
 		if err != nil {
-			return false, fmt.Errorf("derive notification witness script: %w", err)
+			return "", err
 		}
-		nested, err := btcutil.NewAddressScriptHash(script, net)
+		address, err := btcutil.NewAddressScriptHash(script, net)
 		if err != nil {
-			return false, fmt.Errorf("derive notification script address: %w", err)
+			return "", err
 		}
-		return nested.EncodeAddress() == coin.Address, nil
+		return address.EncodeAddress(), nil
 	default:
-		return false, nil
+		return "", fmt.Errorf("unsupported address type %T", like)
 	}
 }
 
