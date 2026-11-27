@@ -38,7 +38,7 @@ func TestCoreChangeAddressSigningKey(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, info.IsMine)
 			require.True(t, info.IsChange)
-			key, err := wallet.SigningKey(w, params, address, 100)
+			key, err := wallet.SigningKey(w, params, address, info.HDKeyPath)
 			require.NoError(t, err)
 			var derived btcutil.Address
 			if kind == "bech32m" {

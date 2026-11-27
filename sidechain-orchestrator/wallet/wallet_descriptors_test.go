@@ -3,6 +3,7 @@ package wallet
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -92,9 +93,12 @@ func TestSigningKeyFindsTheKeyBehindAnAddress(t *testing.T) {
 
 	for _, d := range descriptors {
 		for _, change := range []bool{false, true} {
-			ds, pub, err := d.DeriveScript(change, 3, net)
+			ds, pub, err := d.DeriveScript(change, 150, net)
 			require.NoError(t, err)
-			key, err := SigningKey(w, net, ds.address.EncodeAddress(), 10)
+			purpose, ok := d.Kind.Purpose()
+			require.True(t, ok)
+			path := fmt.Sprintf("m/%d'/1'/0'/%d/150", purpose, chainIndex(change))
+			key, err := SigningKey(w, net, ds.address.EncodeAddress(), path)
 			require.NoError(t, err)
 			want := pub.SerializeCompressed()
 			if d.Kind == ScriptTaproot {
@@ -105,14 +109,17 @@ func TestSigningKeyFindsTheKeyBehindAnAddress(t *testing.T) {
 		}
 	}
 
-	beyond, _, err := descriptors[0].DeriveScript(false, 10, net)
-	require.NoError(t, err)
-	_, err = SigningKey(w, net, beyond.address.EncodeAddress(), 10)
-	require.ErrorContains(t, err, "not one of the wallet")
-
 	first, _, err := descriptors[0].DeriveScript(false, 0, net)
 	require.NoError(t, err)
+	_, err = SigningKey(w, net, first.address.EncodeAddress(), "m/84h/1h/0h/0/1")
+	require.ErrorContains(t, err, "does not derive from the wallet at m/84h/1h/0h/0/1")
+
+	for _, path := range []string{"", "m", "m/84h/1h/0h/2/0", "m/84h/1h/0h/0/0h", "m/84h/1h/0h/0/x"} {
+		_, err = SigningKey(w, net, first.address.EncodeAddress(), path)
+		require.Error(t, err, path)
+	}
+
 	watch := &WalletData{WatchOnly: json.RawMessage(`{"xpub":"` + accountXpub(t, seedHex, net) + `"}`)}
-	_, err = SigningKey(watch, net, first.address.EncodeAddress(), 10)
+	_, err = SigningKey(watch, net, first.address.EncodeAddress(), "m/84h/1h/0h/0/0")
 	require.ErrorContains(t, err, "no private key")
 }

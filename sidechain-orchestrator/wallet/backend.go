@@ -36,7 +36,8 @@ type Backend interface {
 	ListTransactionsRange(ctx context.Context, walletID string, count, skip int) ([]WalletTransaction, error)
 	ListReceivedByAddress(ctx context.Context, walletID string) ([]ReceivedByAddress, error)
 	GetWalletTransaction(ctx context.Context, walletID, txid string) (*WalletTx, error)
-	// AddressHDPath returns the BIP32 derivation path of a wallet address.
+	// AddressHDPath returns the BIP32 derivation path of a wallet address. It
+	// is empty for an address with no HD key in the wallet.
 	AddressHDPath(ctx context.Context, walletID, address string) (string, error)
 	// OwnedAddresses reports which of addresses the wallet owns. The map value
 	// is true for an address on the wallet's change chain. An address the

@@ -1008,6 +1008,25 @@ extension type WalletManagerServiceClient(connect.Transport _transport) {
     );
   }
 
+  /// GetAddressDerivationPath returns the BIP32 path of one wallet address.
+  /// Fails with NotFound for an address the wallet has no HD key for.
+  Future<walletmanagerv1walletmanager.GetAddressDerivationPathResponse> getAddressDerivationPath(
+    walletmanagerv1walletmanager.GetAddressDerivationPathRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.WalletManagerService.getAddressDerivationPath,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// Address reads that belong to no wallet — cheque addresses, whose funds are
   /// not the user's to spend. Always electrum-backed, whatever wallet is active.
   Future<walletmanagerv1walletmanager.GetAddressUnspentResponse> getAddressUnspent(

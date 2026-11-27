@@ -667,18 +667,18 @@ func (s *Server) CreateSidechainDeposit(ctx context.Context, c *pb.CreateSidecha
 	return &pb.CreateSidechainDepositResponse{Txid: txid}, nil
 }
 
-// addressScanDepth limits key lookup per branch and receive-address sync.
+// addressScanDepth limits receive-address sync.
 const addressScanDepth = 100
 
-// deriveMessageSigningPrivateKey returns the key behind address, so the
-// signature proves ownership of that address rather than some other one.
-func deriveMessageSigningPrivateKey(seedHex string, wallet *engines.WalletInfo, chainParams *chaincfg.Params, address string) (*btcec.PrivateKey, error) {
+// deriveMessageSigningPrivateKey returns the key behind address at hdPath, so
+// the signature proves ownership of that address rather than some other one.
+func deriveMessageSigningPrivateKey(seedHex string, wallet *engines.WalletInfo, chainParams *chaincfg.Params, address, hdPath string) (*btcec.PrivateKey, error) {
 	return orchwallet.SigningKey(&orchwallet.WalletData{
 		Master:         orchwallet.MasterWallet{SeedHex: seedHex},
 		ScriptType:     wallet.ScriptType,
 		AccountIndex:   wallet.AccountIndex,
 		DerivationPath: wallet.DerivationPath,
-	}, chainParams, address, addressScanDepth)
+	}, chainParams, address, hdPath)
 }
 
 // SignMessage implements walletv1connect.WalletServiceHandler.
@@ -712,7 +712,12 @@ func (s *Server) SignMessage(ctx context.Context, c *pb.SignMessageRequest) (*pb
 		return nil, err
 	}
 
-	privKey, err := deriveMessageSigningPrivateKey(seedHex, walletInfo, chainParams, addressText)
+	hdPath, err := s.walletEngine.GetAddressDerivationPath(ctx, walletInfo.ID, addressText)
+	if err != nil {
+		return nil, err
+	}
+
+	privKey, err := deriveMessageSigningPrivateKey(seedHex, walletInfo, chainParams, addressText, hdPath)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("derive signing key: %s", err)).WithCause(err)
 	}

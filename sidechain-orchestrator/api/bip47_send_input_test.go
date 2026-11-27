@@ -161,7 +161,7 @@ func TestBip47NotificationSupportsNestedSegwit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, chain.addr, address)
 	tx := decodeBip47TestTx(t, raw)
-	key, err := wallet.SigningKey(w, net, address, 1)
+	key, err := wallet.SigningKey(w, net, address, "m/49h/1h/0h/0/0")
 	require.NoError(t, err)
 	keyHash := btcutil.Hash160(key.PubKey().SerializeCompressed())
 	witnessAddress, err := btcutil.NewAddressWitnessPubKeyHash(keyHash, net)

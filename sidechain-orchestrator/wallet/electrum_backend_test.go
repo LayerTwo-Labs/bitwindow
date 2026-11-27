@@ -4495,3 +4495,16 @@ func TestElectrumUnspentDatesAPendingCoinLikeItsHistoryRow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, utxos[0].ReceivedAt, again[0].ReceivedAt, "the first-seen time must not move")
 }
+
+func TestElectrumAddressHDPathIsEmptyForAStranger(t *testing.T) {
+	p, _, w, addr := newElectrumFixture(t)
+	ctx := context.Background()
+
+	path, err := p.AddressHDPath(ctx, w.ID, addr)
+	require.NoError(t, err)
+	assert.Equal(t, "m/84'/1'/0'/0/0", path)
+
+	path, err = p.AddressHDPath(ctx, w.ID, "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx")
+	require.NoError(t, err)
+	assert.Empty(t, path)
+}
