@@ -48,6 +48,12 @@ func (o TxOutSpec) describeOwned(sa scannedAddr) TxOutSpec {
 	return o
 }
 
+// opReturnScript is the OP_RETURN output script that carries data. The data
+// push has no size limit: a node never runs an OP_RETURN script.
+func opReturnScript(data []byte) ([]byte, error) {
+	return txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).AddFullData(data).Script()
+}
+
 // BuildUnsignedTransaction assembles a raw unsigned transaction in-process,
 // for backends with no node to delegate to (electrum) — CoreBackend uses
 // createrawtransaction instead. Matches Core's defaults: version 2,
@@ -71,7 +77,7 @@ func BuildUnsignedTransaction(inputs []RawInput, outputs []TxOutSpec, net *chain
 			if err != nil {
 				return "", fmt.Errorf("decode op_return hex: %w", err)
 			}
-			script, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).AddData(data).Script()
+			script, err := opReturnScript(data)
 			if err != nil {
 				return "", fmt.Errorf("build op_return script: %w", err)
 			}

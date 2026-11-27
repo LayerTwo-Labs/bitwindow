@@ -1152,7 +1152,7 @@ func outputToTxOut(out TxOutSpec, net *chaincfg.Params) (*wire.TxOut, error) {
 		if err != nil {
 			return nil, fmt.Errorf("decode op_return hex: %w", err)
 		}
-		script, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).AddData(data).Script()
+		script, err := opReturnScript(data)
 		if err != nil {
 			return nil, fmt.Errorf("build op_return script: %w", err)
 		}
