@@ -139,7 +139,7 @@ void main() {
     expect(find.text('Sweep Check to Wallet'), findsOneWidget);
   });
 
-  testWidgets('an empty check funds the check amount', (tester) async {
+  testWidgets('an empty check funds the check amount at the wallet fee estimate', (tester) async {
     final orchestrator = await pumpCheck(tester, _check());
 
     await tester.tap(find.text('Fund with Wallet'));
@@ -148,6 +148,7 @@ void main() {
     expect(orchestrator.wallet.sends.map((s) => s.$1), [
       {_address: 200000},
     ]);
+    expect(orchestrator.wallet.sends.single.$2, isNull);
   });
 
   testWidgets('a swept check shows the sweep and no private key', (tester) async {

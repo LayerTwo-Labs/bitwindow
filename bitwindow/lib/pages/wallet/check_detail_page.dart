@@ -97,7 +97,6 @@ class CheckDetailViewModel extends BaseViewModel {
       final txid = (await _orchestratorWallet.sendTransaction(
         walletId: walletId,
         destinations: {_check!.address: amountSats},
-        feeRateSatPerVbyte: 10,
       )).txid;
 
       final network = GetIt.I.get<BitcoinConfProvider>().network;
