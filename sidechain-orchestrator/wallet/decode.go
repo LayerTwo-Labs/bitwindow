@@ -55,6 +55,7 @@ type DecodedOutput struct {
 
 // DecodedTransaction is the structured result of decoding a raw transaction or
 // PSBT locally. FeeSats/HasFee are only set when every input value is known.
+// For a PSBT, the sizes are of the signed transaction, and 0 when unknown.
 type DecodedTransaction struct {
 	Form           DecodedForm
 	TxID           string
@@ -221,14 +222,11 @@ func decodePSBT(packet *psbt.Packet, net *chaincfg.Params) (*DecodedTransaction,
 	}
 
 	out := &DecodedTransaction{
-		Form:        DecodedFormPSBT,
-		IsPSBT:      true,
-		TxID:        tx.TxHash().String(),
-		Version:     tx.Version,
-		Locktime:    int32(tx.LockTime),
-		SizeBytes:   int32(tx.SerializeSize()),
-		VsizeVBytes: int32(msgTxVsize(tx)),
-		WeightWU:    int32(weightVsize(tx)),
+		Form:     DecodedFormPSBT,
+		IsPSBT:   true,
+		TxID:     tx.TxHash().String(),
+		Version:  tx.Version,
+		Locktime: int32(tx.LockTime),
 	}
 
 	var rawBuf bytes.Buffer
@@ -280,6 +278,12 @@ func decodePSBT(packet *psbt.Packet, net *chaincfg.Params) (*DecodedTransaction,
 		out.Outputs = append(out.Outputs, do)
 	}
 
+	if size, weight, ok := psbtSignedSize(packet); ok {
+		out.SizeBytes = int32(size)
+		out.WeightWU = int32(weight)
+		out.VsizeVBytes = int32((weight + 3) / 4)
+	}
+
 	if out.HasTotalInput {
 		fee := out.TotalInputSats - out.TotalOutput
 		if fee >= 0 {
@@ -291,6 +295,155 @@ func decodePSBT(packet *psbt.Packet, net *chaincfg.Params) (*DecodedTransaction,
 		}
 	}
 	return out, nil
+}
+
+// The signature sizes that Bitcoin Core's analyzepsbt assumes: a low-R ECDSA
+// signature and a Schnorr signature with the default sighash.
+const (
+	estimatedECDSASignatureBytes   = 71
+	estimatedSchnorrSignatureBytes = 64
+)
+
+// psbtSignedSize is the byte size and the weight of the transaction that
+// packet becomes when each input is final. ok is false when the PSBT does not
+// show how one input spends.
+func psbtSignedSize(packet *psbt.Packet) (size, weight int, ok bool) {
+	const emptyScriptSigBytes = 1
+	base := packet.UnsignedTx.SerializeSizeStripped()
+	witnesses := make([]int, len(packet.Inputs))
+	hasWitness := false
+	for i := range packet.Inputs {
+		scriptSig, witness, ok := psbtInputSpendBytes(packet, i)
+		if !ok {
+			return 0, 0, false
+		}
+		base += varIntLen(scriptSig) + scriptSig - emptyScriptSigBytes
+		witnesses[i] = witness
+		hasWitness = hasWitness || witness > 0
+	}
+
+	witnessBytes := 0
+	if hasWitness {
+		const segwitMarkerAndFlagBytes = 2
+		const emptyWitnessBytes = 1
+		witnessBytes = segwitMarkerAndFlagBytes
+		for _, w := range witnesses {
+			witnessBytes += max(w, emptyWitnessBytes)
+		}
+	}
+	return base + witnessBytes, base*4 + witnessBytes, true
+}
+
+// psbtInputSpendBytes is the byte count of the final scriptSig and the final
+// witness of input i.
+func psbtInputSpendBytes(packet *psbt.Packet, i int) (scriptSig, witness int, ok bool) {
+	in := packet.Inputs[i]
+	if len(in.FinalScriptSig) > 0 || len(in.FinalScriptWitness) > 0 {
+		return len(in.FinalScriptSig), len(in.FinalScriptWitness), true
+	}
+	prevOut := psbtInputPrevOut(packet, i)
+	if prevOut == nil {
+		return 0, 0, false
+	}
+
+	switch txscript.GetScriptClass(prevOut.PkScript) {
+	case txscript.PubKeyHashTy:
+		return ecdsaSignatureItems(in, 1, pushBytes) + pushBytes(psbtInputPubKeyBytes(in)), 0, true
+	case txscript.WitnessV0PubKeyHashTy:
+		return 0, singleSigWitnessBytes(ecdsaSignatureBytes(in)), true
+	case txscript.WitnessV1TaprootTy:
+		if len(in.TaprootLeafScript) > 0 {
+			return 0, 0, false
+		}
+		return 0, taprootKeyPathWitnessBytes(taprootSignatureBytes(in)), true
+	case txscript.WitnessV0ScriptHashTy:
+		witness, ok := multisigWitnessBytesFor(in)
+		return 0, witness, ok
+	case txscript.ScriptHashTy:
+		return nestedSpendBytes(in)
+	default:
+		return 0, 0, false
+	}
+}
+
+// taprootSignatureBytes is the size of the key path signature of in: the
+// signature it holds, else 64 bytes plus a byte for a non-default sighash.
+func taprootSignatureBytes(in psbt.PInput) int {
+	if len(in.TaprootKeySpendSig) > 0 {
+		return len(in.TaprootKeySpendSig)
+	}
+	if in.SighashType != 0 && in.SighashType != txscript.SigHashDefault {
+		return estimatedSchnorrSignatureBytes + 1
+	}
+	return estimatedSchnorrSignatureBytes
+}
+
+// ecdsaSignatureBytes is the size of the one signature of a single key input:
+// the signature it holds, else the estimate.
+func ecdsaSignatureBytes(in psbt.PInput) int {
+	if len(in.PartialSigs) > 0 {
+		return len(in.PartialSigs[0].Signature)
+	}
+	return estimatedECDSASignatureBytes
+}
+
+// ecdsaSignatureItems is the byte count of required signature items, each
+// sized by item: the signatures that in holds, and the estimate for the rest.
+func ecdsaSignatureItems(in psbt.PInput, required int, item func(int) int) int {
+	total := 0
+	held := min(len(in.PartialSigs), required)
+	for _, sig := range in.PartialSigs[:held] {
+		total += item(len(sig.Signature))
+	}
+	return total + (required-held)*item(estimatedECDSASignatureBytes)
+}
+
+// nestedSpendBytes sizes the spend of a P2SH output from its redeem script.
+func nestedSpendBytes(in psbt.PInput) (scriptSig, witness int, ok bool) {
+	redeem := in.RedeemScript
+	switch txscript.GetScriptClass(redeem) {
+	case txscript.WitnessV0PubKeyHashTy:
+		return pushBytes(len(redeem)), singleSigWitnessBytes(ecdsaSignatureBytes(in)), true
+	case txscript.WitnessV0ScriptHashTy:
+		witness, ok := multisigWitnessBytesFor(in)
+		return pushBytes(len(redeem)), witness, ok
+	case txscript.MultiSigTy:
+		_, required, err := txscript.CalcMultiSigStats(redeem)
+		if err != nil {
+			return 0, 0, false
+		}
+		// OP_0 for the extra item that OP_CHECKMULTISIG pops.
+		return 1 + ecdsaSignatureItems(in, required, pushBytes) + pushBytes(len(redeem)), 0, true
+	default:
+		return 0, 0, false
+	}
+}
+
+// multisigWitnessBytesFor sizes the witness that spends the multisig witness
+// script of in.
+func multisigWitnessBytesFor(in psbt.PInput) (int, bool) {
+	script := in.WitnessScript
+	if txscript.GetScriptClass(script) != txscript.MultiSigTy {
+		return 0, false
+	}
+	_, required, err := txscript.CalcMultiSigStats(script)
+	if err != nil {
+		return 0, false
+	}
+	return multisigWitnessBytesForScript(required, ecdsaSignatureItems(in, required, witnessItemBytes), len(script)), true
+}
+
+// psbtInputPubKeyBytes is the size of the key that signs a legacy input. A
+// key that the PSBT does not show takes the uncompressed size, so the
+// estimate never reads low.
+func psbtInputPubKeyBytes(in psbt.PInput) int {
+	for _, sig := range in.PartialSigs {
+		return len(sig.PubKey)
+	}
+	for _, derivation := range in.Bip32Derivation {
+		return len(derivation.PubKey)
+	}
+	return uncompressedPubKeyBytes
 }
 
 func decodeTxOut(i int, txOut *wire.TxOut, net *chaincfg.Params) DecodedOutput {
