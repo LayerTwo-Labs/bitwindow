@@ -121,6 +121,8 @@ class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
                 CoinNewsTable(
                   entries: viewModel.paginatedEntries,
                   onSort: viewModel.sortEntries,
+                  sortColumn: viewModel.sortColumn,
+                  sortAscending: viewModel.sortAscending,
                   loading: viewModel.loading,
                   onArticleSelected: (news) => showCoinNewsArticle(context, news),
                 ),
@@ -459,6 +461,9 @@ class CoinNewsViewModel extends BaseViewModel {
   bool _sortAscending = false;
   String _sortColumn = 'date';
 
+  String get sortColumn => _sortColumn;
+  bool get sortAscending => _sortAscending;
+
   // Selected article for side panel
   CoinNews? selectedArticle;
   String? selectedRowId;
@@ -544,39 +549,25 @@ class CoinNewsViewModel extends BaseViewModel {
         )
         .toList();
 
-    // Apply sorting
-    filteredEntries.sort((a, b) {
-      dynamic aValue = '';
-      dynamic bValue = '';
-
-      switch (_sortColumn) {
-        case 'date':
-          aValue = a.createTime.toDateTime().millisecondsSinceEpoch;
-          bValue = b.createTime.toDateTime().millisecondsSinceEpoch;
-          break;
-        case 'topic':
-          aValue = a.topic;
-          bValue = b.topic;
-          break;
-        case 'title':
-          aValue = a.headline;
-          bValue = b.headline;
-          break;
-        case 'readtime':
-          aValue = expectedReadTime(a.content);
-          bValue = expectedReadTime(b.content);
-          break;
-        case 'fee':
-          aValue = a.feeSats.toInt();
-          bValue = b.feeSats.toInt();
-          break;
-      }
-
-      return _sortAscending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
-    });
+    // A stable sort keeps the fee rank of the server between equal values.
+    mergeSort(
+      filteredEntries,
+      compare: (a, b) {
+        final result = switch (_sortColumn) {
+          'topic' => _topicLabel(a).compareTo(_topicLabel(b)),
+          'title' => a.headline.toLowerCase().compareTo(b.headline.toLowerCase()),
+          'readtime' => readTimeMinutes(a.content).compareTo(readTimeMinutes(b.content)),
+          'fee' => a.feeSats.compareTo(b.feeSats),
+          _ => a.createTime.toDateTime().compareTo(b.createTime.toDateTime()),
+        };
+        return _sortAscending ? result : -result;
+      },
+    );
 
     return filteredEntries;
   }
+
+  String _topicLabel(CoinNews news) => (_newsProvider.topicName(news.topic) ?? news.topic).toLowerCase();
 
   List<CoinNews> get paginatedEntries {
     final start = (currentPage - 1) * pageSize;
@@ -916,6 +907,10 @@ class _CoinNewsEntryState extends State<CoinNewsEntry> {
 class CoinNewsTable extends StatelessWidget {
   final List<CoinNews> entries;
   final Function(String) onSort;
+
+  /// The column the entries are sorted by, and its direction.
+  final String? sortColumn;
+  final bool sortAscending;
   final bool loading;
   final bool shrinkWrap;
   final bool condensed;
@@ -926,6 +921,8 @@ class CoinNewsTable extends StatelessWidget {
     super.key,
     required this.entries,
     required this.onSort,
+    this.sortColumn,
+    this.sortAscending = false,
     required this.loading,
     this.shrinkWrap = true,
     this.condensed = false,
@@ -933,6 +930,8 @@ class CoinNewsTable extends StatelessWidget {
     this.selectedRowId,
   });
 
+  static const _columns = ['date', 'topic', 'title', 'readtime'];
+  static const _condensedColumns = ['date', 'fee', 'title'];
   static const _phoneDateWidth = 72.0;
   static const _phoneReadTimeWidth = 88.0;
 
@@ -951,11 +950,14 @@ class CoinNewsTable extends StatelessWidget {
             defaultMinColumnWidth,
             constraints.maxWidth - _phoneDateWidth - _phoneReadTimeWidth,
           );
+          final columns = condensed ? _condensedColumns : _columns;
           return ListenableBuilder(
             listenable: formatter,
             builder: (context, child) => SailTable(
               shrinkWrap: shrinkWrap,
               selectedRowId: selectedRowId,
+              sortColumnIndex: columns.contains(sortColumn) ? columns.indexOf(sortColumn!) : null,
+              sortAscending: sortAscending,
               getRowId: (index) => index.toString(),
               phoneColumns: condensed ? null : const [0, 2, 3],
               headerBuilder: (context) => [
@@ -1005,10 +1007,7 @@ class CoinNewsTable extends StatelessWidget {
               rowCount: entries.length,
               emptyPlaceholder: 'No news articles yet',
               drawGrid: true,
-              onSort: (columnIndex, ascending) {
-                final columns = condensed ? ['date', 'fee', 'title'] : ['date', 'topic', 'title', 'readtime'];
-                onSort(columns[columnIndex]);
-              },
+              onSort: (columnIndex, ascending) => onSort(columns[columnIndex]),
               onRowTap: (rowId) {
                 if (onArticleSelected == null) {
                   return;
