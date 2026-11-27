@@ -14215,12 +14215,14 @@ class WatchBalanceResponse extends $pb.GeneratedMessage {
     GetBalanceResponse? balance,
     $core.bool? heartbeat,
     $core.Iterable<TransactionEntry>? transactions,
+    $core.String? error,
   }) {
     final result = WatchBalanceResponse._();
     if (walletId != null) result.walletId = walletId;
     if (balance != null) result.balance = balance;
     if (heartbeat != null) result.heartbeat = heartbeat;
     if (transactions != null) result.transactions.addAll(transactions);
+    if (error != null) result.error = error;
     return result;
   }
 
@@ -14240,6 +14242,7 @@ class WatchBalanceResponse extends $pb.GeneratedMessage {
     ..aOM<GetBalanceResponse>(2, _omitFieldNames ? '' : 'balance', subBuilder: GetBalanceResponse.$_createMessage)
     ..aOB(3, _omitFieldNames ? '' : 'heartbeat')
     ..pPM<TransactionEntry>(4, _omitFieldNames ? '' : 'transactions', subBuilder: TransactionEntry.$_createMessage)
+    ..aOS(5, _omitFieldNames ? '' : 'error')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -14297,6 +14300,16 @@ class WatchBalanceResponse extends $pb.GeneratedMessage {
   /// ListTransactions gives them. Unset with no local Bitcoin Core.
   @$pb.TagNumber(4)
   $pb.PbList<TransactionEntry> get transactions => $_getList(3);
+
+  /// Why the balance of the wallet could not be read. The balance is unset then.
+  @$pb.TagNumber(5)
+  $core.String get error => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set error($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasError() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearError() => $_clearField(5);
 }
 
 class CreateDepositRequest extends $pb.GeneratedMessage {

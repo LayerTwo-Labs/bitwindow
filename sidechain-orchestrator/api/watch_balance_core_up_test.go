@@ -73,7 +73,57 @@ func TestWatchBalanceWaitsForCore(t *testing.T) {
 
 	msg := next()
 	require.Equal(t, w.ID, msg.WalletId)
+	require.Nil(t, msg.Balance)
+	require.Contains(t, msg.Error, "connection refused")
+
+	msg = next()
+	require.Equal(t, w.ID, msg.WalletId)
 	require.Equal(t, 1e8, msg.Balance.ConfirmedSats)
+	require.Empty(t, msg.Error)
+}
+
+func TestWatchBalanceSendsTheErrorWhenCoreStops(t *testing.T) {
+	var down atomic.Bool
+	backend := downBackend{balanceBackend: &balanceBackend{btc: map[string]float64{}}, down: &down}
+	svc := wallet.NewService(t.TempDir(), zerolog.Nop())
+	require.NoError(t, svc.Init())
+	t.Cleanup(svc.Close)
+	engine := chaindata.New(chaindata.Config{Log: zerolog.Nop(), Call: func(ctx context.Context, method string, _ ...any) (json.RawMessage, error) {
+		if down.Load() {
+			return nil, errors.New("connection refused")
+		}
+		if method == "getblockchaininfo" {
+			return json.RawMessage(`{"chain":"regtest","blocks":1,"headers":1,"bestblockhash":"a"}`), nil
+		}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}})
+	engine.Start(t.Context())
+	h := NewWalletHandler(svc)
+	h.SetEngine(wallet.NewWalletEngine(svc, wallet.NewBackendRouter(svc, backend, nil), nil, zerolog.Nop()))
+	h.chainData = engine
+
+	w, err := svc.GenerateWallet("First", "", "", nil)
+	require.NoError(t, err)
+	backend.set(w.ID, 1)
+	require.NoError(t, engine.Probe(t.Context()))
+
+	next := watchBalance(t, h)
+	require.Equal(t, 1e8, next().Balance.ConfirmedSats)
+
+	down.Store(true)
+	require.Error(t, engine.Probe(t.Context()))
+	engine.Fire(chaindata.EventSettle)
+	msg := next()
+	require.Equal(t, w.ID, msg.WalletId)
+	require.Nil(t, msg.Balance, "an old balance must not come as new while Core is down")
+	require.Contains(t, msg.Error, "connection refused")
+
+	down.Store(false)
+	require.NoError(t, engine.Probe(t.Context()))
+	msg = next()
+	require.Equal(t, 1e8, msg.Balance.ConfirmedSats)
+	require.Empty(t, msg.Error)
 }
 
 // openBalanceStream serves h and opens a WatchBalance stream with an hour recheck.
