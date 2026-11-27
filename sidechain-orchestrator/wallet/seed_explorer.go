@@ -57,13 +57,26 @@ func ExploreSeed(mnemonic, passphrase, basePath string, start, count uint32, net
 // takes the receive chain of the default address type of w.
 func ExploreWallet(w *WalletData, basePath string, start, count uint32, net *chaincfg.Params) (SeedExplorer, error) {
 	if w.Multisig != nil || w.Master.SeedHex == "" {
-		return SeedExplorer{}, fmt.Errorf("wallet %s %w", w.ID, ErrNoSingleSeed)
+		return SeedExplorer{}, noSingleSeedError(w)
 	}
 	seed, err := hex.DecodeString(w.Master.SeedHex)
 	if err != nil {
 		return SeedExplorer{}, fmt.Errorf("decode seed of wallet %s: %w", w.ID, err)
 	}
 	return exploreSeedBytes(seed, w, basePath, start, count, net)
+}
+
+// noSingleSeedError names the wallet as the user sees it, and its kind.
+func noSingleSeedError(w *WalletData) error {
+	name := strconv.Quote(w.Name)
+	switch {
+	case w.Multisig != nil:
+		return fmt.Errorf("%s is a multisig wallet and %w", name, ErrNoSingleSeed)
+	case w.IsWatchOnly():
+		return fmt.Errorf("%s is a watch-only wallet and %w", name, ErrNoSingleSeed)
+	default:
+		return fmt.Errorf("%s %w", name, ErrNoSingleSeed)
+	}
 }
 
 func exploreSeedBytes(seed []byte, w *WalletData, basePath string, start, count uint32, net *chaincfg.Params) (SeedExplorer, error) {
