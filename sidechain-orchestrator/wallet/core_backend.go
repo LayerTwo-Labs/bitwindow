@@ -464,15 +464,20 @@ func (p *CoreBackend) ListReceivedByAddress(ctx context.Context, walletID string
 		return nil, err
 	}
 	out := coreReceiveList(received, utxos)
+	if err := p.fillHDPaths(ctx, name, out); err != nil {
+		return nil, err
+	}
+	// A key that the wallet imported alone shows once it received, the same
+	// way the electrum list shows it.
+	out = lo.Filter(out, func(r ReceivedByAddress, _ int) bool {
+		return r.HDPath != "" || r.Amount != 0 || r.BalanceSats != 0 || len(r.TxIDs) != 0
+	})
 	lastUsed, err := p.lastUsedTimes(ctx, name, out, utxos)
 	if err != nil {
 		return nil, err
 	}
 	for i := range out {
 		out[i].LastUsedAt = lastUsed[out[i].Address]
-	}
-	if err := p.fillHDPaths(ctx, name, out); err != nil {
-		return nil, err
 	}
 	return out, nil
 }
@@ -505,9 +510,9 @@ func (p *CoreBackend) cachedHDPath(ctx context.Context, name, address string) (s
 		return "", fmt.Errorf("read path of %s: %w", address, err)
 	}
 	p.spentMu.Lock()
-	p.hdPaths[key] = info.HDKeyPath
+	p.hdPaths[key] = info.SeedPath()
 	p.spentMu.Unlock()
-	return info.HDKeyPath, nil
+	return info.SeedPath(), nil
 }
 
 // ReceivedTxIDs implements AddressReceiver.
@@ -802,11 +807,7 @@ func (p *CoreBackend) AddressHDPath(ctx context.Context, walletID, address strin
 	if err != nil {
 		return "", err
 	}
-	info, err := p.rpc.GetAddressInfo(ctx, name, address)
-	if err != nil {
-		return "", err
-	}
-	return info.HDKeyPath, nil
+	return p.cachedHDPath(ctx, name, address)
 }
 
 func (p *CoreBackend) OwnedAddresses(ctx context.Context, walletID string, addresses []string) (map[string]bool, error) {
@@ -874,7 +875,7 @@ func (p *CoreBackend) NextReceiveAddress(ctx context.Context, walletID string, k
 		if err != nil {
 			return DerivedAddress{}, err
 		}
-		if !strings.Contains(info.ParentDesc, "*") {
+		if !info.Ranged() {
 			continue
 		}
 		return DerivedAddress{Address: a.Address, HDPath: info.HDKeyPath, Index: -1}, nil

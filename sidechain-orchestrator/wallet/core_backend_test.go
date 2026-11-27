@@ -2867,7 +2867,7 @@ func TestCoreBackendListUnspentGivesEachCoinItsPath(t *testing.T) {
 		var address string
 		require.NoError(t, json.Unmarshal(c.Params[0], &address))
 		reads[address]++
-		return map[string]any{"address": address, "hdkeypath": paths[address], "ismine": true}, ""
+		return map[string]any{"address": address, "hdkeypath": paths[address], "ismine": true, "parent_desc": rangedParentDesc}, ""
 	})
 
 	for range 2 {
@@ -2997,7 +2997,7 @@ func TestCoreBackendListReceivedReportsHDPath(t *testing.T) {
 	fake.handle("getaddressinfo", func(c bitcoindCall) (any, string) {
 		var address string
 		require.NoError(t, json.Unmarshal(c.Params[0], &address))
-		return map[string]any{"address": address, "hdkeypath": paths[address], "ismine": true}, ""
+		return map[string]any{"address": address, "hdkeypath": paths[address], "ismine": true, "parent_desc": rangedParentDesc}, ""
 	})
 	fake.handle("listreceivedbyaddress", func(bitcoindCall) (any, string) {
 		return []map[string]any{
@@ -3024,6 +3024,60 @@ func TestCoreBackendListReceivedReportsHDPath(t *testing.T) {
 	}
 	assert.Equal(t, 1, reads[usedAddr], "each address reads its path one time")
 	assert.Equal(t, 1, reads[freshAddr], "each address reads its path one time")
+}
+
+const rangedParentDesc = "wpkh([5106b071/84h/1h/0h]tpubDC/0/*)#qwerty12"
+
+// Core gives a key that the wallet imported alone, such as the BIP47
+// notification key, the path "m". That is no path from the wallet seed.
+func TestCoreBackendImportedKeyHasNoSeedPath(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	net := &chaincfg.RegressionNetParams
+	seedAddr := p2wpkhAddr(t, fixedKey(0x71), net)
+	emptyKey := p2pkhAddr(t, fixedKey(0x72), net)
+	fundedKey := p2pkhAddr(t, fixedKey(0x73), net)
+
+	fake.handle("getaddressinfo", func(c bitcoindCall) (any, string) {
+		var address string
+		require.NoError(t, json.Unmarshal(c.Params[0], &address))
+		if address == seedAddr {
+			return map[string]any{"address": address, "hdkeypath": "m/84h/1h/0h/0/0", "ismine": true, "parent_desc": rangedParentDesc}, ""
+		}
+		return map[string]any{"address": address, "hdkeypath": "m", "ismine": true, "parent_desc": "pkh(0229167b)#0pgs7ms4"}, ""
+	})
+	fake.handle("listreceivedbyaddress", func(bitcoindCall) (any, string) {
+		return []map[string]any{
+			{"address": seedAddr, "amount": 0, "txids": []string{}},
+			{"address": emptyKey, "amount": 0, "txids": []string{}},
+			{"address": fundedKey, "amount": 0.0002, "txids": []string{"f1"}},
+		}, ""
+	})
+	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+
+	recv, err := backend.ListReceivedByAddress(context.Background(), coreID)
+	require.NoError(t, err)
+	paths := lo.SliceToMap(recv, func(r ReceivedByAddress) (string, string) { return r.Address, r.HDPath })
+	assert.Equal(t, map[string]string{seedAddr: "m/84h/1h/0h/0/0", fundedKey: ""}, paths,
+		"an imported key shows only after it received, and with no path")
+
+	fake.handle("listunspent", func(bitcoindCall) (any, string) {
+		return []map[string]any{
+			{"txid": "f1", "vout": 1, "address": fundedKey, "amount": 0.0002, "confirmations": 1, "spendable": true, "safe": true},
+		}, ""
+	})
+	fake.handle("gettransaction", func(bitcoindCall) (any, string) {
+		return map[string]any{"txid": "f1", "timereceived": 1700000000}, ""
+	})
+	utxos, err := backend.ListUnspent(context.Background(), coreID)
+	require.NoError(t, err)
+	require.Len(t, utxos, 1)
+	assert.Empty(t, utxos[0].HDPath)
+
+	path, err := backend.AddressHDPath(context.Background(), coreID, fundedKey)
+	require.NoError(t, err)
+	assert.Empty(t, path, "the master key of the seed must not sign for an imported key")
 }
 
 func TestCoreBackendListReceivedCountsImmatureCoinbase(t *testing.T) {
