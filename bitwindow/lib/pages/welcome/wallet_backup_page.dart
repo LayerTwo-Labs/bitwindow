@@ -59,6 +59,9 @@ class _WalletBackupPageState extends State<WalletBackupPage> {
   // A failed check is retried after the next edit, not on every rebuild.
   String? _failedPhrase;
   String? _checkError;
+
+  /// Why the last paste went into no box.
+  String? _pasteError;
   int _deriveId = 0;
 
   /// The id of the last derive that answered. The words match the field only
@@ -179,7 +182,10 @@ class _WalletBackupPageState extends State<WalletBackupPage> {
 
   Future<void> _setWordCount(int count) async {
     if (_stage == _Stage.import) {
-      setState(() => _resizeImported(count));
+      setState(() {
+        _pasteError = null;
+        _resizeImported(count);
+      });
       return;
     }
     setState(() => _wordCount = count);
@@ -278,23 +284,35 @@ class _WalletBackupPageState extends State<WalletBackupPage> {
     }
   }
 
-  /// Spreads a multi-word paste across the import boxes. A full 12 or 24 words
-  /// is the whole phrase however it arrived, so it fills the grid from the
-  /// start and resizes it to fit; anything shorter fills forward from [index].
+  /// Spreads a multi-word paste across the import boxes. A paste of a BIP39
+  /// word count is the whole phrase however it arrived, so it fills the grid
+  /// from the start and resizes it to fit. A shorter paste fills forward from
+  /// [index]. A paste that does not fit goes nowhere, so no word is lost.
   void _spread(int index, String value) {
     _failedPhrase = null;
     final words = _split(value);
     if (words.length < 2) {
-      setState(() {});
+      setState(() => _pasteError = null);
       return;
     }
-    final wholePhrase = words.length == 12 || words.length == 24;
+    final wholePhrase = bip39WordCounts.contains(words.length);
     setState(() {
+      if (!wholePhrase && index + words.length > _imported.length) {
+        _imported[index].clear();
+        _pasteError = 'You pasted ${words.length} words. A seed phrase has ${_wordCountList()} words.';
+        return;
+      }
+      _pasteError = null;
       if (wholePhrase && words.length != _imported.length) {
         _resizeImported(words.length);
       }
       _fill(_imported, wholePhrase ? 0 : index, words);
     });
+  }
+
+  String _wordCountList() {
+    final counts = bip39WordCounts.map((c) => '$c').toList();
+    return '${counts.sublist(0, counts.length - 1).join(', ')} or ${counts.last}';
   }
 
   /// Spreads a multi-word paste across the re-enter boxes. The box count is
@@ -805,9 +823,9 @@ class _WalletBackupPageState extends State<WalletBackupPage> {
                           await _setWordCount(v);
                         }
                       },
-                      items: const [
-                        SailDropdownItem<int>(value: 12, label: 'Use 12 Words'),
-                        SailDropdownItem<int>(value: 24, label: 'Use 24 Words'),
+                      items: [
+                        for (final count in bip39WordCounts)
+                          SailDropdownItem<int>(value: count, label: 'Use $count Words'),
                       ],
                     ),
                   ),
@@ -832,7 +850,9 @@ class _WalletBackupPageState extends State<WalletBackupPage> {
               Row(
                 children: [
                   Expanded(
-                    child: _importValid
+                    child: _pasteError != null
+                        ? SailText.secondary13(_pasteError!, color: theme.colors.error)
+                        : _importValid
                         ? Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

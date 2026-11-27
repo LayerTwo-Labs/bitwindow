@@ -60,7 +60,13 @@ const _validPhrases = {
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon '
       'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art',
+  _phrase18,
 };
+
+/// An 18-word phrase whose first 12 words are a valid phrase of their own.
+const _phrase18 =
+    'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about '
+    'abandon abandon abandon abandon abandon agent';
 const _electrumSeed = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver';
 
 /// Stands in for the orchestrator phrase check, with the answers it gives for these phrases.
@@ -694,6 +700,82 @@ void main() {
       expect(find.text('about'), findsOneWidget);
       expect(find.text('abandon'), findsNWidgets(11));
       expect(find.text('Valid checksum'), findsOneWidget);
+    });
+
+    // A 12-word cut of an 18-word phrase can pass its own checksum, and then
+    // the wallet is a different one with none of the coins.
+    testWidgets('pasting 18 words makes the wallet from all 18', (tester) async {
+      final created = <SeedBackup>[];
+      await _pumpPage(tester, mode: SeedEntryMode.importExisting, onCreate: (seed) async => created.add(seed));
+
+      await tester.enterText(find.byType(TextField).first, _phrase18);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsNWidgets(18));
+      expect(find.text('Use 18 Words'), findsOneWidget);
+      expect(find.text('agent'), findsOneWidget);
+      expect(find.text('Valid checksum'), findsOneWidget);
+
+      await _tapAndSettle(tester, 'Create Wallet');
+      expect(created.single.mnemonic, _phrase18);
+    });
+
+    testWidgets('pasting 15 or 21 words sizes the grid to fit', (tester) async {
+      await _pumpPage(tester, mode: SeedEntryMode.importExisting);
+
+      for (final count in [15, 21]) {
+        await tester.enterText(find.byType(TextField).first, List.filled(count, 'abandon').join(' '));
+        await tester.pumpAndSettle();
+        expect(find.byType(TextField), findsNWidgets(count));
+        expect(find.text('abandon'), findsNWidgets(count));
+      }
+    });
+
+    testWidgets('a paste that fits no word count fills no box and says why', (tester) async {
+      await _pumpPage(tester, mode: SeedEntryMode.importExisting);
+
+      await tester.enterText(find.byType(TextField).first, '$phrase extra');
+      await tester.pumpAndSettle();
+
+      expect(find.text('You pasted 13 words. A seed phrase has 12, 15, 18, 21 or 24 words.'), findsOneWidget);
+      expect(find.byType(TextField), findsNWidgets(12));
+      expect(find.text('abandon'), findsNothing);
+      expect(_createWalletButton(tester).disabled, isTrue);
+
+      await tester.enterText(find.byType(TextField).first, phrase);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('You pasted'), findsNothing);
+      expect(find.text('Valid checksum'), findsOneWidget);
+    });
+
+    testWidgets('a short paste into a later box fills forward, and one past the end goes nowhere', (tester) async {
+      await _pumpPage(tester, mode: SeedEntryMode.importExisting);
+
+      // The grid reads down its columns: the second field in tree order is word 5.
+      await tester.enterText(find.byType(TextField).at(1), 'one two three');
+      await tester.pumpAndSettle();
+      expect(find.text('three'), findsOneWidget);
+
+      // The last field in tree order is word 12.
+      await tester.enterText(find.byType(TextField).at(11), 'four five six');
+      await tester.pumpAndSettle();
+      expect(find.text('six'), findsNothing);
+      expect(find.text('You pasted 3 words. A seed phrase has 12, 15, 18, 21 or 24 words.'), findsOneWidget);
+    });
+
+    testWidgets('the word count menu offers every BIP39 length', (tester) async {
+      await _pumpPage(tester, mode: SeedEntryMode.importExisting);
+
+      await tester.tap(find.text('Use 12 Words'));
+      await tester.pumpAndSettle();
+
+      for (final count in [15, 18, 21, 24]) {
+        expect(find.text('Use $count Words'), findsWidgets);
+      }
+      await tester.tap(find.text('Use 18 Words').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNWidgets(18));
     });
 
     testWidgets('switching to 24 words keeps what was already typed', (tester) async {

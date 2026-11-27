@@ -1,6 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+/// The word counts of a BIP39 phrase.
+const bip39WordCounts = [12, 15, 18, 21, 24];
+
 /// A numbered BIP39 phrase. Words read down each column, so word N stays in the
 /// same place whatever the column count.
 class SailMnemonicGrid extends StatefulWidget {
