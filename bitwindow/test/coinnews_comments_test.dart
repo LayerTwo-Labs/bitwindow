@@ -220,14 +220,14 @@ void main() {
     await hoverComment(tester);
 
     expect(rpc.misc.estimated, ['hello']);
-    expect(find.textContaining('≈ 105 sats'), findsOneWidget);
+    expect(find.textContaining('≈ 0.0000,0105 BTC'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'hello again');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(const Duration(milliseconds: 200));
     expect(rpc.misc.estimated, ['hello', 'hello again']);
-    expect(find.textContaining('≈ 111 sats'), findsOneWidget);
+    expect(find.textContaining('≈ 0.0000,0111 BTC'), findsOneWidget);
   });
 
   testWidgets('the fee tooltip does not wait for an estimate that failed', (tester) async {
@@ -250,6 +250,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(rpc.misc.estimated, ['A comment of 26 characters']);
-    expect(find.textContaining('≈ 126 sats'), findsOneWidget);
+    expect(find.textContaining('≈ 0.0000,0126 BTC'), findsOneWidget);
   });
 }

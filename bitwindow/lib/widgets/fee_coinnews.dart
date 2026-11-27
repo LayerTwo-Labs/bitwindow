@@ -351,7 +351,11 @@ class FeeCoinNewsTable extends StatelessWidget {
         description: 'Waiting for backend to boot and for it to load coin news..',
         enabled: loading,
         duration: const Duration(seconds: 3),
-        child: _FeeStoryList(entries: entries, shrinkWrap: shrinkWrap, onArticleSelected: onArticleSelected),
+        child: ListenableBuilder(
+          listenable: formatter,
+          builder: (context, child) =>
+              _FeeStoryList(entries: entries, shrinkWrap: shrinkWrap, onArticleSelected: onArticleSelected),
+        ),
       );
     }
 
@@ -472,7 +476,7 @@ class _FeeStoryRow extends StatelessWidget {
                   ],
                 ),
               ),
-              SailText.primary13('${entry.feeSats} sat', bold: true),
+              SailText.primary13(GetIt.I<FormatterProvider>().formatSats(entry.feeSats.toInt()), bold: true),
             ],
           ),
         ),

@@ -77,10 +77,11 @@ class NewsCost {
   }
 }
 
-/// Renders an estimate as the sats it costs, at the rate it assumes.
+/// Renders an estimate in the unit of the fee field, at the rate it assumes.
 String formatFee(NewsFeeEstimate estimate) {
+  final fee = GetIt.I.get<FormatterProvider>().formatSats(estimate.feeSats.toInt());
   final rate = estimate.feeSatPerVbyte.toStringAsFixed(1);
-  return '≈ ${estimate.feeSats} sats  ·  ${estimate.vsize} vB at $rate sat/vB';
+  return '≈ $fee  ·  ${estimate.vsize} vB at $rate sat/vB';
 }
 
 /// Wraps a control that spends money, so hovering it reveals the cost of the text in [body].
