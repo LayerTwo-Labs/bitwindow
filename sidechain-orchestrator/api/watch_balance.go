@@ -52,7 +52,7 @@ func (h *WalletHandler) WatchBalance(ctx context.Context, req *pb.WatchBalanceRe
 			// The balance goes out first, and the entries of a send in the next
 			// frame. That frame reads no balance, so it waits for no wallet read
 			// that the first frame starts.
-			if fresh != nil && last != nil && last.WalletId == walletID && fresh.consumeTurn() {
+			if fresh != nil && last != nil && last.WalletId == walletID && last.Balance != nil && fresh.consumeTurn() {
 				entries, err := h.freshEntries(ctx, walletID, fresh)
 				if err != nil {
 					return nil, err
@@ -67,10 +67,14 @@ func (h *WalletHandler) WatchBalance(ctx context.Context, req *pb.WatchBalanceRe
 				}
 				return last, nil
 			}
-			// While Core is down, the stream stays open and reads again when Core
-			// or the wallet changes.
+			// While Core is down, the stream sends the error one time, stays open
+			// and reads again when Core or the wallet changes.
 			if !h.readsCore(walletID) || h.chainData.Health() == nil {
 				return nil, err
+			}
+			if last == nil || last.WalletId != walletID || last.Error == "" {
+				last = &pb.WatchBalanceResponse{WalletId: walletID, Error: err.Error()}
+				return last, nil
 			}
 			if err := h.waitForCoreOrWallet(ctx, req.WalletId == "", walletID); err != nil {
 				return nil, err

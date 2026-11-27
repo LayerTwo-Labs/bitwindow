@@ -588,6 +588,7 @@ const GetStatsResponse$json = {
     {'1': 'total_fees_sats', '3': 7, '4': 1, '5': 3, '10': 'totalFeesSats'},
     {'1': 'last_tx_at', '3': 8, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'lastTxAt'},
     {'1': 'last_tx_block_height', '3': 9, '4': 1, '5': 13, '10': 'lastTxBlockHeight'},
+    {'1': 'fee_transaction_count', '3': 10, '4': 1, '5': 3, '10': 'feeTransactionCount'},
   ],
 };
 
@@ -602,7 +603,8 @@ final $typed_data.Uint8List getStatsResponseDescriptor =
         'b250aBgGIAEoA1IadHJhbnNhY3Rpb25Db3VudFNpbmNlTW9udGgSJgoPdG90YWxfZmVlc19zYX'
         'RzGAcgASgDUg10b3RhbEZlZXNTYXRzEjgKCmxhc3RfdHhfYXQYCCABKAsyGi5nb29nbGUucHJv'
         'dG9idWYuVGltZXN0YW1wUghsYXN0VHhBdBIvChRsYXN0X3R4X2Jsb2NrX2hlaWdodBgJIAEoDV'
-        'IRbGFzdFR4QmxvY2tIZWlnaHQ=');
+        'IRbGFzdFR4QmxvY2tIZWlnaHQSMgoVZmVlX3RyYW5zYWN0aW9uX2NvdW50GAogASgDUhNmZWVU'
+        'cmFuc2FjdGlvbkNvdW50');
 
 @$core.Deprecated('Use unlockWalletRequestDescriptor instead')
 const UnlockWalletRequest$json = {

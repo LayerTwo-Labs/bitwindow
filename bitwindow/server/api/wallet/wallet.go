@@ -1002,10 +1002,13 @@ func (s *Server) GetStats(ctx context.Context, c *pb.GetStatsRequest) (*pb.GetSt
 	currentYear, currentMonth, _ := now.Date()
 	currentMonthStart := time.Date(currentYear, currentMonth, 1, 0, 0, 0, 0, now.Location())
 	transactionCountSinceMonth := int64(0)
-	var totalFees int64
+	var totalFees, feeTransactions int64
 	var newestBlock, newestPending *pb.WalletTransaction
 	for _, tx := range txs {
-		totalFees += int64(tx.FeeSats)
+		if tx.FeeSats > 0 {
+			totalFees += int64(tx.FeeSats)
+			feeTransactions++
+		}
 		if tx.ConfirmationTime == nil || tx.ConfirmationTime.Timestamp == nil {
 			continue
 		}
@@ -1048,6 +1051,7 @@ func (s *Server) GetStats(ctx context.Context, c *pb.GetStatsRequest) (*pb.GetSt
 		TransactionCountTotal:             transactionCount,
 		TransactionCountSinceMonth:        transactionCountSinceMonth,
 		TotalFeesSats:                     totalFees,
+		FeeTransactionCount:               feeTransactions,
 		LastTxAt:                          lastTxAt,
 		LastTxBlockHeight:                 lastTxBlockHeight,
 	}, nil

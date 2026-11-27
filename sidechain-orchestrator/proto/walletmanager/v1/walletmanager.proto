@@ -1636,6 +1636,8 @@ message WatchBalanceResponse {
   // The transactions of the wallet that a send made since the last frame, as
   // ListTransactions gives them. Unset with no local Bitcoin Core.
   repeated TransactionEntry transactions = 4;
+  // Why the balance of the wallet could not be read. The balance is unset then.
+  string error = 5;
 }
 
 message CreateDepositRequest {

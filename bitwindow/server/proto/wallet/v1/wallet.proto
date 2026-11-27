@@ -328,6 +328,8 @@ message GetStatsResponse {
   google.protobuf.Timestamp last_tx_at = 8;
   // Block of the newest wallet transaction. 0 when it is unconfirmed.
   uint32 last_tx_block_height = 9;
+  // Transactions this wallet paid a fee for. total_fees_sats is their sum.
+  int64 fee_transaction_count = 10;
 }
 
 // Wallet unlock/lock messages

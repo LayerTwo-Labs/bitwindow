@@ -73,6 +73,19 @@ func TestStatsCountTheRowsOfTheHistory(t *testing.T) {
 		}, nil)
 		assert.Equal(t, int64(3), response.TransactionCountTotal)
 		assert.Equal(t, int64(564), response.TotalFeesSats)
+		assert.Equal(t, int64(2), response.FeeTransactionCount)
+	})
+
+	t.Run("a payment to the wallet counts no paid fee", func(t *testing.T) {
+		response := coreStats(t, []*orchpb.TransactionEntry{
+			{Txid: "coinbase", Category: "generate", AmountSats: 5_000_000_000, Confirmations: 101},
+			{Txid: "incoming", Category: "receive", AmountSats: 150_000_000},
+			{Txid: "self-send", Category: "send", AmountSats: -1_000, Fee: -0.00000141, Confirmations: 1},
+			{Txid: "self-send", Category: "receive", AmountSats: 1_000, Confirmations: 1},
+		}, nil)
+		assert.Equal(t, int64(3), response.TransactionCountTotal)
+		assert.Equal(t, int64(141), response.TotalFeesSats)
+		assert.Equal(t, int64(1), response.FeeTransactionCount)
 	})
 
 	t.Run("unconfirmed change counts as a UTXO", func(t *testing.T) {

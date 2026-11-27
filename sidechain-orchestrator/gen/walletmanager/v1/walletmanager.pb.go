@@ -11674,7 +11674,9 @@ type WatchBalanceResponse struct {
 	Heartbeat bool `protobuf:"varint,3,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
 	// The transactions of the wallet that a send made since the last frame, as
 	// ListTransactions gives them. Unset with no local Bitcoin Core.
-	Transactions  []*TransactionEntry `protobuf:"bytes,4,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	Transactions []*TransactionEntry `protobuf:"bytes,4,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	// Why the balance of the wallet could not be read. The balance is unset then.
+	Error         string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11735,6 +11737,13 @@ func (x *WatchBalanceResponse) GetTransactions() []*TransactionEntry {
 		return x.Transactions
 	}
 	return nil
+}
+
+func (x *WatchBalanceResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
 }
 
 type CreateDepositRequest struct {
@@ -12754,12 +12763,13 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x05state\x18\n" +
 	" \x01(\x0e2\x1d.walletmanager.v1.WalletStateR\x05state\"2\n" +
 	"\x13WatchBalanceRequest\x12\x1b\n" +
-	"\twallet_id\x18\x01 \x01(\tR\bwalletId\"\xd9\x01\n" +
+	"\twallet_id\x18\x01 \x01(\tR\bwalletId\"\xef\x01\n" +
 	"\x14WatchBalanceResponse\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12>\n" +
 	"\abalance\x18\x02 \x01(\v2$.walletmanager.v1.GetBalanceResponseR\abalance\x12\x1c\n" +
 	"\theartbeat\x18\x03 \x01(\bR\theartbeat\x12F\n" +
-	"\ftransactions\x18\x04 \x03(\v2\".walletmanager.v1.TransactionEntryR\ftransactions\"\xa5\x01\n" +
+	"\ftransactions\x18\x04 \x03(\v2\".walletmanager.v1.TransactionEntryR\ftransactions\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\xa5\x01\n" +
 	"\x14CreateDepositRequest\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x1b\n" +
 	"\twallet_id\x18\x02 \x01(\tR\bwalletId\x12 \n" +
