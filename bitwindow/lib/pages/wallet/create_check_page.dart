@@ -130,7 +130,7 @@ class _CreateCheckPageState extends State<CreateCheckPage> {
           return;
         }
         if (isEncrypted) {
-          await _showUnlockDialog();
+          await showUnlockWalletDialog(context, message: 'Enter your wallet password to create checks');
           if (!mounted) {
             return;
           }
@@ -150,62 +150,6 @@ class _CreateCheckPageState extends State<CreateCheckPage> {
         });
       }
     }
-  }
-
-  Future<void> _showUnlockDialog() async {
-    final passwordController = TextEditingController();
-    bool isUnlocking = false;
-
-    await showThemedDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => SailDialog(
-          title: 'Unlock Wallet',
-          actions: [
-            SailButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              onPressed: () async => Navigator.of(context).pop(),
-            ),
-            SailButton(
-              label: 'Unlock',
-              loading: isUnlocking,
-              onPressed: () async {
-                setState(() => isUnlocking = true);
-                final success = await _walletReader.unlockWallet(passwordController.text);
-
-                if (success && context.mounted) {
-                  Navigator.of(context).pop();
-                } else {
-                  setState(() => isUnlocking = false);
-                  if (context.mounted) {
-                    showSailToast(context, 'Incorrect password');
-                  }
-                }
-              },
-            ),
-          ],
-          child: SizedBox(
-            width: 400,
-            child: SailColumn(
-              spacing: SailStyleValues.padding12,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SailText.secondary13('Enter your wallet password to create checks'),
-                SailTextField(
-                  controller: passwordController,
-                  hintText: 'Password',
-                  obscureText: true,
-                  maxLines: 1,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    passwordController.dispose();
   }
 }
 

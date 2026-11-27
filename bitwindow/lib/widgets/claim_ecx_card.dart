@@ -205,70 +205,17 @@ class _ClaimEcxCardState extends State<ClaimEcxCard> {
   Future<void> _unlockThenClaim() async {
     setState(() => _stage = ClaimEcxStage.funds);
 
-    final unlocked = await _showUnlockDialog();
+    final unlocked = await showUnlockWalletDialog(
+      context,
+      title: 'Unlock your wallet',
+      message: 'Your wallet must be open to receive the claim.',
+      wrongPasswordText: 'That password is wrong',
+    );
     if (!mounted || !unlocked) {
       return;
     }
 
     await _claim();
-  }
-
-  Future<bool> _showUnlockDialog() async {
-    final passwordController = TextEditingController();
-    var unlocked = false;
-    var unlocking = false;
-
-    await showThemedDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => SailDialog(
-          title: 'Unlock your wallet',
-          actions: [
-            SailButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              onPressed: () async => Navigator.of(context).pop(),
-            ),
-            SailButton(
-              label: 'Unlock',
-              loading: unlocking,
-              onPressed: () async {
-                setDialogState(() => unlocking = true);
-                unlocked = await _walletReader.unlockWallet(passwordController.text);
-                if (!context.mounted) {
-                  return;
-                }
-                if (unlocked) {
-                  Navigator.of(context).pop();
-                  return;
-                }
-                setDialogState(() => unlocking = false);
-                showSailToast(context, 'That password is wrong');
-              },
-            ),
-          ],
-          child: SizedBox(
-            width: 400,
-            child: SailColumn(
-              spacing: SailStyleValues.padding12,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SailText.secondary13('Your wallet must be open to receive the claim.'),
-                SailTextField(
-                  controller: passwordController,
-                  hintText: 'Password',
-                  obscureText: true,
-                  maxLines: 1,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    passwordController.dispose();
-    return unlocked;
   }
 
   void _reset() {
