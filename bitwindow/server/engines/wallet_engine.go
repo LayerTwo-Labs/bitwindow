@@ -324,7 +324,7 @@ func (e *WalletEngine) GetActiveWallet(ctx context.Context) (*WalletInfo, error)
 	if activeID == "" {
 		return nil, errors.New("no active wallet")
 	}
-	return findWallet(wallets, activeID)
+	return e.findWallet(ctx, wallets, activeID)
 }
 
 // ============================================================================
@@ -341,20 +341,32 @@ func (e *WalletEngine) GetWalletInfo(ctx context.Context, walletID string) (*Wal
 	if err != nil {
 		return nil, err
 	}
-	return findWallet(wallets, walletID)
+	return e.findWallet(ctx, wallets, walletID)
 }
 
-func findWallet(wallets []WalletInfo, walletID string) (*WalletInfo, error) {
+func (e *WalletEngine) findWallet(ctx context.Context, wallets []WalletInfo, walletID string) (*WalletInfo, error) {
 	if len(wallets) == 0 {
-		return nil, errors.New("no wallet is unlocked")
+		return nil, e.noWalletsError(ctx)
 	}
 	walletInfo, ok := lo.Find(wallets, func(w WalletInfo) bool {
 		return w.ID == walletID
 	})
 	if !ok {
-		return nil, fmt.Errorf("wallet %s not found", walletID)
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("wallet %s not found", walletID))
 	}
 	return &walletInfo, nil
+}
+
+// noWalletsError tells why the orchestrator lists no wallets.
+func (e *WalletEngine) noWalletsError(ctx context.Context) error {
+	resp, err := e.orchClient.GetWalletStatus(ctx, &orchpb.GetWalletStatusRequest{})
+	if err != nil {
+		return fmt.Errorf("get wallet status: %w", err)
+	}
+	if resp.State == orchpb.WalletState_WALLET_STATE_LOCKED {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("wallet is locked"))
+	}
+	return connect.NewError(connect.CodeFailedPrecondition, errors.New("no wallet exists"))
 }
 
 func (e *WalletEngine) GetWalletBackendType(ctx context.Context, walletID string) (WalletType, error) {
