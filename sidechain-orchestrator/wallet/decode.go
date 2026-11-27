@@ -243,9 +243,7 @@ func decodePSBT(packet *psbt.Packet, net *chaincfg.Params) (*DecodedTransaction,
 			Sequence:   int64(in.Sequence),
 			IsCoinbase: isCoinbaseOutpoint(in.PreviousOutPoint),
 		}
-		pin := packet.Inputs[i]
-		di.Signed = len(pin.FinalScriptSig) > 0 || len(pin.FinalScriptWitness) > 0 ||
-			len(pin.PartialSigs) > 0 || len(pin.TaprootKeySpendSig) > 0
+		di.Signed = psbtInputSigned(packet, i)
 		if di.Signed {
 			out.SignedInputs++
 		}
@@ -295,6 +293,45 @@ func decodePSBT(packet *psbt.Packet, net *chaincfg.Params) (*DecodedTransaction,
 		}
 	}
 	return out, nil
+}
+
+// psbtInputSigned reports whether input i holds each signature that its spend
+// needs.
+func psbtInputSigned(packet *psbt.Packet, i int) bool {
+	in := packet.Inputs[i]
+	if len(in.FinalScriptSig) > 0 || len(in.FinalScriptWitness) > 0 || len(in.TaprootKeySpendSig) > 0 {
+		return true
+	}
+	if len(in.PartialSigs) == 0 {
+		return false
+	}
+	required, ok := psbtInputRequiredSignatures(packet, i)
+	return ok && len(in.PartialSigs) >= required
+}
+
+// psbtInputRequiredSignatures is the count of ECDSA signatures that spend
+// input i. ok is false when the PSBT does not show the script.
+func psbtInputRequiredSignatures(packet *psbt.Packet, i int) (int, bool) {
+	prevOut := psbtInputPrevOut(packet, i)
+	if prevOut == nil {
+		return 0, false
+	}
+	in := packet.Inputs[i]
+	script := prevOut.PkScript
+	if txscript.GetScriptClass(script) == txscript.ScriptHashTy {
+		script = in.RedeemScript
+	}
+	switch txscript.GetScriptClass(script) {
+	case txscript.PubKeyHashTy, txscript.WitnessV0PubKeyHashTy:
+		return 1, true
+	case txscript.WitnessV0ScriptHashTy:
+		script = in.WitnessScript
+	}
+	if txscript.GetScriptClass(script) != txscript.MultiSigTy {
+		return 0, false
+	}
+	_, required, err := txscript.CalcMultiSigStats(script)
+	return required, err == nil
 }
 
 // The signature sizes that Bitcoin Core's analyzepsbt assumes: a low-R ECDSA

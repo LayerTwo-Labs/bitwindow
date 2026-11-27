@@ -89,6 +89,30 @@ func TestDecodeTransactionPSBTSizeTaprootSighashByte(t *testing.T) {
 	require.Equal(t, int32(131), got.VsizeVBytes)
 }
 
+// wsh-half holds one of the two signatures that a 2-of-2 P2WSH input needs, and
+// analyzepsbt names the second key as missing. wpkh-partial holds the one
+// signature of its input, not finalized.
+func TestDecodeTransactionPSBTSignedNeedsEachSignature(t *testing.T) {
+	tests := []struct {
+		name   string
+		signed int
+	}{
+		{name: "wsh.psbt", signed: 0},
+		{name: "wsh-half.signed", signed: 0},
+		{name: "wsh.signed", signed: 1},
+		{name: "wpkh-partial.signed", signed: 1},
+		{name: "mixed.psbt", signed: 0},
+		{name: "mixed.signed", signed: 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := DecodeTransaction(readPSBTFixture(t, tt.name), &chaincfg.RegressionNetParams)
+			require.NoError(t, err)
+			require.Equal(t, tt.signed, got.SignedInputs)
+		})
+	}
+}
+
 // A signature that the PSBT holds sizes the input, also a 72 byte high-R one.
 func TestDecodeTransactionPSBTSizeUsesHeldSignatures(t *testing.T) {
 	net := &chaincfg.RegressionNetParams
