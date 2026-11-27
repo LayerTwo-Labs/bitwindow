@@ -89,7 +89,10 @@ class CheckDetailViewModel extends BaseViewModel {
         throw Exception('No active wallet');
       }
 
-      final amountSats = _check!.expectedAmountSats.toInt();
+      final amountSats = checkMissingSats(_check!);
+      if (amountSats <= 0) {
+        throw Exception('The check is already funded');
+      }
 
       final txid = (await _orchestratorWallet.sendTransaction(
         walletId: walletId,
@@ -252,13 +255,13 @@ class CheckDetailPage extends StatelessWidget {
     return ViewModelBuilder<CheckDetailViewModel>.reactive(
       viewModelBuilder: () => CheckDetailViewModel(checkId),
       builder: (context, model, child) {
-        final amountBTC = model.check != null
-            ? (model.check!.expectedAmountSats.toInt() / 100000000).toStringAsFixed(8)
-            : '0.00000000';
+        final title = model.check == null
+            ? 'Check'
+            : 'Check for ${formatCheckSats(model.check!.expectedAmountSats.toInt())}';
 
         return SailScaffold(
           backgroundColor: SailTheme.of(context).colors.background,
-          appBar: SailAppBar.build(context, title: SailText.primary20('Check for $amountBTC ${activeTicker.symbol}')),
+          appBar: SailAppBar.build(context, title: SailText.primary20(title)),
           body: Builder(
             builder: (context) {
               if (model.isLoading) {
@@ -282,6 +285,7 @@ class CheckDetailPage extends StatelessWidget {
               final phone = SailStyleValues.phoneLayout(context);
               final swept = check.sweptTxid.isNotEmpty;
               final awaitingFunding = !swept && check.fundedTxids.isEmpty;
+              final partlyFunded = !swept && check.fundedTxids.isNotEmpty && !check.funded;
               final colors = context.sailTheme.colors;
               final statusColor = swept
                   ? colors.text.withValues(alpha: 0.5)
@@ -350,6 +354,11 @@ class CheckDetailPage extends StatelessWidget {
                                 SailText.primary13(swept ? 'Swept' : _statusLabel(check)),
                               ],
                             ),
+                            if (!awaitingFunding)
+                              SizedBox(
+                                width: phone ? double.infinity : 520,
+                                child: CheckAmounts(check: check),
+                              ),
                             if (awaitingFunding)
                               Container(
                                 padding: const EdgeInsets.all(SailStyleValues.padding20),
@@ -389,7 +398,8 @@ class CheckDetailPage extends StatelessWidget {
                                   CopyButton(text: check.address),
                                 ],
                               ),
-                            if (check.fundedTxids.isNotEmpty &&
+                            if (!swept &&
+                                check.fundedTxids.isNotEmpty &&
                                 check.hasPrivateKeyWif() &&
                                 check.privateKeyWif.isNotEmpty)
                               Container(
@@ -441,6 +451,15 @@ class CheckDetailPage extends StatelessWidget {
                                   onPressed: () async => model.fundWithWallet(context),
                                 ),
                               ),
+                            if (partlyFunded)
+                              SizedBox(
+                                width: buttonWidth,
+                                child: SailButton(
+                                  label: 'Fund the Rest with Wallet',
+                                  variant: ButtonVariant.secondary,
+                                  onPressed: () async => model.fundWithWallet(context),
+                                ),
+                              ),
                             if (!swept && check.fundedTxids.isNotEmpty)
                               SizedBox(
                                 width: buttonWidth,
@@ -462,6 +481,74 @@ class CheckDetailPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The sats the check address still needs to hold the check amount.
+int checkMissingSats(Cheque check) {
+  final onCheck = check.hasActualAmountSats() ? check.actualAmountSats.toInt() : 0;
+  final missing = check.expectedAmountSats.toInt() - onCheck;
+  return missing > 0 ? missing : 0;
+}
+
+String formatCheckSats(int sats) => '${(sats / 100000000).toStringAsFixed(8)} ${activeTicker.symbol}';
+
+/// Sweep txid the server stores for a check cashed outside this wallet.
+const sweptOutsideTxid = 'swept_externally';
+
+/// The amounts of a funded or swept check, and its sweep transaction.
+class CheckAmounts extends StatelessWidget {
+  final Cheque check;
+
+  const CheckAmounts({super.key, required this.check});
+
+  @override
+  Widget build(BuildContext context) {
+    final swept = check.sweptTxid.isNotEmpty;
+    final onCheck = check.hasActualAmountSats() ? check.actualAmountSats.toInt() : 0;
+    final missing = checkMissingSats(check);
+    return SailColumn(
+      spacing: SailStyleValues.padding08,
+      children: [
+        _AmountRow(label: 'Check amount', value: formatCheckSats(check.expectedAmountSats.toInt())),
+        if (swept) ...[
+          _AmountRow(label: 'Amount swept', value: formatCheckSats(onCheck)),
+          if (check.sweptTxid == sweptOutsideTxid)
+            const _AmountRow(label: 'Sweep transaction', value: 'Cashed outside this wallet')
+          else
+            _AmountRow(
+              label: 'Sweep transaction',
+              value: '${check.sweptTxid.substring(0, 10)}…${check.sweptTxid.substring(check.sweptTxid.length - 7)}',
+              copyValue: check.sweptTxid,
+            ),
+        ] else ...[
+          _AmountRow(label: 'On the check', value: formatCheckSats(onCheck)),
+          if (missing > 0) _AmountRow(label: 'Still to fund', value: formatCheckSats(missing)),
+        ],
+      ],
+    );
+  }
+}
+
+class _AmountRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? copyValue;
+
+  const _AmountRow({required this.label, required this.value, this.copyValue});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: SailText.secondary13(label)),
+        SailText.primary13(value),
+        if (copyValue != null) ...[
+          const SizedBox(width: SailStyleValues.padding08),
+          CopyButton(text: copyValue!),
+        ],
+      ],
     );
   }
 }
