@@ -456,6 +456,7 @@ func coinNewsToProto(coinNews opreturns.CoinNews, _ int) *miscv1.CoinNews {
 		Txid:       coinNews.TxID,
 		Vout:       coinNews.Vout,
 		Outdated:   coinNews.Outdated,
+		Pending:    coinNews.Pending,
 	}
 }
 

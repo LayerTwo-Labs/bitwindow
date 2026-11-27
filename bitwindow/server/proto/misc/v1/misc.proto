@@ -171,6 +171,9 @@ message CoinNews {
   uint32 vout = 15;
   // True for a story older than the retention of its topic.
   bool outdated = 16;
+  // True for a story in the mempool. Its create_time is the time that the
+  // node first saw it, and it has no item_id.
+  bool pending = 17;
 }
 
 message ListCoinNewsResponse {

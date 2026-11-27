@@ -32,6 +32,10 @@ String storyMeta(CoinNews news, {required String? topicName, required String dat
   ].join(separator);
 }
 
+/// The time of a story by [format], or "Pending" for a story in the mempool.
+String storyTime(CoinNews news, String Function(DateTime time) format) =>
+    news.pending ? 'Pending' : format(news.createTime.toDateTime());
+
 List<SailDropdownItem<String>> topicDropdownItems(List<Topic> topics) {
   final names = <String>{};
   final repeatedNames = <String>{};
@@ -321,7 +325,7 @@ class _LargeStoryRowState extends State<_LargeStoryRow> {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-    final date = widget.entry.createTime.toDateTime().toLocal().toIso8601String().substring(0, 10);
+    final date = storyTime(widget.entry, (time) => time.toLocal().toIso8601String().substring(0, 10));
     final topicName = GetIt.I.get<NewsProvider>().topicName(widget.entry.topic);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -879,7 +883,7 @@ class _CoinNewsEntryState extends State<CoinNewsEntry> {
                   ),
                   Center(
                     child: SailText.secondary12(
-                      _formatDate(widget.entry.createTime.toDateTime()),
+                      storyTime(widget.entry, _formatDate),
                       color: context.sailTheme.colors.textTertiary,
                     ),
                   ),
@@ -971,17 +975,17 @@ class CoinNewsTable extends StatelessWidget {
 
                 return [
                   if (condensed) ...[
-                    SailTableCell(value: formatDate(entry.createTime.toDateTime())),
+                    SailTableCell(value: storyTime(entry, formatDate)),
                     SailTableCell(value: formatter.formatSats(entry.feeSats.toInt())),
                     SailTableCell(value: entry.headline),
                   ] else ...[
                     SailTableCell(
                       value: phone
-                          ? cachedDateFormat(
-                              'MMM d',
-                              Intl.getCurrentLocale(),
-                            ).format(entry.createTime.toDateTime().toLocal())
-                          : formatDate(entry.createTime.toDateTime()),
+                          ? storyTime(
+                              entry,
+                              (time) => cachedDateFormat('MMM d', Intl.getCurrentLocale()).format(time.toLocal()),
+                            )
+                          : storyTime(entry, formatDate),
                       width: phone ? _phoneDateWidth : null,
                     ),
                     SailTableCell(value: topicName ?? ''),
@@ -1211,7 +1215,7 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
                               ListenableBuilder(
                                 listenable: _newsProvider,
                                 builder: (context, _) {
-                                  final date = formatDate(widget.news.createTime.toDateTime());
+                                  final date = storyTime(widget.news, formatDate);
                                   final topicName = _newsProvider.topicName(widget.news.topic);
                                   return SailText.secondary13(
                                     storyMeta(widget.news, topicName: topicName, date: date, separator: '  ·  '),

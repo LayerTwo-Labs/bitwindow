@@ -984,7 +984,10 @@ type CoinNews struct {
 	Txid string `protobuf:"bytes,14,opt,name=txid,proto3" json:"txid,omitempty"`
 	Vout uint32 `protobuf:"varint,15,opt,name=vout,proto3" json:"vout,omitempty"`
 	// True for a story older than the retention of its topic.
-	Outdated      bool `protobuf:"varint,16,opt,name=outdated,proto3" json:"outdated,omitempty"`
+	Outdated bool `protobuf:"varint,16,opt,name=outdated,proto3" json:"outdated,omitempty"`
+	// True for a story in the mempool. Its create_time is the time that the
+	// node first saw it, and it has no item_id.
+	Pending       bool `protobuf:"varint,17,opt,name=pending,proto3" json:"pending,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1106,6 +1109,13 @@ func (x *CoinNews) GetVout() uint32 {
 func (x *CoinNews) GetOutdated() bool {
 	if x != nil {
 		return x.Outdated
+	}
+	return false
+}
+
+func (x *CoinNews) GetPending() bool {
+	if x != nil {
+		return x.Pending
 	}
 	return false
 }
@@ -1943,7 +1953,7 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\bfee_sats\x18\x03 \x01(\x04R\afeeSats\":\n" +
 	"\x13ListCoinNewsRequest\x12\x19\n" +
 	"\x05topic\x18\x01 \x01(\tH\x00R\x05topic\x88\x01\x01B\b\n" +
-	"\x06_topic\"\x88\x03\n" +
+	"\x06_topic\"\xa2\x03\n" +
 	"\bCoinNews\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x14\n" +
 	"\x05topic\x18\x02 \x01(\tR\x05topic\x12\x1a\n" +
@@ -1958,7 +1968,8 @@ const file_misc_v1_misc_proto_rawDesc = "" +
 	"\x04nsfw\x18\r \x01(\bR\x04nsfw\x12\x12\n" +
 	"\x04txid\x18\x0e \x01(\tR\x04txid\x12\x12\n" +
 	"\x04vout\x18\x0f \x01(\rR\x04vout\x12\x1a\n" +
-	"\boutdated\x18\x10 \x01(\bR\boutdatedJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\boutdated\x18\x10 \x01(\bR\boutdated\x12\x18\n" +
+	"\apending\x18\x11 \x01(\bR\apendingJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\vR\aupvotesR\tdownvotesR\x05score\"F\n" +
 	"\x14ListCoinNewsResponse\x12.\n" +
