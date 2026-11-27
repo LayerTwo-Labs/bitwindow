@@ -82,9 +82,9 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
         return;
       }
       setState(() {
-        _errorMessage = e.toString().contains('Incorrect old password')
+        _errorMessage = isWrongPassword(e)
             ? 'Incorrect current password'
-            : 'Error changing password: $e';
+            : 'Error changing password: ${extractConnectException(e)}';
         _isChanging = false;
       });
     }
