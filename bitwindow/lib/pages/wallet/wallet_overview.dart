@@ -232,6 +232,21 @@ String transactionStatus(WalletTransaction tx) {
   return tx.confirmations == 0 ? 'Unconfirmed' : 'Confirmed';
 }
 
+/// [net] sats with its sign, as the history shows an amount.
+String signedAmount(int net, String Function(int sats) format) => '${net > 0 ? '+' : '-'}${format(net.abs())}';
+
+/// What [tx] did to this wallet, as label and value rows.
+List<(String, String)> walletTransactionRows(WalletTransaction tx, FormatterProvider formatter) {
+  final addresses = transactionAddresses(tx);
+  return [
+    ('Date', formatDate(tx.confirmationTime.timestamp.toDateTime().toLocal())),
+    ('Status', transactionStatus(tx)),
+    ('Amount', signedAmount(walletNetSats(tx), formatter.formatSats)),
+    if (addresses.isNotEmpty) (addresses.length == 1 ? 'Address' : 'Addresses', addresses.join('\n')),
+    if (tx.note.isNotEmpty) ('Note', tx.note),
+  ];
+}
+
 /// The history as CSV, one row per transaction.
 String transactionsCsv(List<WalletTransaction> transactions) {
   final headers = [
@@ -464,10 +479,9 @@ class _TransactionTableState extends State<TransactionTable> {
                               final cancellable = canCancelBid(entry);
 
                               final net = walletNetSats(entry);
-                              final sign = net > 0 ? '+' : '-';
                               final formattedAmount = phone
-                                  ? '$sign${phoneHistoryAmount(net.abs(), formatter.currentUnit)}'
-                                  : '$sign${formatter.formatSats(net.abs())}';
+                                  ? signedAmount(net, (sats) => phoneHistoryAmount(sats, formatter.currentUnit))
+                                  : signedAmount(net, formatter.formatSats);
                               final time = entry.confirmationTime.timestamp.toDateTime().toLocal();
 
                               return [

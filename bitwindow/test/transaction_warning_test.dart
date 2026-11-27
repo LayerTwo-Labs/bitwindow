@@ -10,7 +10,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
-import 'package:sail_ui/sail_ui.dart';
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
+import 'package:sail_ui/sail_ui.dart' hide DetailRow;
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart' as walletpb;
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 
@@ -119,6 +120,14 @@ class _Blockchain extends ChangeNotifier implements BlockchainProvider {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _Transactions extends ChangeNotifier implements TransactionProvider {
+  @override
+  List<walletpb.WalletTransaction> walletTransactions = [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class _Overview extends ChangeNotifier implements OverviewViewModel {
   @override
   final List<walletpb.WalletTransaction> entries;
@@ -143,11 +152,14 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
 
 void main() {
   late _Orchestrator orchestrator;
+  late _Transactions transactions;
 
   setUp(() async {
     await GetIt.I.reset();
     orchestrator = _Orchestrator();
+    transactions = _Transactions();
     GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
+    GetIt.I.registerSingleton<TransactionProvider>(transactions);
     GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader());
     GetIt.I.registerSingleton<BalanceProvider>(_Balance());
     GetIt.I.registerSingleton<BlockchainProvider>(_Blockchain());
@@ -235,6 +247,80 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  Future<void> pumpDetails(WidgetTester tester) async {
+    await tester.pumpSailPage(
+      Center(
+        child: SizedBox(width: 900, height: 650, child: TransactionDetailsDialog(txid: 'ab' * 32)),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  String rowValue(WidgetTester tester, String label) {
+    final row = tester.widget<DetailRow>(
+      find.byWidgetPredicate((widget) => widget is DetailRow && widget.label == label),
+    );
+    return row.value;
+  }
+
+  testWidgets('the details of a wallet transaction show what it did to the wallet', (tester) async {
+    final time = DateTime(2026, 11, 27, 7, 13);
+    transactions.walletTransactions = [
+      walletpb.WalletTransaction(
+        txid: 'ab' * 32,
+        sentSatoshi: Int64(150000000),
+        feeSats: Int64(423),
+        address: 'bcrt1qsecond',
+        payments: [
+          walletpb.TransactionPayment(address: 'bcrt1qsecond', amountSats: Int64(100000000)),
+          walletpb.TransactionPayment(address: 'bcrt1qfirst', amountSats: Int64(50000000)),
+        ],
+        note: 'Rent for November',
+        confirmations: 1,
+        confirmationTime: walletpb.Confirmation(height: 102, timestamp: Timestamp.fromDateTime(time)),
+      ),
+    ];
+    await pumpDetails(tester);
+
+    final formatter = GetIt.I<FormatterProvider>();
+    expect(find.text('In this wallet'), findsOneWidget);
+    expect(rowValue(tester, 'Date'), formatDate(time));
+    expect(rowValue(tester, 'Status'), 'Confirmed');
+    expect(rowValue(tester, 'Amount'), '-${formatter.formatSats(150000423)}');
+    expect(rowValue(tester, 'Addresses'), 'bcrt1qsecond\nbcrt1qfirst');
+    expect(rowValue(tester, 'Note'), 'Rent for November');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the wallet group follows the history row and shows no empty note', (tester) async {
+    final row = walletpb.WalletTransaction(
+      txid: 'ab' * 32,
+      receivedSatoshi: Int64(50000000),
+      address: 'bcrt1qown',
+      payments: [walletpb.TransactionPayment(address: 'bcrt1qown', amountSats: Int64(50000000))],
+    );
+    transactions.walletTransactions = [row];
+    await pumpDetails(tester);
+
+    expect(rowValue(tester, 'Status'), 'Unconfirmed');
+    expect(rowValue(tester, 'Amount'), '+${GetIt.I<FormatterProvider>().formatSats(50000000)}');
+    expect(rowValue(tester, 'Address'), 'bcrt1qown');
+    expect(find.byWidgetPredicate((widget) => widget is DetailRow && widget.label == 'Note'), findsNothing);
+
+    transactions.walletTransactions = [row.deepCopy()..confirmations = 1];
+    transactions.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(rowValue(tester, 'Status'), 'Confirmed');
+  });
+
+  testWidgets('the details of a transaction outside the wallet show no wallet group', (tester) async {
+    await pumpDetails(tester);
+
+    expect(find.text('Transaction Info'), findsOneWidget);
+    expect(find.text('In this wallet'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('an abandoned row says so, and offers no fee bump', (tester) async {
     final entry = walletpb.WalletTransaction(

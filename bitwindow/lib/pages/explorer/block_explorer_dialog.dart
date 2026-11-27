@@ -2,7 +2,10 @@ import 'package:bitwindow/dialogs/merkle_tree_dialog.dart';
 import 'package:bitwindow/pages/explorer/load_transaction_dialog.dart';
 import 'package:bitwindow/pages/explorer/widgets/output_owner.dart';
 import 'package:bitwindow/pages/explorer/widgets/transaction_flow_diagram.dart';
+import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:bitwindow/providers/blockchain_provider.dart';
+import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -519,6 +522,7 @@ class TransactionDetailsDialog extends StatefulWidget {
 class _TransactionDetailsDialogState extends State<TransactionDetailsDialog> {
   OrchestratorWalletRPC get orchestratorWallet => GetIt.I.get<OrchestratorRPC>().wallet;
   WalletReaderProvider get walletReader => GetIt.I.get<WalletReaderProvider>();
+  TransactionProvider get _transactions => GetIt.I.get<TransactionProvider>();
   Logger get log => GetIt.I.get<Logger>();
 
   GetTransactionDetailsResponse? _details;
@@ -619,7 +623,15 @@ class _TransactionDetailsDialogState extends State<TransactionDetailsDialog> {
                       tabs: [
                         TabItem(
                           label: 'Overview',
-                          child: _OverviewTab(details: _details!),
+                          child: ListenableBuilder(
+                            listenable: _transactions,
+                            builder: (context, _) => _OverviewTab(
+                              details: _details!,
+                              walletTx: _transactions.walletTransactions.firstWhereOrNull(
+                                (tx) => tx.txid == widget.txid,
+                              ),
+                            ),
+                          ),
                         ),
                         TabItem(
                           label: 'Inputs (${_details!.inputs.length})',
@@ -654,7 +666,10 @@ class _TransactionDetailsDialogState extends State<TransactionDetailsDialog> {
 class _OverviewTab extends StatelessWidget {
   final GetTransactionDetailsResponse details;
 
-  const _OverviewTab({required this.details});
+  /// The history row of this transaction in the active wallet, or null.
+  final WalletTransaction? walletTx;
+
+  const _OverviewTab({required this.details, required this.walletTx});
 
   @override
   Widget build(BuildContext context) {
@@ -665,6 +680,12 @@ class _OverviewTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (walletTx case final tx?) ...[
+            SailText.primary13('In this wallet'),
+            const SailSpacing(SailStyleValues.padding08),
+            for (final (label, value) in walletTransactionRows(tx, formatter)) DetailRow(label: label, value: value),
+            const SailSpacing(SailStyleValues.padding16),
+          ],
           // Transaction Flow Diagram
           TransactionFlowDiagram(details: details),
 
