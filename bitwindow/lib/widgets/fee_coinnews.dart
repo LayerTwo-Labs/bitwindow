@@ -385,8 +385,8 @@ class FeeCoinNewsTable extends StatelessWidget {
           rowCount: entries.length,
           emptyPlaceholder: 'No news articles yet',
           drawGrid: true,
-          onSelectedRow: (rowId) {
-            if (rowId == null || onArticleSelected == null) {
+          onRowTap: (rowId) {
+            if (onArticleSelected == null) {
               return;
             }
             final index = int.tryParse(rowId);

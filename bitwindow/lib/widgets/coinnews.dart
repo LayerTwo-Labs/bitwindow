@@ -1009,8 +1009,8 @@ class CoinNewsTable extends StatelessWidget {
                 final columns = condensed ? ['date', 'fee', 'title'] : ['date', 'topic', 'title', 'readtime'];
                 onSort(columns[columnIndex]);
               },
-              onSelectedRow: (rowId) {
-                if (rowId == null || onArticleSelected == null) {
+              onRowTap: (rowId) {
+                if (onArticleSelected == null) {
                   return;
                 }
                 final index = int.tryParse(rowId);
