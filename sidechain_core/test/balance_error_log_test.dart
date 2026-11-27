@@ -19,6 +19,16 @@ class _UnservedRPC extends MockBitwindowRPC {
   }
 
   int calls = 0;
+  bool served = false;
+
+  @override
+  Future<(double, double, double)> balances() async {
+    if (served) {
+      return (2.0, 0.0, 0.0);
+    }
+    final (confirmed, pending) = await balance();
+    return (confirmed, pending, 0.0);
+  }
 
   @override
   Future<(double, double)> balance() {
@@ -56,5 +66,23 @@ void main() {
     final reports = output.lines.where((l) => l.contains('balance failed')).length;
     expect(reports, 1);
     expect(provider.error, contains('no chain source'));
+  });
+
+  test('a failed poll tells the listeners, and a good read clears the error', () async {
+    var notified = 0;
+    provider.addListener(() => notified++);
+
+    await provider.fetch();
+    expect(provider.error, contains('no chain source'));
+    expect(notified, 1);
+
+    await provider.fetch();
+    expect(notified, 1);
+
+    rpc.served = true;
+    await provider.fetch();
+    expect(provider.error, isNull);
+    expect(provider.balance, 2.0);
+    expect(notified, 2);
   });
 }

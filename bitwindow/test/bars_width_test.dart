@@ -92,6 +92,9 @@ class _Wallet extends ChangeNotifier implements WalletReaderProvider {
 
 class _Balance extends ChangeNotifier implements BalanceProvider {
   @override
+  String? get error => null;
+
+  @override
   final newestTransactions = ValueNotifier<List<wmpb.TransactionEntry>?>(null);
 
   @override

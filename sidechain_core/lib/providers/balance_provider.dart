@@ -30,7 +30,12 @@ class BalanceProvider extends ChangeNotifier implements NetworkScoped {
 
   final Map<RPCConnection, (double confirmed, double pending)> _balances = {};
   final Map<RPCConnection, double> _maturing = {};
-  String? error;
+
+  /// Why the last balance read of each connection failed. Its old balance is not current then.
+  final Map<RPCConnection, String> _readErrors = {};
+
+  /// Why the balance of [mainConnection] could not be read, or null.
+  String? get error => _readErrors[mainConnection];
 
   final Set<RPCConnection> _reported = {};
 
@@ -161,7 +166,6 @@ class BalanceProvider extends ChangeNotifier implements NetworkScoped {
       newestTransactions.value = frame.transactions;
     }
     if (_applyFrame(rpc)) {
-      error = null;
       notifyListeners();
     }
   }
@@ -174,6 +178,9 @@ class BalanceProvider extends ChangeNotifier implements NetworkScoped {
     if (frame == null || (activeId != null && frame.walletId != activeId)) {
       return false;
     }
+    if (frame.error.isNotEmpty) {
+      return _fail(rpc, frame.error);
+    }
     _loggedError.remove(rpc);
     return _store(
       rpc,
@@ -185,13 +192,22 @@ class BalanceProvider extends ChangeNotifier implements NetworkScoped {
 
   /// Returns true if the balance of [rpc] changed or was not read before.
   bool _store(RPCConnection rpc, double confirmed, double pending, double maturing) {
-    var changed = _reported.add(rpc);
+    var changed = _reported.add(rpc) | (_readErrors.remove(rpc) != null);
     if (_balances[rpc] != (confirmed, pending) || _maturing[rpc] != maturing) {
       _balances[rpc] = (confirmed, pending);
       _maturing[rpc] = maturing;
       changed = true;
     }
     return changed;
+  }
+
+  /// Returns true if [rpc] did not fail with [text] before.
+  bool _fail(RPCConnection rpc, String text) {
+    if (_readErrors[rpc] == text) {
+      return false;
+    }
+    _readErrors[rpc] = text;
+    return true;
   }
 
   void _onConnectionChange(RPCConnection rpc) {
@@ -214,11 +230,11 @@ class BalanceProvider extends ChangeNotifier implements NetworkScoped {
   // Write a balance fetched elsewhere in the same batch as utxos/transactions,
   // so the displayed number can't drift from the list it belongs to.
   void setBalance(RPCConnection rpc, double confirmed, double pending) {
-    final changed = _balances[rpc] != (confirmed, pending) || !_reported.contains(rpc);
+    final hadError = _readErrors.remove(rpc) != null;
+    final changed = hadError || _balances[rpc] != (confirmed, pending) || !_reported.contains(rpc);
     _balances[rpc] = (confirmed, pending);
     _reported.add(rpc);
     if (changed) {
-      error = null;
       notifyListeners();
     }
   }
@@ -231,8 +247,8 @@ class BalanceProvider extends ChangeNotifier implements NetworkScoped {
     _maturing.clear();
     _reported.clear();
     _loggedError.clear();
+    _readErrors.clear();
     _lastWalletId = _walletReader?.activeWalletId;
-    error = null;
     notifyListeners();
   }
 
@@ -272,7 +288,9 @@ class BalanceProvider extends ChangeNotifier implements NetworkScoped {
             log.w('BalanceProvider: ${rpc.binaryType.name} balance failed: $err');
             _loggedError[rpc] = text;
           }
-          error = text;
+          if (_fail(rpc, text)) {
+            changed = true;
+          }
           continue;
         }
         // A frame that came during the read is newer.
@@ -287,12 +305,13 @@ class BalanceProvider extends ChangeNotifier implements NetworkScoped {
       }
 
       if (changed) {
-        error = null;
         notifyListeners();
       }
     } catch (err) {
       log.w('BalanceProvider: fetch failed: $err');
-      error = err.toString();
+      if (_fail(mainConnection, err.toString())) {
+        notifyListeners();
+      }
     } finally {
       _isFetching = false;
     }
@@ -338,8 +357,15 @@ class SidechainBalanceProvider extends BalanceProvider {
   void _copy() {
     final source = _source!;
     final rpc = mainConnection;
+    final readError = source._readErrors[rpc];
+    if (readError != null) {
+      if (_fail(rpc, readError)) {
+        notifyListeners();
+      }
+      return;
+    }
     if (!source._reported.contains(rpc)) {
-      if (_reported.isNotEmpty) {
+      if (_reported.isNotEmpty || _readErrors.isNotEmpty) {
         clear();
       }
       return;

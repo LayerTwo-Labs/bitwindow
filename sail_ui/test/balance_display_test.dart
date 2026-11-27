@@ -10,6 +10,7 @@ Future<void> pumpBalance(
   double maturingBalance = 0,
   double? usdBalance,
   double width = 1400,
+  String? error,
 }) async {
   tester.view.physicalSize = Size(width, 400);
   tester.view.devicePixelRatio = 1;
@@ -27,6 +28,7 @@ Future<void> pumpBalance(
             showUnconfirmed: showUnconfirmed,
             onToggleUnconfirmed: () {},
             usdBalance: usdBalance,
+            error: error,
           ),
         ),
       ),
@@ -110,5 +112,28 @@ void main() {
     expect(find.textContaining('maturing'), findsNothing);
     expect(find.byTooltip('Confirmed balance (\$1.30)'), findsOneWidget);
     expect(find.byTooltip('Maturing balance'), findsOneWidget);
+  });
+
+  testWidgets('a failed balance read shows no old number', (tester) async {
+    await pumpBalance(
+      tester,
+      balance: 5050,
+      pendingBalance: 1.5,
+      maturingBalance: 50,
+      usdBalance: 1000,
+      showUnconfirmed: true,
+      error: 'connection refused',
+    );
+
+    expect(find.text('-'), findsOneWidget);
+    expect(find.textContaining(formatBitcoin(5050)), findsNothing);
+    expect(find.textContaining(formatBitcoin(1.5)), findsNothing);
+    expect(find.textContaining(formatBitcoin(50)), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Tooltip && widget.message == 'Could not read the balance: connection refused',
+      ),
+      findsOneWidget,
+    );
   });
 }

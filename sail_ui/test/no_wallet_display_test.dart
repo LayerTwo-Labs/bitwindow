@@ -10,6 +10,9 @@ import 'package:sidechain_core/providers/price_provider.dart';
 
 class _Balance extends ChangeNotifier implements BalanceProvider {
   @override
+  String? get error => null;
+
+  @override
   double balance = 1.5;
 
   @override

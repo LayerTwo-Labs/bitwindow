@@ -491,6 +491,7 @@ class BottomNavBalance extends StatelessWidget {
               showUnconfirmed: model.showUnconfirmed,
               onToggleUnconfirmed: model.toggleUnconfirmed,
               usdBalance: model.usdBalance,
+              error: model.readError,
             ),
             const SailSpacing(SailStyleValues.padding04),
             const _BalanceRefreshButton(),
@@ -949,6 +950,9 @@ class BalanceDisplay extends StatelessWidget {
   final VoidCallback onToggleUnconfirmed;
   final double? usdBalance;
 
+  /// Why the balance could not be read. The bar then shows no number.
+  final String? error;
+
   const BalanceDisplay({
     super.key,
     required this.balance,
@@ -958,12 +962,14 @@ class BalanceDisplay extends StatelessWidget {
     required this.showUnconfirmed,
     required this.onToggleUnconfirmed,
     required this.usdBalance,
+    this.error,
   });
 
   @override
   Widget build(BuildContext context) {
     final compact = SailStyleValues.compactBars(context);
-    final usd = usdBalance == null ? null : formatUsd(usdBalance!);
+    final failed = error != null;
+    final usd = usdBalance == null || failed ? null : formatUsd(usdBalance!);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
@@ -971,7 +977,11 @@ class BalanceDisplay extends StatelessWidget {
         child: SailRow(
           children: [
             Tooltip(
-              message: compact && usd != null ? 'Confirmed balance ($usd)' : 'Confirmed balance',
+              message: failed
+                  ? 'Could not read the balance: $error'
+                  : compact && usd != null
+                  ? 'Confirmed balance ($usd)'
+                  : 'Confirmed balance',
               child: SailRow(
                 spacing: SailStyleValues.padding08,
                 children: [
@@ -985,14 +995,18 @@ class BalanceDisplay extends StatelessWidget {
                     description: 'Syncing wallet..',
                     enabled: balanceSyncing,
                     child: SailText.secondary12(
-                      compact || usd == null ? formatBitcoin(balance) : '${formatBitcoin(balance)} ($usd)',
+                      failed
+                          ? '-'
+                          : compact || usd == null
+                          ? formatBitcoin(balance)
+                          : '${formatBitcoin(balance)} ($usd)',
                     ),
                   ),
                 ],
               ),
             ),
-            if (showUnconfirmed || pendingBalance > 0) const DividerDot(),
-            if (showUnconfirmed || pendingBalance > 0)
+            if (!failed && (showUnconfirmed || pendingBalance > 0)) const DividerDot(),
+            if (!failed && (showUnconfirmed || pendingBalance > 0))
               AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
                 opacity: 1,
@@ -1011,7 +1025,7 @@ class BalanceDisplay extends StatelessWidget {
                   ),
                 ),
               ),
-            if (maturingBalance > 0) ...[
+            if (!failed && maturingBalance > 0) ...[
               const DividerDot(),
               Tooltip(
                 message: 'Maturing balance',
@@ -1064,12 +1078,14 @@ class BalanceDisplayViewModel extends BaseViewModel with ChangeTrackingMixin {
     track('balanceSyncing', balanceSyncing);
     track('showUnconfirmed', showUnconfirmed);
     track('noWallet', noWallet);
+    track('readError', readError);
     notifyIfChanged();
   }
 
   double get balance => _balanceProvider.balance;
   double get pendingBalance => _balanceProvider.pendingBalance;
   double get maturingBalance => _balanceProvider.maturingBalance;
+  String? get readError => _balanceProvider.error;
   bool get balanceSyncing => !_balanceProvider.initialized;
   bool get showUnconfirmed => _showUnconfirmed;
   double? get usdBalance => _priceProvider.toUsd(balance);

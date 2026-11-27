@@ -6,10 +6,14 @@ import 'package:sidechain_core/sidechain_core.dart';
 
 class _CountingThunder extends MockThunderRPC {
   int calls = 0;
+  Object? failure;
 
   @override
   Future<(double, double)> balance() async {
     calls++;
+    if (failure != null) {
+      throw failure!;
+    }
     return (3.0, 1.0);
   }
 }
@@ -60,5 +64,30 @@ void main() {
     source.clear();
     expect(mirror.initialized, isFalse);
     expect(mirror.balance, 0);
+  });
+
+  test('a mirror shows the error of a first read that fails, and clears it at the next good read', () async {
+    final down = _CountingThunder()
+      ..setConnected(true)
+      ..failure = Exception('connection refused');
+    final failing = BalanceProvider(connections: [MockBitwindowRPC(), down]);
+    addTearDown(failing.dispose);
+    await pumpEventQueue();
+    final view = SidechainBalanceProvider.mirror(sidechain: down, source: failing);
+    addTearDown(view.dispose);
+    expect(view.error, contains('connection refused'));
+
+    down.failure = null;
+    await failing.fetch();
+    expect(view.error, isNull);
+    expect((view.balance, view.pendingBalance), (3.0, 1.0));
+
+    down.failure = Exception('connection refused');
+    await failing.fetch();
+    expect(view.error, contains('connection refused'));
+
+    down.failure = null;
+    await failing.fetch();
+    expect(view.error, isNull, reason: 'the same balance as before must still clear the error');
   });
 }

@@ -65,6 +65,28 @@ void main() {
     expect(notified, 1);
   });
 
+  test('an error frame marks the balance as not current until the next balance', () async {
+    mainchain.frames.add(_frame(2e8, immatureSats: 5e7));
+    await pumpEventQueue();
+    var notified = 0;
+    provider.addListener(() => notified++);
+
+    mainchain.frames.add(wmpb.WatchBalanceResponse(walletId: 'w', error: 'connection refused'));
+    await pumpEventQueue();
+    expect(provider.error, 'connection refused');
+    expect(notified, 1);
+
+    await provider.poll();
+    expect(mainchain.calls, 0);
+    expect(notified, 1);
+
+    mainchain.frames.add(_frame(3e8));
+    await pumpEventQueue();
+    expect(provider.error, isNull);
+    expect(provider.balance, 3.0);
+    expect(notified, 2);
+  });
+
   test('a poll reads no RPC while the stream is up', () async {
     await provider.poll();
     expect(mainchain.calls, 1);
