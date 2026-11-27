@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bitwindow/pages/explorer/load_transaction_dialog.dart';
 import 'package:bitwindow/signing/psbt_text.dart';
 import 'package:bitwindow/widgets/airgap_psbt_dialog.dart';
 import 'package:flutter/widgets.dart';
@@ -214,6 +215,7 @@ class PsbtReview extends StatelessWidget {
           label: 'Fee',
           value: decoded.hasFee ? formatter.formatSats(details.feeSats.toInt()) : 'Unknown',
         ),
+        _ReviewRow(label: 'Fee rate', value: feeRateText(decoded)),
         _ReviewRow(label: 'Signed inputs', value: '${decoded.signedInputs} of ${details.inputs.length}'),
       ],
     );

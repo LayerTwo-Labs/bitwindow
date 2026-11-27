@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bitwindow/pages/explorer/load_transaction_dialog.dart';
 import 'package:bitwindow/pages/wallet/psbt_signer_tab.dart';
 import 'package:bitwindow/signing/psbt_text.dart';
 import 'package:bitwindow/widgets/airgap_sign_step.dart';
@@ -21,6 +22,7 @@ class _FakeWallet implements OrchestratorWalletRPC {
   final decodes = <(String, String, bool)>[];
   Object? decodeError;
   var morePayments = 0;
+  var vsize = 141;
 
   @override
   Future<DecodedTransaction> decodeTransaction({
@@ -49,6 +51,10 @@ class _FakeWallet implements OrchestratorWalletRPC {
             walletpb.TransactionOutput(index: 2 + i, valueSats: Int64(1000 + i), address: 'bcrt1qmore$i'),
         ],
         feeSats: Int64(282),
+        sizeBytes: vsize == 0 ? 0 : 222,
+        vsizeVbytes: vsize,
+        weightWu: vsize == 0 ? 0 : 561,
+        feeRateSatVb: vsize == 0 ? 0 : 282 / vsize,
       ),
     );
   }
@@ -220,5 +226,51 @@ void main() {
 
     expect(wallet.decodes, [(_unsignedPsbt, 'w1', true), (_unsignedPsbt, 'w2', true)]);
     expect(find.text('Pays'), findsOneWidget);
+  });
+
+  testWidgets('the review shows the fee rate of the signed transaction', (tester) async {
+    await tester.pumpSailPage(const PsbtSignerTab());
+
+    await tester.enterText(find.byType(EditableText), _unsignedPsbt);
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Fee rate'), findsOneWidget);
+    expect(find.text('2.00 ${activeTicker.feeRate}'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Fee')).dy, lessThan(tester.getTopLeft(find.text('Fee rate')).dy));
+  });
+
+  testWidgets('a PSBT of unknown size shows no fee rate', (tester) async {
+    wallet.vsize = 0;
+    await tester.pumpSailPage(const PsbtSignerTab());
+
+    await tester.enterText(find.byType(EditableText), _unsignedPsbt);
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Unknown'), findsOneWidget);
+    expect(find.textContaining(activeTicker.feeRate), findsNothing);
+  });
+
+  testWidgets('Decode Transaction shows an unknown PSBT size as unknown', (tester) async {
+    wallet.vsize = 0;
+    await tester.pumpSailPage(const LoadTransactionDialog());
+
+    await tester.enterText(find.byType(EditableText), _unsignedPsbt);
+    await tester.tap(find.text('Decode').hitTestable());
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Unknown'), findsNWidgets(4));
+    expect(find.text('0 vbytes'), findsNothing);
+    expect(find.textContaining(activeTicker.feeRate), findsNothing);
+  });
+
+  testWidgets('Decode Transaction shows the size and fee rate of a PSBT', (tester) async {
+    await tester.pumpSailPage(const LoadTransactionDialog());
+
+    await tester.enterText(find.byType(EditableText), _unsignedPsbt);
+    await tester.tap(find.text('Decode').hitTestable());
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('141 vbytes'), findsOneWidget);
+    expect(find.text('2.00 ${activeTicker.feeRate}'), findsOneWidget);
   });
 }
