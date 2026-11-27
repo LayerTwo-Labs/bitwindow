@@ -978,6 +978,21 @@ type AddressInfo struct {
 	ParentDesc string `json:"parent_desc"`
 }
 
+// Ranged reports whether the address comes from a ranged descriptor of the
+// wallet seed. Core reports a key that the wallet imported alone with path "m".
+func (a *AddressInfo) Ranged() bool {
+	return strings.Contains(a.ParentDesc, "*")
+}
+
+// SeedPath is the BIP32 path of the address from the wallet seed, or "" for
+// a key that the wallet imported alone.
+func (a *AddressInfo) SeedPath() string {
+	if !a.Ranged() {
+		return ""
+	}
+	return a.HDKeyPath
+}
+
 // GetAddressInfo returns information about an address in the wallet, including
 // the HD derivation path when known.
 func (c *CoreRPCClient) GetAddressInfo(ctx context.Context, walletName, address string) (*AddressInfo, error) {
