@@ -49,9 +49,9 @@ class _RemoveEncryptionPageState extends State<RemoveEncryptionPage> {
         return;
       }
       setState(() {
-        _errorMessage = e.toString().contains('Incorrect password')
+        _errorMessage = isWrongPassword(e)
             ? 'Incorrect password'
-            : 'Error removing encryption: $e';
+            : 'Error removing encryption: ${extractConnectException(e)}';
         _isRemoving = false;
       });
     }
