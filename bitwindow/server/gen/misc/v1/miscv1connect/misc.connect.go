@@ -33,6 +33,12 @@ const (
 	MiscServiceCreateTopicProcedure = "/misc.v1.MiscService/CreateTopic"
 	// MiscServiceListTopicsProcedure is the procedure name of the MiscService's ListTopics RPC.
 	MiscServiceListTopicsProcedure = "/misc.v1.MiscService/ListTopics"
+	// MiscServiceListChainTopicsProcedure is the procedure name of the MiscService's ListChainTopics
+	// RPC.
+	MiscServiceListChainTopicsProcedure = "/misc.v1.MiscService/ListChainTopics"
+	// MiscServiceSetTopicSubscribedProcedure is the procedure name of the MiscService's
+	// SetTopicSubscribed RPC.
+	MiscServiceSetTopicSubscribedProcedure = "/misc.v1.MiscService/SetTopicSubscribed"
 	// MiscServiceListCoinNewsProcedure is the procedure name of the MiscService's ListCoinNews RPC.
 	MiscServiceListCoinNewsProcedure = "/misc.v1.MiscService/ListCoinNews"
 	// MiscServiceCommentNewsProcedure is the procedure name of the MiscService's CommentNews RPC.
@@ -78,6 +84,20 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_misc_v1_misc_proto.Services().ByName("MiscService").Methods().ByName("ListTopics"),
 			Procedure:  MiscServiceListTopicsProcedure,
+		}
+	})
+	miscServiceListChainTopicsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_misc_v1_misc_proto.Services().ByName("MiscService").Methods().ByName("ListChainTopics"),
+			Procedure:  MiscServiceListChainTopicsProcedure,
+		}
+	})
+	miscServiceSetTopicSubscribedSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_misc_v1_misc_proto.Services().ByName("MiscService").Methods().ByName("SetTopicSubscribed"),
+			Procedure:  MiscServiceSetTopicSubscribedProcedure,
 		}
 	})
 	miscServiceListCoinNewsSpec = sync.OnceValue(func() connect.Spec {
@@ -136,8 +156,14 @@ type MiscServiceClient interface {
 	// Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
 	ListOPReturn(context.Context, *v1.ListOPReturnRequest) (*v1.ListOPReturnResponse, error)
 	BroadcastNews(context.Context, *v1.BroadcastNewsRequest) (*v1.BroadcastNewsResponse, error)
+	// Broadcasts a topic creation and subscribes to the topic.
 	CreateTopic(context.Context, *v1.CreateTopicRequest) (*v1.CreateTopicResponse, error)
+	// Lists the topics that the user subscribes to.
 	ListTopics(context.Context, *emptypb.Empty) (*v1.ListTopicsResponse, error)
+	// Lists each topic in a block or in the mempool, subscribed or not.
+	ListChainTopics(context.Context, *emptypb.Empty) (*v1.ListTopicsResponse, error)
+	// Subscribes to a topic in a block or in the mempool, or leaves a topic.
+	SetTopicSubscribed(context.Context, *v1.SetTopicSubscribedRequest) (*emptypb.Empty, error)
 	ListCoinNews(context.Context, *v1.ListCoinNewsRequest) (*v1.ListCoinNewsResponse, error)
 	// Broadcasts a signed Comment (CoinNews Comment, 0x03) on an Item.
 	CommentNews(context.Context, *v1.CommentNewsRequest) (*v1.CommentNewsResponse, error)
@@ -163,8 +189,14 @@ type MiscServiceHandler interface {
 	// Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
 	ListOPReturn(context.Context, *v1.ListOPReturnRequest) (*v1.ListOPReturnResponse, error)
 	BroadcastNews(context.Context, *v1.BroadcastNewsRequest) (*v1.BroadcastNewsResponse, error)
+	// Broadcasts a topic creation and subscribes to the topic.
 	CreateTopic(context.Context, *v1.CreateTopicRequest) (*v1.CreateTopicResponse, error)
+	// Lists the topics that the user subscribes to.
 	ListTopics(context.Context, *emptypb.Empty) (*v1.ListTopicsResponse, error)
+	// Lists each topic in a block or in the mempool, subscribed or not.
+	ListChainTopics(context.Context, *emptypb.Empty) (*v1.ListTopicsResponse, error)
+	// Subscribes to a topic in a block or in the mempool, or leaves a topic.
+	SetTopicSubscribed(context.Context, *v1.SetTopicSubscribedRequest) (*emptypb.Empty, error)
 	ListCoinNews(context.Context, *v1.ListCoinNewsRequest) (*v1.ListCoinNewsResponse, error)
 	// Broadcasts a signed Comment (CoinNews Comment, 0x03) on an Item.
 	CommentNews(context.Context, *v1.CommentNewsRequest) (*v1.CommentNewsResponse, error)
@@ -187,6 +219,8 @@ func RegisterMiscServiceHandler(server *connect.Server, svc MiscServiceHandler) 
 		connect.Method{Spec: miscServiceBroadcastNewsSpec(), Handler: adapter.broadcastNews},
 		connect.Method{Spec: miscServiceCreateTopicSpec(), Handler: adapter.createTopic},
 		connect.Method{Spec: miscServiceListTopicsSpec(), Handler: adapter.listTopics},
+		connect.Method{Spec: miscServiceListChainTopicsSpec(), Handler: adapter.listChainTopics},
+		connect.Method{Spec: miscServiceSetTopicSubscribedSpec(), Handler: adapter.setTopicSubscribed},
 		connect.Method{Spec: miscServiceListCoinNewsSpec(), Handler: adapter.listCoinNews},
 		connect.Method{Spec: miscServiceCommentNewsSpec(), Handler: adapter.commentNews},
 		connect.Method{Spec: miscServiceListCommentsSpec(), Handler: adapter.listComments},
@@ -214,6 +248,14 @@ func (UnimplementedMiscServiceHandler) CreateTopic(context.Context, *v1.CreateTo
 
 func (UnimplementedMiscServiceHandler) ListTopics(context.Context, *emptypb.Empty) (*v1.ListTopicsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "misc.v1.MiscService.ListTopics is not implemented")
+}
+
+func (UnimplementedMiscServiceHandler) ListChainTopics(context.Context, *emptypb.Empty) (*v1.ListTopicsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "misc.v1.MiscService.ListChainTopics is not implemented")
+}
+
+func (UnimplementedMiscServiceHandler) SetTopicSubscribed(context.Context, *v1.SetTopicSubscribedRequest) (*emptypb.Empty, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "misc.v1.MiscService.SetTopicSubscribed is not implemented")
 }
 
 func (UnimplementedMiscServiceHandler) ListCoinNews(context.Context, *v1.ListCoinNewsRequest) (*v1.ListCoinNewsResponse, error) {
@@ -275,6 +317,22 @@ func (c *miscServiceClient) CreateTopic(ctx context.Context, req *v1.CreateTopic
 func (c *miscServiceClient) ListTopics(ctx context.Context, req *emptypb.Empty) (*v1.ListTopicsResponse, error) {
 	var res v1.ListTopicsResponse
 	if err := c.client.CallUnary(ctx, miscServiceListTopicsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *miscServiceClient) ListChainTopics(ctx context.Context, req *emptypb.Empty) (*v1.ListTopicsResponse, error) {
+	var res v1.ListTopicsResponse
+	if err := c.client.CallUnary(ctx, miscServiceListChainTopicsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *miscServiceClient) SetTopicSubscribed(ctx context.Context, req *v1.SetTopicSubscribedRequest) (*emptypb.Empty, error) {
+	var res emptypb.Empty
+	if err := c.client.CallUnary(ctx, miscServiceSetTopicSubscribedSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -380,6 +438,30 @@ func (h miscServiceHandler) listTopics(ctx context.Context, _ connect.Spec, stre
 		return err
 	}
 	res, err := h.svc.ListTopics(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h miscServiceHandler) listChainTopics(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req emptypb.Empty
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListChainTopics(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h miscServiceHandler) setTopicSubscribed(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetTopicSubscribedRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetTopicSubscribed(ctx, &req)
 	if err != nil {
 		return err
 	}

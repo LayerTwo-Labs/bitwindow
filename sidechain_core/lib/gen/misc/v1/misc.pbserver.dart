@@ -26,6 +26,8 @@ abstract class MiscServiceBase extends $pb.GeneratedService {
   $async.Future<$2.BroadcastNewsResponse> broadcastNews($pb.ServerContext ctx, $2.BroadcastNewsRequest request);
   $async.Future<$2.CreateTopicResponse> createTopic($pb.ServerContext ctx, $2.CreateTopicRequest request);
   $async.Future<$2.ListTopicsResponse> listTopics($pb.ServerContext ctx, $1.Empty request);
+  $async.Future<$2.ListTopicsResponse> listChainTopics($pb.ServerContext ctx, $1.Empty request);
+  $async.Future<$1.Empty> setTopicSubscribed($pb.ServerContext ctx, $2.SetTopicSubscribedRequest request);
   $async.Future<$2.ListCoinNewsResponse> listCoinNews($pb.ServerContext ctx, $2.ListCoinNewsRequest request);
   $async.Future<$2.CommentNewsResponse> commentNews($pb.ServerContext ctx, $2.CommentNewsRequest request);
   $async.Future<$2.ListCommentsResponse> listComments($pb.ServerContext ctx, $2.ListCommentsRequest request);
@@ -44,6 +46,10 @@ abstract class MiscServiceBase extends $pb.GeneratedService {
         return $2.CreateTopicRequest();
       case 'ListTopics':
         return $1.Empty();
+      case 'ListChainTopics':
+        return $1.Empty();
+      case 'SetTopicSubscribed':
+        return $2.SetTopicSubscribedRequest();
       case 'ListCoinNews':
         return $2.ListCoinNewsRequest();
       case 'CommentNews':
@@ -74,6 +80,10 @@ abstract class MiscServiceBase extends $pb.GeneratedService {
         return createTopic(ctx, request as $2.CreateTopicRequest);
       case 'ListTopics':
         return listTopics(ctx, request as $1.Empty);
+      case 'ListChainTopics':
+        return listChainTopics(ctx, request as $1.Empty);
+      case 'SetTopicSubscribed':
+        return setTopicSubscribed(ctx, request as $2.SetTopicSubscribedRequest);
       case 'ListCoinNews':
         return listCoinNews(ctx, request as $2.ListCoinNewsRequest);
       case 'CommentNews':

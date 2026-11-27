@@ -665,6 +665,7 @@ func TestM4UpgradeRestoresTheLastBundleVote(t *testing.T) {
 	_, err = db.ExecContext(ctx, `
 		ALTER TABLE m3_messages DROP COLUMN vote_height;
 		ALTER TABLE op_returns DROP COLUMN explorer_message;
+		DROP TABLE cn_subscriptions;
 		UPDATE withdrawal_bundles
 		SET work_score = 1, blocks_left = 0, last_updated_height = 110,
 		    status = 'failed', status_stamped = 1;

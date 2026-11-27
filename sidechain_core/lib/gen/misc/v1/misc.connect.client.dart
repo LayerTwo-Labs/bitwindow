@@ -46,6 +46,7 @@ extension type MiscServiceClient(connect.Transport _transport) {
     );
   }
 
+  /// Broadcasts a topic creation and subscribes to the topic.
   Future<miscv1misc.CreateTopicResponse> createTopic(
     miscv1misc.CreateTopicRequest input, {
     connect.Headers? headers,
@@ -63,6 +64,7 @@ extension type MiscServiceClient(connect.Transport _transport) {
     );
   }
 
+  /// Lists the topics that the user subscribes to.
   Future<miscv1misc.ListTopicsResponse> listTopics(
     googleprotobufempty.Empty input, {
     connect.Headers? headers,
@@ -72,6 +74,42 @@ extension type MiscServiceClient(connect.Transport _transport) {
   }) {
     return connect.Client(_transport).unary(
       specs.MiscService.listTopics,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Lists each topic in a block or in the mempool, subscribed or not.
+  Future<miscv1misc.ListTopicsResponse> listChainTopics(
+    googleprotobufempty.Empty input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.MiscService.listChainTopics,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Subscribes to a topic in a block or in the mempool, or leaves a topic.
+  Future<googleprotobufempty.Empty> setTopicSubscribed(
+    miscv1misc.SetTopicSubscribedRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.MiscService.setTopicSubscribed,
       input,
       signal: signal,
       headers: headers,

@@ -9,8 +9,14 @@ service MiscService {
   // Lists the newest 1000 OP_RETURNs that match the request, in the requested order.
   rpc ListOPReturn(ListOPReturnRequest) returns (ListOPReturnResponse);
   rpc BroadcastNews(BroadcastNewsRequest) returns (BroadcastNewsResponse);
+  // Broadcasts a topic creation and subscribes to the topic.
   rpc CreateTopic(CreateTopicRequest) returns (CreateTopicResponse);
+  // Lists the topics that the user subscribes to.
   rpc ListTopics(google.protobuf.Empty) returns (ListTopicsResponse);
+  // Lists each topic in a block or in the mempool, subscribed or not.
+  rpc ListChainTopics(google.protobuf.Empty) returns (ListTopicsResponse);
+  // Subscribes to a topic in a block or in the mempool, or leaves a topic.
+  rpc SetTopicSubscribed(SetTopicSubscribedRequest) returns (google.protobuf.Empty);
   rpc ListCoinNews(ListCoinNewsRequest) returns (ListCoinNewsResponse);
   // Broadcasts a signed Comment (CoinNews Comment, 0x03) on an Item.
   rpc CommentNews(CommentNewsRequest) returns (CommentNewsResponse);
@@ -104,10 +110,17 @@ message Topic {
   string txid = 6;
   // Retention period for news items (0 = infinite)
   int32 retention_days = 7;
+  // True for a topic that the user subscribes to.
+  bool subscribed = 8;
 }
 
 message ListTopicsResponse {
   repeated Topic topics = 1;
+}
+
+message SetTopicSubscribedRequest {
+  string topic = 1;
+  bool subscribed = 2;
 }
 
 // What the user is about to put on chain.
