@@ -233,6 +233,8 @@ abstract final class WalletService {
     walletv1wallet.CreateBackupResponse.new,
   );
 
+  /// Adds the wallets of a backup to the wallets of this install. With no
+  /// wallet here, writes the wallets of the backup and restarts the L1 stack.
   static const restoreBackup = connect.Spec(
     '/$name/RestoreBackup',
     connect.StreamType.unary,

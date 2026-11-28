@@ -377,6 +377,8 @@ type WalletServiceClient interface {
 	SelectCoins(context.Context, *v1.SelectCoinsRequest) (*v1.SelectCoinsResponse, error)
 	// Backup / Restore
 	CreateBackup(context.Context, *emptypb.Empty) (*v1.CreateBackupResponse, error)
+	// Adds the wallets of a backup to the wallets of this install. With no
+	// wallet here, writes the wallets of the backup and restarts the L1 stack.
 	RestoreBackup(context.Context, *v1.RestoreBackupRequest) (*emptypb.Empty, error)
 	ValidateBackup(context.Context, *v1.ValidateBackupRequest) (*v1.ValidateBackupResponse, error)
 }
@@ -429,6 +431,8 @@ type WalletServiceHandler interface {
 	SelectCoins(context.Context, *v1.SelectCoinsRequest) (*v1.SelectCoinsResponse, error)
 	// Backup / Restore
 	CreateBackup(context.Context, *emptypb.Empty) (*v1.CreateBackupResponse, error)
+	// Adds the wallets of a backup to the wallets of this install. With no
+	// wallet here, writes the wallets of the backup and restarts the L1 stack.
 	RestoreBackup(context.Context, *v1.RestoreBackupRequest) (*emptypb.Empty, error)
 	ValidateBackup(context.Context, *v1.ValidateBackupRequest) (*v1.ValidateBackupResponse, error)
 }

@@ -4149,10 +4149,7 @@ type RestoreBackupRequest struct {
 	BackupData []byte `protobuf:"bytes,1,opt,name=backup_data,json=backupData,proto3" json:"backup_data,omitempty"`
 	// Original filename (used to detect .json vs .zip)
 	Filename string `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
-	// True adds the wallets of the backup to the wallets of this install. False
-	// replaces the wallets of this install.
-	KeepWallets bool `protobuf:"varint,3,opt,name=keep_wallets,json=keepWallets,proto3" json:"keep_wallets,omitempty"`
-	// Password of the backup. Used only with keep_wallets.
+	// Password of an encrypted backup. Used only when this install has a wallet.
 	Password      string `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4200,13 +4197,6 @@ func (x *RestoreBackupRequest) GetFilename() string {
 		return x.Filename
 	}
 	return ""
-}
-
-func (x *RestoreBackupRequest) GetKeepWallets() bool {
-	if x != nil {
-		return x.KeepWallets
-	}
-	return false
 }
 
 func (x *RestoreBackupRequest) GetPassword() string {
@@ -4766,13 +4756,12 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	"\x14CreateBackupResponse\x12\x1f\n" +
 	"\vbackup_data\x18\x01 \x01(\fR\n" +
 	"backupData\x12-\n" +
-	"\x12suggested_filename\x18\x02 \x01(\tR\x11suggestedFilename\"\x92\x01\n" +
+	"\x12suggested_filename\x18\x02 \x01(\tR\x11suggestedFilename\"\x83\x01\n" +
 	"\x14RestoreBackupRequest\x12\x1f\n" +
 	"\vbackup_data\x18\x01 \x01(\fR\n" +
 	"backupData\x12\x1a\n" +
-	"\bfilename\x18\x02 \x01(\tR\bfilename\x12!\n" +
-	"\fkeep_wallets\x18\x03 \x01(\bR\vkeepWallets\x12\x1a\n" +
-	"\bpassword\x18\x04 \x01(\tR\bpassword\"T\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x1a\n" +
+	"\bpassword\x18\x04 \x01(\tR\bpasswordJ\x04\b\x03\x10\x04R\fkeep_wallets\"T\n" +
 	"\x15ValidateBackupRequest\x12\x1f\n" +
 	"\vbackup_data\x18\x01 \x01(\fR\n" +
 	"backupData\x12\x1a\n" +

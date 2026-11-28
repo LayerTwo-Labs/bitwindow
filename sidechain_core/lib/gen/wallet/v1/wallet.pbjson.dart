@@ -1201,16 +1201,19 @@ const RestoreBackupRequest$json = {
   '2': [
     {'1': 'backup_data', '3': 1, '4': 1, '5': 12, '10': 'backupData'},
     {'1': 'filename', '3': 2, '4': 1, '5': 9, '10': 'filename'},
-    {'1': 'keep_wallets', '3': 3, '4': 1, '5': 8, '10': 'keepWallets'},
     {'1': 'password', '3': 4, '4': 1, '5': 9, '10': 'password'},
   ],
+  '9': [
+    {'1': 3, '2': 4},
+  ],
+  '10': ['keep_wallets'],
 };
 
 /// Descriptor for `RestoreBackupRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List restoreBackupRequestDescriptor =
     $convert.base64Decode('ChRSZXN0b3JlQmFja3VwUmVxdWVzdBIfCgtiYWNrdXBfZGF0YRgBIAEoDFIKYmFja3VwRGF0YR'
-        'IaCghmaWxlbmFtZRgCIAEoCVIIZmlsZW5hbWUSIQoMa2VlcF93YWxsZXRzGAMgASgIUgtrZWVw'
-        'V2FsbGV0cxIaCghwYXNzd29yZBgEIAEoCVIIcGFzc3dvcmQ=');
+        'IaCghmaWxlbmFtZRgCIAEoCVIIZmlsZW5hbWUSGgoIcGFzc3dvcmQYBCABKAlSCHBhc3N3b3Jk'
+        'SgQIAxAEUgxrZWVwX3dhbGxldHM=');
 
 @$core.Deprecated('Use validateBackupRequestDescriptor instead')
 const ValidateBackupRequest$json = {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"connectrpc.com/connect/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/database"
@@ -130,4 +131,30 @@ func TestAddBackupKeepsAGroupThatIsHere(t *testing.T) {
 	}
 	require.NoError(t, rows.Err())
 	require.Equal(t, []string{"tx-new"}, txIDs)
+}
+
+func TestAddBackupKeepsTheRecordsWhenEveryWalletIsHere(t *testing.T) {
+	db := database.Test(t)
+	engine := NewBackupEngine(db, t.TempDir(), "")
+	data := backupZIP(t, map[string]string{
+		"wallet.json":            backupWalletFile,
+		"multisig/multisig.json": `{"groups":[{"id":"group","name":"from backup","n":2,"m":2}]}`,
+	})
+	here := connect.NewError(connect.CodeAlreadyExists, "every wallet of the backup is here already")
+
+	err := engine.AddBackup(t.Context(), data, "backup.zip", func(_, _ []byte) error { return here })
+
+	require.NoError(t, err)
+	groups, err := multisig.NewStore(db).ListGroups(t.Context())
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+}
+
+func TestAddBackupRefusesAWalletFileWithNoNewWallet(t *testing.T) {
+	engine := NewBackupEngine(database.Test(t), t.TempDir(), "")
+	here := connect.NewError(connect.CodeAlreadyExists, "every wallet of the backup is here already")
+
+	err := engine.AddBackup(t.Context(), []byte(backupWalletFile), "wallet.json", func(_, _ []byte) error { return here })
+
+	require.Equal(t, connect.CodeAlreadyExists, connect.CodeOf(err))
 }

@@ -5248,13 +5248,11 @@ class RestoreBackupRequest extends $pb.GeneratedMessage {
   factory RestoreBackupRequest({
     $core.List<$core.int>? backupData,
     $core.String? filename,
-    $core.bool? keepWallets,
     $core.String? password,
   }) {
     final result = RestoreBackupRequest._();
     if (backupData != null) result.backupData = backupData;
     if (filename != null) result.filename = filename;
-    if (keepWallets != null) result.keepWallets = keepWallets;
     if (password != null) result.password = password;
     return result;
   }
@@ -5273,7 +5271,6 @@ class RestoreBackupRequest extends $pb.GeneratedMessage {
       createEmptyInstance: RestoreBackupRequest.$_createMessage)
     ..a<$core.List<$core.int>>(1, _omitFieldNames ? '' : 'backupData', $pb.PbFieldType.OY)
     ..aOS(2, _omitFieldNames ? '' : 'filename')
-    ..aOB(3, _omitFieldNames ? '' : 'keepWallets')
     ..aOS(4, _omitFieldNames ? '' : 'password')
     ..hasRequiredFields = false;
 
@@ -5317,24 +5314,13 @@ class RestoreBackupRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearFilename() => $_clearField(2);
 
-  /// True adds the wallets of the backup to the wallets of this install. False
-  /// replaces the wallets of this install.
-  @$pb.TagNumber(3)
-  $core.bool get keepWallets => $_getBF(2);
-  @$pb.TagNumber(3)
-  set keepWallets($core.bool value) => $_setBool(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasKeepWallets() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearKeepWallets() => $_clearField(3);
-
-  /// Password of the backup. Used only with keep_wallets.
+  /// Password of an encrypted backup. Used only when this install has a wallet.
   @$pb.TagNumber(4)
-  $core.String get password => $_getSZ(3);
+  $core.String get password => $_getSZ(2);
   @$pb.TagNumber(4)
-  set password($core.String value) => $_setString(3, value);
+  set password($core.String value) => $_setString(2, value);
   @$pb.TagNumber(4)
-  $core.bool hasPassword() => $_has(3);
+  $core.bool hasPassword() => $_has(2);
   @$pb.TagNumber(4)
   void clearPassword() => $_clearField(4);
 }
@@ -5623,6 +5609,9 @@ class WalletServiceApi {
   /// Backup / Restore
   $async.Future<CreateBackupResponse> createBackup($pb.ClientContext? ctx, $2.Empty request) =>
       _client.invoke<CreateBackupResponse>(ctx, 'WalletService', 'CreateBackup', request, CreateBackupResponse());
+
+  /// Adds the wallets of a backup to the wallets of this install. With no
+  /// wallet here, writes the wallets of the backup and restarts the L1 stack.
   $async.Future<$2.Empty> restoreBackup($pb.ClientContext? ctx, RestoreBackupRequest request) =>
       _client.invoke<$2.Empty>(ctx, 'WalletService', 'RestoreBackup', request, $2.Empty());
   $async.Future<ValidateBackupResponse> validateBackup($pb.ClientContext? ctx, ValidateBackupRequest request) =>

@@ -531,6 +531,8 @@ extension type WalletServiceClient(connect.Transport _transport) {
     );
   }
 
+  /// Adds the wallets of a backup to the wallets of this install. With no
+  /// wallet here, writes the wallets of the backup and restarts the L1 stack.
   Future<googleprotobufempty.Empty> restoreBackup(
     walletv1wallet.RestoreBackupRequest input, {
     connect.Headers? headers,

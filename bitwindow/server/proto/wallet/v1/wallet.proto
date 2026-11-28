@@ -59,6 +59,8 @@ service WalletService {
 
   // Backup / Restore
   rpc CreateBackup(google.protobuf.Empty) returns (CreateBackupResponse);
+  // Adds the wallets of a backup to the wallets of this install. With no
+  // wallet here, writes the wallets of the backup and restarts the L1 stack.
   rpc RestoreBackup(RestoreBackupRequest) returns (google.protobuf.Empty);
   rpc ValidateBackup(ValidateBackupRequest) returns (ValidateBackupResponse);
 }
@@ -599,10 +601,9 @@ message RestoreBackupRequest {
   bytes backup_data = 1;
   // Original filename (used to detect .json vs .zip)
   string filename = 2;
-  // True adds the wallets of the backup to the wallets of this install. False
-  // replaces the wallets of this install.
-  bool keep_wallets = 3;
-  // Password of the backup. Used only with keep_wallets.
+  reserved 3;
+  reserved "keep_wallets";
+  // Password of an encrypted backup. Used only when this install has a wallet.
   string password = 4;
 }
 

@@ -27,6 +27,49 @@ Future<String> createWalletBackup({
   return destinationPath;
 }
 
+/// What [restoreWalletBackupFile] did.
+enum BackupFileRestore { cancelled, added, replaced }
+
+/// Restores a backup file (.zip/.json). With a wallet in this install, the
+/// backend adds the wallets of the backup and keeps each wallet that is here.
+/// [askPassword] gets the password of an encrypted backup; a null answer stops
+/// the restore. With no wallet, the backend writes the wallets of the backup.
+/// [onValidated] runs after the checks, before the backend changes a wallet.
+Future<BackupFileRestore> restoreWalletBackupFile(
+  File backupFile, {
+  Future<String?> Function(String filename)? askPassword,
+  void Function()? onValidated,
+}) async {
+  final walletApi = GetIt.I.get<BitwindowRPC>().wallet;
+  final bytes = await backupFile.readAsBytes();
+  final filename = backupFile.uri.pathSegments.last;
+
+  final validation = await walletApi.validateBackup(bytes, filename);
+  if (!validation.valid) {
+    throw Exception(validation.errorMessage.isNotEmpty ? validation.errorMessage : 'Invalid backup file');
+  }
+
+  final reader = GetIt.I.get<WalletReaderProvider>();
+  if (reader.hasNoWallet) {
+    onValidated?.call();
+    await walletApi.restoreBackup(bytes, filename);
+    return BackupFileRestore.replaced;
+  }
+
+  var password = '';
+  if (validation.encrypted) {
+    final answer = await askPassword?.call(filename);
+    if (answer == null) {
+      return BackupFileRestore.cancelled;
+    }
+    password = answer;
+  }
+  onValidated?.call();
+  await walletApi.restoreBackup(bytes, filename, password: password);
+  await reader.init();
+  return BackupFileRestore.added;
+}
+
 /// Writes a backup from [fetch] as [fileName] into a cleared [dir], then hands the file to [share].
 /// A phone app cannot write to a folder that the user picks, so the share sheet saves it.
 Future<String> shareWalletBackup({
@@ -482,6 +525,7 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
   int _currentStepIndex = -1;
   bool _success = false;
   String? _autoBackupPath;
+  bool _addedWallets = false;
 
   @override
   void initState() {
@@ -549,22 +593,7 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
     });
   }
 
-  void _initializeSteps({
-    required bool hasAutoBackup,
-    required bool validateFile,
-  }) {
-    final stepNames = [
-      if (hasAutoBackup) 'Backing up current wallet',
-      if (validateFile) 'Validating backup file',
-      'Restoring wallet files',
-      'Stopping binaries',
-      'Waiting for processes to stop',
-      'Recreating sidechain starter files',
-      'Verifying restored wallet',
-      'Restarting binaries',
-      'Restore complete',
-    ];
-
+  void _initializeSteps(List<String> stepNames) {
     setState(() {
       _steps.clear();
       _steps.addAll(
@@ -589,6 +618,16 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
     });
   }
 
+  void _failCurrentStep(Object e) {
+    setState(() {
+      if (_currentStepIndex >= 0 && _currentStepIndex < _steps.length) {
+        _steps[_currentStepIndex].endTime ??= DateTime.now();
+        _steps[_currentStepIndex].isFailed = true;
+      }
+      _error = e is WalletException ? e.message : e.toString();
+    });
+  }
+
   Future<void> _startRestore() async {
     if (_selectedBackup != null) {
       await _startLocalRestore(_selectedBackup!);
@@ -602,7 +641,53 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
       return;
     }
 
-    // Check if current wallet exists
+    if (GetIt.I.get<WalletReaderProvider>().hasNoWallet) {
+      await _replaceFromFile(_selectedFile!);
+    } else {
+      await _addFromFile(_selectedFile!);
+    }
+  }
+
+  Future<void> _addFromFile(File file) async {
+    _autoBackupPath = null;
+    _initializeSteps(['Validating backup file', 'Adding the wallets of the backup', 'Restore complete']);
+    setState(() {
+      _isRestoring = true;
+      _error = null;
+    });
+
+    try {
+      _updateStatus('Validating backup file');
+      final result = await restoreWalletBackupFile(
+        file,
+        askPassword: (filename) => showBackupPasswordDialog(context, backupName: filename),
+        onValidated: () => _updateStatus('Adding the wallets of the backup'),
+      );
+      if (!mounted) {
+        return;
+      }
+      if (result == BackupFileRestore.cancelled) {
+        setState(() {
+          _steps.clear();
+          _isRestoring = false;
+        });
+        return;
+      }
+      _updateStatus('Restore complete');
+      setState(() {
+        _steps[_currentStepIndex].endTime = DateTime.now();
+        _success = true;
+        _addedWallets = true;
+      });
+    } catch (e) {
+      log.e('Restore failed: $e');
+      if (mounted) {
+        _failCurrentStep(e);
+      }
+    }
+  }
+
+  Future<void> _replaceFromFile(File file) async {
     final hasCurrent = await hasCurrentWallet(walletProvider);
 
     _autoBackupPath = null;
@@ -616,7 +701,15 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
       );
     }
 
-    _initializeSteps(hasAutoBackup: hasCurrent, validateFile: true);
+    _initializeSteps([
+      if (hasCurrent) 'Backing up current wallet',
+      'Validating backup file',
+      'Restoring wallet files',
+      'Stopping binaries',
+      'Waiting for processes to stop',
+      'Restarting binaries',
+      'Restore complete',
+    ]);
 
     setState(() {
       _isRestoring = true;
@@ -624,7 +717,6 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
     });
 
     try {
-      // 1. Backup current wallet if exists
       if (_autoBackupPath != null) {
         _updateStatus('Backing up current wallet');
         await createWalletBackup(
@@ -634,45 +726,23 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
         );
       }
 
-      // 2. Validate backup
       _updateStatus('Validating backup file');
-      final backupBytes = await _selectedFile!.readAsBytes();
-      final filename = path.basename(_selectedFile!.path);
-      final walletApi = GetIt.I.get<BitwindowRPC>().wallet;
-      final validateResponse = await walletApi.validateBackup(backupBytes, filename);
-      if (!validateResponse.valid) {
-        final msg = validateResponse.errorMessage.isNotEmpty ? validateResponse.errorMessage : 'Invalid backup file';
-        throw Exception(msg);
-      }
-
-      // 3. Restore via backend RPC BEFORE stopping binaries.
-      // The RPC server must be running for this call to succeed.
-      _updateStatus('Restoring wallet files');
-      await walletApi.restoreBackup(backupBytes, filename);
+      await restoreWalletBackupFile(file, onValidated: () => _updateStatus('Restoring wallet files'));
       log.i('Wallet restore completed via RPC');
 
-      // 4. Stop binaries so they pick up the new wallet on restart
+      // Stop binaries so they pick up the new wallet on restart
       _updateStatus('Stopping binaries');
       final binaryProvider = GetIt.I.get<BinaryProvider>();
       for (final binary in widget.binariesToStop) {
         await binaryProvider.stop(binary);
       }
 
-      // 5. Wait for shutdown
       _updateStatus('Waiting for processes to stop');
       await Future.delayed(const Duration(seconds: 5));
 
-      // 6. Recreate sidechain starter files
-      _updateStatus('Recreating sidechain starter files');
-
-      // 7. Verify restored wallet
-      _updateStatus('Verifying restored wallet');
-
-      // 8. Restart binaries
       _updateStatus('Restarting binaries');
       await widget.bootBinaries(log);
 
-      // 10. Complete
       _updateStatus('Restore complete');
 
       setState(() {
@@ -683,10 +753,9 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
       });
     } catch (e) {
       log.e('Restore failed: $e');
-      setState(() {
-        _error = e.toString();
-        _isRestoring = false;
-      });
+      if (mounted) {
+        _failCurrentStep(e);
+      }
     }
   }
 
@@ -979,6 +1048,7 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
         steps: _steps,
         currentStepIndex: _currentStepIndex,
         autoBackupPath: _autoBackupPath,
+        addedWallets: _addedWallets,
         error: _error,
         onClose: () async {
           await context.router.maybePop();
@@ -1242,6 +1312,7 @@ class _RestoreProgressCard extends StatelessWidget {
   final List<RestoreProgressStep> steps;
   final int currentStepIndex;
   final String? autoBackupPath;
+  final bool addedWallets;
   final String? error;
   final Future<void> Function() onClose;
 
@@ -1251,6 +1322,7 @@ class _RestoreProgressCard extends StatelessWidget {
     required this.currentStepIndex,
     required this.onClose,
     this.autoBackupPath,
+    this.addedWallets = false,
     this.error,
   });
 
@@ -1264,10 +1336,11 @@ class _RestoreProgressCard extends StatelessWidget {
       child: SailCard(
         title: 'Restoring Wallet',
         subtitle: isCompleted
-            ? 'Wallet restored successfully!'
-            : error != null
-            ? 'Restore failed: $error'
+            ? addedWallets
+                  ? 'Restored the backup. Your other wallets stay.'
+                  : 'Wallet restored successfully!'
             : 'Please wait while your wallet is restored...',
+        error: !isCompleted && error != null ? 'Restore failed: $error' : null,
         withCloseButton: true,
         child: SingleChildScrollView(
           child: SailColumn(
