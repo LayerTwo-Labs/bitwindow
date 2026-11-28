@@ -52,10 +52,17 @@ Future<void> editWallet(BuildContext context, WalletMetadata wallet) async {
 
   try {
     await GetIt.I.get<WalletReaderProvider>().updateWalletMetadata(wallet.id, result.name, gradient);
-  } catch (_) {
+  } catch (e) {
     // Nothing points at the new file, so it does not stay on the disk.
     await _deleteWalletPicture(written?.path);
-    rethrow;
+    if (context.mounted) {
+      showSailToast(
+        context,
+        'Could not save ${wallet.name}: ${extractConnectException(e)}',
+        variant: SailToastVariant.destructive,
+      );
+    }
+    return;
   }
 
   // The old file goes only once the wallet no longer points at it.

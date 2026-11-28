@@ -172,5 +172,17 @@ void main() {
       );
       expect(button(tester, 'Delete wallet').disabled, isTrue);
     });
+
+    testWidgets('a failed save shows the error', (tester) async {
+      await open(tester, beta);
+      reader.saveError = ConnectException(Code.internal, 'keep the previous wallet file: permission denied');
+
+      await tester.enterText(find.byType(TextField), 'Gamma');
+      await tester.tap(find.widgetWithText(SailButton, 'Save'));
+      await settle(tester);
+
+      expect(find.text('Could not save Beta: keep the previous wallet file: permission denied'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 30));
+    });
   });
 }
