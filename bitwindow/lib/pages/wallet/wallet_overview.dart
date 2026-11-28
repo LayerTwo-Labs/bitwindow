@@ -6,6 +6,7 @@ import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
 import 'package:bitwindow/pages/wallet/bump_fee_dialog.dart';
 import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:bitwindow/utils/second_clock.dart';
 import 'package:bitwindow/utils/transaction_search.dart';
 import 'package:bitwindow/utils/wallet_amount.dart';
 import 'package:collection/collection.dart';
@@ -20,8 +21,8 @@ import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 import 'package:sail_ui/sail_ui.dart';
 
-String _formatTimeAgo(DateTime when) {
-  final d = DateTime.now().difference(when);
+String _formatTimeAgo(DateTime when, DateTime now) {
+  final d = now.difference(when);
   if (d.inDays > 0) {
     return '${d.inDays} day${d.inDays == 1 ? '' : 's'} ago';
   }
@@ -109,14 +110,7 @@ class OverviewTab extends StatelessWidget {
                             ),
                           ),
                         ),
-                        WalletStats(
-                          title: 'Last activity',
-                          value: model.stats?.hasLastTxAt() ?? false
-                              ? _formatTimeAgo(model.stats!.lastTxAt.toDateTime().toLocal())
-                              : 'No activity',
-                          subtitle: lastActivitySubtitle(model.stats),
-                          icon: SailSVGAsset.activity,
-                        ),
+                        LastActivityStats(stats: model.stats),
                       ],
                     ),
                     TransactionTable(
@@ -1106,6 +1100,69 @@ class WalletStats extends ViewModelWidget<OverviewViewModel> {
       value: value,
       icon: icon,
       loading: loading,
+    );
+  }
+}
+
+/// The last activity card. Its age ticks each second, also while the stats stay the same.
+class LastActivityStats extends StatefulWidget {
+  final GetStatsResponse? stats;
+  final DateTime Function() now;
+
+  const LastActivityStats({super.key, required this.stats, this.now = DateTime.now});
+
+  @override
+  State<LastActivityStats> createState() => _LastActivityStatsState();
+}
+
+class _LastActivityStatsState extends State<LastActivityStats> {
+  bool _ticking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncClock();
+  }
+
+  @override
+  void didUpdateWidget(LastActivityStats oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncClock();
+  }
+
+  void _syncClock() {
+    final ticking = widget.stats?.hasLastTxAt() ?? false;
+    if (ticking == _ticking) {
+      return;
+    }
+    _ticking = ticking;
+    if (ticking) {
+      SecondClock.shared.addListener(_tick);
+    } else {
+      SecondClock.shared.removeListener(_tick);
+    }
+  }
+
+  void _tick() => setState(() {});
+
+  @override
+  void dispose() {
+    if (_ticking) {
+      SecondClock.shared.removeListener(_tick);
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = widget.stats;
+    return WalletStats(
+      title: 'Last activity',
+      value: stats != null && stats.hasLastTxAt()
+          ? _formatTimeAgo(stats.lastTxAt.toDateTime().toLocal(), widget.now())
+          : 'No activity',
+      subtitle: lastActivitySubtitle(stats),
+      icon: SailSVGAsset.activity,
     );
   }
 }
