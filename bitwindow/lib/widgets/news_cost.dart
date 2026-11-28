@@ -1,18 +1,18 @@
 import 'dart:async';
 
+import 'package:bitwindow/utils/error_text.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 /// Prices a CoinNews action and warns the user the first time they pay for one.
 class NewsCost {
-  /// Estimated cost of the action for this body, or null when the server gives none.
-  static Future<NewsFeeEstimate?> estimate(NewsAction action, {required String body}) async {
+  /// The cost of the action for this body, or why the wallet could not price it.
+  static Future<NewsFeeResult> estimate(NewsAction action, {required String body}) async {
     try {
-      return await GetIt.I.get<BitwindowRPC>().misc.estimateNewsFee(action, body: body);
-    } catch (_) {
-      // a missing estimate must not block a comment
-      return null;
+      return (estimate: await GetIt.I.get<BitwindowRPC>().misc.estimateNewsFee(action, body: body), error: null);
+    } catch (e) {
+      return (estimate: null, error: errorText(e));
     }
   }
 
@@ -24,12 +24,12 @@ class NewsCost {
       return true;
     }
 
-    final estimate = await NewsCost.estimate(NewsAction.NEWS_ACTION_COMMENT, body: body);
+    final fee = await NewsCost.estimate(NewsAction.NEWS_ACTION_COMMENT, body: body);
     if (!context.mounted) {
       return false;
     }
 
-    final confirmed = await _showWarning(context, estimate: estimate);
+    final confirmed = await _showWarning(context, fee: fee);
     if (!confirmed) {
       return false;
     }
@@ -38,7 +38,7 @@ class NewsCost {
     return true;
   }
 
-  static Future<bool> _showWarning(BuildContext context, {required NewsFeeEstimate? estimate}) async {
+  static Future<bool> _showWarning(BuildContext context, {required NewsFeeResult fee}) async {
     var confirmed = false;
 
     await showThemedDialog(
@@ -65,7 +65,8 @@ class NewsCost {
               SailText.secondary13(
                 'Commenting writes a transaction to the chain, so it costs a network fee and lands in about ten minutes.',
               ),
-              if (estimate != null) SailText.primary13(formatFee(estimate), bold: true),
+              if (fee.estimate case final estimate?) SailText.primary13(formatFee(estimate), bold: true),
+              if (fee.error case final error?) SailText.secondary12(error, color: context.sailTheme.colors.error),
               SailText.secondary12('You only see this once.'),
             ],
           ),
@@ -76,6 +77,9 @@ class NewsCost {
     return confirmed;
   }
 }
+
+/// The fee of a news action, or why the wallet could not price it.
+typedef NewsFeeResult = ({NewsFeeEstimate? estimate, String? error});
 
 /// Renders an estimate in the unit of the fee field, at the rate it assumes.
 String formatFee(NewsFeeEstimate estimate) {
@@ -97,7 +101,7 @@ class NewsCostTooltip extends StatefulWidget {
 }
 
 class _NewsCostTooltipState extends State<NewsCostTooltip> {
-  NewsFeeEstimate? _estimate;
+  NewsFeeResult? _fee;
   String? _priced;
   bool _checking = false;
   bool _hovered = false;
@@ -131,25 +135,25 @@ class _NewsCostTooltipState extends State<NewsCostTooltip> {
     _priced = body;
     if (body.isEmpty) {
       setState(() {
-        _estimate = null;
+        _fee = null;
         _checking = false;
       });
       return;
     }
     setState(() => _checking = true);
-    final estimate = await NewsCost.estimate(widget.action, body: body);
+    final fee = await NewsCost.estimate(widget.action, body: body);
     if (!mounted || body != _priced) {
       return;
     }
     setState(() {
-      _estimate = estimate;
+      _fee = fee;
       _checking = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final estimate = _estimate;
+    final fee = _fee;
     return MouseRegion(
       onEnter: (_) {
         _hovered = true;
@@ -157,21 +161,16 @@ class _NewsCostTooltipState extends State<NewsCostTooltip> {
       },
       onExit: (_) => _hovered = false,
       child: SailTooltip(
-        message: _checking
-            ? 'Checking the fee…'
-            : estimate == null
-            ? ''
-            : formatFee(estimate),
+        message: switch ((_checking, fee?.estimate, fee?.error)) {
+          (true, _, _) => 'Checking the fee…',
+          (_, final estimate?, _) => formatFee(estimate),
+          (_, _, final error?) => error,
+          _ => '',
+        },
         child: widget.child,
       ),
     );
   }
-}
-
-/// The reason of a failed estimate, as a sentence.
-String feeErrorText(Object error) {
-  final reason = error is BitwindowException ? error.message : error.toString();
-  return reason.isEmpty ? reason : '${reason[0].toUpperCase()}${reason.substring(1)}';
 }
 
 /// The fee of one news action, read again a short time after each input.
@@ -206,7 +205,7 @@ class FeeQuote {
       try {
         result = await load();
       } catch (e) {
-        reason = feeErrorText(e);
+        reason = errorText(e);
       }
       if (_disposed || read != _reads) {
         return;

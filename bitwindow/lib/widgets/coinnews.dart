@@ -6,6 +6,7 @@ import 'package:bitwindow/env.dart';
 import 'package:bitwindow/pages/overview_page.dart';
 import 'package:bitwindow/providers/blockchain_provider.dart';
 import 'package:bitwindow/providers/news_provider.dart';
+import 'package:bitwindow/utils/error_text.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/utils/web_link.dart';
 import 'package:bitwindow/widgets/news_cost.dart';
@@ -1144,7 +1145,7 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
     try {
       comments = await api.misc.listComments(_itemId);
     } catch (e) {
-      error = e.toString();
+      error = errorText(e);
     }
     if (!mounted || read != _reads) {
       return;
@@ -1183,7 +1184,7 @@ class _CoinNewsArticlePanelState extends State<CoinNewsArticlePanel> {
       if (!mounted) {
         return;
       }
-      setState(() => _postError = e.toString());
+      setState(() => _postError = errorText(e));
     } finally {
       if (mounted) {
         setState(() => _posting = false);

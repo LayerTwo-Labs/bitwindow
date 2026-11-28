@@ -9,6 +9,7 @@ import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
 import 'package:bitwindow/providers/blockchain_provider.dart';
 import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/routing/router.dart';
+import 'package:bitwindow/utils/error_text.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/utils/web_link.dart';
 import 'package:bitwindow/widgets/coinnews.dart';
@@ -744,7 +745,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
       }
       Navigator.of(context).pop();
     } catch (e) {
-      broadcastError = 'Could not broadcast news: $e';
+      broadcastError = errorText(e);
       notifyListeners();
     }
   }
@@ -1189,7 +1190,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       nameController.clear();
       retentionDaysController.text = '7';
     } catch (e) {
-      _setCreateTopicError('Could not create topic: $e');
+      _setCreateTopicError(errorText(e));
     }
   }
 
@@ -1231,7 +1232,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       showSailToast(context, 'Subscribed to "${line.name}"! txid: ${response.txid.substring(0, 8)}...');
       urlController.clear();
     } catch (e) {
-      subscribeError = 'Could not subscribe: $e';
+      subscribeError = errorText(e);
       notifyListeners();
     }
   }
@@ -1243,7 +1244,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     try {
       await _api.misc.setTopicSubscribed(topic.topic, true);
     } catch (e) {
-      subscribeError = 'Could not subscribe to ${topic.name}. ${_reason(e)}';
+      subscribeError = errorText(e);
       notifyListeners();
       return;
     }
@@ -1264,14 +1265,12 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     try {
       await _api.misc.setTopicSubscribed(topic.topic, false);
     } catch (e) {
-      topicActionError = 'Could not leave ${topic.name}. ${_reason(e)}';
+      topicActionError = errorText(e);
       notifyListeners();
       return;
     }
     await _newsProvider.fetch();
   }
-
-  String _reason(Object e) => e is BitwindowException ? e.message : '$e';
 
   Future<void> exportTopics(BuildContext context) async {
     final urls = topics.map((t) => '${t.retentionDays}{${t.topic}}${t.name}').join('\n');
@@ -1376,7 +1375,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
         await _api.misc.setTopicSubscribed(line.topic, true);
         added++;
       } catch (e) {
-        failures.add('${line.name}: ${_reason(e)}');
+        failures.add('${line.name}: ${errorText(e)}');
       }
     }
     for (final line in toCreate) {
@@ -1384,7 +1383,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
         await _api.misc.createTopic(line.topic, line.name, retentionDays: line.retentionDays);
         added++;
       } catch (e) {
-        failures.add('${line.name}: ${_reason(e)}');
+        failures.add('${line.name}: ${errorText(e)}');
       }
     }
     await _newsProvider.fetch();

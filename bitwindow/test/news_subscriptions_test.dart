@@ -382,7 +382,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Could not leave Saved Topic. could not leave topic a1a1a1a1: database is locked'),
+      find.text('Could not leave topic a1a1a1a1: database is locked'),
       findsOneWidget,
     );
     expect(find.text('Saved Topic'), findsOneWidget);
