@@ -154,7 +154,7 @@ class _PsbtSignerTabState extends State<PsbtSignerTab> {
             SailTextField(
               controller: _controller,
               hintText: 'base64 PSBT',
-              minLines: 3,
+              minLines: 6,
               maxLines: 6,
             ),
             if (decoded != null) ...[
@@ -167,9 +167,8 @@ class _PsbtSignerTabState extends State<PsbtSignerTab> {
               const SailSpacing(SailStyleValues.padding04),
               _ReviewRow(label: 'TXID', value: txid),
             ],
-            const SailSpacing(SailStyleValues.padding08),
+            const SailSpacing(SailStyleValues.padding12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 SailButton(
                   onPressed: () => _start(context),

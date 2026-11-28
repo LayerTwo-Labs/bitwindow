@@ -100,6 +100,8 @@ class DaemonConnectionCard extends StatelessWidget {
         : '';
     final statusIcon = SailSVG.fromAsset(
       SailSVGAsset.iconConnectionStatus,
+      width: 24,
+      height: 20,
       color: _getConnectionColor(theme, isDownloading: isDownloading),
     );
 

@@ -29,17 +29,43 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('on a phone the header has a title with ? at the right, and labels sit above values', (tester) async {
-    await pumpPhone(tester);
+  Finder menu() => find.byType(SailRowMenuButton);
 
-    expect(tester.takeException(), isNull);
-    final title = tester.getRect(find.text('Hash Calculator'));
-    final help = tester.getRect(find.widgetWithText(SailButton, '?'));
-    expect(help.center.dy, closeTo(title.center.dy, 8));
-    expect(help.left, greaterThan(title.right));
+  testWidgets('the Input card head holds Hex, HMAC, "…" and the ? help', (tester) async {
+    await pumpCalculator(tester);
 
-    expect(tester.getCenter(find.text('Paste')).dy, closeTo(tester.getCenter(find.text('Input')).dy, 4));
-    expect(tester.getRect(find.text('Paste')).right, greaterThan(300));
+    final title = tester.getRect(find.text('Input'));
+    for (final part in [find.text('Hex'), find.text('HMAC'), menu(), find.byType(SailIconBoxButton).last]) {
+      final rect = tester.getRect(part);
+      expect(rect.center.dy, closeTo(title.center.dy, 8));
+      expect(rect.left, greaterThan(title.right));
+    }
+    expect(find.text('Clear'), findsNothing);
+    expect(find.text('Paste'), findsNothing);
+  });
+
+  testWidgets('the "…" holds Clear and Paste, and Flip Bytes only in hex mode', (tester) async {
+    await pumpCalculator(tester);
+
+    await tester.tap(menu());
+    await tester.pumpAndSettle();
+    expect(find.text('Clear'), findsOneWidget);
+    expect(find.text('Paste'), findsOneWidget);
+    expect(find.text('Flip Bytes'), findsNothing);
+
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+    expect(find.text(_sha256d), findsNothing);
+
+    await tester.tap(find.text('Hex'));
+    await tester.pumpAndSettle();
+    await tester.tap(menu());
+    await tester.pumpAndSettle();
+    expect(find.text('Flip Bytes'), findsOneWidget);
+  });
+
+  testWidgets('a result is a grey label over its value with a copy icon at the right', (tester) async {
+    await pumpCalculator(tester);
 
     final label = tester.getRect(find.text('SHA256D:'));
     final value = tester.getRect(find.text(_sha256d));
@@ -49,17 +75,29 @@ void main() {
     final copy = find.byWidgetPredicate((w) => w is CopyButton && w.text == _sha256d);
     expect(copy, findsOneWidget);
     expect(tester.getRect(copy).left, greaterThanOrEqualTo(value.right));
+    expect(find.byType(CopyButton), findsNWidgets(8));
   });
 
-  testWidgets('on desktop the label and value share a row and the header has no title', (tester) async {
+  testWidgets('bad hex shows its error under the input', (tester) async {
+    await pumpCalculator(tester);
+    await tester.tap(find.text('Hex'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText).first, '68656c6c6');
+    await tester.pumpAndSettle();
+
+    final error = tester.getRect(find.text('Input: Invalid length'));
+    expect(error.top, greaterThan(tester.getRect(find.byType(SailTextField).first).bottom));
+    expect(find.byType(CopyButton), findsNothing);
+  });
+
+  testWidgets('the help is a dialog with a ×', (tester) async {
     await pumpCalculator(tester);
 
-    expect(find.text('Hash Calculator'), findsNothing);
-    expect(find.byType(CopyButton), findsNothing);
-    final label = tester.getRect(find.text('SHA256D: '));
-    final value = tester.getRect(find.text(_sha256d));
-    expect(value.center.dy, closeTo(label.center.dy, 1));
-    expect(value.left, greaterThan(label.right));
+    await tester.tap(find.byType(SailIconBoxButton).last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hash Calculator Help'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x), findsOneWidget);
   });
 
   testWidgets('on a phone the input controls fit at 390 px in hex and HMAC mode', (tester) async {
@@ -70,11 +108,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    for (final label in ['Input', 'Hex', 'HMAC', 'Clear', 'Paste', 'Flip Bytes']) {
-      final rect = tester.getRect(find.text(label));
-      expect(rect.right, lessThanOrEqualTo(390), reason: label);
+    for (final part in [find.text('Input'), find.text('Hex'), find.text('HMAC'), menu()]) {
+      expect(tester.getRect(part).right, lessThanOrEqualTo(390));
     }
+    expect(tester.getRect(find.byType(SailIconBoxButton).last).right, lessThanOrEqualTo(390));
     final hmac = tester.getRect(find.text('HMAC'));
     expect(tester.getRect(find.byType(SailTextField).first).top, greaterThan(hmac.bottom));
+    expect(find.byType(SailTextField), findsNWidgets(2));
   });
 }

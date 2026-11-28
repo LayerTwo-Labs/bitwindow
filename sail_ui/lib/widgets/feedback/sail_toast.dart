@@ -290,7 +290,7 @@ class _ToastCardState extends State<_ToastCard> with SingleTickerProviderStateMi
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: theme.colors.popoverBackground,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: theme.isBitwindowV2 ? theme.chrome.radius : BorderRadius.circular(8),
               border: Border.all(color: _border(theme)),
               boxShadow: [
                 BoxShadow(

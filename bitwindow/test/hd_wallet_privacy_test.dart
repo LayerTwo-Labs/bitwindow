@@ -110,8 +110,7 @@ void main() {
         (widget) => widget is EditableText && widget.controller.text == _phrase,
       );
 
-      await tester.tap(find.text('Use Wallet'));
-      await tester.pumpAndSettle();
+      await _tapSeedAction(tester, 'Use Wallet');
       expect(tester.widget<EditableText>(field()).obscureText, isTrue);
 
       final derive = find.text('Derive Addresses');
@@ -130,14 +129,10 @@ void main() {
       expect(find.text(_master), findsOneWidget);
       expect(find.text(_private), findsOneWidget);
 
-      await tester.tap(find.text('Use Wallet'));
-      await tester.pumpAndSettle();
+      await _tapSeedAction(tester, 'Use Wallet');
       expect(tester.widget<EditableText>(field()).obscureText, isTrue);
 
-      final clear = find.text('Clear');
-      await tester.ensureVisible(clear);
-      await tester.tap(clear);
-      await tester.pumpAndSettle();
+      await _tapSeedAction(tester, 'Clear');
       final input = find.byWidgetPredicate(
         (widget) => widget is SailTextField && widget.hintText == 'Enter mnemonic seed phrase',
       );
@@ -146,4 +141,15 @@ void main() {
       expect(tester.widget<EditableText>(field()).obscureText, isTrue);
     });
   }
+}
+
+/// Taps a seed action. The desktop keeps it in the "…" menu next to the seed.
+Future<void> _tapSeedAction(WidgetTester tester, String label) async {
+  if (find.text(label).evaluate().isEmpty) {
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+  }
+  await tester.ensureVisible(find.text(label));
+  await tester.tap(find.text(label));
+  await tester.pumpAndSettle();
 }

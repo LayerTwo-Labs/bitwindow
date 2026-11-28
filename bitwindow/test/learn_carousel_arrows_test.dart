@@ -22,22 +22,25 @@ void main() {
 
     final arrows = find.byWidgetPredicate((w) => w.runtimeType.toString() == '_ScrollButton');
     final carousel = find.byType(ListView);
-    final center = tester.getCenter(carousel).dx;
-    bool onRight(Finder f) => tester.getCenter(f).dx > center;
+    SailSVGAsset iconOf(Finder arrow) =>
+        tester.widget<SailIconBoxButton>(find.descendant(of: arrow, matching: find.byType(SailIconBoxButton))).icon;
 
     expect(arrows, findsOneWidget);
-    expect(onRight(arrows), isTrue);
+    expect(iconOf(arrows), SailSVGAsset.chevronRight);
+    expect(tester.getCenter(arrows).dy, lessThan(tester.getTopLeft(carousel).dy));
 
     final controller = tester.widget<ListView>(carousel).controller!;
     controller.jumpTo(controller.position.maxScrollExtent);
     await tester.pumpAndSettle();
 
     expect(arrows, findsOneWidget);
-    expect(onRight(arrows), isFalse);
+    expect(iconOf(arrows), SailSVGAsset.chevronLeft);
 
     controller.jumpTo(controller.position.maxScrollExtent / 2);
     await tester.pumpAndSettle();
 
     expect(arrows, findsNWidgets(2));
+    expect(iconOf(arrows.first), SailSVGAsset.chevronLeft);
+    expect(tester.getCenter(arrows.first).dx, lessThan(tester.getCenter(arrows.last).dx));
   });
 }

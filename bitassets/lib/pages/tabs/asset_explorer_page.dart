@@ -3,6 +3,7 @@ import 'package:bitassets/providers/asset_analytics_provider.dart';
 import 'package:bitassets/providers/bitassets_provider.dart';
 import 'package:bitassets/providers/favorites_provider.dart';
 import 'package:bitassets/routing/router.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -18,15 +19,15 @@ class AssetExplorerTabPage extends StatelessWidget {
       child: ViewModelBuilder<AssetExplorerViewModel>.reactive(
         viewModelBuilder: () => AssetExplorerViewModel(),
         builder: (context, model, child) {
-          final theme = SailTheme.of(context);
-
+          final selected = model.selectedAsset;
+          final phone = SailStyleValues.phoneLayout(context);
           return SailColumn(
-            spacing: SailStyleValues.padding16,
+            spacing: SailStyleValues.padding12,
             mainAxisSize: MainAxisSize.max,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header with search
               SailRow(
-                spacing: SailStyleValues.padding16,
+                spacing: SailStyleValues.padding08,
                 children: [
                   Expanded(
                     child: SailTextField(
@@ -38,143 +39,38 @@ class AssetExplorerTabPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  SailButton(
-                    label: 'Refresh',
+                  SailIconBoxButton(
+                    icon: SailSVGAsset.refreshCw,
+                    tooltip: 'Refresh',
+                    size: sailV2FieldHeight,
                     onPressed: () async => model.refresh(),
                   ),
                 ],
               ),
-
               AssetExplorerStats(
                 total: model.filteredAssets.length,
                 favorites: model.favoritesCount,
                 withEncryption: model.assetsWithEncryption,
                 withSigning: model.assetsWithSigning,
               ),
-
-              // Filter tabs
-              SailRow(
-                spacing: SailStyleValues.padding08,
-                children: [
-                  _FilterTab(
-                    label: 'All',
-                    isActive: !model.showFavoritesOnly,
-                    onTap: () => model.setShowFavoritesOnly(false),
-                  ),
-                  _FilterTab(
-                    label: 'Favorites',
-                    isActive: model.showFavoritesOnly,
-                    onTap: () => model.setShowFavoritesOnly(true),
-                    icon: SailSVGAsset.star,
-                  ),
-                ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SailSegments(
+                  labels: const ['All', 'Favorites'],
+                  activeIndex: model.showFavoritesOnly ? 1 : 0,
+                  onSelect: (index) => model.setShowFavoritesOnly(index == 1),
+                ),
               ),
-
-              // Asset table
               Expanded(
-                child: SailCard(
-                  title: 'Registered BitAssets',
-                  subtitle: 'Browse all assets on the network',
-                  child: model.isLoading
-                      ? const Center(child: SailCircularProgressIndicator())
-                      : model.filteredAssets.isEmpty
-                      ? Center(
-                          child: SailColumn(
-                            spacing: SailStyleValues.padding16,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SailSVG.icon(SailSVGAsset.iconCoins, width: 48),
-                              const SizedBox(height: 8),
-                              SailText.secondary13(
-                                model.searchController.text.isNotEmpty
-                                    ? 'No assets match your search'
-                                    : model.showFavoritesOnly
-                                    ? 'No favorite assets yet'
-                                    : 'No BitAssets registered yet',
-                              ),
-                              if (!model.showFavoritesOnly && model.searchController.text.isEmpty)
-                                SailText.secondary12('Register a new BitAsset to get started'),
-                              if (!model.showFavoritesOnly && model.searchController.text.isEmpty)
-                                SailButton(
-                                  label: 'Register Asset',
-                                  onPressed: () async {
-                                    await AutoRouter.of(context).navigate(const BitAssetsTabRoute());
-                                  },
-                                ),
-                              if (model.showFavoritesOnly)
-                                SailText.secondary12('Star assets to add them to your favorites'),
-                            ],
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            // Table header
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: SailStyleValues.padding16,
-                                vertical: SailStyleValues.padding08,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colors.backgroundSecondary,
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(8),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const SizedBox(width: 32), // Star column
-                                  SizedBox(
-                                    width: 50,
-                                    child: SailText.secondary12('Seq #'),
-                                  ),
-                                  Expanded(
-                                    flex: 2,
-                                    child: SailText.secondary12('Name / Hash'),
-                                  ),
-                                  Expanded(
-                                    child: SailText.secondary12('Encryption'),
-                                  ),
-                                  Expanded(
-                                    child: SailText.secondary12('Signing'),
-                                  ),
-                                  Expanded(
-                                    child: SailText.secondary12('Network'),
-                                  ),
-                                  const SizedBox(width: 80),
-                                ],
-                              ),
-                            ),
-                            // Table rows
-                            Expanded(
-                              child: ListView.builder(
-                                itemCount: model.filteredAssets.length,
-                                itemBuilder: (context, index) {
-                                  final asset = model.filteredAssets[index];
-                                  final isExpanded = model.expandedAssetHash == asset.hash;
-                                  final isFavorite = model.isFavorite(asset.hash);
-
-                                  return Column(
-                                    children: [
-                                      _AssetRow(
-                                        asset: asset,
-                                        isExpanded: isExpanded,
-                                        isFavorite: isFavorite,
-                                        onTap: () => model.toggleExpanded(asset.hash),
-                                        onCopyHash: () => model.copyToClipboard(asset.hash, context),
-                                        onToggleFavorite: () => model.toggleFavorite(asset.hash),
-                                      ),
-                                      if (isExpanded)
-                                        _AssetDetails(
-                                          asset: asset,
-                                          onCopy: (text) => model.copyToClipboard(text, context),
-                                        ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: _AssetsCard(model: model)),
+                    if (selected != null && !phone) ...[
+                      const SizedBox(width: SailStyleValues.padding12),
+                      AssetDetailsPanel(asset: selected, onClose: () async => model.select(null)),
+                    ],
+                  ],
                 ),
               ),
             ],
@@ -185,7 +81,158 @@ class AssetExplorerTabPage extends StatelessWidget {
   }
 }
 
-/// The asset counts: a row of cards on the desktop, one list panel on a phone.
+class _AssetsCard extends StatelessWidget {
+  final AssetExplorerViewModel model;
+
+  const _AssetsCard({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final assets = model.filteredAssets;
+    final searching = model.searchController.text.isNotEmpty;
+
+    return SailCard(
+      title: 'Registered BitAssets',
+      subtitle: 'Browse all assets on the network',
+      child: model.isLoading
+          ? const Center(child: SailCircularProgressIndicator())
+          : assets.isEmpty
+          ? _EmptyState(
+              title: searching
+                  ? 'No assets match your search'
+                  : model.showFavoritesOnly
+                  ? 'No favorite assets yet'
+                  : 'No BitAssets registered yet',
+              subtitle: searching
+                  ? null
+                  : model.showFavoritesOnly
+                  ? 'Star assets to add them to your favorites'
+                  : 'Register a new BitAsset to get started',
+              action: searching || model.showFavoritesOnly
+                  ? null
+                  : SailButton(
+                      label: 'Register Asset',
+                      onPressed: () async {
+                        await AutoRouter.of(context).navigate(const BitAssetsTabRoute());
+                      },
+                    ),
+            )
+          : SailTable(
+              getRowId: (index) => assets[index].hash,
+              selectedRowId: model.selectedHash,
+              onSelectedRow: (rowId) {
+                final asset = assets.firstWhereOrNull((a) => a.hash == rowId);
+                if (asset == null) {
+                  return;
+                }
+                if (SailStyleValues.phoneLayout(context)) {
+                  showAssetDetailsDialog(context, asset);
+                  return;
+                }
+                model.select(asset.hash);
+              },
+              headerBuilder: (context) => [
+                const SailTableHeaderCell(name: '', sortable: false),
+                const SailTableHeaderCell(name: 'Seq #'),
+                const SailTableHeaderCell(name: 'Name'),
+                const SailTableHeaderCell(name: 'Hash'),
+                const SailTableHeaderCell(name: 'Encryption'),
+                const SailTableHeaderCell(name: 'Signing'),
+                const SailTableHeaderCell(name: 'Network'),
+              ],
+              rowBuilder: (context, row, selected) {
+                final asset = assets[row];
+                final favorite = model.isFavorite(asset.hash);
+                final hasNetwork = asset.details.socketAddrV4 != null || asset.details.socketAddrV6 != null;
+                return [
+                  SailTableCell(
+                    value: '',
+                    width: 40,
+                    child: SailTooltip(
+                      message: favorite ? 'Remove from favorites' : 'Add to favorites',
+                      child: SailTappable(
+                        onTap: () async => model.toggleFavorite(asset.hash),
+                        borderRadius: theme.chrome.radiusSmall,
+                        child: SailSVG.fromAsset(
+                          SailSVGAsset.star,
+                          color: favorite ? theme.colors.orange : theme.colors.textSecondary,
+                          width: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SailTableCell(value: asset.sequenceID.toString()),
+                  SailTableCell(value: asset.plaintextName ?? '-'),
+                  SailTableCell(value: '${asset.hash.substring(0, 16)}...', copyValue: asset.hash, monospace: true),
+                  SailTableCell(value: asset.details.encryptionPubkey != null ? 'Yes' : 'No'),
+                  SailTableCell(value: asset.details.signingPubkey != null ? 'Yes' : 'No'),
+                  SailTableCell(value: hasNetwork ? 'Available' : 'None'),
+                ];
+              },
+              contextMenuItems: (rowId) {
+                final asset = assets.firstWhereOrNull((a) => a.hash == rowId);
+                if (asset == null) return [];
+                final favorite = model.isFavorite(asset.hash);
+                return [
+                  SailMenuItem(
+                    onSelected: () async {
+                      if (SailStyleValues.phoneLayout(context)) {
+                        await showAssetDetailsDialog(context, asset);
+                        return;
+                      }
+                      model.select(asset.hash);
+                    },
+                    child: SailText.primary12('Show Details'),
+                  ),
+                  SailMenuItem(
+                    onSelected: () async => model.toggleFavorite(asset.hash),
+                    child: SailText.primary12(favorite ? 'Remove from favorites' : 'Add to favorites'),
+                  ),
+                  SailMenuItem(
+                    onSelected: () async => model.copyToClipboard(asset.hash, context),
+                    child: SailText.primary12('Copy hash'),
+                  ),
+                ];
+              },
+              rowCount: assets.length,
+              drawGrid: true,
+            ),
+    );
+  }
+}
+
+/// An icon, a title, an optional line and an optional button, at the center of an empty table card.
+class _EmptyState extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget? action;
+
+  const _EmptyState({required this.title, this.subtitle, this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Center(
+      child: SailColumn(
+        spacing: SailStyleValues.padding08,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radiusSmall),
+            child: SailSVG.icon(SailSVGAsset.iconCoins, width: 16),
+          ),
+          SailText.primary13(title, bold: true),
+          if (subtitle != null) SailText.secondary12(subtitle!),
+          ?action,
+        ],
+      ),
+    );
+  }
+}
+
+/// The asset counts: a strip on the desktop, one list panel on a phone.
 @visibleForTesting
 class AssetExplorerStats extends StatelessWidget {
   final int total;
@@ -213,416 +260,79 @@ class AssetExplorerStats extends StatelessWidget {
         ],
       );
     }
-    return SailRow(
-      spacing: SailStyleValues.padding16,
-      children: [
-        _StatCard(label: 'Total Assets', value: total.toString(), icon: SailSVGAsset.iconCoins),
-        _StatCard(label: 'Favorites', value: favorites.toString(), icon: SailSVGAsset.iconInfo),
-        _StatCard(label: 'With Encryption', value: withEncryption.toString(), icon: SailSVGAsset.iconShield),
-        _StatCard(label: 'With Signing Key', value: withSigning.toString(), icon: SailSVGAsset.iconPen),
+    return SailStrip(
+      stats: [
+        SailStat(label: 'Total Assets', value: total.toString()),
+        SailStat(label: 'Favorites', value: favorites.toString()),
+        SailStat(label: 'With Encryption', value: withEncryption.toString()),
+        SailStat(label: 'With Signing Key', value: withSigning.toString()),
       ],
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final SailSVGAsset icon;
-
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(SailStyleValues.padding16),
-        decoration: BoxDecoration(
-          color: theme.colors.backgroundSecondary,
-          borderRadius: SailStyleValues.borderRadius,
-        ),
-        child: SailRow(
-          spacing: SailStyleValues.padding12,
-          children: [
-            SailSVG.icon(icon, width: 24),
-            SailColumn(
-              spacing: 4,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SailText.secondary12(label),
-                SailText.primary20(value, bold: true),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterTab extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-  final SailSVGAsset? icon;
-
-  const _FilterTab({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-    this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return SailTappable(
-      onTap: () async => onTap(),
-      borderRadius: SailStyleValues.borderRadius,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? theme.colors.primary.withValues(alpha: 0.1) : SailColorScheme.transparent,
-          borderRadius: SailStyleValues.borderRadius,
-          border: Border.all(
-            color: isActive ? theme.colors.primary : theme.colors.divider,
-          ),
-        ),
-        child: SailRow(
-          spacing: SailStyleValues.padding08,
-          children: [
-            if (icon != null)
-              SailSVG.fromAsset(
-                icon!,
-                width: 14,
-                color: isActive ? theme.colors.primary : theme.colors.textSecondary,
-              ),
-            SailText.primary13(
-              label,
-              color: isActive ? theme.colors.primary : null,
-              bold: isActive,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AssetRow extends StatelessWidget {
+/// The 380 px panel with every field of one asset, each with a copy button.
+class AssetDetailsPanel extends StatelessWidget {
   final BitAssetEntry asset;
-  final bool isExpanded;
-  final bool isFavorite;
-  final VoidCallback onTap;
-  final VoidCallback onCopyHash;
-  final VoidCallback onToggleFavorite;
+  final Future<void> Function() onClose;
 
-  const _AssetRow({
-    required this.asset,
-    required this.isExpanded,
-    required this.isFavorite,
-    required this.onTap,
-    required this.onCopyHash,
-    required this.onToggleFavorite,
-  });
+  const AssetDetailsPanel({super.key, required this.asset, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final hasEncryption = asset.details.encryptionPubkey != null;
-    final hasSigning = asset.details.signingPubkey != null;
-    final hasNetwork = asset.details.socketAddrV4 != null || asset.details.socketAddrV6 != null;
-
-    return SailTappable(
-      onTap: () async => onTap(),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: SailStyleValues.padding16,
-          vertical: SailStyleValues.padding12,
-        ),
-        decoration: BoxDecoration(
-          color: isExpanded ? theme.colors.backgroundSecondary.withValues(alpha: 0.5) : SailColorScheme.transparent,
-          border: Border(
-            bottom: BorderSide(color: theme.colors.divider, width: 1),
-          ),
-        ),
-        child: Row(
-          children: [
-            // Favorite star
-            SailTooltip(
-              message: isFavorite ? 'Remove from favorites' : 'Add to favorites',
-              child: SailTappable(
-                onTap: () async => onToggleFavorite(),
-                borderRadius: SailStyleValues.borderRadiusSmall,
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: SailSVG.fromAsset(
-                    SailSVGAsset.star,
-                    color: isFavorite ? theme.colors.orange : theme.colors.textSecondary,
-                    width: 20,
-                  ),
-                ),
-              ),
-            ),
-
-            // Sequence ID
-            SizedBox(
-              width: 50,
-              child: SailText.primary13(
-                '#${asset.sequenceID}',
-                monospace: true,
-              ),
-            ),
-
-            // Name / Hash
-            Expanded(
-              flex: 2,
-              child: SailRow(
-                spacing: SailStyleValues.padding08,
-                children: [
-                  Expanded(
-                    child: SailColumn(
-                      spacing: 2,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (asset.plaintextName != null) SailText.primary13(asset.plaintextName!, bold: true),
-                        SailText.secondary12(
-                          '${asset.hash.substring(0, 16)}...',
-                          monospace: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                  SailTooltip(
-                    message: 'Copy hash',
-                    child: SailButton(
-                      variant: ButtonVariant.icon,
-                      icon: SailSVGAsset.iconCopy,
-                      iconWidth: 14,
-                      onPressed: () async => onCopyHash(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Encryption status
-            Expanded(
-              child: _StatusIndicator(
-                hasFeature: hasEncryption,
-                label: hasEncryption ? 'Yes' : 'No',
-              ),
-            ),
-
-            // Signing status
-            Expanded(
-              child: _StatusIndicator(
-                hasFeature: hasSigning,
-                label: hasSigning ? 'Yes' : 'No',
-              ),
-            ),
-
-            // Network status
-            Expanded(
-              child: _StatusIndicator(
-                hasFeature: hasNetwork,
-                label: hasNetwork ? 'Available' : 'None',
-              ),
-            ),
-
-            // Expand indicator (more prominent)
-            SizedBox(
-              width: 80,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: isExpanded
-                          ? theme.colors.primary.withValues(alpha: 0.1)
-                          : theme.colors.backgroundSecondary,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: SailSVG.fromAsset(
-                      isExpanded ? SailSVGAsset.chevronUp : SailSVGAsset.chevronDown,
-                      width: 20,
-                      color: isExpanded ? theme.colors.primary : theme.colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusIndicator extends StatelessWidget {
-  final bool hasFeature;
-  final String label;
-
-  const _StatusIndicator({
-    required this.hasFeature,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return SailRow(
-      spacing: 6,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: hasFeature ? theme.colors.success : theme.colors.textSecondary.withValues(alpha: 0.3),
-          ),
-        ),
-        SailText.secondary12(label),
-      ],
-    );
-  }
-}
-
-class _AssetDetails extends StatelessWidget {
-  final BitAssetEntry asset;
-  final Function(String) onCopy;
-
-  const _AssetDetails({
-    required this.asset,
-    required this.onCopy,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(SailStyleValues.padding16),
-      margin: const EdgeInsets.only(bottom: 1),
-      decoration: BoxDecoration(
-        color: theme.colors.backgroundSecondary.withValues(alpha: 0.3),
-        border: Border(
-          bottom: BorderSide(color: theme.colors.divider, width: 1),
-        ),
-      ),
-      child: SailColumn(
-        spacing: SailStyleValues.padding12,
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return SailSidePanel(
+      key: ValueKey('asset_details_${asset.hash}'),
+      title: 'Asset Details',
+      onClose: onClose,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SailText.secondary12('Asset Details', bold: true),
-          const SizedBox(height: 4),
-
-          // Full hash
-          _DetailRow(
-            label: 'Full Hash',
-            value: asset.hash,
-            onCopy: () => onCopy(asset.hash),
-          ),
-
-          // Commitment
-          if (asset.details.commitment != null)
-            _DetailRow(
-              label: 'Commitment',
-              value: asset.details.commitment!,
-              onCopy: () => onCopy(asset.details.commitment!),
-            ),
-
-          // Encryption pubkey
-          if (asset.details.encryptionPubkey != null)
-            _DetailRow(
-              label: 'Encryption Pubkey',
-              value: asset.details.encryptionPubkey!,
-              onCopy: () => onCopy(asset.details.encryptionPubkey!),
-            ),
-
-          // Signing pubkey
-          if (asset.details.signingPubkey != null)
-            _DetailRow(
-              label: 'Signing Pubkey',
-              value: asset.details.signingPubkey!,
-              onCopy: () => onCopy(asset.details.signingPubkey!),
-            ),
-
-          // Socket addresses
-          if (asset.details.socketAddrV4 != null)
-            _DetailRow(
-              label: 'IPv4 Address',
-              value: asset.details.socketAddrV4!,
-              onCopy: () => onCopy(asset.details.socketAddrV4!),
-            ),
-
-          if (asset.details.socketAddrV6 != null)
-            _DetailRow(
-              label: 'IPv6 Address',
-              value: asset.details.socketAddrV6!,
-              onCopy: () => onCopy(asset.details.socketAddrV6!),
-            ),
-
-          if (asset.details.commitment == null &&
-              asset.details.encryptionPubkey == null &&
-              asset.details.signingPubkey == null &&
-              asset.details.socketAddrV4 == null &&
-              asset.details.socketAddrV6 == null)
-            SailText.secondary12('No additional metadata configured'),
+          SailText.primary24(asset.plaintextName ?? '-', bold: true),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailDetailGroup(children: _assetLines(asset)),
         ],
       ),
     );
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final VoidCallback onCopy;
+List<Widget> _assetLines(BitAssetEntry asset) {
+  final details = asset.details;
+  return [
+    SailStackedDetail(label: 'Full Hash', value: asset.hash, copyValue: asset.hash),
+    if (details.commitment != null)
+      SailStackedDetail(label: 'Commitment', value: details.commitment!, copyValue: details.commitment),
+    if (details.encryptionPubkey != null)
+      SailStackedDetail(
+        label: 'Encryption Pubkey',
+        value: details.encryptionPubkey!,
+        copyValue: details.encryptionPubkey,
+      ),
+    if (details.signingPubkey != null)
+      SailStackedDetail(label: 'Signing Pubkey', value: details.signingPubkey!, copyValue: details.signingPubkey),
+    if (details.socketAddrV4 != null)
+      SailStackedDetail(label: 'IPv4 Address', value: details.socketAddrV4!, copyValue: details.socketAddrV4),
+    if (details.socketAddrV6 != null)
+      SailStackedDetail(label: 'IPv6 Address', value: details.socketAddrV6!, copyValue: details.socketAddrV6),
+    if (details.commitment == null &&
+        details.encryptionPubkey == null &&
+        details.signingPubkey == null &&
+        details.socketAddrV4 == null &&
+        details.socketAddrV6 == null)
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: SailText.secondary12('No additional metadata configured'),
+      ),
+  ];
+}
 
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    required this.onCopy,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 140,
-          child: SailText.secondary12(label),
-        ),
-        Expanded(
-          child: SailText.primary12(
-            value.length > 60 ? '${value.substring(0, 60)}...' : value,
-            monospace: true,
-          ),
-        ),
-        SailTooltip(
-          message: 'Copy',
-          child: SailButton(
-            variant: ButtonVariant.icon,
-            icon: SailSVGAsset.iconCopy,
-            iconWidth: 12,
-            onPressed: () async => onCopy(),
-          ),
-        ),
-      ],
-    );
-  }
+Future<void> showAssetDetailsDialog(BuildContext context, BitAssetEntry asset) {
+  return widgetDialog<void>(
+    context: context,
+    title: 'Asset Details',
+    subtitle: asset.plaintextName,
+    child: SailDetailGroup(children: _assetLines(asset)),
+  );
 }
 
 class AssetExplorerViewModel extends BaseViewModel {
@@ -633,7 +343,8 @@ class AssetExplorerViewModel extends BaseViewModel {
 
   final TextEditingController searchController = TextEditingController();
 
-  String? expandedAssetHash;
+  /// The asset the side panel shows. Null hides the panel.
+  String? selectedHash;
   bool showFavoritesOnly = false;
 
   AssetExplorerViewModel() {
@@ -678,12 +389,10 @@ class AssetExplorerViewModel extends BaseViewModel {
     analyticsProvider.setAssetSearchQuery(searchController.text);
   }
 
-  void toggleExpanded(String hash) {
-    if (expandedAssetHash == hash) {
-      expandedAssetHash = null;
-    } else {
-      expandedAssetHash = hash;
-    }
+  BitAssetEntry? get selectedAsset => bitAssetsProvider.entries.firstWhereOrNull((a) => a.hash == selectedHash);
+
+  void select(String? hash) {
+    selectedHash = hash;
     notifyListeners();
   }
 

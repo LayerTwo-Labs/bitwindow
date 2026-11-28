@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bitwindow/widgets/datadir_network_dialog.dart';
 import 'package:bitwindow/widgets/datadir_network_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -149,6 +150,8 @@ class _FakeOrchestrator implements OrchestratorRPC {
 
 /// A button by its label. SailButton renders the label twice — one copy holds
 /// the width while it loads — so a text finder counts it twice.
+final _closeX = find.descendant(of: find.byType(DatadirNetworkDialog), matching: find.byType(SailIconBoxButton));
+
 Finder _button(String label) => find.byWidgetPredicate((widget) => widget is SailButton && widget.label == label);
 
 NotificationItem _noticeFor(GetDatadirNetworkResponse answer, BitcoinConfProvider conf) {
@@ -558,7 +561,7 @@ void main() {
     expect(find.textContaining('reads another data directory'), findsOneWidget);
     expect(_button('Switch to bitcoin'), findsNothing);
 
-    await tester.tap(_button('Close'));
+    await tester.tap(_closeX);
     await tester.pumpAndSettle();
 
     expect(answer[0], isFalse, reason: 'the banner stays while the mismatch stands');
@@ -615,7 +618,8 @@ void main() {
     expect(find.textContaining('Your own bitcoin.conf names the network'), findsOneWidget);
     expect(_button('Switch to alphanet'), findsNothing);
     expect(_button('Convert the blocks to betanet'), findsNothing);
-    expect(_button('Close'), findsOneWidget);
+    expect(_button('Close'), findsNothing);
+    expect(_closeX, findsOneWidget);
   });
 
   // A conversion that stopped part way leaves one network at each end. Either
@@ -742,7 +746,7 @@ void main() {
     ];
 
     final answer = await openRepairs(tester);
-    await tester.tap(_button('Close'));
+    await tester.tap(_closeX);
     await tester.pumpAndSettle();
 
     expect(_button('Switch to alphanet'), findsNothing);

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:auto_route/auto_route.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -17,161 +18,93 @@ class WithdrawalsPage extends StatelessWidget {
         builder: (context, model, child) {
           final theme = SailTheme.of(context);
           final formatter = GetIt.I<FormatterProvider>();
-          final phone = SailStyleValues.phoneLayout(context);
+          final bundle = model.bundle;
 
           return SailColumn(
-            spacing: SailStyleValues.padding16,
+            spacing: SailStyleValues.padding12,
             children: [
-              // Status header
-              Container(
-                padding: const EdgeInsets.all(SailStyleValues.padding12),
-                decoration: phone
-                    ? BoxDecoration(
-                        color: theme.chrome.panel(theme.colors).color,
-                        borderRadius: theme.chrome.radiusLarge,
-                        border: Border.all(color: theme.colors.border),
-                      )
-                    : BoxDecoration(
-                        color: model.bundle != null
-                            ? theme.colors.success.withValues(alpha: 0.1)
-                            : theme.colors.orange.withValues(alpha: 0.1),
-                        borderRadius: SailStyleValues.borderRadiusSmall,
-                        border: Border.all(
-                          color: model.bundle != null
-                              ? theme.colors.success.withValues(alpha: 0.3)
-                              : theme.colors.orange.withValues(alpha: 0.3),
-                        ),
-                      ),
-                child: Row(
-                  children: [
-                    SailSVG.fromAsset(
-                      model.bundle != null ? SailSVGAsset.clipboardList : SailSVGAsset.hourglass,
-                      width: 20,
-                      color: phone
-                          ? theme.colors.textSecondary
-                          : model.bundle != null
-                          ? theme.colors.success
-                          : theme.colors.orange,
+              SailStrip(
+                stats: [
+                  SailStatusPill(
+                    label: bundle != null
+                        ? 'Pending Withdrawals: ${bundle.spendUtxos.length} UTXOs'
+                        : 'No pending withdrawal bundle',
+                    tone: bundle != null ? SailStatusTone.success : SailStatusTone.neutral,
+                  ),
+                  if (model.lastFailedHeight != null)
+                    SailText.primary12(
+                      'Last failed bundle at height: ${model.lastFailedHeight}',
+                      color: theme.colors.error,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SailText.primary13(
-                            model.bundle != null
-                                ? 'Pending Withdrawals: ${model.bundle!.spendUtxos.length} UTXOs'
-                                : 'No pending withdrawal bundle',
-                            bold: true,
-                          ),
-                          if (model.lastFailedHeight != null) ...[
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                SailSVG.fromAsset(SailSVGAsset.circleAlert, width: 16, color: theme.colors.error),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: SailText.primary12(
-                                    'Last failed bundle at height: ${model.lastFailedHeight}',
-                                    color: theme.colors.error,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    SailButton(
-                      label: 'Refresh',
-                      variant: ButtonVariant.secondary,
-                      small: true,
-                      onPressed: model.refresh,
-                      loading: model.isRefreshing,
-                    ),
-                  ],
-                ),
+                ],
+                actions: [
+                  SailButton(
+                    label: 'Refresh',
+                    variant: ButtonVariant.secondary,
+                    small: true,
+                    onPressed: model.refresh,
+                    loading: model.isRefreshing,
+                  ),
+                ],
               ),
-
-              // Bundle details
-              if (model.bundle != null) ...[
+              if (bundle != null)
                 SailCard(
                   title: 'Bundle Summary',
-                  child: SailRow(
-                    spacing: SailStyleValues.padding32,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SailText.secondary13('Height Created'),
-                          SailText.primary15(model.bundle!.heightCreated.toString(), bold: true),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SailText.secondary13('Total Value'),
-                          ListenableBuilder(
-                            listenable: formatter,
-                            builder: (context, child) => SailText.primary15(
-                              formatter.formatSats(model.bundle!.totalValue),
-                              bold: true,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SailText.secondary13('UTXOs'),
-                          SailText.primary15(model.bundle!.spendUtxos.length.toString(), bold: true),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // UTXO table
-                Expanded(
-                  child: SailCard(
-                    title: 'Spent UTXOs',
-                    bottomPadding: false,
-                    child: ListenableBuilder(
-                      listenable: formatter,
-                      builder: (context, child) => SailTable(
-                        getRowId: (index) => _formatOutPoint(model.bundle!.spendUtxos[index].outPoint),
-                        headerBuilder: (context) => [
-                          SailTableHeaderCell(name: 'Outpoint'),
-                          SailTableHeaderCell(name: 'Value'),
-                        ],
-                        rowBuilder: (context, row, selected) {
-                          final utxo = model.bundle!.spendUtxos[row];
-                          final outpointStr = _formatOutPoint(utxo.outPoint);
-                          final value = utxo.output.content.type == OutputContentType.value
-                              ? formatter.formatSats(utxo.output.content.value!)
-                              : '-';
-                          return [
-                            SailTableCell(
-                              value: _truncateOutpoint(outpointStr),
-                              copyValue: outpointStr,
-                              monospace: true,
-                            ),
-                            SailTableCell(value: value, monospace: true),
-                          ];
-                        },
-                        rowCount: model.bundle!.spendUtxos.length,
-                        drawGrid: true,
-                        emptyPlaceholder: 'No UTXOs in bundle',
-                      ),
+                  child: ListenableBuilder(
+                    listenable: formatter,
+                    builder: (context, child) => Wrap(
+                      spacing: SailStyleValues.padding20,
+                      runSpacing: SailStyleValues.padding08,
+                      children: [
+                        SailStat(label: 'Height Created', value: bundle.heightCreated.toString()),
+                        SailStat(label: 'Total Value', value: formatter.formatSats(bundle.totalValue)),
+                        SailStat(label: 'UTXOs', value: bundle.spendUtxos.length.toString()),
+                      ],
                     ),
                   ),
                 ),
-              ] else
-                Expanded(
-                  child: Center(
-                    child: SailText.secondary15('No pending bundle'),
-                  ),
+              Expanded(
+                child: SailCard(
+                  title: 'Spent UTXOs',
+                  bottomPadding: false,
+                  child: bundle == null
+                      ? Center(child: SailText.secondary13('No pending bundle'))
+                      : ListenableBuilder(
+                          listenable: formatter,
+                          builder: (context, child) => SailTable(
+                            getRowId: (index) => _formatOutPoint(bundle.spendUtxos[index].outPoint),
+                            headerBuilder: (context) => [
+                              SailTableHeaderCell(name: 'Outpoint'),
+                              SailTableHeaderCell(name: 'Value', alignment: Alignment.centerRight),
+                            ],
+                            rowBuilder: (context, row, selected) {
+                              final utxo = bundle.spendUtxos[row];
+                              final outpointStr = _formatOutPoint(utxo.outPoint);
+                              final value = utxo.output.content.type == OutputContentType.value
+                                  ? formatter.formatSats(utxo.output.content.value!)
+                                  : '-';
+                              return [
+                                SailTableCell(
+                                  value: _truncateOutpoint(outpointStr),
+                                  copyValue: outpointStr,
+                                  monospace: true,
+                                ),
+                                SailTableCell(value: value, monospace: true, alignment: Alignment.centerRight),
+                              ];
+                            },
+                            rowCount: bundle.spendUtxos.length,
+                            drawGrid: true,
+                            emptyPlaceholder: 'No UTXOs in bundle',
+                            contextMenuItems: (rowId) => [
+                              SailMenuItem(
+                                onSelected: () => Clipboard.setData(ClipboardData(text: rowId)),
+                                child: SailText.primary12('Copy outpoint'),
+                              ),
+                            ],
+                          ),
+                        ),
                 ),
+              ),
             ],
           );
         },

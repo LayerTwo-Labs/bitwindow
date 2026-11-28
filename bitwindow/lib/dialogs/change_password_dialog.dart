@@ -98,18 +98,12 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       title: 'Change Encryption Password',
       subtitle: 'Enter your current password and choose a new password for your wallet.',
       error: _errorMessage,
-      actions: [
-        SailButton(
-          label: 'Cancel',
-          variant: ButtonVariant.secondary,
-          onPressed: _isChanging ? null : () async => Navigator.of(context).pop(false),
-        ),
-        SailButton(
-          label: 'Change Password',
-          loading: _isChanging,
-          onPressed: () async => _changePassword(),
-        ),
-      ],
+      withCloseButton: !_isChanging,
+      action: SailDialogAction(
+        label: 'Change Password',
+        loadingLabel: _isChanging ? 'Change Password' : null,
+        onPressed: () async => _changePassword(),
+      ),
       child: SailColumn(
         spacing: SailStyleValues.padding16,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,6 +120,8 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
               onTap: () => setState(() => _obscureOldPassword = !_obscureOldPassword),
               child: SailSVG.fromAsset(
                 _obscureOldPassword ? SailSVGAsset.eye : SailSVGAsset.eyeOff,
+                width: 22,
+                height: 22,
                 color: theme.colors.text,
               ),
             ),
@@ -141,6 +137,8 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
               onTap: () => setState(() => _obscureNewPassword = !_obscureNewPassword),
               child: SailSVG.fromAsset(
                 _obscureNewPassword ? SailSVGAsset.eye : SailSVGAsset.eyeOff,
+                width: 22,
+                height: 22,
                 color: theme.colors.text,
               ),
             ),
@@ -157,6 +155,8 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
               onTap: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
               child: SailSVG.fromAsset(
                 _obscureConfirmPassword ? SailSVGAsset.eye : SailSVGAsset.eyeOff,
+                width: 22,
+                height: 22,
                 color: theme.colors.text,
               ),
             ),

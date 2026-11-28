@@ -81,7 +81,9 @@ void main() {
   }
 
   Future<void> tapCopy(WidgetTester tester) async {
-    await tester.tap(find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.iconCopy));
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.text('Copy'));
     await tester.pump(const Duration(seconds: 1));
   }
 

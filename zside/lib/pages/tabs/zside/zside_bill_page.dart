@@ -22,73 +22,79 @@ String _groupDigits(String digits) {
   return groups.join(' ');
 }
 
+/// Shows the Bill Amounts table in a dialog.
+Future<void> showBillAmounts(BuildContext context) async {
+  await widgetDialog(
+    context: context,
+    title: 'Bill Amounts',
+    maxWidth: 820,
+    child: const BillAmountsTable(),
+  );
+}
+
 @RoutePage()
 class ZSideBillPage extends StatelessWidget {
   const ZSideBillPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return ViewModelBuilder.reactive(
-      viewModelBuilder: () => ZSideBillTabViewModel(),
-      builder: ((context, model, child) {
-        return SailPage(
-          widgetTitle: SailText.primary15('Bill Amounts'),
-          scrollable: true,
-          body: Padding(
-            padding: const EdgeInsets.only(bottom: SailStyleValues.padding32),
-            child: SailColumn(
-              spacing: SailStyleValues.padding32,
-              children: [
-                SailColumn(
-                  spacing: SailStyleValues.padding32,
-                  children: [
-                    DashboardGroup(
-                      title: 'Bill Amounts (in sats)',
-                      children: [
-                        Table(
-                          border: TableBorder.all(color: theme.colors.text, width: 1),
-                          children: [
-                            TableRow(
-                              children: [
-                                TableCell(child: Center(child: SailText.primary13('Sunday'))),
-                                TableCell(child: Center(child: SailText.primary13('Monday'))),
-                                TableCell(child: Center(child: SailText.primary13('Tuesday'))),
-                                TableCell(child: Center(child: SailText.primary13('Wednesday'))),
-                                TableCell(child: Center(child: SailText.primary13('Thursday'))),
-                                TableCell(child: Center(child: SailText.primary13('Friday'))),
-                                TableCell(child: Center(child: SailText.primary13('Saturday'))),
-                              ],
-                            ),
-                            for (var row = 0; row < 6; row++)
-                              _buildTableRow([for (var day = 0; day < 7; day++) billAmountLabel(1 << (row * 7 + day))]),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      }),
+    return SailPage(
+      widgetTitle: SailText.primary15('Bill Amounts'),
+      scrollable: true,
+      body: const Padding(
+        padding: EdgeInsets.only(bottom: SailStyleValues.padding32),
+        child: BillAmountsTable(),
+      ),
     );
   }
+}
 
-  TableRow _buildTableRow(List<String> cells) {
-    return TableRow(
-      children: cells
-          .map(
-            (cell) => TableCell(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: SailText.primary12(cell, textAlign: TextAlign.right, monospace: true),
-              ),
+/// The cast bill amounts in sats: one column per weekday, a hairline under each row.
+class BillAmountsTable extends StatelessWidget {
+  const BillAmountsTable({super.key});
+
+  static const _days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final hairline = BorderSide(color: theme.colors.divider);
+
+    return SailColumn(
+      spacing: SailStyleValues.padding08,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SailText.secondary13('Bill Amounts (in sats)'),
+        Table(
+          border: TableBorder(horizontalInside: hairline, bottom: hairline),
+          children: [
+            TableRow(
+              children: [
+                for (final day in _days)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: SailText.secondary12(day, textAlign: TextAlign.right),
+                  ),
+              ],
             ),
-          )
-          .toList(),
+            for (var row = 0; row < 6; row++)
+              TableRow(
+                children: [
+                  for (var day = 0; day < 7; day++)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: SailText.primary12(
+                        billAmountLabel(1 << (row * 7 + day)),
+                        textAlign: TextAlign.right,
+                        monospace: true,
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

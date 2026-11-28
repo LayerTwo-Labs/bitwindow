@@ -10,6 +10,9 @@ class SidechainHomepagePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return QtPage(child: HomepageView(provider: GetIt.I.get<SidechainHomepageProvider>()));
+    final provider = GetIt.I.get<SidechainHomepageProvider>();
+    return QtPage(
+      child: HomepageView(provider: provider, sideColumns: true, halvesRight: provider.module.homepageCardsRight),
+    );
   }
 }

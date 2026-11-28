@@ -34,27 +34,21 @@ class LogPage extends StatefulWidget {
 class _LogPageState extends State<LogPage> {
   @override
   Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
     return Scaffold(
-      backgroundColor: SailColorScheme.blackLighter,
-      appBar: AppBar(
-        title: SailText.primary20(
-          widget.title,
-          color: SailColorScheme.whiteDark,
-        ),
-        backgroundColor: SailColorScheme.blackLighter,
-        foregroundColor: SailColorScheme.whiteDark,
-      ),
+      backgroundColor: theme.colors.background,
+      appBar: Navigator.canPop(context) ? SailAppBar.build(context) : null,
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(SailStyleValues.padding12),
         child: InlineTabBar(
           tabs: [
             SingleTabItem(
               label: 'File Logs',
-              child: _FileLogsTab(logPath: widget.logPath),
+              child: _FileLogsTab(logPath: widget.logPath, title: widget.title),
             ),
             SingleTabItem(
               label: 'Process Output',
-              child: _ProcessLogsTab(binaryType: widget.binaryType),
+              child: _ProcessLogsTab(binaryType: widget.binaryType, title: widget.title),
             ),
           ],
         ),
@@ -63,10 +57,37 @@ class _LogPageState extends State<LogPage> {
   }
 }
 
+/// One log line: a grey timestamp column, then the message.
+class _LogRow extends StatelessWidget {
+  final String? timestamp;
+  final Widget message;
+
+  const _LogRow({required this.timestamp, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding08, vertical: 9),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: theme.colors.divider)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 166, child: SailText.secondary12(timestamp ?? '')),
+          Expanded(child: message),
+        ],
+      ),
+    );
+  }
+}
+
 class _FileLogsTab extends StatefulWidget {
   final String logPath;
+  final String title;
 
-  const _FileLogsTab({required this.logPath});
+  const _FileLogsTab({required this.logPath, required this.title});
 
   @override
   State<_FileLogsTab> createState() => _FileLogsTabState();
@@ -79,6 +100,7 @@ class _FileLogsTabState extends State<_FileLogsTab> {
   Timer? _tailTimer;
   int _lastPosition = 0;
   bool _stickToBottom = true;
+  bool _missing = false;
   static const int maxLines = 1000;
   static const int chunkSize = 8192;
 
@@ -93,29 +115,23 @@ class _FileLogsTabState extends State<_FileLogsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            SailButton(
-              onPressed: () async {
-                final logFile = File(widget.logPath);
-                await openFile(logFile);
-              },
-              variant: ButtonVariant.primary,
-              label: 'Open Log File',
-              icon: SailSVGAsset.download,
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: SelectableRegion(
-            focusNode: _focusNode,
-            selectionControls: DesktopTextSelectionControls(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
+    final theme = SailTheme.of(context);
+    return SailCard(
+      title: widget.title,
+      bottomPadding: false,
+      widgetHeaderEnd: SailButton(
+        onPressed: () async {
+          final logFile = File(widget.logPath);
+          await openFile(logFile);
+        },
+        variant: ButtonVariant.secondary,
+        label: 'Open Log File',
+      ),
+      child: _missing
+          ? Center(child: SailText.secondary12('Log file not found.'))
+          : SelectableRegion(
+              focusNode: _focusNode,
+              selectionControls: DesktopTextSelectionControls(),
               child: ListView.builder(
                 controller: _scrollController,
                 itemCount: _logLines.length + 1,
@@ -126,44 +142,26 @@ class _FileLogsTabState extends State<_FileLogsTab> {
                   final line = _logLines[index];
                   final timestamp = line.length > 20 ? DateTime.tryParse(line.substring(0, 20)) : null;
                   final logMsg = timestamp != null ? line.substring(20) : line;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 2.0,
-                    ),
-                    child: SingleChildScrollView(
+                  return _LogRow(
+                    timestamp: timestamp == null ? null : formatDate(timestamp, long: false),
+                    message: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          if (timestamp != null) ...[
-                            SailText.secondary12(formatDate(timestamp, long: false)),
-                            SailText.secondary12(' | '),
-                          ],
-                          Text.rich(
-                            _parseAnsiCodes(logMsg),
-                            softWrap: false,
-                            style: const TextStyle(
-                              fontFamily: SailFonts.mono,
-                              fontSize: 10,
-                              color: SailColorScheme.whiteDark,
-                            ),
-                          ),
-                        ],
+                      child: Text.rich(
+                        _parseAnsiCodes(logMsg, theme.colors.text),
+                        softWrap: false,
                       ),
                     ),
                   );
                 },
               ),
             ),
-          ),
-        ),
-      ],
     );
   }
 
   Future<void> _initializeLogView() async {
     final logFile = File(widget.logPath);
     if (!logFile.existsSync()) {
+      setState(() => _missing = true);
       return;
     }
 
@@ -260,9 +258,9 @@ class _FileLogsTabState extends State<_FileLogsTab> {
     });
   }
 
-  TextSpan _parseAnsiCodes(String text) {
+  TextSpan _parseAnsiCodes(String text, Color textColor) {
     final spans = <TextSpan>[];
-    var currentColor = Colors.white;
+    var currentColor = textColor;
     var currentBold = false;
 
     text = text.replaceAll(RegExp(r'^flutter: '), '');
@@ -288,7 +286,7 @@ class _FileLogsTabState extends State<_FileLogsTab> {
       for (final num in code.split(';')) {
         switch (num) {
           case '0': // Reset
-            currentColor = Colors.white;
+            currentColor = textColor;
             currentBold = false;
           case '1': // Bold
             currentBold = true;
@@ -307,7 +305,7 @@ class _FileLogsTabState extends State<_FileLogsTab> {
           case '36':
             currentColor = Colors.cyan;
           case '37':
-            currentColor = Colors.white;
+            currentColor = textColor;
         }
       }
 
@@ -425,8 +423,9 @@ class _FileLogsTabState extends State<_FileLogsTab> {
 
 class _ProcessLogsTab extends StatefulWidget {
   final BinaryType? binaryType;
+  final String title;
 
-  const _ProcessLogsTab({this.binaryType});
+  const _ProcessLogsTab({this.binaryType, required this.title});
 
   @override
   State<_ProcessLogsTab> createState() => _ProcessLogsTabState();
@@ -519,89 +518,55 @@ class _ProcessLogsTabState extends State<_ProcessLogsTab> {
       allLogs.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     }
 
-    if (allLogs.isEmpty) {
-      return Center(
-        child: SailText.secondary13(
-          'No process logs captured yet. Logs will appear here when binaries start.',
-        ),
-      );
-    }
-
-    return SelectableRegion(
-      focusNode: _focusNode,
-      selectionControls: DesktopTextSelectionControls(),
-      child: ListView.builder(
-        controller: _scrollController,
-        itemCount: allLogs.length + 1,
-        itemBuilder: (context, index) {
-          if (index == allLogs.length) {
-            return const SizedBox(height: 100);
-          }
-
-          final log = allLogs[index];
-
-          if (log.isStartupMarker) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
+    final theme = SailTheme.of(context);
+    return SailCard(
+      title: widget.title,
+      bottomPadding: false,
+      child: allLogs.isEmpty
+          ? Center(
+              child: SailText.secondary12(
+                'No process logs captured yet. Logs will appear here when binaries start.',
               ),
-              child: Center(
-                child: SailText.secondary12(
-                  log.message,
-                  color: SailColorScheme.greyLight,
-                ),
+            )
+          : SelectableRegion(
+              focusNode: _focusNode,
+              selectionControls: DesktopTextSelectionControls(),
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: allLogs.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == allLogs.length) {
+                    return const SizedBox(height: 100);
+                  }
+
+                  final log = allLogs[index];
+
+                  if (log.isStartupMarker) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding08),
+                      child: Center(child: SailText.secondary12(log.message)),
+                    );
+                  }
+
+                  final textColor = log.isStderr ? theme.colors.error : theme.colors.text;
+                  return _LogRow(
+                    timestamp: formatDate(log.timestamp, long: false),
+                    message: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (log.isStderr) ...[
+                          SailText.primary12('ERR', color: theme.colors.error),
+                          const SizedBox(width: 24),
+                        ],
+                        Expanded(
+                          child: SailText.primary12(stripLogTimestamp(log.message), color: textColor),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
-            );
-          }
-
-          final textColor = log.isStderr ? SailColorScheme.redLight : SailColorScheme.whiteDark;
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 2.0,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 130,
-                  child: SailText.secondary12(
-                    formatDate(log.timestamp, long: false),
-                    color: SailColorScheme.greyLight,
-                  ),
-                ),
-                SailText.secondary12('|', color: SailColorScheme.greyLight),
-                const SizedBox(width: 8),
-                if (log.isStderr) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: SailColorScheme.red.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: SailText.primary10(
-                      'ERR',
-                      color: SailColorScheme.red,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: SailText.primary12(
-                    stripLogTimestamp(log.message),
-                    color: textColor,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
     );
   }
 }

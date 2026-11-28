@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
-import 'package:sail_ui/sail_ui.dart' show SailBadge, SailStatList, SailStyleValues;
+import 'package:sail_ui/sail_ui.dart' show SailBadge, SailDetailLine, SailRowMenuButton, SailStatList, SailStyleValues;
+import 'package:truthcoin/widgets/v2_parts.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
@@ -59,6 +60,35 @@ void main() {
       final refresh = tester.getCenter(find.text('Refresh').first);
       expect(refresh.dy, closeTo(badge.dy, 6));
     });
+    testWidgets('a decision row answers with segments, and its "…" clears the answer', (WidgetTester tester) async {
+      await tester.pumpSailPage(const VotingDashboardPage());
+      await tester.pumpAndSettle();
+
+      String answersReady() => tester
+          .widget<SailDetailLine>(
+            find.byWidgetPredicate((widget) => widget is SailDetailLine && widget.label == 'Answers ready'),
+          )
+          .value!;
+
+      expect(find.byType(PageHeadCard), findsOneWidget);
+      expect(answersReady(), '0');
+
+      await tester.tap(find.text('Yes').first);
+      await tester.pumpAndSettle();
+      expect(answersReady(), '1');
+
+      final row = tester.getCenter(find.text('Yes').first).dy;
+      final menu = find
+          .byType(SailRowMenuButton)
+          .evaluate()
+          .firstWhere((element) => (tester.getCenter(find.byWidget(element.widget)).dy - row).abs() < 24);
+      await tester.tap(find.byWidget(menu.widget));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear'));
+      await tester.pumpAndSettle();
+      expect(answersReady(), '0');
+    });
+
     testWidgets('renders voting dashboard page', (WidgetTester tester) async {
       await tester.pumpSailPage(const VotingDashboardPage());
       await tester.pumpAndSettle();

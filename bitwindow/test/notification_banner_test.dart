@@ -191,7 +191,7 @@ void main() {
       );
 
       await tester.pumpSailPage(const Column(children: [NotificationBanner()]));
-      await tester.tap(find.text('✕'));
+      await tester.tap(find.byKey(const Key('notification-banner-close')));
       await tester.pump();
 
       expect(ran, isFalse);

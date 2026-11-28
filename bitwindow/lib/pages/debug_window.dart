@@ -1,4 +1,5 @@
 import 'package:bitwindow/pages/bitwindow_console_tab.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -24,41 +25,16 @@ class _DebugWindowState extends State<DebugWindow> {
 
   @override
   Widget build(BuildContext context) {
-    return SailCard(
-      color: context.sailTheme.colors.background,
-      inSeparateWindow: true,
+    return const Padding(
+      padding: EdgeInsets.all(SailStyleValues.padding12),
       child: InlineTabBar(
-        tabs: const [
-          TabItem(
-            label: 'Information',
-            icon: SailSVGAsset.iconInfo,
-            child: InformationTab(),
-          ),
-          TabItem(
-            label: 'Processes',
-            icon: SailSVGAsset.iconTools,
-            child: ProcessesTab(),
-          ),
-          TabItem(
-            label: 'Console',
-            icon: SailSVGAsset.iconTerminal,
-            child: BitwindowConsoleTab(),
-          ),
-          TabItem(
-            label: 'Network',
-            icon: SailSVGAsset.iconNetwork,
-            child: NetworkTab(),
-          ),
-          TabItem(
-            label: 'Peers',
-            icon: SailSVGAsset.iconPeers,
-            child: PeersTab(),
-          ),
-          TabItem(
-            label: 'Binaries',
-            icon: SailSVGAsset.iconDownload,
-            child: BinariesTab(),
-          ),
+        tabs: [
+          TabItem(label: 'Information', child: InformationTab()),
+          TabItem(label: 'Processes', child: ProcessesTab()),
+          TabItem(label: 'Console', child: BitwindowConsoleTab()),
+          TabItem(label: 'Network', child: NetworkTab()),
+          TabItem(label: 'Peers', child: PeersTab()),
+          TabItem(label: 'Binaries', child: BinariesTab()),
         ],
         initialIndex: 0,
       ),
@@ -110,8 +86,8 @@ class _InformationTabState extends State<InformationTab> {
       subtitle: 'General information about the node',
       child: SingleChildScrollView(
         child: SailColumn(
-          spacing: SailStyleValues.padding25,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: SailStyleValues.padding12,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             InfoSection(
               title: 'General Info',
@@ -162,6 +138,7 @@ class _InformationTabState extends State<InformationTab> {
   }
 }
 
+/// A bold title over a grey group of label and value rows.
 class InfoSection extends StatelessWidget {
   final String title;
   final Map<String, String> details;
@@ -171,30 +148,14 @@ class InfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        SailText.primary15(title),
-        const SizedBox(height: 8),
-        ...details.entries.map(
-          (e) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 250,
-                  child: SailText.secondary13(
-                    e.key,
-                  ),
-                ),
-                Expanded(
-                  child: SailText.primary13(
-                    e.value,
-                    monospace: true,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        SailDetailHeading(title),
+        const SizedBox(height: SailStyleValues.padding08),
+        SailDetailGroup(
+          fill: SailDetailFill.canvas,
+          children: [for (final e in details.entries) SailDetailLine(wrap: true, label: e.key, value: e.value)],
         ),
       ],
     );
@@ -265,21 +226,16 @@ class _NetworkTabState extends State<NetworkTab> {
     return SailCard(
       title: 'Network Statistics',
       subtitle: 'Bitcoin network and node statistics',
+      widgetHeaderEnd: SailButton(
+        label: 'Refresh',
+        onPressed: () async => _loadNetworkStats(),
+        variant: ButtonVariant.secondary,
+      ),
       child: SingleChildScrollView(
         child: SailColumn(
-          spacing: SailStyleValues.padding25,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: SailStyleValues.padding12,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                SailButton(
-                  label: 'Refresh',
-                  onPressed: () async => _loadNetworkStats(),
-                  variant: ButtonVariant.secondary,
-                ),
-              ],
-            ),
             InfoSection(
               title: 'Connection Status',
               details: {
@@ -336,6 +292,9 @@ class _PeersTabState extends State<PeersTab> {
   OrchestratorRPC get _orchestrator => GetIt.I.get<OrchestratorRPC>();
   List<PeerInfo> peers = [];
 
+  /// The peer in the side panel.
+  int? _selected;
+
   @override
   void initState() {
     super.initState();
@@ -346,19 +305,34 @@ class _PeersTabState extends State<PeersTab> {
     final resp = await _orchestrator.bitcoind.getPeerInfo(GetPeerInfoRequest());
     setState(() {
       peers = resp.peers.map(PeerInfo.fromProto).toList();
+      if (_selected != null && _selected! >= peers.length) {
+        _selected = null;
+      }
     });
+  }
+
+  void _select(String? rowId) {
+    if (rowId != null && SailStyleValues.phoneLayout(context)) {
+      widgetDialog(
+        context: context,
+        title: 'Peer Details',
+        child: PeerDetailsBody(peer: peers[int.parse(rowId)]),
+      );
+      return;
+    }
+    setState(() => _selected = rowId == null ? null : int.parse(rowId));
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.sailTheme;
-
-    return SailCard(
+    final selected = _selected;
+    final table = SailCard(
       title: 'Peer Information',
       subtitle: 'Connected peers and their details',
       child: SailTable(
-        backgroundColor: theme.colors.backgroundSecondary,
         getRowId: (index) => index.toString(),
+        selectedRowId: selected?.toString(),
+        onSelectedRow: _select,
         headerBuilder: (context) => [
           const SailTableHeaderCell(name: 'ID'),
           const SailTableHeaderCell(name: 'Address'),
@@ -380,139 +354,85 @@ class _PeersTabState extends State<PeersTab> {
         },
         rowCount: peers.length,
         emptyPlaceholder: 'No peers connected',
-        onDoubleTap: (index) {
-          showThemedDialog(
-            context: context,
-            builder: (context) => PeerDetailsDialog(peer: peers[int.parse(index)]),
-          );
-        },
+        onDoubleTap: _select,
       ),
+    );
+    if (SailStyleValues.phoneLayout(context)) {
+      return table;
+    }
+    return SailPageWithPanel(
+      panel: selected == null || selected >= peers.length
+          ? null
+          : SailSidePanel(
+              title: 'Peer Details',
+              onClose: () async => _select(null),
+              child: PeerDetailsBody(peer: peers[selected]),
+            ),
+      child: table,
     );
   }
 }
 
-class PeerDetailsDialog extends StatelessWidget {
+/// The grey groups of every field of [peer].
+class PeerDetailsBody extends StatelessWidget {
   final PeerInfo peer;
 
-  const PeerDetailsDialog({super.key, required this.peer});
+  const PeerDetailsBody({super.key, required this.peer});
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.sailTheme;
-
-    return SailModal(
-      backgroundColor: theme.colors.background,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 700),
-        child: SailCard(
-          title: 'Peer Details',
-          subtitle: 'Full details about the peer',
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 24),
-                DetailSection(
-                  title: 'Connection',
-                  details: {
-                    'ID': peer.id.toString(),
-                    'Address': peer.addr,
-                    'Bind Address': peer.addrBind,
-                    'Local Address': peer.addrLocal,
-                    'Network': peer.network,
-                    'Connection Type': peer.connectionType,
-                    'Transport Protocol': peer.transportProtocolType,
-                    'Session ID': peer.sessionId,
-                  },
-                ),
-                const SizedBox(height: 16),
-                DetailSection(
-                  title: 'Status',
-                  details: {
-                    'Version': peer.version.toString(),
-                    'Subversion': peer.subVer,
-                    'Services': peer.services,
-                    'Service Names': peer.serviceNames.join(', '),
-                    'Inbound': peer.inbound.toString(),
-                    'Relay Transactions': peer.relayTxes.toString(),
-                    'Time Offset': '${peer.timeOffset}s',
-                    'Ping Time': '${peer.pingTime}s',
-                    'Min Ping': '${peer.minPing}s',
-                  },
-                ),
-                const SizedBox(height: 16),
-                DetailSection(
-                  title: 'Sync Status',
-                  details: {
-                    'Starting Height': peer.startingHeight.toString(),
-                    'Synced Headers': peer.syncedHeaders.toString(),
-                    'Synced Blocks': peer.syncedBlocks.toString(),
-                    'Last Transaction': peer.lastTransaction == 0
-                        ? 'Never'
-                        : DateTime.fromMillisecondsSinceEpoch(peer.lastTransaction * 1000).toString(),
-                    'Last Block': peer.lastBlock == 0
-                        ? 'Never'
-                        : DateTime.fromMillisecondsSinceEpoch(peer.lastBlock * 1000).toString(),
-                  },
-                ),
-                const SizedBox(height: 16),
-                DetailSection(
-                  title: 'Traffic',
-                  details: {
-                    'Bytes Sent': '${peer.bytesSent} bytes',
-                    'Bytes Received': '${peer.bytesRecv} bytes',
-                    'Last Send': peer.lastSend == 0
-                        ? 'Never'
-                        : DateTime.fromMillisecondsSinceEpoch(peer.lastSend * 1000).toString(),
-                    'Last Receive': peer.lastRecv == 0
-                        ? 'Never'
-                        : DateTime.fromMillisecondsSinceEpoch(peer.lastRecv * 1000).toString(),
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class DetailSection extends StatelessWidget {
-  final String title;
-  final Map<String, String> details;
-
-  const DetailSection({super.key, required this.title, required this.details});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    String time(int seconds) => seconds == 0 ? 'Never' : DateTime.fromMillisecondsSinceEpoch(seconds * 1000).toString();
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        SailText.primary15(title),
-        const SizedBox(height: 8),
-        ...details.entries.map(
-          (e) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 150,
-                  child: SailText.secondary13(
-                    '${e.key}:',
-                    color: SailTheme.of(context).colors.textTertiary,
-                  ),
-                ),
-                Expanded(
-                  child: SailText.primary13(
-                    e.value,
-                    monospace: true,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        SailText.secondary12('Full details about the peer'),
+        InfoSection(
+          title: 'Connection',
+          details: {
+            'ID': peer.id.toString(),
+            'Address': peer.addr,
+            'Bind Address': peer.addrBind,
+            'Local Address': peer.addrLocal,
+            'Network': peer.network,
+            'Connection Type': peer.connectionType,
+            'Transport Protocol': peer.transportProtocolType,
+            'Session ID': peer.sessionId,
+          },
+        ),
+        InfoSection(
+          title: 'Status',
+          details: {
+            'Version': peer.version.toString(),
+            'Subversion': peer.subVer,
+            'Services': peer.services,
+            'Service Names': peer.serviceNames.join(', '),
+            'Inbound': peer.inbound.toString(),
+            'Relay Transactions': peer.relayTxes.toString(),
+            'Time Offset': '${peer.timeOffset}s',
+            'Ping Time': '${peer.pingTime}s',
+            'Min Ping': '${peer.minPing}s',
+          },
+        ),
+        InfoSection(
+          title: 'Sync Status',
+          details: {
+            'Starting Height': peer.startingHeight.toString(),
+            'Synced Headers': peer.syncedHeaders.toString(),
+            'Synced Blocks': peer.syncedBlocks.toString(),
+            'Last Transaction': time(peer.lastTransaction),
+            'Last Block': time(peer.lastBlock),
+          },
+        ),
+        InfoSection(
+          title: 'Traffic',
+          details: {
+            'Bytes Sent': '${peer.bytesSent} bytes',
+            'Bytes Received': '${peer.bytesRecv} bytes',
+            'Last Send': time(peer.lastSend),
+            'Last Receive': time(peer.lastRecv),
+          },
         ),
       ],
     );
@@ -539,7 +459,6 @@ class _ProcessesTabState extends State<ProcessesTab> {
   Widget build(BuildContext context) {
     final binaryProvider = GetIt.I.get<BinaryProvider>();
     final confProvider = GetIt.I.get<BitcoinConfProvider>();
-    final theme = context.sailTheme;
 
     return ListenableBuilder(
       listenable: Listenable.merge([_drivechaind, confProvider]),
@@ -550,7 +469,6 @@ class _ProcessesTabState extends State<ProcessesTab> {
           title: 'Binaries',
           subtitle: 'Managed by orchestrator',
           child: SailTable(
-            backgroundColor: theme.colors.backgroundSecondary,
             getRowId: (index) => allBinaries[index].name,
             headerBuilder: (context) => [
               const SailTableHeaderCell(name: 'Name'),
@@ -575,7 +493,17 @@ class _ProcessesTabState extends State<ProcessesTab> {
                 SailTableCell(value: binary.name),
                 SailTableCell(value: binary.type.name),
                 SailTableCell(value: (binary is BitcoinCore ? confProvider.rpcPort : binary.port).toString()),
-                SailTableCell(value: status),
+                SailTableCell(
+                  value: status,
+                  child: StatusDotLabel(
+                    label: status,
+                    tone: connected
+                        ? SailStatusTone.success
+                        : initializing
+                        ? SailStatusTone.warning
+                        : SailStatusTone.error,
+                  ),
+                ),
               ];
             },
             rowCount: allBinaries.length,
@@ -593,7 +521,6 @@ class BinariesTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final binaryProvider = GetIt.I.get<BinaryProvider>();
-    final theme = context.sailTheme;
 
     return ListenableBuilder(
       listenable: binaryProvider,
@@ -604,8 +531,7 @@ class BinariesTab extends StatelessWidget {
           title: 'Binary Hashes',
           subtitle: 'SHA256 hashes of downloaded binaries for verification',
           child: SailTable(
-            backgroundColor: theme.colors.backgroundSecondary,
-            getRowId: (index) => allBinaries[index].name,
+            getRowId: (index) => index.toString(),
             headerBuilder: (context) => [
               const SailTableHeaderCell(name: 'Name'),
               const SailTableHeaderCell(name: 'Version'),
@@ -639,22 +565,30 @@ class BinariesTab extends StatelessWidget {
             },
             rowCount: allBinaries.length,
             emptyPlaceholder: 'No binaries configured',
-            onDoubleTap: (index) {
+            onDoubleTap: (index) => _copyHash(context, allBinaries[int.parse(index)]),
+            contextMenuItems: (index) {
               final binary = allBinaries[int.parse(index)];
-              final hash = binary.downloadInfo.hash;
-              if (hash != null) {
-                Clipboard.setData(ClipboardData(text: hash));
-                showSailToast(
-                  context,
-                  'SHA256 hash copied to clipboard',
-                  duration: const Duration(seconds: 2),
-                );
-              }
+              return [
+                if (binary.downloadInfo.hash != null)
+                  SailMenuItem(
+                    onSelected: () => _copyHash(context, binary),
+                    child: SailText.primary12('Copy hash'),
+                  ),
+              ];
             },
           ),
         );
       },
     );
+  }
+
+  void _copyHash(BuildContext context, Binary binary) {
+    final hash = binary.downloadInfo.hash;
+    if (hash == null) {
+      return;
+    }
+    Clipboard.setData(ClipboardData(text: hash));
+    showSailToast(context, 'SHA256 hash copied to clipboard', duration: const Duration(seconds: 2));
   }
 }
 
@@ -665,11 +599,9 @@ class _HashVerificationIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.sailTheme;
-
     return switch (hashMatch) {
-      true => SailSVG.fromAsset(SailSVGAsset.circleCheck, width: 18, color: theme.colors.success),
-      false => SailSVG.fromAsset(SailSVGAsset.circleX, width: 24, color: theme.colors.error),
+      true => const StatusDotLabel(label: 'OK', tone: SailStatusTone.success),
+      false => const StatusDotLabel(label: 'MISMATCH', tone: SailStatusTone.error),
       null => SailText.secondary13('-'),
     };
   }

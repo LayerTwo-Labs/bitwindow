@@ -175,12 +175,43 @@ class FireplaceStat extends StatelessWidget {
     if (SailStyleValues.phoneLayout(context)) {
       return SailStatRow(title: title, subtitle: subtitle, value: value, loading: details);
     }
+    if (SailTheme.of(context).isBitwindowV2) {
+      return _StripStat(title: title, subtitle: subtitle, value: value, loading: details);
+    }
     return SailCardStats(
       title: title,
       subtitle: subtitle,
       value: value,
       icon: icon,
       loading: details,
+    );
+  }
+}
+
+/// One stat of the v2 stats strip: label, value, period.
+class _StripStat extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String value;
+  final LoadingDetails loading;
+
+  const _StripStat({required this.title, required this.subtitle, required this.value, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailSkeletonizer(
+      description: loading.description,
+      enabled: loading.enabled,
+      child: SailColumn(
+        spacing: SailStyleValues.padding04,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SailText.secondary12(title),
+          SailText.primary22(value, bold: true),
+          SailText.secondary12(subtitle),
+        ],
+      ),
     );
   }
 }
@@ -405,6 +436,14 @@ Future<void> displayBroadcastNewsDialog(BuildContext context, {String? topic}) a
     context: context,
     title: 'Broadcast News',
     subtitle: 'Broadcast News to the whole world',
+    headerEnd: SailRowMenuButton(
+      items: () => [
+        SailMenuItem(
+          onSelected: () => showNewsHelp(context),
+          child: SailText.primary12('Help'),
+        ),
+      ],
+    ),
     child: BroadcastNewsView(topic: topic),
   );
 }
@@ -435,24 +474,29 @@ Future<void> displayGraffitiExplorerDialog(BuildContext context) async {
       child: SizedBox(
         width: 900,
         height: 700,
-        child: GraffitiExplorerView(),
+        child: GraffitiExplorerView(inDialog: true),
       ),
     ),
   );
 }
 
-void _showNewsHelp(BuildContext context) {
+/// Explains the Broadcast News dialog.
+void showNewsHelp(BuildContext context) {
   showThemedDialog(
     context: context,
     builder: (context) => SailDialog(
       title: 'News Help',
-      actions: [
-        SailButton(
-          label: 'OK',
-          variant: ButtonVariant.ghost,
-          onPressed: () async => Navigator.of(context).pop(),
-        ),
-      ],
+      // In v2 the × in the head closes it.
+      withCloseButton: SailTheme.of(context).isBitwindowV2,
+      actions: SailTheme.of(context).isBitwindowV2
+          ? null
+          : [
+              SailButton(
+                label: 'OK',
+                variant: ButtonVariant.ghost,
+                onPressed: () async => Navigator.of(context).pop(),
+              ),
+            ],
       child: SailText.secondary13(
         'With this page you can pay a fee to broadcast news on any topic. '
         'Clicking "Broadcast" will create a transaction with an OP_RETURN '
@@ -480,7 +524,7 @@ class BroadcastNewsView extends StatelessWidget {
         return SingleChildScrollView(
           child: SailColumn(
             crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: SailStyleValues.padding16,
+            spacing: SailStyleValues.padding12,
             mainAxisSize: MainAxisSize.min,
             leadingSpacing: true,
             children: [
@@ -496,13 +540,15 @@ class BroadcastNewsView extends StatelessWidget {
                 hintText: 'First 64 bytes (or until Enter) is the headline',
                 minLines: 9,
               ),
-              SailTextField(
-                controller: viewModel.urlController,
-                hintText: 'Link URL (optional)',
-              ),
               SailRow(
-                spacing: SailStyleValues.padding16,
+                spacing: SailStyleValues.padding12,
                 children: [
+                  Expanded(
+                    child: SailTextField(
+                      controller: viewModel.urlController,
+                      hintText: 'Link URL (optional)',
+                    ),
+                  ),
                   SailDropdownButton<int>(
                     items: [
                       for (final kind in storyKinds.entries) SailDropdownItem(value: kind.key, label: kind.value),
@@ -510,47 +556,37 @@ class BroadcastNewsView extends StatelessWidget {
                     value: viewModel.subtype,
                     onChanged: viewModel.setSubtype,
                   ),
+                ],
+              ),
+              SailRow(
+                spacing: SailStyleValues.padding12,
+                children: [
                   SailCheckbox(
                     value: viewModel.nsfw,
                     onChanged: viewModel.setNsfw,
                     label: 'NSFW',
                   ),
-                ],
-              ),
-              SailColumn(
-                spacing: SailStyleValues.padding08,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SailTextField(
-                    controller: viewModel.feeController,
-                    hintText: 'Fee (optional)',
-                    suffixWidget: Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: SailText.secondary12(viewModel.feeUnit.symbol),
+                  Expanded(
+                    child: SailTextField(
+                      controller: viewModel.feeController,
+                      hintText: 'Fee (optional)',
+                      suffixWidget: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: SailText.secondary12(viewModel.feeUnit.symbol),
+                      ),
                     ),
                   ),
-                  FeeQuoteText(quote: viewModel.fee),
                 ],
               ),
+              FeeQuoteText(quote: viewModel.fee),
               if (viewModel.broadcastError != null) SailInlineError(viewModel.broadcastError!),
-              SailRow(
-                spacing: SailStyleValues.padding08,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  SailButton(
-                    label: 'Help',
-                    variant: ButtonVariant.ghost,
-                    icon: SailSVGAsset.iconQuestion,
-                    onPressed: () async => _showNewsHelp(context),
-                  ),
-                  SailButton(
-                    label: 'Broadcast',
-                    onPressed: () async => viewModel.broadcastNews(context),
-                    disabled: viewModel.headline.isEmpty || viewModel.topic == null,
-                  ),
-                ],
+              SizedBox(
+                width: double.infinity,
+                child: SailButton(
+                  label: 'Broadcast',
+                  onPressed: () async => viewModel.broadcastNews(context),
+                  disabled: viewModel.headline.isEmpty || viewModel.topic == null,
+                ),
               ),
             ],
           ),
@@ -789,6 +825,21 @@ class ManageNewsSubscriptionsView extends StatelessWidget {
           height: 400,
           child: InlineTabBar(
             secondary: true,
+            onTabChanged: viewModel.setTab,
+            endWidget: viewModel.tab == 0
+                ? SailRowMenuButton(
+                    items: () => [
+                      SailMenuItem(
+                        onSelected: () => viewModel.exportTopics(context),
+                        child: SailText.primary12('Export'),
+                      ),
+                      SailMenuItem(
+                        onSelected: () => viewModel.restoreDefaults(context),
+                        child: SailText.primary12('Restore Defaults'),
+                      ),
+                    ],
+                  )
+                : null,
             tabs: [
               SingleTabItem(
                 label: 'Your Topics',
@@ -825,12 +876,11 @@ class _YourTopicsTab extends StatelessWidget {
         Expanded(
           child: SailTable(
             getRowId: (index) => viewModel.topics[index].topic,
-            phoneColumns: const [0, 2, 3],
+            phoneColumns: const [0, 2],
             headerBuilder: (context) => [
               const SailTableHeaderCell(name: 'Name'),
               const SailTableHeaderCell(name: 'Identifier'),
               const SailTableHeaderCell(name: 'Status'),
-              const SailTableHeaderCell(name: ''),
             ],
             rowBuilder: (context, row, selected) {
               final topic = viewModel.topics[row];
@@ -841,18 +891,14 @@ class _YourTopicsTab extends StatelessWidget {
                   value: topic.confirmed ? 'Confirmed' : 'Pending',
                   textColor: topic.confirmed ? context.sailTheme.colors.success : context.sailTheme.colors.orange,
                 ),
-                SailTableCell(
-                  value: 'Leave',
-                  child: SailButton(
-                    label: 'Leave',
-                    variant: ButtonVariant.ghost,
-                    small: true,
-                    insideTable: true,
-                    onPressed: () async => viewModel.leave(topic),
-                  ),
-                ),
               ];
             },
+            contextMenuItems: (rowId) => [
+              SailMenuItem(
+                onSelected: () async => viewModel.leave(viewModel.topics.firstWhere((t) => t.topic == rowId)),
+                child: SailText.primary12('Leave'),
+              ),
+            ],
             rowCount: viewModel.topics.length,
             emptyPlaceholder: 'No topics subscribed',
             drawGrid: true,
@@ -864,29 +910,16 @@ class _YourTopicsTab extends StatelessWidget {
             },
           ),
         ),
-        SailRow(
-          spacing: SailStyleValues.padding08,
-          children: [
-            SailButton(
-              label: 'Export',
-              variant: ButtonVariant.outline,
-              onPressed: () async => viewModel.exportTopics(context),
-            ),
-            SailButton(
-              label: 'Import',
-              variant: ButtonVariant.outline,
-              onPressed: () async => viewModel.importTopics(context),
-            ),
-            const Spacer(),
-            SailButton(
-              label: 'Restore Defaults',
-              variant: ButtonVariant.secondary,
-              onPressed: () async => viewModel.restoreDefaults(context),
-            ),
-          ],
-        ),
         if (viewModel.topicActionError case final error?) SailInlineError(error),
         if (viewModel.importError != null) SailInlineError(viewModel.importError!),
+        SizedBox(
+          width: double.infinity,
+          child: SailButton(
+            label: 'Import',
+            variant: ButtonVariant.secondary,
+            onPressed: () async => viewModel.importTopics(context),
+          ),
+        ),
       ],
     );
   }
@@ -905,27 +938,17 @@ class _SubscribeTab extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
         SailText.secondary13('Add news topic by URL:'),
-        SailRow(
-          spacing: SailStyleValues.padding08,
-          children: [
-            Expanded(
-              child: SailTextField(
-                controller: viewModel.urlController,
-                hintText: SailStyleValues.phoneLayout(context)
-                    ? 'e.g. 7{a1a1a1a1}US Weekly'
-                    : 'Enter URL e.g. 7{a1a1a1a1}US Weekly',
-              ),
-            ),
-            SailButton(
-              label: 'Paste',
-              variant: ButtonVariant.secondary,
-              onPressed: () async => viewModel.pasteUrl(),
-            ),
-            SailButton(
-              label: 'Add',
-              onPressed: viewModel.canAdd ? () async => viewModel.addFromUrl(context) : null,
-            ),
-          ],
+        SailTextField(
+          controller: viewModel.urlController,
+          hintText: SailStyleValues.phoneLayout(context)
+              ? 'e.g. 7{a1a1a1a1}US Weekly'
+              : 'Enter URL e.g. 7{a1a1a1a1}US Weekly',
+          suffixWidget: SailButton(
+            label: 'Paste',
+            variant: ButtonVariant.ghost,
+            small: true,
+            onPressed: () async => viewModel.pasteUrl(),
+          ),
         ),
         if (viewModel.subscribeError != null)
           SailInlineError(viewModel.subscribeError!)
@@ -943,12 +966,11 @@ class _SubscribeTab extends StatelessWidget {
           Expanded(
             child: SailTable(
               getRowId: (index) => others[index].topic,
-              phoneColumns: const [0, 3],
+              phoneColumns: const [0, 2],
               headerBuilder: (context) => const [
                 SailTableHeaderCell(name: 'Name'),
                 SailTableHeaderCell(name: 'Identifier'),
                 SailTableHeaderCell(name: 'Status'),
-                SailTableHeaderCell(name: ''),
               ],
               rowBuilder: (context, row, selected) {
                 final topic = others[row];
@@ -959,28 +981,30 @@ class _SubscribeTab extends StatelessWidget {
                     value: topic.confirmed ? 'Confirmed' : 'Pending',
                     textColor: topic.confirmed ? context.sailTheme.colors.success : context.sailTheme.colors.orange,
                   ),
-                  SailTableCell(
-                    value: 'Subscribe',
-                    child: SailButton(
-                      label: 'Subscribe',
-                      variant: ButtonVariant.ghost,
-                      small: true,
-                      insideTable: true,
-                      onPressed: () async => viewModel.subscribe(context, topic),
-                    ),
-                  ),
                 ];
               },
+              contextMenuItems: (rowId) => [
+                SailMenuItem(
+                  onSelected: () async => viewModel.subscribe(context, others.firstWhere((t) => t.topic == rowId)),
+                  child: SailText.primary12('Subscribe'),
+                ),
+              ],
               rowCount: others.length,
               drawGrid: true,
             ),
           ),
-        ] else
-          const SailSpacing(SailStyleValues.padding16),
+        ],
         SailText.secondary12(
           'URL format: {days}{identifier}Name\n'
           'Example: 7{a1a1a1a1}US Weekly means a topic named "US Weekly" with identifier a1a1a1a1 and 7 day retention',
           color: context.sailTheme.colors.textTertiary,
+        ),
+        SizedBox(
+          width: double.infinity,
+          child: SailButton(
+            label: 'Add',
+            onPressed: viewModel.canAdd ? () async => viewModel.addFromUrl(context) : null,
+          ),
         ),
       ],
     );
@@ -1018,9 +1042,12 @@ class _CreateTopicTab extends StatelessWidget {
             controller: viewModel.retentionDaysController,
             hintText: '7',
           ),
-          SailButton(
-            label: 'Create Topic',
-            onPressed: viewModel.canCreate ? () async => viewModel.createTopic(context) : null,
+          SizedBox(
+            width: double.infinity,
+            child: SailButton(
+              label: 'Create Topic',
+              onPressed: viewModel.canCreate ? () async => viewModel.createTopic(context) : null,
+            ),
           ),
           if (viewModel.createTopicError != null)
             SailInlineError(viewModel.createTopicError!)
@@ -1075,6 +1102,14 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
 
   /// The topics on the chain that are not in Your Topics.
   List<Topic> get otherTopics => chainTopics.where((t) => _listed(t.topic.toLowerCase()) == null).toList();
+
+  /// The open tab: 0 Your Topics, 1 Subscribe, 2 Create Topic.
+  int tab = 0;
+
+  void setTab(int index) {
+    tab = index;
+    notifyListeners();
+  }
 
   final TextEditingController identifierController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
@@ -1433,10 +1468,14 @@ class NewGraffitiView extends StatelessWidget {
               minLines: 1,
               maxLines: 4,
             ),
-            SailButton(
-              label: 'Broadcast',
-              onPressed: () => viewModel.createGraffiti(context),
-              disabled: viewModel.messageController.text.isEmpty,
+            if (viewModel.graffitiError != null) SailInlineError(viewModel.graffitiError!),
+            SizedBox(
+              width: double.infinity,
+              child: SailButton(
+                label: 'Broadcast',
+                onPressed: () => viewModel.createGraffiti(context),
+                disabled: viewModel.messageController.text.isEmpty,
+              ),
             ),
             if (viewModel.graffitiResult case final link?)
               Semantics(
@@ -1457,7 +1496,6 @@ class NewGraffitiView extends StatelessWidget {
                   ],
                 ),
               ),
-            if (viewModel.graffitiError != null) SailInlineError(viewModel.graffitiError!),
           ],
         );
       },
@@ -1543,8 +1581,12 @@ class NewGraffitiViewModel extends BaseViewModel {
 }
 
 class GraffitiExplorerView extends StatelessWidget {
+  /// True draws the × that closes the dialog.
+  final bool inDialog;
+
   const GraffitiExplorerView({
     super.key,
+    this.inDialog = false,
   });
 
   @override
@@ -1564,6 +1606,7 @@ class GraffitiExplorerView extends StatelessWidget {
             label: 'New Graffiti',
             onPressed: () => newGraffitiDialog(context),
           ),
+          withCloseButton: inDialog,
           child: LayoutBuilder(
             builder: (context, constraints) {
               // Calculate available height for the table (total height minus filter row and spacing)
@@ -1575,7 +1618,12 @@ class GraffitiExplorerView extends StatelessWidget {
                 controller: viewModel.searchController,
                 prefixIcon: Padding(
                   padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: SailSVG.fromAsset(SailSVGAsset.search, color: context.sailTheme.colors.textTertiary),
+                  child: SailSVG.fromAsset(
+                    SailSVGAsset.search,
+                    width: 20,
+                    height: 20,
+                    color: context.sailTheme.colors.textTertiary,
+                  ),
                 ),
                 prefixIconConstraints: const BoxConstraints(maxHeight: 20, maxWidth: 40),
               );
@@ -1597,7 +1645,7 @@ class GraffitiExplorerView extends StatelessWidget {
               final clear = hasFilters
                   ? SailButton(
                       label: 'Clear',
-                      variant: ButtonVariant.secondary,
+                      variant: ButtonVariant.ghost,
                       onPressed: () async => viewModel.clearFilters(),
                     )
                   : null;
@@ -1718,6 +1766,8 @@ class _DatePickerField extends StatelessWidget {
                   ),
                   SailSVG.fromAsset(
                     SailSVGAsset.calendar,
+                    width: 20,
+                    height: 22,
                     color: theme.colors.textTertiary,
                   ),
                 ],
@@ -2026,6 +2076,21 @@ class FireplaceStatsView extends StatelessWidget {
 
         if (SailStyleValues.phoneLayout(context)) {
           return SailStatList(children: cardList);
+        }
+
+        if (SailTheme.of(context).isBitwindowV2) {
+          final theme = SailTheme.of(context);
+          return DecoratedBox(
+            key: const Key('FireplaceStrip'),
+            decoration: theme.chrome.panel(theme.colors),
+            child: Padding(
+              padding: const EdgeInsets.all(SailStyleValues.padding16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [for (final card in cardList) Expanded(child: card)],
+              ),
+            ),
+          );
         }
 
         return GridView.count(

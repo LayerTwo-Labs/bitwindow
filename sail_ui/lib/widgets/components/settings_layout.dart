@@ -43,9 +43,10 @@ class SailSettingsScaffold extends StatelessWidget {
       );
     }
 
+    final v2 = theme.isBitwindowV2;
     return Container(
       color: theme.colors.background,
-      padding: const EdgeInsets.all(SailStyleValues.padding16),
+      padding: EdgeInsets.all(v2 ? SailStyleValues.padding12 : SailStyleValues.padding16),
       child: SelectionArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,19 +59,21 @@ class SailSettingsScaffold extends StatelessWidget {
               ],
             ),
             const SailSpacing(SailStyleValues.padding12),
-            SailSeparator(thickness: 1, color: theme.colors.divider),
-            const SailSpacing(SailStyleValues.padding12),
+            if (!v2) ...[
+              SailSeparator(thickness: 1, color: theme.colors.divider),
+              const SailSpacing(SailStyleValues.padding12),
+            ],
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SideNav(
-                    width: 160,
+                    width: v2 ? 200 : 160,
                     items: sections.map((s) => SideNavItem(label: s.label)).toList(),
                     selectedIndex: index,
                     onItemSelected: onSectionSelected,
                   ),
-                  const SailSpacing(SailStyleValues.padding20),
+                  SailSpacing(v2 ? SailStyleValues.padding12 : SailStyleValues.padding20),
                   Expanded(child: sections[index].builder(context)),
                 ],
               ),
@@ -220,9 +223,9 @@ class SailSettingsBody extends StatelessWidget {
     return SingleChildScrollView(
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
+        constraints: BoxConstraints(maxWidth: SailTheme.of(context).isBitwindowV2 ? 820 : 760),
         child: SailColumn(
-          spacing: SailStyleValues.padding20,
+          spacing: SailTheme.of(context).isBitwindowV2 ? SailStyleValues.padding16 : SailStyleValues.padding20,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: children,
         ),
@@ -268,12 +271,14 @@ class SailSettingsGroup extends StatelessWidget {
           const SailSpacing(SailStyleValues.padding08),
         ],
         ClipRRect(
-          borderRadius: theme.chrome.radius,
+          borderRadius: theme.isBitwindowV2 ? theme.chrome.radiusLarge : theme.chrome.radius,
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(color: theme.colors.border),
-              borderRadius: theme.chrome.radius,
-            ),
+            decoration: theme.isBitwindowV2
+                ? theme.chrome.panel(theme.colors)
+                : BoxDecoration(
+                    border: Border.all(color: theme.colors.border),
+                    borderRadius: theme.chrome.radius,
+                  ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows),
           ),
         ),
@@ -330,10 +335,11 @@ class SailSettingsRow extends StatelessWidget {
       ],
     );
 
+    final v2 = theme.isBitwindowV2;
     final content = Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: SailStyleValues.padding12,
-        vertical: SailStyleValues.padding10,
+      padding: EdgeInsets.symmetric(
+        horizontal: v2 ? SailStyleValues.padding16 : SailStyleValues.padding12,
+        vertical: v2 ? SailStyleValues.padding12 : SailStyleValues.padding10,
       ),
       child: child == null
           ? head

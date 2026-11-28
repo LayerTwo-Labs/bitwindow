@@ -54,7 +54,7 @@ void main() {
     ('a valid', true, 'Message verified'),
     ('an invalid', false, 'Invalid signature'),
   ]) {
-    testWidgets('$name result shows next to the verify button', (tester) async {
+    testWidgets('$name result shows as a status pill under the verify button', (tester) async {
       await _pumpSigner(tester, const Size(800, 574));
       final api = GetIt.I.get<BitwindowRPC>().wallet as MockWalletAPI;
       api.verifyResult = valid;
@@ -67,11 +67,13 @@ void main() {
       await tester.tap(button);
       await tester.pumpAndSettle();
 
-      _expectNextTo(tester, find.text(result), button);
+      _expectUnder(tester, find.text(result), button);
+      final pill = tester.widget<SailStatusPill>(find.byType(SailStatusPill));
+      expect(pill.tone, valid ? SailStatusTone.success : SailStatusTone.error);
     });
   }
 
-  testWidgets('a verify error shows next to the verify button', (tester) async {
+  testWidgets('a verify error shows under the verify button', (tester) async {
     await _pumpSigner(tester, const Size(800, 574));
     GetIt.I.get<WalletReaderProvider>().activeWalletId = null;
     addTearDown(() => GetIt.I.get<WalletReaderProvider>().activeWalletId = 'w1');
@@ -83,7 +85,7 @@ void main() {
     await tester.tap(button);
     await tester.pumpAndSettle();
 
-    _expectNextTo(tester, find.textContaining('No active wallet'), button);
+    _expectUnder(tester, find.textContaining('No active wallet'), button);
   });
 
   testWidgets('a changed message drops the verify result', (tester) async {
@@ -157,6 +159,15 @@ void main() {
     expect(find.text('No active wallet'), findsOneWidget);
   });
 
+  testWidgets('each tab has one full-width button and the tabs have no icons', (tester) async {
+    await _pumpSigner(tester, const Size(800, 720));
+
+    final card = tester.getRect(find.byType(SailCard));
+    final sign = tester.getRect(find.widgetWithText(SailButton, 'Sign Message').last);
+    expect(sign.width, closeTo(card.width - 2 * SailStyleValues.padding16, 2));
+    expect(tester.widget<InlineTabBar>(find.byType(InlineTabBar)).tabs.map((t) => t.icon), everyElement(isNull));
+  });
+
   testWidgets('the verify help text ends with a full sentence', (tester) async {
     await _pumpSigner(tester, const Size(800, 574));
     await tester.tap(find.text('Verify Message').first);
@@ -166,11 +177,11 @@ void main() {
   });
 }
 
-void _expectNextTo(WidgetTester tester, Finder finder, Finder button) {
+void _expectUnder(WidgetTester tester, Finder finder, Finder button) {
   expect(finder, findsOneWidget);
   final rect = tester.getRect(finder);
   final buttonRect = tester.getRect(button);
-  expect(rect.left, greaterThan(buttonRect.right));
-  expect(rect.left, lessThan(buttonRect.right + 48));
-  expect(rect.center.dy, closeTo(buttonRect.center.dy, buttonRect.height / 2));
+  expect(rect.top, greaterThan(buttonRect.bottom));
+  expect(rect.top, lessThan(buttonRect.bottom + 32));
+  expect(rect.left, inInclusiveRange(buttonRect.left, buttonRect.left + 32));
 }

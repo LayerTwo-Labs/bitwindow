@@ -30,9 +30,13 @@ class TransferTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      child: SailColumn(
-        spacing: SailStyleValues.padding16,
-        children: const [DepositTab(), WithdrawTab()],
+      child: SailRow(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Expanded(child: DepositTab()),
+          Expanded(child: WithdrawTab()),
+        ],
       ),
     );
   }
@@ -263,36 +267,15 @@ class DepositTab extends StatelessWidget {
           widgetHeaderEnd: HelpButton(
             onPressed: () async => model.castHelp(context),
           ),
-          child: SailRow(
-            spacing: SailStyleValues.padding16,
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: SailColumn(
-                  spacing: SailStyleValues.padding08,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SailText.secondary13('Scan QR code or copy address below:'),
-                    const SizedBox(height: 8),
-                    SailTextField(
-                      loading: LoadingDetails(
-                        enabled: model.depositAddress == null,
-                        description: 'Waiting for ${model.sidechainName} to boot...',
-                      ),
-                      controller: TextEditingController(
-                        text: model.depositAddress,
-                      ),
-                      hintText: 'Generating deposit address...',
-                      readOnly: true,
-                      suffixWidget: CopyButton(
-                        text: model.depositAddress ?? '',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          child: SailTextField(
+            loading: LoadingDetails(
+              enabled: model.depositAddress == null,
+              description: 'Waiting for ${model.sidechainName} to boot...',
+            ),
+            controller: TextEditingController(text: model.depositAddress),
+            hintText: 'Generating deposit address...',
+            readOnly: true,
+            suffixWidget: CopyButton(text: model.depositAddress ?? ''),
           ),
         );
       },
@@ -311,119 +294,88 @@ class WithdrawTab extends ViewModelWidget<ParentChainTabViewModel> {
       title: 'Withdraw to Parent Chain',
       subtitle: 'Withdraw bitcoin from the sidechain to the parent chain',
       error: viewModel.withdrawError,
-      child: Column(
+      widgetHeaderEnd: SailRowMenuButton(
+        items: () => [
+          SailMenuItem(
+            onSelected: () {
+              viewModel.bitcoinAddressController.clear();
+              viewModel.bitcoinAmountController.clear();
+              viewModel.labelController.clear();
+            },
+            child: SailText.primary13('Clear All'),
+          ),
+        ],
+      ),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SailTextField(
             label: 'Pay To',
             controller: viewModel.bitcoinAddressController,
             hintText: 'Enter a L1 bitcoin-address (e.g. 1NS17iag9jJgTHD1VXjvLCEnZuQ3rJDE9L)',
-            size: TextFieldSize.small,
             suffixWidget: PasteButton(
               onPaste: (text) {
                 viewModel.bitcoinAddressController.text = text;
               },
             ),
           ),
-          const SizedBox(height: SailStyleValues.padding16),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    SailRow(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      spacing: SailStyleValues.padding08,
-                      children: [
-                        Expanded(
-                          child: NumericField(
-                            label: 'Amount',
-                            controller: viewModel.bitcoinAmountController,
-                            suffixWidget: SailButton(
-                              label: 'MAX',
-                              variant: ButtonVariant.link,
-                              onPressed: () async {
-                                if (viewModel.maxAmount != null) {
-                                  viewModel.bitcoinAmountController.text = viewModel.maxAmount.toString();
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: SailStyleValues.padding16),
-                    SailTextField(
-                      label: 'Label (optional)',
-                      controller: viewModel.labelController,
-                      hintText: 'Enter a label',
-                      size: TextFieldSize.small,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: SailStyleValues.padding16),
-          // Fee breakdown display
-          Container(
-            padding: const EdgeInsets.all(SailStyleValues.padding12),
-            decoration: BoxDecoration(
-              color: theme.colors.backgroundSecondary,
-              borderRadius: BorderRadius.circular(SailStyleValues.padding08),
+          NumericField(
+            label: 'Amount',
+            controller: viewModel.bitcoinAmountController,
+            suffixWidget: SailButton(
+              label: 'MAX',
+              variant: ButtonVariant.link,
+              onPressed: () async {
+                if (viewModel.maxAmount != null) {
+                  viewModel.bitcoinAmountController.text = viewModel.maxAmount.toString();
+                }
+              },
             ),
-            child: Column(
+          ),
+          SailTextField(
+            label: 'Label (optional)',
+            controller: viewModel.labelController,
+            hintText: 'Enter a label',
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SailStyleValues.padding12,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              color: theme.colors.background,
+              borderRadius: theme.chrome.radius,
+            ),
+            child: SailColumn(
+              spacing: 10,
               children: [
                 _FeeRow(
                   label: 'Withdrawal Amount',
                   value: viewModel.pegAmount ?? 0,
                 ),
-                const SizedBox(height: SailStyleValues.padding04),
                 _FeeRow(
                   label: 'Sidechain Fee',
                   value: viewModel.sidechainFee ?? 0,
                 ),
-                const SizedBox(height: SailStyleValues.padding04),
                 _FeeRow(
                   label: 'Mainchain Fee',
                   value: viewModel.mainchainFee ?? 0,
                 ),
-                Divider(
-                  color: theme.colors.divider,
-                  height: SailStyleValues.padding16,
-                ),
                 _FeeRow(
                   label: 'Total Cost',
                   value: (viewModel.pegAmount ?? 0) + (viewModel.sidechainFee ?? 0) + (viewModel.mainchainFee ?? 0),
-                  bold: true,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: SailStyleValues.padding16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  SailButton(
-                    label: 'Send',
-                    onPressed: () => viewModel.executePegOut(context),
-                    loading: viewModel.isBusy,
-                  ),
-                  const SizedBox(width: SailStyleValues.padding08),
-                  SailButton(
-                    variant: ButtonVariant.secondary,
-                    label: 'Clear All',
-                    onPressed: () async {
-                      viewModel.bitcoinAddressController.clear();
-                      viewModel.bitcoinAmountController.clear();
-                      viewModel.labelController.clear();
-                    },
-                  ),
-                ],
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: SailButton(
+              label: 'Send',
+              onPressed: () => viewModel.executePegOut(context),
+              loading: viewModel.isBusy,
+            ),
           ),
         ],
       ),
@@ -434,17 +386,17 @@ class WithdrawTab extends ViewModelWidget<ParentChainTabViewModel> {
 class _FeeRow extends StatelessWidget {
   final String label;
   final double value;
-  final bool bold;
 
-  const _FeeRow({required this.label, required this.value, this.bold = false});
+  const _FeeRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        SailText.primary12(label, bold: bold),
-        SailText.primary12(formatBitcoin(value), monospace: true, bold: bold),
+        SailText.primary13(label, color: theme.colors.textSecondary),
+        SailText.primary13(formatBitcoin(value), monospace: true),
       ],
     );
   }

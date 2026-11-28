@@ -8,4 +8,8 @@ void main() {
 
     expect(routes, contains(ZSideTransferTabRoute.name));
   });
+
+  test('the homepage puts the cards at the right of the tables', () {
+    expect(ZSideModule().homepageCardsRight, isTrue);
+  });
 }

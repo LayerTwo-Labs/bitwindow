@@ -1,7 +1,8 @@
 import 'package:flutter/widgets.dart';
+import 'package:sail_ui/pages/sidechains/sidechain_overview_page.dart';
 import 'package:sail_ui/sail_ui.dart';
 
-/// Badge widget displaying swap status with appropriate color
+/// The status of a swap as a dot and a label.
 class SwapStatusBadge extends StatelessWidget {
   final SwapState state;
 
@@ -9,42 +10,41 @@ class SwapStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final (color, text) = _getStatusInfo(theme);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: SailStyleValues.borderRadiusSmall,
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: SailText.secondary12(
-        text,
-        color: color,
-      ),
-    );
+    return SidechainStatusText(tone: swapStatusTone(state), text: swapStatusLabel(state));
   }
+}
 
-  (Color, String) _getStatusInfo(SailThemeData theme) {
-    if (state.isPending) {
-      return (theme.colors.orangeLight, 'Pending');
-    }
-    if (state.isWaitingConfirmations) {
-      return (
-        theme.colors.info,
-        '${state.currentConfirmations ?? 0}/${state.requiredConfirmations ?? 6} confirmations',
-      );
-    }
-    if (state.isReadyToClaim) {
-      return (theme.colors.success, 'Ready to Claim');
-    }
-    if (state.isCompleted) {
-      return (theme.colors.textSecondary, 'Completed');
-    }
-    if (state.isCancelled) {
-      return (theme.colors.error, 'Cancelled');
-    }
-    return (theme.colors.textSecondary, state.state);
+String swapStatusLabel(SwapState state) {
+  if (state.isPending) {
+    return 'Pending';
   }
+  if (state.isWaitingConfirmations) {
+    return '${state.currentConfirmations ?? 0}/${state.requiredConfirmations ?? 6} confirmations';
+  }
+  if (state.isReadyToClaim) {
+    return 'Ready to Claim';
+  }
+  if (state.isCompleted) {
+    return 'Completed';
+  }
+  if (state.isCancelled) {
+    return 'Cancelled';
+  }
+  return state.state;
+}
+
+SailStatusTone swapStatusTone(SwapState state) {
+  if (state.isPending) {
+    return SailStatusTone.warning;
+  }
+  if (state.isWaitingConfirmations) {
+    return SailStatusTone.info;
+  }
+  if (state.isReadyToClaim) {
+    return SailStatusTone.success;
+  }
+  if (state.isCancelled) {
+    return SailStatusTone.error;
+  }
+  return SailStatusTone.neutral;
 }

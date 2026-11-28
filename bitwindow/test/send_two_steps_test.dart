@@ -17,8 +17,6 @@ import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart' as pb show CoinSele
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 import 'package:sidechain_core/gen/walletpsbt/v1/walletpsbt.pb.dart';
 
-import 'test_utils.dart';
-
 class _SendViewModel extends SendPageViewModel {
   @override
   Future<void> init() async {}
@@ -459,59 +457,6 @@ void main() {
 
       expect(draft, isNull);
       expect(discarded, ['draft-1']);
-    });
-  });
-
-  group('SendActions', () {
-    Finder button(String label) => find.byWidgetPredicate((w) => w is SailButton && w.label == label);
-
-    Future<int> pumpActions(WidgetTester tester, {required bool creating, bool sendsNow = false}) async {
-      var cancels = 0;
-      await tester.pumpSailPage(
-        SendActions(
-          creating: creating,
-          sendsNow: sendsNow,
-          onCreate: () async {},
-          onCancel: () => cancels++,
-          onClear: () async {},
-          onAirgap: () async {},
-          deviceType: null,
-          onDevice: () async {},
-        ),
-      );
-      await tester.pump();
-      await tester.tap(button(creating ? 'Cancel' : 'Clear All'));
-      await tester.pump();
-      return cancels;
-    }
-
-    testWidgets('an idle form offers Create Transaction and Clear All', (tester) async {
-      final cancels = await pumpActions(tester, creating: false);
-
-      expect(button('Create Transaction'), findsOneWidget);
-      expect(tester.widget<SailButton>(button('Create Transaction')).disabled, isFalse);
-      expect(button('Clear All'), findsOneWidget);
-      expect(button('Cancel'), findsNothing);
-      expect(cancels, 0);
-    });
-
-    testWidgets('a build reads Creating… and Cancel stops it', (tester) async {
-      final cancels = await pumpActions(tester, creating: true);
-
-      final create = tester.widget<SailButton>(button('Create Transaction'));
-      expect(create.disabled, isTrue);
-      expect(create.loading, isTrue);
-      expect(find.text('Creating…'), findsWidgets);
-      expect(find.textContaining('Broadcasting'), findsNothing);
-      expect(button('Clear All'), findsNothing);
-      expect(cancels, 1);
-    });
-
-    testWidgets('a send to a payment code reads Send', (tester) async {
-      await pumpActions(tester, creating: false, sendsNow: true);
-
-      expect(button('Send'), findsOneWidget);
-      expect(button('Create Transaction'), findsNothing);
     });
   });
 

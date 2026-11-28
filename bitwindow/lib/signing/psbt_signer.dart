@@ -46,13 +46,10 @@ class AirgapPsbtSigner implements PsbtSigner {
   Future<String> signPsbt(String unsignedPsbtBase64, BuildContext context) async {
     final signed = await showThemedDialog<String>(
       context: context,
-      builder: (context) => SailModal(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 760),
-        child: AirgapSignStep(
-          unsignedPsbtBase64: unsignedPsbtBase64,
-          onSigned: (s) => Navigator.of(context).pop(s),
-          onCancel: () => Navigator.of(context).pop(),
-        ),
+      builder: (context) => AirgapSignStep(
+        unsignedPsbtBase64: unsignedPsbtBase64,
+        onSigned: (s) => Navigator.of(context).pop(s),
+        onCancel: () => Navigator.of(context).pop(),
       ),
     );
     if (signed == null || signed.isEmpty) {

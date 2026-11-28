@@ -1,3 +1,4 @@
+import 'package:bitwindow/widgets/send_panel_parts.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
@@ -145,53 +146,37 @@ class _HardwareDevicePickerState extends State<HardwareDevicePicker> {
 
   @override
   Widget build(BuildContext context) {
-    return SailModal(
-      constraints: const BoxConstraints(maxWidth: 480, maxHeight: 520),
-      child: SailCard(
-        title: 'Connect hardware wallet',
-        subtitle: 'Unlock your device and select it',
-        error: _error,
-        child: SailColumn(
-          mainAxisSize: MainAxisSize.min,
-          spacing: SailStyleValues.padding16,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_loading)
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const Center(child: LoadingIndicator()),
-                    if (_status != null) ...[
-                      const SizedBox(height: 12),
-                      SailText.secondary13(_status!, textAlign: TextAlign.center),
-                    ],
+    return SignDialog(
+      title: 'Connect hardware wallet',
+      subtitle: 'Unlock your device and select it',
+      error: _error,
+      button: SailButton(
+        label: 'Rescan',
+        loading: _loading,
+        onPressed: () async => _enumerate(),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_loading)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  const Center(child: LoadingIndicator()),
+                  if (_status != null) ...[
+                    const SizedBox(height: 12),
+                    SailText.secondary13(_status!, textAlign: TextAlign.center),
                   ],
-                ),
-              )
-            else if (_devices.isEmpty)
-              SailText.secondary13('No devices found. Unlock the device and reconnect it.')
-            else
-              ..._devices.map((d) => _deviceTile(context, d)),
-            SailRow(
-              mainAxisAlignment: MainAxisAlignment.end,
-              spacing: SailStyleValues.padding08,
-              children: [
-                SailButton(
-                  label: 'Rescan',
-                  variant: ButtonVariant.secondary,
-                  loading: _loading,
-                  onPressed: () async => _enumerate(),
-                ),
-                SailButton(
-                  label: 'Cancel',
-                  variant: ButtonVariant.ghost,
-                  onPressed: () async => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ],
-        ),
+                ],
+              ),
+            )
+          else if (_devices.isEmpty)
+            SailText.secondary13('No devices found. Unlock the device and reconnect it.')
+          else
+            ..._devices.map((d) => _deviceTile(context, d)),
+        ],
       ),
     );
   }
@@ -365,15 +350,19 @@ class _HardwareDevicePickerState extends State<HardwareDevicePicker> {
       child: Opacity(
         opacity: selectable ? 1 : 0.5,
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: theme.colors.background,
-            borderRadius: context.sailTheme.chrome.radius,
-            border: Border.all(color: theme.colors.border),
+            border: Border(bottom: BorderSide(color: theme.colors.divider)),
           ),
           child: Row(
             children: [
-              SailSVG.icon(SailSVGAsset.iconWallet, width: 18, color: theme.colors.text),
+              DecoratedBox(
+                decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: SailSVG.fromAsset(SailSVGAsset.shield, width: 14, height: 14, color: theme.colors.text),
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -382,10 +371,15 @@ class _HardwareDevicePickerState extends State<HardwareDevicePicker> {
                     SailText.primary13(d.model.isNotEmpty ? d.model : d.type, bold: true),
                     if (d.fingerprint.isNotEmpty)
                       SailText.secondary12('Fingerprint: ${d.fingerprint}', monospace: true),
-                    if (hint != null) SailText.secondary12(hint, color: theme.colors.orange),
+                    if (hint != null)
+                      SailText.secondary12(hint, color: theme.colors.orange, overflow: TextOverflow.visible),
                   ],
                 ),
               ),
+              if (selectable) ...[
+                const SizedBox(width: 8),
+                SailSVG.fromAsset(SailSVGAsset.chevronRight, width: 14, height: 14, color: theme.colors.text),
+              ],
             ],
           ),
         ),
@@ -413,39 +407,19 @@ class _DevicePassphraseDialogState extends State<DevicePassphraseDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return SailModal(
-      constraints: const BoxConstraints(maxWidth: 380),
-      child: SailCard(
-        title: 'Enter passphrase',
-        subtitle: 'The BIP39 passphrase selects which hidden wallet to open.',
-        child: SailColumn(
-          mainAxisSize: MainAxisSize.min,
-          spacing: SailStyleValues.padding16,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SailTextField(
-              controller: _controller,
-              hintText: 'Passphrase',
-              obscureText: true,
-              textFieldType: TextFieldType.text,
-            ),
-            SailRow(
-              spacing: SailStyleValues.padding08,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                SailButton(
-                  label: 'Cancel',
-                  variant: ButtonVariant.ghost,
-                  onPressed: () async => Navigator.of(context).pop(),
-                ),
-                SailButton(
-                  label: 'Confirm',
-                  onPressed: () async => Navigator.of(context).pop(_controller.text),
-                ),
-              ],
-            ),
-          ],
-        ),
+    return SignDialog(
+      title: 'Enter passphrase',
+      subtitle: 'The BIP39 passphrase selects which hidden wallet to open.',
+      maxWidth: 380,
+      button: SailButton(
+        label: 'Confirm',
+        onPressed: () async => Navigator.of(context).pop(_controller.text),
+      ),
+      child: SailTextField(
+        controller: _controller,
+        hintText: 'Passphrase',
+        obscureText: true,
+        textFieldType: TextFieldType.text,
       ),
     );
   }
@@ -471,59 +445,59 @@ class _TrezorPinDialogState extends State<TrezorPinDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return SailModal(
-      constraints: const BoxConstraints(maxWidth: 340),
-      child: SailCard(
-        title: 'Enter device PIN',
-        subtitle: 'Click the positions matching the scrambled digits shown on your device.',
-        child: SailColumn(
-          mainAxisSize: MainAxisSize.min,
-          spacing: SailStyleValues.padding16,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(child: SailText.primary24(_pin.isEmpty ? ' ' : '•' * _pin.length)),
-            for (final row in _rows)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (final pos in row)
-                    Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: SizedBox(
-                        width: 64,
-                        height: 56,
-                        child: SailButton(
-                          label: '•',
-                          variant: ButtonVariant.secondary,
-                          onPressed: () async => setState(() => _pin += '$pos'),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            SailRow(
-              spacing: SailStyleValues.padding08,
-              mainAxisAlignment: MainAxisAlignment.end,
+    final theme = SailTheme.of(context);
+    return SignDialog(
+      title: 'Enter device PIN',
+      subtitle: 'Click the positions matching the scrambled digits shown on your device.',
+      maxWidth: 340,
+      button: SailButton(
+        label: 'Unlock',
+        disabled: _pin.isEmpty,
+        onPressed: () async => Navigator.of(context).pop(_pin),
+      ),
+      child: SailColumn(
+        mainAxisSize: MainAxisSize.min,
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            key: const Key('pin_field'),
+            height: 40,
+            padding: const EdgeInsets.only(left: 12, right: 4),
+            decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+            child: Row(
               children: [
+                Expanded(child: SailText.primary15('•' * _pin.length)),
                 SailButton(
                   label: 'Clear',
-                  variant: ButtonVariant.ghost,
-                  onPressed: () async => setState(() => _pin = ''),
-                ),
-                SailButton(
-                  label: 'Cancel',
-                  variant: ButtonVariant.ghost,
-                  onPressed: () async => Navigator.of(context).pop(),
-                ),
-                SailButton(
-                  label: 'Unlock',
+                  variant: ButtonVariant.link,
                   disabled: _pin.isEmpty,
-                  onPressed: () async => Navigator.of(context).pop(_pin),
+                  onPressed: () async => setState(() => _pin = ''),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          for (final row in _rows)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (final pos in row)
+                  Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: SizedBox(
+                      width: 64,
+                      height: 48,
+                      child: SailButton(
+                        key: Key('pin_position_$pos'),
+                        label: '•',
+                        variant: ButtonVariant.secondary,
+                        onPressed: () async => setState(() => _pin += '$pos'),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+        ],
       ),
     );
   }

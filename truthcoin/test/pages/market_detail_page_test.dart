@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:sail_ui/sail_ui.dart' show SailButton, SailCard, SailRowMenuButton;
 import 'package:logger/logger.dart';
 import 'package:sidechain_core/mocks/mocks.dart';
 import 'package:sidechain_core/rpcs/bitcoind_connection.dart';
@@ -84,7 +85,7 @@ void main() {
       await tester.pumpSailPage(const MarketDetailPage(marketId: 'market_001'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Trade'), findsWidgets);
+      expect(find.text('Buy Yes'), findsWidgets);
     });
 
     testWidgets('shows buy and sell buttons', (WidgetTester tester) async {
@@ -125,7 +126,10 @@ void main() {
       expect(find.text('Any answer'), findsNWidgets(2));
       expect(find.text('4 of 4 outcomes match'), findsOneWidget);
       expect(find.text('Will eCash use a different DAA than Bitcoin by Jan 1, 2027?'), findsWidgets);
-      expect(find.text('Trade'), findsNWidgets(4));
+      expect(
+        find.descendant(of: find.widgetWithText(SailCard, 'Outcome prices'), matching: find.byType(SailRowMenuButton)),
+        findsNWidgets(4),
+      );
       expect(find.text('Not picked'), findsNWidgets(2));
       expect(find.textContaining('Pick an answer for each question'), findsOneWidget);
     });
@@ -137,12 +141,18 @@ void main() {
       await tester.pumpSailPage(const MarketDetailPage(marketId: '5e5ed0d19c4f'));
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Trade').at(1));
-      await tester.tap(find.text('Trade').at(1));
+      final rowMenus = find.descendant(
+        of: find.widgetWithText(SailCard, 'Outcome prices'),
+        matching: find.byType(SailRowMenuButton),
+      );
+      await tester.ensureVisible(rowMenus.at(1));
+      await tester.tap(rowMenus.at(1));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Trade'));
       await tester.pumpAndSettle();
 
       expect(find.text('Selected'), findsOneWidget);
-      expect(find.text('Trade'), findsNothing);
+      expect(rowMenus, findsNothing);
       expect(find.text('1 of 4 outcomes match'), findsOneWidget);
       expect(find.text('3 outcomes hidden by your picks.'), findsOneWidget);
       expect(find.text('Not picked'), findsNothing);
@@ -230,19 +240,32 @@ void main() {
   });
 
   group('MarketDetailPage add liquidity', () {
-    testWidgets('hides the card from a wallet that did not create the market', (WidgetTester tester) async {
+    Future<void> openPageMenu(WidgetTester tester) async {
+      await tester.tap(find.byType(SailRowMenuButton).first);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('hides Add liquidity from a wallet that did not create the market', (WidgetTester tester) async {
+      await tester.pumpSailPage(const MarketDetailPage(marketId: 'market_001'));
+      await tester.pumpAndSettle();
+      await openPageMenu(tester);
+      expect(find.text('Refresh'), findsOneWidget);
+      expect(find.text('Add liquidity'), findsNothing);
+    });
+
+    testWidgets('the page "…" opens the Add liquidity dialog for the market creator', (WidgetTester tester) async {
+      mockRpc.marketGetResponse = {...TestData.sampleMarketDetail, 'creator_address': 'tb1qtest1234567890'};
+      addTearDown(() => mockRpc.marketGetResponse = TestData.sampleMarketDetail);
       await tester.pumpSailPage(const MarketDetailPage(marketId: 'market_001'));
       await tester.pumpAndSettle();
       expect(find.text('Liquidity now'), findsNothing);
-    });
 
-    testWidgets('shows the card to the market creator', (WidgetTester tester) async {
-      mockRpc.marketGetResponse = {...TestData.sampleMarketDetail, 'creator_address': 'tb1qtest1234567890'};
-      await tester.pumpSailPage(const MarketDetailPage(marketId: 'market_001'));
+      await openPageMenu(tester);
+      await tester.tap(find.text('Add liquidity'));
       await tester.pumpAndSettle();
-      expect(find.text('Liquidity now'), findsOneWidget);
 
-      mockRpc.marketGetResponse = TestData.sampleMarketDetail;
+      expect(find.text('Liquidity now'), findsOneWidget);
+      expect(find.widgetWithText(SailButton, 'Add liquidity'), findsWidgets);
     });
 
     testWidgets('sends market_amplify_beta with the amount', (WidgetTester tester) async {

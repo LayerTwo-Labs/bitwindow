@@ -37,6 +37,9 @@ class SailCard extends StatelessWidget {
   final ShadowSize shadowSize;
   final bool secondary;
   final bool withCloseButton;
+
+  /// Runs on a tap on the ×. Null pops the route.
+  final Future<void> Function()? onClose;
   final bool inSeparateWindow;
   final SailWindow? newWindow;
 
@@ -61,10 +64,18 @@ class SailCard extends StatelessWidget {
     this.shadowSize = ShadowSize.regular,
     this.secondary = false,
     this.withCloseButton = false,
+    this.onClose,
     this.inSeparateWindow = false,
     this.newWindow,
     this.selected = false,
   });
+
+  Future<void> _close(BuildContext context) async {
+    if (onClose != null) {
+      return onClose!();
+    }
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +165,7 @@ class SailCard extends StatelessWidget {
                             SailButton(
                               variant: ButtonVariant.icon,
                               icon: SailSVGAsset.iconClose,
-                              onPressed: () async => Navigator.of(context).pop(),
+                              onPressed: () => _close(context),
                             ),
                           const SizedBox(width: 4),
                         ],
@@ -223,12 +234,7 @@ class SailCard extends StatelessWidget {
                                             },
                                           ),
                                         ),
-                                      if (withCloseButton)
-                                        SailButton(
-                                          variant: ButtonVariant.icon,
-                                          icon: SailSVGAsset.iconClose,
-                                          onPressed: () async => Navigator.of(context).pop(),
-                                        ),
+                                      if (withCloseButton) _SailCardCloseButton(onPressed: () => _close(context)),
                                     ],
                                   ),
                                 ],
@@ -249,12 +255,7 @@ class SailCard extends StatelessWidget {
                                         await windowProvider.open(newWindow!);
                                       },
                                     ),
-                                  if (withCloseButton)
-                                    SailButton(
-                                      variant: ButtonVariant.icon,
-                                      icon: SailSVGAsset.iconClose,
-                                      onPressed: () async => Navigator.of(context).pop(),
-                                    ),
+                                  if (withCloseButton) _SailCardCloseButton(onPressed: () => _close(context)),
                                 ],
                               ),
                             ),
@@ -276,6 +277,24 @@ class SailCard extends StatelessWidget {
 
 Widget _flexibleWhenBounded(bool boundedHeight, Widget child) {
   return boundedHeight ? Flexible(child: child) : child;
+}
+
+class _SailCardCloseButton extends StatelessWidget {
+  final Future<void> Function() onPressed;
+
+  const _SailCardCloseButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    if (SailTheme.of(context).isBitwindowV2) {
+      return SailIconBoxButton(icon: SailSVGAsset.x, tooltip: 'Close', onPressed: onPressed);
+    }
+    return SailButton(
+      variant: ButtonVariant.icon,
+      icon: SailSVGAsset.iconClose,
+      onPressed: onPressed,
+    );
+  }
 }
 
 class SailCardSmall extends StatelessWidget {
@@ -417,6 +436,31 @@ class SailAlertCard extends StatelessWidget {
       );
     }
 
+    if (SailTheme.of(context).isBitwindowV2) {
+      return Center(
+        child: SizedBox(
+          width: 512,
+          child: SailCard(
+            title: title,
+            subtitle: subtitle,
+            withCloseButton: true,
+            onClose: () => _cancel(context),
+            child: Padding(
+              padding: const EdgeInsets.only(top: SailStyleValues.padding08),
+              child: SailDialogActionButton(
+                action: SailDialogAction(
+                  label: confirmText,
+                  onPressed: onConfirm,
+                  variant: confirmButtonVariant ?? ButtonVariant.primary,
+                  loadingLabel: loadingLabel,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Center(
       child: SizedBox(
         width: 512,
@@ -530,6 +574,8 @@ class SailCardStats extends StatelessWidget {
                           if (bitcoinAmount)
                             SailSVG.fromAsset(
                               SailSVGAsset.bitcoin,
+                              width: 20,
+                              height: 20,
                               color: theme.colors.text,
                             ),
                           Flexible(
@@ -621,6 +667,23 @@ class _SailCardEditValuesState extends State<SailCardEditValues> {
 
   @override
   Widget build(BuildContext context) {
+    final save = SailButton(
+      label: widget.saveLabel,
+      onPressed: () async {
+        final updatedFields = List<EditField>.generate(
+          widget.fields.length,
+          (i) => EditField(
+            name: widget.fields[i].name,
+            currentValue: controllers[i].text,
+          ),
+        );
+        setState(() => _error = null);
+        final error = await widget.onSave(updatedFields);
+        if (mounted) {
+          setState(() => _error = error);
+        }
+      },
+    );
     return SailCard(
       title: widget.title,
       subtitle: widget.subtitle,
@@ -656,26 +719,11 @@ class _SailCardEditValuesState extends State<SailCardEditValues> {
             SailInlineError(_error!),
           ],
           const SailSpacing(SailStyleValues.padding16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: SailButton(
-              label: widget.saveLabel,
-              onPressed: () async {
-                final updatedFields = List<EditField>.generate(
-                  widget.fields.length,
-                  (i) => EditField(
-                    name: widget.fields[i].name,
-                    currentValue: controllers[i].text,
-                  ),
-                );
-                setState(() => _error = null);
-                final error = await widget.onSave(updatedFields);
-                if (mounted) {
-                  setState(() => _error = error);
-                }
-              },
-            ),
-          ),
+          // v2 dialogs end in one full-width main button.
+          if (SailTheme.of(context).isBitwindowV2)
+            SizedBox(width: double.infinity, child: save)
+          else
+            Align(alignment: Alignment.centerRight, child: save),
         ],
       ),
     );

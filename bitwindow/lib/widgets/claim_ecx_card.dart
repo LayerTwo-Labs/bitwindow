@@ -270,13 +270,13 @@ class _ClaimEcxCardState extends State<ClaimEcxCard> {
         spacing: 0,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Head(icon: SailSVGAsset.key, color: theme.colors.primary, title: 'Claim your $_ticker'),
+          const _Head(title: 'Claim your $_ticker'),
           const SailSpacing(SailStyleValues.padding04),
           SailText.secondary13(
             'Paste the private key from your investor letter. Nothing moves until you see the amount.',
           ),
           const SailSpacing(SailStyleValues.padding16),
-          SailText.secondary12('PRIVATE KEY'),
+          SailText.primary12('Private key', bold: true),
           const SailSpacing(SailStyleValues.padding08),
           SailTextField(
             controller: _wifController,
@@ -457,7 +457,6 @@ class _ClaimedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
     final network = GetIt.I.get<BitcoinConfProvider>().network;
     final url = mempoolTxUrl(txid, network);
 
@@ -466,7 +465,12 @@ class _ClaimedCard extends StatelessWidget {
         spacing: 0,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Head(icon: SailSVGAsset.circleCheck, color: theme.colors.success, title: '$_ticker claimed'),
+          _Head(
+            title: '$_ticker claimed',
+            menuItems: () => [
+              SailMenuItem(onSelected: onAnother, child: SailText.primary12('Claim another key')),
+            ],
+          ),
           const SailSpacing(SailStyleValues.padding04),
           SailText.secondary13('Your $_ticker is on the way to your wallet. It lands in the next block.'),
           const SailSpacing(SailStyleValues.padding16),
@@ -474,38 +478,15 @@ class _ClaimedCard extends StatelessWidget {
           const SailSpacing(SailStyleValues.padding04),
           SailText.secondary12('To ${shortenAddress(destination)}'),
           const SailSpacing(SailStyleValues.padding16),
-          SailText.secondary12('TXID'),
-          const SailSpacing(SailStyleValues.padding08),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: SailStyleValues.padding12,
-              vertical: SailStyleValues.padding10,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colors.background,
-              borderRadius: context.sailTheme.chrome.radius,
-              border: Border.all(color: theme.colors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(child: SailText.primary12(shortenAddress(txid))),
-                SailButton(
-                  label: 'View on explorer',
-                  variant: ButtonVariant.link,
-                  icon: SailSVGAsset.externalLink,
-                  small: true,
-                  onPressed: () async => openUrl(Uri.parse(url)),
-                ),
-              ],
-            ),
+          SailDetailGroup(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            children: [SailDetailLine(label: 'TXID', value: shortenAddress(txid), wrap: true, gap: 16)],
           ),
-          const SailSpacing(SailStyleValues.padding10),
+          const SailSpacing(SailStyleValues.padding16),
           _WideButton(
-            label: 'Claim another key',
-            icon: SailSVGAsset.rotateCcw,
-            variant: ButtonVariant.outline,
-            onPressed: () async => onAnother(),
+            label: 'View on explorer',
+            icon: SailSVGAsset.externalLink,
+            onPressed: () async => openUrl(Uri.parse(url)),
           ),
         ],
       ),
@@ -529,31 +510,18 @@ class _FailedCard extends StatelessWidget {
         spacing: 0,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Head(icon: SailSVGAsset.circleAlert, color: theme.colors.error, title: 'Claim failed'),
+          _Head(
+            title: 'Claim failed',
+            menuItems: () => [
+              SailMenuItem(onSelected: onDifferentKey, child: SailText.primary12('Use a different key')),
+            ],
+          ),
           const SailSpacing(SailStyleValues.padding04),
           SailText.secondary13('The network refused the transaction. Your key is untouched and nothing moved.'),
           const SailSpacing(SailStyleValues.padding12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: SailStyleValues.padding12,
-              vertical: SailStyleValues.padding10,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colors.background,
-              borderRadius: context.sailTheme.chrome.radius,
-              border: Border.all(color: theme.colors.border),
-            ),
-            child: SailText.secondary12(reason),
-          ),
+          SailText.primary12(reason, color: theme.colors.error, overflow: TextOverflow.visible),
           const SailSpacing(SailStyleValues.padding16),
           _WideButton(label: 'Try again', icon: SailSVGAsset.refreshCw, onPressed: onRetry),
-          const SailSpacing(SailStyleValues.padding10),
-          _WideButton(
-            label: 'Use a different key',
-            variant: ButtonVariant.outline,
-            onPressed: () async => onDifferentKey(),
-          ),
         ],
       ),
     );
@@ -561,19 +529,19 @@ class _FailedCard extends StatelessWidget {
 }
 
 class _Head extends StatelessWidget {
-  final SailSVGAsset icon;
-  final Color color;
   final String title;
 
-  const _Head({required this.icon, required this.color, required this.title});
+  /// The actions of the "…" menu. Null hides the menu.
+  final List<SailMenuEntity> Function()? menuItems;
+
+  const _Head({required this.title, this.menuItems});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        SailSVG.icon(icon, width: 18, height: 18, color: color),
-        const SizedBox(width: SailStyleValues.padding08),
-        SailText.primary15(title, bold: true),
+        Expanded(child: SailText.primary16(title, bold: true)),
+        if (menuItems != null) SailRowMenuButton(items: menuItems!),
       ],
     );
   }
@@ -603,7 +571,6 @@ class _WideButton extends StatelessWidget {
   final SailSVGAsset? icon;
   final bool loading;
   final bool disabled;
-  final ButtonVariant variant;
   final Future<void> Function()? onPressed;
 
   const _WideButton({
@@ -611,7 +578,6 @@ class _WideButton extends StatelessWidget {
     this.icon,
     this.loading = false,
     this.disabled = false,
-    this.variant = ButtonVariant.primary,
     this.onPressed,
   });
 
@@ -624,7 +590,6 @@ class _WideButton extends StatelessWidget {
         icon: icon,
         loading: loading,
         disabled: disabled || onPressed == null,
-        variant: variant,
         onPressed: onPressed ?? () async {},
       ),
     );

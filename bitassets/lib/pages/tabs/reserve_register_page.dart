@@ -19,7 +19,9 @@ class BitAssetsTabPage extends StatelessWidget {
       child: ViewModelBuilder<BitAssetsViewModel>.reactive(
         viewModelBuilder: () => BitAssetsViewModel(),
         builder: (context, model, child) {
-          return InlineTabBar(
+          final details = model.detailsEntry;
+          final tabs = InlineTabBar(
+            onTabChanged: (_) => model.closeDetails(),
             tabs: [
               TabItem(
                 label: 'My Assets',
@@ -44,6 +46,17 @@ class BitAssetsTabPage extends StatelessWidget {
             ],
             initialIndex: 0,
           );
+          final showPanel = details != null && !SailStyleValues.phoneLayout(context);
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: tabs),
+              if (showPanel) ...[
+                const SizedBox(width: SailStyleValues.padding12),
+                BitAssetDetailsPanel(entry: details, onClose: () async => model.closeDetails()),
+              ],
+            ],
+          );
         },
       ),
     );
@@ -61,55 +74,54 @@ class MyAssetsTab extends StatelessWidget {
     return SailCard(
       title: 'Your BitAssets',
       subtitle: 'The BitAssets your wallet holds',
-      child: SailColumn(
-        spacing: SailStyleValues.padding16,
-        children: [
-          SailTextField(
-            hintText: 'Search your bitassets...',
-            controller: model.searchController,
-          ),
-          Expanded(
-            child: SailSkeletonizer(
-              description: 'Loading bitassets...',
-              enabled: model.isLoading,
-              child: SailTable(
-                getRowId: (index) => model.myEntries[index].hash,
-                headerBuilder: (context) => [
-                  SailTableHeaderCell(name: 'Hash'),
-                  SailTableHeaderCell(name: 'Name'),
-                  SailTableHeaderCell(name: 'Amount'),
-                  SailTableHeaderCell(name: 'Sequence ID'),
-                  SailTableHeaderCell(name: 'Encryption Key'),
-                  SailTableHeaderCell(name: 'Signing Key'),
-                ],
-                rowBuilder: (context, row, selected) {
-                  final entry = model.myEntries[row];
-                  final shortHash = '${entry.hash.substring(0, 10)}..';
-                  return [
-                    SailTableCell(value: shortHash, copyValue: entry.hash),
-                    SailTableCell(value: entry.plaintextName ?? '<unknown>'),
-                    SailTableCell(value: model.amountOf(entry.hash).toString(), monospace: true),
-                    SailTableCell(value: entry.sequenceID.toString()),
-                    SailTableCell(value: entry.details.encryptionPubkey != null ? 'Set' : '-'),
-                    SailTableCell(value: entry.details.signingPubkey != null ? 'Set' : '-'),
-                  ];
-                },
-                contextMenuItems: (rowId) {
-                  final entry = model.myEntries.firstWhereOrNull((e) => e.hash == rowId);
-                  if (entry == null) return [];
-                  return [
-                    SailMenuItem(
-                      onSelected: () async => await showBitAssetDetails(context, entry),
-                      child: SailText.primary12('Show Details'),
-                    ),
-                  ];
-                },
-                rowCount: model.myEntries.length,
-                drawGrid: true,
+      widgetHeaderEnd: SizedBox(
+        width: 240,
+        child: SailTextField(hintText: 'Search your bitassets...', controller: model.searchController),
+      ),
+      child: SailSkeletonizer(
+        description: 'Loading bitassets...',
+        enabled: model.isLoading,
+        child: SailTable(
+          getRowId: (index) => model.myEntries[index].hash,
+          selectedRowId: model.detailsEntry?.hash,
+          onSelectedRow: (rowId) => model.showDetailsById(context, model.myEntries, rowId),
+          headerBuilder: (context) => [
+            SailTableHeaderCell(name: 'Name'),
+            SailTableHeaderCell(name: 'Hash'),
+            SailTableHeaderCell(name: 'Amount', alignment: Alignment.centerRight),
+            SailTableHeaderCell(name: 'Sequence ID'),
+            SailTableHeaderCell(name: 'Encryption Key'),
+            SailTableHeaderCell(name: 'Signing Key'),
+          ],
+          rowBuilder: (context, row, selected) {
+            final entry = model.myEntries[row];
+            final shortHash = '${entry.hash.substring(0, 10)}..';
+            return [
+              SailTableCell(value: entry.plaintextName ?? '<unknown>'),
+              SailTableCell(value: shortHash, copyValue: entry.hash),
+              SailTableCell(
+                value: model.amountOf(entry.hash).toString(),
+                monospace: true,
+                alignment: Alignment.centerRight,
               ),
-            ),
-          ),
-        ],
+              SailTableCell(value: entry.sequenceID.toString()),
+              SailTableCell(value: entry.details.encryptionPubkey != null ? 'Set' : '-'),
+              SailTableCell(value: entry.details.signingPubkey != null ? 'Set' : '-'),
+            ];
+          },
+          contextMenuItems: (rowId) {
+            final entry = model.myEntries.firstWhereOrNull((e) => e.hash == rowId);
+            if (entry == null) return [];
+            return [
+              SailMenuItem(
+                onSelected: () async => model.showDetails(context, entry),
+                child: SailText.primary12('Show Details'),
+              ),
+            ];
+          },
+          rowCount: model.myEntries.length,
+          drawGrid: true,
+        ),
       ),
     );
   }
@@ -192,48 +204,51 @@ class _SendBitAssetTabState extends State<SendBitAssetTab> {
   Widget build(BuildContext context) {
     final myAssets = widget.model.myEntries;
 
-    return SailCard(
-      title: 'Send BitAsset',
-      subtitle: 'Transfer BitAsset tokens to another address',
-      error: _error,
-      child: SailColumn(
-        spacing: SailStyleValues.padding16,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SailDropdownButton<String>(
-            value: _selectedAssetId,
-            items: myAssets
-                .map(
-                  (a) => SailDropdownItem<String>(
-                    value: a.hash,
-                    label: '${a.plaintextName ?? '${a.hash.substring(0, 10)}...'} (${widget.model.amountOf(a.hash)})',
-                  ),
-                )
-                .toList(),
-            onChanged: (v) => setState(() => _selectedAssetId = v),
-          ),
-          SailTextField(
-            label: 'Destination Address',
-            hintText: 'Enter recipient address',
-            controller: _destController,
-          ),
-          NumericField(
-            label: 'Amount',
-            hintText: '0',
-            controller: _amountController,
-          ),
-          SailButton(
-            label: 'Send',
-            onPressed: _send,
-            loading: _isSending,
-            disabled: myAssets.isEmpty,
-          ),
-          if (myAssets.isEmpty)
-            SailText.secondary13(
-              'Your wallet holds no BitAssets.',
-              color: context.sailTheme.colors.textTertiary,
+    return _FormColumn(
+      child: SailCard(
+        title: 'Send BitAsset',
+        subtitle: 'Transfer BitAsset tokens to another address',
+        error: _error,
+        child: SailColumn(
+          spacing: SailStyleValues.padding12,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SailDropdownButton<String>(
+              value: _selectedAssetId,
+              items: myAssets
+                  .map(
+                    (a) => SailDropdownItem<String>(
+                      value: a.hash,
+                      label: '${a.plaintextName ?? '${a.hash.substring(0, 10)}...'} (${widget.model.amountOf(a.hash)})',
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedAssetId = v),
             ),
-        ],
+            SailTextField(
+              label: 'Destination Address',
+              hintText: 'Enter recipient address',
+              controller: _destController,
+            ),
+            NumericField(
+              label: 'Amount',
+              hintText: '0',
+              controller: _amountController,
+            ),
+            SailButton(
+              label: 'Send',
+              onPressed: _send,
+              loading: _isSending,
+              disabled: myAssets.isEmpty,
+            ),
+            if (myAssets.isEmpty)
+              SailText.secondary13(
+                'Your wallet holds no BitAssets.',
+                color: context.sailTheme.colors.textTertiary,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -276,29 +291,31 @@ class _ReceiveBitAssetTabState extends State<ReceiveBitAssetTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SailCard(
-      title: 'Receive BitAssets',
-      subtitle: 'Share this address to receive BitAsset tokens',
-      child: SailColumn(
-        spacing: SailStyleValues.padding16,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SailTextField(
-            label: 'Your Sidechain Address',
-            loading: LoadingDetails(
-              enabled: _isLoading,
-              description: 'Generating address...',
+    return _FormColumn(
+      child: SailCard(
+        title: 'Receive BitAssets',
+        subtitle: 'Share this address to receive BitAsset tokens',
+        child: SailColumn(
+          spacing: SailStyleValues.padding12,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SailTextField(
+              label: 'Your Sidechain Address',
+              loading: LoadingDetails(
+                enabled: _isLoading,
+                description: 'Generating address...',
+              ),
+              controller: TextEditingController(text: _address ?? ''),
+              hintText: 'Generating deposit address...',
+              readOnly: true,
+              suffixWidget: CopyButton(text: _address ?? ''),
             ),
-            controller: TextEditingController(text: _address ?? ''),
-            hintText: 'Generating deposit address...',
-            readOnly: true,
-            suffixWidget: CopyButton(text: _address ?? ''),
-          ),
-          SailText.secondary13(
-            'This is your sidechain address. Send BitAsset tokens to this address to receive them.',
-            color: context.sailTheme.colors.textTertiary,
-          ),
-        ],
+            SailText.secondary13(
+              'This is your sidechain address. Send BitAsset tokens to this address to receive them.',
+              color: context.sailTheme.colors.textTertiary,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -315,61 +332,62 @@ class AllAssetsTab extends StatelessWidget {
     return SailCard(
       title: 'All BitAssets',
       subtitle: 'All registered BitAssets on the network',
-      child: SailColumn(
-        spacing: SailStyleValues.padding16,
-        children: [
-          SailTextField(
-            hintText: 'Search bitassets...',
-            controller: model.searchController,
-          ),
-          Expanded(
-            child: SailSkeletonizer(
-              description: 'Loading bitassets...',
-              enabled: model.isLoading,
-              child: SailTable(
-                getRowId: (index) => model.entries[index].hash,
-                headerBuilder: (context) => [
-                  SailTableHeaderCell(name: 'Hash'),
-                  SailTableHeaderCell(name: 'Name'),
-                  SailTableHeaderCell(name: 'Sequence ID'),
-                  SailTableHeaderCell(name: 'Commitment'),
-                  SailTableHeaderCell(name: 'Encryption Key'),
-                  SailTableHeaderCell(name: 'Signing Key'),
-                ],
-                rowBuilder: (context, row, selected) {
-                  final entry = model.entries[row];
-                  final shortHash = '${entry.hash.substring(0, 10)}..';
-                  return [
-                    SailTableCell(value: shortHash, copyValue: entry.hash),
-                    SailTableCell(value: entry.plaintextName ?? '<unknown>'),
-                    SailTableCell(value: entry.sequenceID.toString()),
-                    SailTableCell(value: entry.details.commitment ?? '-'),
-                    SailTableCell(value: entry.details.encryptionPubkey != null ? 'Set' : '-'),
-                    SailTableCell(value: entry.details.signingPubkey != null ? 'Set' : '-'),
-                  ];
-                },
-                contextMenuItems: (rowId) {
-                  final entry = model.entries.firstWhereOrNull((e) => e.hash == rowId);
-                  if (entry == null) return [];
-                  return [
-                    SailMenuItem(
-                      onSelected: () async => await showBitAssetDetails(context, entry),
-                      child: SailText.primary12('Show Details'),
+      widgetHeaderEnd: SizedBox(
+        width: 240,
+        child: SailTextField(hintText: 'Search bitassets...', controller: model.searchController),
+      ),
+      child: SailSkeletonizer(
+        description: 'Loading bitassets...',
+        enabled: model.isLoading,
+        child: SailTable(
+          getRowId: (index) => model.entries[index].hash,
+          selectedRowId: model.detailsEntry?.hash,
+          onSelectedRow: (rowId) => model.showDetailsById(context, model.entries, rowId),
+          headerBuilder: (context) => [
+            SailTableHeaderCell(name: 'Name'),
+            SailTableHeaderCell(name: 'Hash'),
+            SailTableHeaderCell(name: 'Sequence ID'),
+            SailTableHeaderCell(name: 'Commitment'),
+            SailTableHeaderCell(name: 'Encryption Key'),
+            SailTableHeaderCell(name: 'Signing Key'),
+          ],
+          rowBuilder: (context, row, selected) {
+            final entry = model.entries[row];
+            final shortHash = '${entry.hash.substring(0, 10)}..';
+            return [
+              SailTableCell(value: entry.plaintextName ?? '<unknown>'),
+              SailTableCell(value: shortHash, copyValue: entry.hash),
+              SailTableCell(value: entry.sequenceID.toString()),
+              entry.details.commitment == null
+                  ? const SailTableCell(value: '-')
+                  : SailTableCell(
+                      value: entry.details.commitment!.length > 36
+                          ? '${entry.details.commitment!.substring(0, 36)}...'
+                          : entry.details.commitment!,
+                      copyValue: entry.details.commitment,
                     ),
-                  ];
-                },
-                rowCount: model.entries.length,
-                drawGrid: true,
+              SailTableCell(value: entry.details.encryptionPubkey != null ? 'Set' : '-'),
+              SailTableCell(value: entry.details.signingPubkey != null ? 'Set' : '-'),
+            ];
+          },
+          contextMenuItems: (rowId) {
+            final entry = model.entries.firstWhereOrNull((e) => e.hash == rowId);
+            if (entry == null) return [];
+            return [
+              SailMenuItem(
+                onSelected: () async => model.showDetails(context, entry),
+                child: SailText.primary12('Show Details'),
               ),
-            ),
-          ),
-        ],
+            ];
+          },
+          rowCount: model.entries.length,
+          drawGrid: true,
+        ),
       ),
     );
   }
 }
 
-/// Tab for reserving and registering BitAssets
 class RegisterBitAssetTab extends StatelessWidget {
   final BitAssetsViewModel model;
 
@@ -377,110 +395,207 @@ class RegisterBitAssetTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    final reserve = SailCard(
+      title: 'Reserve',
+      subtitle: 'Reserve a name before registering',
       child: SailColumn(
-        spacing: SailStyleValues.padding16,
+        spacing: SailStyleValues.padding12,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Reserve Card
-          SailCard(
-            title: 'Reserve',
-            subtitle: 'Reserve a name before registering',
-            error: model.reserveError,
-            child: SailColumn(
-              spacing: SailStyleValues.padding16,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SailTextField(
-                  label: 'Plaintext Name',
-                  hintText: 'Enter name to reserve',
-                  controller: model.reserveNameController,
-                  enabled: !model.reserveLoading,
-                ),
-                SailButton(
-                  label: 'Reserve',
-                  onPressed: () => model.reserveBitname(context),
-                  loading: model.reserveLoading,
-                ),
-              ],
+          SailTextField(
+            label: 'Plaintext Name',
+            hintText: 'Enter name to reserve',
+            controller: model.reserveNameController,
+            enabled: !model.reserveLoading,
+            errorText: model.reserveError,
+          ),
+          SailButton(
+            label: 'Reserve',
+            onPressed: () => model.reserveBitname(context),
+            loading: model.reserveLoading,
+          ),
+        ],
+      ),
+    );
+    final register = SailCard(
+      title: 'Register',
+      subtitle: 'Register a reserved name with data',
+      error: model.registerError,
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Pair(
+            first: SailTextField(
+              label: 'Plaintext Name',
+              hintText: 'Enter name to register',
+              controller: model.registerNameController,
+            ),
+            second: SailTextField(
+              label: 'Initial Supply',
+              hintText: 'Enter initial supply',
+              controller: model.initialSupplyController,
             ),
           ),
-          // Register Card
-          SailCard(
-            title: 'Register',
-            subtitle: 'Register a reserved name with data',
-            error: model.registerError,
-            child: SailColumn(
-              spacing: SailStyleValues.padding16,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SailTextField(
-                  label: 'Plaintext Name',
-                  hintText: 'Enter name to register',
-                  controller: model.registerNameController,
-                ),
-                SailTextField(
-                  label: 'Initial Supply',
-                  hintText: 'Enter initial supply',
-                  controller: model.initialSupplyController,
-                ),
-                SailTextField(
-                  label: 'Commitment (optional)',
-                  hintText: '64-character hex Blake3 hash',
-                  controller: model.commitmentController,
-                ),
-                SailTextField(
-                  label: 'IPv4 Address (optional)',
-                  hintText: 'Enter IPv4 address',
-                  controller: model.ipv4Controller,
-                ),
-                SailTextField(
-                  label: 'IPv6 Address (optional)',
-                  hintText: 'Enter IPv6 address',
-                  controller: model.ipv6Controller,
-                ),
-                SailCheckbox(
-                  label: 'Set Encryption Pubkey',
-                  value: model.useEncryptionKey,
-                  onChanged: (value) {
-                    model.useEncryptionKey = value;
-                    model.notifyListeners();
-                  },
-                ),
-                if (model.useEncryptionKey && model.encryptionKey != null)
-                  SailTextField(
-                    label: 'Encryption Pubkey',
-                    controller: TextEditingController(text: model.encryptionKey),
-                    hintText: 'Encryption Pubkey',
-                    readOnly: true,
-                  ),
-                SailCheckbox(
-                  label: 'Set Signing Pubkey',
-                  value: model.useSigningKey,
-                  onChanged: (value) {
-                    model.useSigningKey = value;
-                    model.notifyListeners();
-                  },
-                ),
-                if (model.useSigningKey && model.signingKey != null)
-                  SailTextField(
-                    label: 'Signing Pubkey',
-                    controller: TextEditingController(text: model.signingKey),
-                    hintText: 'Signing Pubkey',
-                    readOnly: true,
-                  ),
-                SailButton(
-                  label: 'Register',
-                  onPressed: () => model.registerBitAsset(context),
-                  loading: model.registerLoading,
-                ),
-              ],
+          SailTextField(
+            label: 'Commitment (optional)',
+            hintText: '64-character hex Blake3 hash',
+            controller: model.commitmentController,
+          ),
+          _Pair(
+            first: SailTextField(
+              label: 'IPv4 Address (optional)',
+              hintText: 'Enter IPv4 address',
+              controller: model.ipv4Controller,
+            ),
+            second: SailTextField(
+              label: 'IPv6 Address (optional)',
+              hintText: 'Enter IPv6 address',
+              controller: model.ipv6Controller,
             ),
           ),
+          SailCheckbox(
+            label: 'Set Encryption Pubkey',
+            value: model.useEncryptionKey,
+            onChanged: (value) {
+              model.useEncryptionKey = value;
+              model.notifyListeners();
+            },
+          ),
+          if (model.useEncryptionKey && model.encryptionKey != null)
+            SailTextField(
+              label: 'Encryption Pubkey',
+              controller: TextEditingController(text: model.encryptionKey),
+              hintText: 'Encryption Pubkey',
+              readOnly: true,
+            ),
+          SailCheckbox(
+            label: 'Set Signing Pubkey',
+            value: model.useSigningKey,
+            onChanged: (value) {
+              model.useSigningKey = value;
+              model.notifyListeners();
+            },
+          ),
+          if (model.useSigningKey && model.signingKey != null)
+            SailTextField(
+              label: 'Signing Pubkey',
+              controller: TextEditingController(text: model.signingKey),
+              hintText: 'Signing Pubkey',
+              readOnly: true,
+            ),
+          SailButton(
+            label: 'Register',
+            onPressed: () => model.registerBitAsset(context),
+            loading: model.registerLoading,
+          ),
+        ],
+      ),
+    );
+
+    if (SailStyleValues.phoneLayout(context)) {
+      return SingleChildScrollView(
+        child: SailColumn(spacing: SailStyleValues.padding12, children: [reserve, register]),
+      );
+    }
+    return SingleChildScrollView(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(flex: 1, child: reserve),
+          const SizedBox(width: SailStyleValues.padding12),
+          Expanded(flex: 2, child: register),
         ],
       ),
     );
   }
 }
+
+/// Two fields side by side; a phone stacks them.
+class _Pair extends StatelessWidget {
+  final Widget first;
+  final Widget second;
+
+  const _Pair({required this.first, required this.second});
+
+  @override
+  Widget build(BuildContext context) {
+    if (SailStyleValues.phoneLayout(context)) {
+      return SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [first, second],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: first),
+        const SizedBox(width: SailStyleValues.padding12),
+        Expanded(child: second),
+      ],
+    );
+  }
+}
+
+/// Holds a form card at the top left, at a readable width.
+class _FormColumn extends StatelessWidget {
+  final Widget child;
+
+  const _FormColumn({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: child),
+      ),
+    );
+  }
+}
+
+/// The 380 px panel with every field of one BitAsset.
+class BitAssetDetailsPanel extends StatelessWidget {
+  final BitAssetEntry entry;
+  final Future<void> Function() onClose;
+
+  const BitAssetDetailsPanel({super.key, required this.entry, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailSidePanel(
+      key: ValueKey('bitasset_details_${entry.hash}'),
+      title: 'BitAsset Details',
+      onClose: onClose,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SailText.primary24(entry.plaintextName ?? '<unknown>', bold: true),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailDetailGroup(children: _detailLines(entry)),
+        ],
+      ),
+    );
+  }
+}
+
+List<Widget> _detailLines(BitAssetEntry entry) => [
+  SailStackedDetail(label: 'Hash', value: entry.hash),
+  SailStackedDetail(label: 'Sequence ID', value: entry.sequenceID.toString()),
+  if (entry.plaintextName != null) SailStackedDetail(label: 'Name', value: entry.plaintextName!),
+  if (entry.details.commitment != null) SailStackedDetail(label: 'Commitment', value: entry.details.commitment!),
+  if (entry.details.socketAddrV4 != null)
+    SailStackedDetail(label: 'Socket Address (IPv4)', value: entry.details.socketAddrV4!),
+  if (entry.details.socketAddrV6 != null)
+    SailStackedDetail(label: 'Socket Address (IPv6)', value: entry.details.socketAddrV6!),
+  if (entry.details.encryptionPubkey != null)
+    SailStackedDetail(label: 'Encryption Public Key', value: entry.details.encryptionPubkey!),
+  if (entry.details.signingPubkey != null)
+    SailStackedDetail(label: 'Signing Public Key', value: entry.details.signingPubkey!),
+];
 
 Future<void> showBitAssetDetails(BuildContext context, BitAssetEntry entry) async {
   await Future.microtask(() async {
@@ -495,66 +610,14 @@ Future<void> showBitAssetDetails(BuildContext context, BitAssetEntry entry) asyn
             child: SailCard(
               title: 'BitAsset Details',
               subtitle: entry.plaintextName ?? entry.hash,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DetailRow(label: 'Hash', value: entry.hash),
-                    DetailRow(label: 'Sequence ID', value: entry.sequenceID.toString()),
-                    if (entry.plaintextName != null) DetailRow(label: 'Name', value: entry.plaintextName!),
-                    if (entry.details.commitment != null)
-                      DetailRow(label: 'Commitment', value: entry.details.commitment!),
-                    if (entry.details.socketAddrV4 != null)
-                      DetailRow(label: 'Socket Address (IPv4)', value: entry.details.socketAddrV4!),
-                    if (entry.details.socketAddrV6 != null)
-                      DetailRow(label: 'Socket Address (IPv6)', value: entry.details.socketAddrV6!),
-                    if (entry.details.encryptionPubkey != null)
-                      DetailRow(label: 'Encryption Public Key', value: entry.details.encryptionPubkey!),
-                    if (entry.details.signingPubkey != null)
-                      DetailRow(label: 'Signing Public Key', value: entry.details.signingPubkey!),
-                  ],
-                ),
-              ),
+              withCloseButton: true,
+              child: SingleChildScrollView(child: SailDetailGroup(children: _detailLines(entry))),
             ),
           ),
         );
       },
     );
   });
-}
-
-class DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const DetailRow({super.key, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 160,
-            child: SailText.primary13(
-              label,
-              monospace: true,
-              color: context.sailTheme.colors.textTertiary,
-            ),
-          ),
-          Expanded(
-            child: SailText.secondary13(
-              value,
-              monospace: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class BitAssetsViewModel extends BaseViewModel {
@@ -581,6 +644,9 @@ class BitAssetsViewModel extends BaseViewModel {
   // Register state
   bool registerLoading = false;
   String? registerError;
+
+  /// The asset the side panel shows. Null hides the panel.
+  BitAssetEntry? detailsEntry;
 
   // New state variables
   bool useEncryptionKey = false;
@@ -680,6 +746,32 @@ class BitAssetsViewModel extends BaseViewModel {
   int amountOf(String hash) => provider.ownedAmounts[hash] ?? 0;
 
   bool get isLoading => !provider.initialized;
+
+  /// Shows [entry] in the side panel, or in a dialog on a phone.
+  Future<void> showDetails(BuildContext context, BitAssetEntry entry) async {
+    if (SailStyleValues.phoneLayout(context)) {
+      await showBitAssetDetails(context, entry);
+      return;
+    }
+    detailsEntry = entry;
+    notifyListeners();
+  }
+
+  Future<void> showDetailsById(BuildContext context, List<BitAssetEntry> list, String? rowId) async {
+    final entry = list.firstWhereOrNull((e) => e.hash == rowId);
+    if (entry == null) {
+      return;
+    }
+    await showDetails(context, entry);
+  }
+
+  void closeDetails() {
+    if (detailsEntry == null) {
+      return;
+    }
+    detailsEntry = null;
+    notifyListeners();
+  }
 
   Future<void> reserveBitname(BuildContext context) async {
     final name = reserveNameController.text.trim();

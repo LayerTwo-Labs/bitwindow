@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:bitwindow/dialogs/mining_settings_dialog.dart';
 import 'package:bitwindow/pages/mining/mining_page.dart';
+import 'package:bitwindow/pages/mining/mining_parts.dart';
 import 'package:bitwindow/pages/mining/pools_tab.dart';
 import 'package:bitwindow/providers/mining_pools_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
@@ -310,211 +313,182 @@ class _MiningTabState extends State<MiningTab> {
     final status = _stratum.status;
     final key = _currentKey;
     final solo = key == _soloKey;
+    final connected = status.running && !(key == _customKey && status.target.kind != TargetKind.TARGET_KIND_CUSTOM);
 
-    return SingleChildScrollView(
-      child: SailColumn(
-        spacing: SailStyleValues.padding16,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SailCard(
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SailStrip(
+          lead: MiningStripLead(
             title: 'Stratum server',
             subtitle: 'Mining for ASIC miners on your network',
             error: _serverError ?? _stratum.error ?? (status.error.isEmpty ? null : status.error),
-            widgetHeaderEnd: SailRow(
-              spacing: SailStyleValues.padding12,
-              children: [
-                SailBadge(
-                  status.running ? 'Running' : 'Stopped',
-                  tone: status.running ? SailBadgeTone.success : SailBadgeTone.neutral,
-                ),
-                status.running
-                    ? SailButton(
-                        label: 'Stop',
-                        variant: ButtonVariant.outline,
-                        onPressed: () async =>
-                            _run('Could not stop the stratum server', (e) => _serverError = e, _stratum.stop),
-                      )
-                    : SailButton(label: 'Start', onPressed: () async => _start()),
-                SailButton(
-                  variant: ButtonVariant.icon,
-                  icon: SailSVGAsset.tabSettings,
-                  onPressed: () async =>
-                      showThemedDialog(context: context, builder: (context) => const MiningSettingsDialog()),
+          ),
+          stats: _stats(status, solo),
+          status: SailStatusPill(
+            label: status.running ? 'Running' : 'Stopped',
+            tone: status.running ? SailStatusTone.success : SailStatusTone.neutral,
+          ),
+          actions: [
+            status.running
+                ? SailButton(
+                    label: 'Stop',
+                    onPressed: () async =>
+                        _run('Could not stop the stratum server', (e) => _serverError = e, _stratum.stop),
+                  )
+                : SailButton(label: 'Start', onPressed: () async => _start()),
+            SailRowMenuButton(
+              items: () => [
+                SailMenuItem(
+                  onSelected: () => unawaited(
+                    showThemedDialog(context: context, builder: (context) => const MiningSettingsDialog()),
+                  ),
+                  child: SailText.primary12('Mining settings'),
                 ),
               ],
             ),
-            child: SailColumn(
-              spacing: SailStyleValues.padding16,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SailColumn(
-                  spacing: SailStyleValues.padding08,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SailText.primary13('Mine to', bold: true),
-                    SailRow(
-                      spacing: SailStyleValues.padding12,
-                      children: [
-                        SailCombobox<String>(
-                          items: _targetItems(),
-                          value: key,
-                          width: 480,
-                          searchPlaceholder: 'Search pools',
-                          noResultsText: 'No pool found',
-                          onChanged: (next) => _choose(next),
-                        ),
-                        Flexible(child: SailText.secondary13(_description(key))),
-                      ],
-                    ),
-                  ],
-                ),
-                if (!status.running)
-                  _stoppedFields(status)
-                else if (key == _customKey && status.target.kind != TargetKind.TARGET_KIND_CUSTOM)
-                  SailColumn(
+          ],
+        ),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: SailColumn(
                     spacing: SailStyleValues.padding12,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (status.running) _hashrateCard(),
+                      SailCard(
+                        title: 'Miners',
+                        error: _minerError,
+                        child: SailTable(
+                          shrinkWrap: true,
+                          getRowId: (i) => '${status.miners[i].address}/${status.miners[i].worker}',
+                          emptyPlaceholder: 'No miner connected',
+                          headerBuilder: (context) => const [
+                            SailTableHeaderCell(name: 'Worker'),
+                            SailTableHeaderCell(name: 'Address'),
+                            SailTableHeaderCell(name: 'Hashrate'),
+                            SailTableHeaderCell(name: 'Best share'),
+                            SailTableHeaderCell(name: 'Accepted / rejected'),
+                            SailTableHeaderCell(name: 'Temperature'),
+                            SailTableHeaderCell(name: 'Fan'),
+                            SailTableHeaderCell(name: 'Power'),
+                            SailTableHeaderCell(name: 'Work mode'),
+                            SailTableHeaderCell(name: 'Last share'),
+                          ],
+                          rowCount: status.miners.length,
+                          rowBuilder: (context, row, selected) => _minerRow(status.miners[row]),
+                        ),
+                      ),
+                      _sharesCard(status),
+                      if (solo) _blocksCard(status) else _poolBlocksCard(),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: SailStyleValues.padding12),
+              SailSidePanel(
+                title: 'Mine to',
+                menuItems: connected ? () => _copyItems(status) : null,
+                child: SailColumn(
+                  spacing: SailStyleValues.padding12,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) => SailCombobox<String>(
+                        items: _targetItems(),
+                        value: key,
+                        width: constraints.maxWidth,
+                        popoverWidth: 480,
+                        popoverAlignment: SailPopoverAlignment.end,
+                        searchPlaceholder: 'Search pools',
+                        noResultsText: 'No pool found',
+                        onChanged: (next) => _choose(next),
+                      ),
+                    ),
+                    SailText.secondary13(_description(key)),
+                    if (!status.running)
+                      _stoppedFields(status)
+                    else if (!connected) ...[
                       ..._customFields(),
                       SailButton(label: 'Mine to this pool', onPressed: () async => _switchToCustom()),
-                    ],
-                  )
-                else
-                  _connectPanel(status),
-              ],
-            ),
+                    ] else
+                      _connectPanel(status),
+                  ],
+                ),
+              ),
+            ],
           ),
-          _statTiles(status, solo),
-          if (status.running) _hashrateCard(),
-          SailCard(
-            title: 'Miners',
-            error: _minerError,
-            child: SailTable(
-              shrinkWrap: true,
-              getRowId: (i) => '${status.miners[i].address}/${status.miners[i].worker}',
-              emptyPlaceholder: 'No miner connected',
-              headerBuilder: (context) => const [
-                SailTableHeaderCell(name: 'Worker'),
-                SailTableHeaderCell(name: 'Address'),
-                SailTableHeaderCell(name: 'Hashrate'),
-                SailTableHeaderCell(name: 'Best share'),
-                SailTableHeaderCell(name: 'Accepted / rejected'),
-                SailTableHeaderCell(name: 'Temperature'),
-                SailTableHeaderCell(name: 'Fan'),
-                SailTableHeaderCell(name: 'Power'),
-                SailTableHeaderCell(name: 'Work mode'),
-                SailTableHeaderCell(name: 'Last share'),
-              ],
-              rowCount: status.miners.length,
-              rowBuilder: (context, row, selected) => _minerRow(status.miners[row]),
-            ),
-          ),
-          _sharesCard(status),
-          if (solo) _blocksCard(status) else _poolBlocksCard(),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
+  List<SailMenuEntity> _copyItems(GetStratumStatusResponse status) {
+    return [
+      if (status.poolUrl.isNotEmpty)
+        SailMenuItem(
+          onSelected: () => unawaited(_copy('Pool address', status.poolUrl)),
+          child: SailText.primary12('Copy pool address'),
+        ),
+      SailMenuItem(
+        onSelected: () => unawaited(_copy('Password', 'x')),
+        child: SailText.primary12('Copy password'),
+      ),
+    ];
+  }
+
   Widget _connectPanel(GetStratumStatusResponse status) {
-    final theme = SailTheme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(SailStyleValues.padding16),
-      decoration: BoxDecoration(
-        color: theme.colors.backgroundSecondary,
-        borderRadius: context.sailTheme.chrome.radiusSmall,
-      ),
-      child: SailColumn(
-        spacing: SailStyleValues.padding08,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _field(
-            'Pool address',
-            status.poolUrl.isEmpty ? '—' : status.poolUrl,
-            copy: status.poolUrl.isEmpty ? null : status.poolUrl,
-            info: poolAddressInfo,
-          ),
-          _field('Worker', 'Any name'),
-          _field('Password', 'x', copy: 'x'),
-          if (status.target.kind == TargetKind.TARGET_KIND_CUSTOM) _field('Pool worker', status.target.worker),
-          _payoutField(status),
-        ],
-      ),
+    return SailDetailGroup(
+      children: [
+        _field('Pool address', status.poolUrl.isEmpty ? '—' : status.poolUrl, info: poolAddressInfo),
+        _field('Worker', 'Any name'),
+        _field('Password', 'x'),
+        if (status.target.kind == TargetKind.TARGET_KIND_CUSTOM) _field('Pool worker', status.target.worker),
+        if (_currentKey != _customKey) _payoutField(status),
+      ],
     );
   }
 
   /// A custom pool pays whatever its own worker name earns, so this address
   /// says nothing there.
   Widget _payoutField(GetStratumStatusResponse status) {
-    if (_currentKey == _customKey) {
-      return const SizedBox.shrink();
-    }
     return _field('Payout address', status.payoutAddress.isEmpty ? '—' : status.payoutAddress);
   }
 
-  Widget _field(String label, String value, {String? copy, String? info}) {
-    return SailRow(
-      spacing: SailStyleValues.padding12,
-      children: [
-        SizedBox(
-          width: 170,
-          child: SailRow(
-            spacing: SailStyleValues.padding04,
-            children: [
-              Flexible(child: SailText.secondary13(label)),
-              if (info != null) SailInfoIcon(title: label, message: info),
-            ],
-          ),
-        ),
-        Flexible(child: SailText.primary13(value, monospace: copy != null)),
-        if (copy != null)
-          SailButton(
-            variant: ButtonVariant.icon,
-            icon: SailSVGAsset.iconCopy,
-            onPressed: () async => _copy(label, copy),
-          ),
-      ],
-    );
-  }
+  Widget _field(String label, String value, {String? info}) => SailDetailLine(label: label, value: value, info: info);
 
   Widget _stoppedFields(GetStratumStatusResponse status) {
     if (_currentKey == _customKey) {
       return SailColumn(
         spacing: SailStyleValues.padding12,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [..._customFields(), _payoutField(status)],
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _customFields(),
       );
     }
-    return _payoutField(status);
+    return SailDetailGroup(children: [_payoutField(status)]);
   }
 
   List<Widget> _customFields() {
     return [
-      SizedBox(
-        width: 480,
-        child: SailTextField(controller: _poolUrl, label: 'Pool address', hintText: 'stratum+tcp://'),
-      ),
-      SizedBox(
-        width: 480,
-        child: SailTextField(controller: _worker, label: 'Worker', hintText: 'address.worker'),
-      ),
-      SizedBox(
-        width: 240,
-        child: SailTextField(controller: _password, label: 'Password', hintText: 'x'),
-      ),
+      SailTextField(controller: _poolUrl, label: 'Pool address', hintText: 'stratum+tcp://'),
+      SailTextField(controller: _worker, label: 'Worker', hintText: 'address.worker'),
+      SailTextField(controller: _password, label: 'Password', hintText: 'x'),
     ];
   }
 
-  Widget _statTiles(GetStratumStatusResponse status, bool solo) {
+  List<Widget> _stats(GetStratumStatusResponse status, bool solo) {
     final miners = status.miners.length;
     final expected = expectedTimeToBlock(status.networkDifficulty, status.hashrate);
-    final tiles = <Widget>[
-      SailCardStats(
-        title: 'Hashrate',
+    return [
+      MiningStat(
+        label: 'Hashrate',
         value: formatHashrate(status.hashrate),
         subtitle: '$miners ${miners == 1 ? 'miner' : 'miners'}',
-        icon: SailSVGAsset.barChartBig,
         info: hashrateInfo(
           hashrate: status.hashrate,
           networkHashrate: status.networkHashrate,
@@ -523,11 +497,10 @@ class _MiningTabState extends State<MiningTab> {
           formattedNetwork: formatHashrate(status.networkHashrate),
         ),
       ),
-      SailCardStats(
-        title: 'Best share',
+      MiningStat(
+        label: 'Best share',
         value: formatDifficulty(status.bestShare),
         subtitle: 'of ${formatDifficulty(status.networkDifficulty)} needed for a block',
-        icon: SailSVGAsset.scatterChart,
         info: bestShareInfo(
           bestShare: status.bestShare,
           won: status.bestShareWon,
@@ -535,40 +508,33 @@ class _MiningTabState extends State<MiningTab> {
         ),
       ),
       if (solo) ...[
-        SailCardStats(
-          title: 'Blocks found',
+        MiningStat(
+          label: 'Blocks found',
           value: '${status.blocksFound.length}',
           subtitle: 'since the server started',
-          icon: SailSVGAsset.boxes,
           info: blocksFoundInfo,
         ),
-        SailCardStats(
-          title: 'Expected time to a block',
+        MiningStat(
+          label: 'Expected time to a block',
           value: expected == null ? '—' : formatLongDuration(expected),
           subtitle: 'at the current hashrate',
-          icon: SailSVGAsset.hourglass,
           info: expectedTimeInfo,
         ),
       ] else ...[
-        SailCardStats(
-          title: 'Accepted shares',
+        MiningStat(
+          label: 'Accepted shares',
           value: '${status.acceptedShares}',
           subtitle: '${status.rejectedShares} rejected',
-          icon: SailSVGAsset.iconCheck,
           info: recentSharesInfo,
         ),
-        SailCardStats(
-          title: 'Pool',
+        MiningStat(
+          label: 'Pool',
           value: status.poolConnected ? 'Connected' : 'Disconnected',
+          valueColor: status.poolConnected ? SailTheme.of(context).colors.success : null,
           subtitle: status.poolHost,
-          icon: SailSVGAsset.iconNetwork,
         ),
       ],
     ];
-    return SailRow(
-      spacing: SailStyleValues.padding16,
-      children: [for (final tile in tiles) Expanded(child: tile)],
-    );
   }
 
   Widget _hashrateCard() {

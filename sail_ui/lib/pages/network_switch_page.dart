@@ -106,77 +106,41 @@ class _NetworkSwitchPageState extends State<NetworkSwitchPage> {
 
     return Scaffold(
       backgroundColor: theme.colors.background,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: theme.colors.background,
-        foregroundColor: theme.colors.text,
-      ),
       body: SafeArea(
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: SizedBox(
-              width: 800,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisSize: MainAxisSize.max,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(SailStyleValues.padding32),
+            child: Container(
+              key: const Key('drivechains-not-enabled-card'),
+              width: 560,
+              padding: const EdgeInsets.all(SailStyleValues.padding16),
+              decoration: BoxDecoration(
+                color: theme.colors.backgroundSecondary,
+                borderRadius: theme.chrome.radiusLarge,
+                border: Border.all(color: theme.colors.border),
+              ),
+              child: SailColumn(
+                spacing: SailStyleValues.padding12,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Column(
-                    children: [
-                      const SizedBox(height: 30),
-                      SailText.primary40(
-                        'Drivechains Not Enabled',
-                        bold: true,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-                      SailText.primary15(
-                        'Drivechains are not enabled on $currentNetwork yet.\n'
-                        'You must switch to eCash, Signet, or Regtest to use sidechains.',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 30),
-                    ],
+                  SailText.primary20('Drivechains Not Enabled', bold: true),
+                  SailText.secondary13(
+                    'Drivechains are not enabled on $currentNetwork yet.\n'
+                    'You must switch to eCash, Signet, or Regtest to use sidechains.',
                   ),
-                  const Spacer(),
-                  // Network selector
+                  SailText.primary13('Select a network with drivechain support:'),
+                  dropdown,
+                  if (_errorMessage != null) SailText.secondary12(_errorMessage!, color: theme.colors.error),
                   SizedBox(
-                    width: 400,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        SailText.secondary13(
-                          'Select a network with drivechain support:',
-                        ),
-                        const SizedBox(height: 16),
-                        dropdown,
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 16),
-                          SailText.secondary12(
-                            _errorMessage!,
-                            color: theme.colors.error,
-                          ),
-                        ],
-                      ],
+                    width: double.infinity,
+                    child: SailButton(
+                      label: 'Switch Network',
+                      variant: ButtonVariant.primary,
+                      loading: _isSwitching,
+                      onPressed: _handleSwitch,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  const Spacer(),
-                  const Spacer(),
-                  // Switch button
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SailButton(
-                        label: 'Switch Network',
-                        variant: ButtonVariant.primary,
-                        loading: _isSwitching,
-                        onPressed: _handleSwitch,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
                 ],
               ),
             ),

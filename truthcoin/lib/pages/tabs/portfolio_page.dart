@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -12,10 +14,9 @@ import 'package:truthcoin/truthcoin_module.dart';
 import 'package:truthcoin/routing/router.dart';
 import 'package:truthcoin/widgets/market_card.dart';
 import 'package:truthcoin/widgets/market_stat_tile.dart';
+import 'package:truthcoin/widgets/v2_parts.dart';
 
-const double _positionsHeight = 360;
-const double _yourMarketsHeight = 240;
-const double _sendCardWidth = 576;
+const double _sideWidth = 380;
 const int _votecoinNetworkFeeSats = 1000;
 
 @RoutePage()
@@ -28,27 +29,53 @@ class PortfolioPage extends StatelessWidget {
       viewModelBuilder: () => PortfolioViewModel(),
       onViewModelReady: (model) => model.init(),
       builder: (context, model, child) {
+        final phone = SailStyleValues.phoneLayout(context);
         return QtPage(
-          child: SingleChildScrollView(
-            child: SailColumn(
-              spacing: SailStyleValues.padding16,
-              children: [
-                _Header(model: model),
-                _StatTiles(model: model),
-                SizedBox(
-                  height: _positionsHeight,
-                  child: _PositionsCard(model: model),
-                ),
-                _YourMarketsCard(model: model),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: _sendCardWidth),
-                    child: _SendVotecoinCard(model: model),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (phone || constraints.maxWidth < 900) {
+                return SingleChildScrollView(
+                  child: SailColumn(
+                    spacing: SailStyleValues.padding12,
+                    children: [
+                      if (phone) ...[_PhoneHeader(model: model), _StatTiles(model: model)] else _Header(model: model),
+                      SizedBox(height: 360, child: _PositionsCard(model: model)),
+                      SizedBox(height: 300, child: _YourMarketsCard(model: model)),
+                      _SendVotecoinCard(model: model),
+                    ],
                   ),
-                ),
-              ],
-            ),
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Header(model: model),
+                  const SizedBox(height: SailStyleValues.padding12),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: _PositionsCard(model: model)),
+                              const SizedBox(height: SailStyleValues.padding12),
+                              Expanded(child: _YourMarketsCard(model: model)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: SailStyleValues.padding12),
+                        SizedBox(
+                          width: _sideWidth,
+                          child: _SendVotecoinCard(model: model),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         );
       },
@@ -56,6 +83,7 @@ class PortfolioPage extends StatelessWidget {
   }
 }
 
+/// The head card: title, the wallet line, the four key numbers, and a "…" with Refresh and Markets.
 class _Header extends StatelessWidget {
   final PortfolioViewModel model;
 
@@ -63,55 +91,85 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final phone = SailStyleValues.phoneLayout(context);
-    final subtitle = SailText.secondary13(
-      model.addresses.isEmpty
-          ? 'No wallet address yet'
-          : '${model.headlineAddress} · ${model.addresses.length} addresses',
-    );
-    final refresh = SailButton(
-      plainLabel: true,
-      label: 'Refresh',
-      variant: ButtonVariant.secondary,
-      small: true,
-      loading: model.isLoading,
-      onPressed: () async => model.load(),
-    );
-    final markets = SailButton(
-      plainLabel: true,
-      label: 'Markets',
-      small: true,
-      onPressed: () async => model.openMarkets(context),
-    );
+    final theme = SailTheme.of(context);
+    final formatter = GetIt.I.get<FormatterProvider>();
 
-    if (phone) {
-      return SailColumn(
-        spacing: SailStyleValues.padding08,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SailColumn(
-            spacing: SailStyleValues.padding04,
-            children: [SailText.primary20('Portfolio', bold: true), subtitle],
+    return ListenableBuilder(
+      listenable: formatter,
+      builder: (context, _) => PageHeadCard(
+        title: 'Portfolio',
+        subtitle: model.addresses.isEmpty
+            ? 'No wallet address yet'
+            : '${model.headlineAddress} · ${model.addresses.length} addresses',
+        stats: [
+          HeadStat(
+            label: 'Portfolio value',
+            value: formatter.formatSats(model.totalValueSats),
+            caption: 'value of every open share',
           ),
-          SailRow(spacing: SailStyleValues.padding08, children: [refresh, markets]),
+          HeadStat(
+            label: 'Profit and loss',
+            value: '${model.totalProfitSats >= 0 ? '+' : ''}${model.profitPercent.toStringAsFixed(1)}%',
+            caption: 'cost ${formatter.formatSats(model.totalCostBasisSats)}',
+            valueColor: model.hasProfit ? theme.colors.success : theme.colors.error,
+          ),
+          HeadStat(
+            label: 'Open positions',
+            value: '${model.positions.length}',
+            caption: 'across ${model.activeMarkets} markets',
+          ),
+          HeadStat(label: 'Votecoin', value: '${model.votecoinBalance}', caption: 'weight of your oracle vote'),
         ],
-      );
-    }
+        menuItems: () => [
+          menuItem('Refresh', () => unawaited(model.load())),
+          menuItem('Markets', () => model.openMarkets(context)),
+        ],
+      ),
+    );
+  }
+}
 
-    return Wrap(
-      spacing: SailStyleValues.padding12,
-      runSpacing: SailStyleValues.padding08,
-      crossAxisAlignment: WrapCrossAlignment.center,
+class _PhoneHeader extends StatelessWidget {
+  final PortfolioViewModel model;
+
+  const _PhoneHeader({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailColumn(
+      spacing: SailStyleValues.padding08,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 320,
-          child: SailColumn(
-            spacing: SailStyleValues.padding04,
-            children: [SailText.primary24('Portfolio', bold: true), subtitle],
-          ),
+        SailColumn(
+          spacing: SailStyleValues.padding04,
+          children: [
+            SailText.primary20('Portfolio', bold: true),
+            SailText.secondary13(
+              model.addresses.isEmpty
+                  ? 'No wallet address yet'
+                  : '${model.headlineAddress} · ${model.addresses.length} addresses',
+            ),
+          ],
         ),
-        refresh,
-        markets,
+        SailRow(
+          spacing: SailStyleValues.padding08,
+          children: [
+            SailButton(
+              plainLabel: true,
+              label: 'Refresh',
+              variant: ButtonVariant.secondary,
+              small: true,
+              loading: model.isLoading,
+              onPressed: () async => model.load(),
+            ),
+            SailButton(
+              plainLabel: true,
+              label: 'Markets',
+              small: true,
+              onPressed: () async => model.openMarkets(context),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -147,11 +205,7 @@ class _StatTiles extends StatelessWidget {
             value: '${model.positions.length}',
             caption: 'across ${model.activeMarkets} markets',
           ),
-          MarketStatTile(
-            label: 'Votecoin',
-            value: '${model.votecoinBalance}',
-            caption: 'weight of your oracle vote',
-          ),
+          MarketStatTile(label: 'Votecoin', value: '${model.votecoinBalance}', caption: 'weight of your oracle vote'),
         ],
       ),
     );
@@ -229,17 +283,24 @@ class _PositionsCard extends StatelessWidget {
             SailTableHeaderCell(name: 'Price'),
             SailTableHeaderCell(name: 'Value'),
             SailTableHeaderCell(name: 'Profit'),
-            SailTableHeaderCell(name: 'Action'),
           ],
+          contextMenuItems: (rowId) {
+            final holder = model.positions.firstWhere(
+              (h) => '${h.address}-${h.position.marketId}-${h.position.outcomeIndex}' == rowId,
+            );
+            return [
+              menuItem(
+                'Trade',
+                () => unawaited(model.openMarket(holder.position.marketId, holder.position.outcomeIndex)),
+              ),
+            ];
+          },
           rowBuilder: (context, row, selected) {
             final holder = model.positions[row];
             final position = holder.position;
             return [
               SailTableCell(value: model.marketTitle(position.marketId)),
-              SailTableCell(
-                value: position.outcomeName,
-                child: SailBadge(position.outcomeName),
-              ),
+              SailTableCell(value: position.outcomeName),
               SailTableCell(value: model.shortAddress(holder.address), monospace: true),
               SailTableCell(value: '${position.shares}', monospace: true),
               SailTableCell(value: formatChance(position.avgPurchasePrice), monospace: true),
@@ -250,21 +311,10 @@ class _PositionsCard extends StatelessWidget {
                 monospace: true,
                 textColor: position.isProfit ? theme.colors.success : theme.colors.error,
               ),
-              SailTableCell(
-                value: 'Trade',
-                child: SailButton(
-                  plainLabel: true,
-                  label: 'Trade',
-                  small: true,
-                  insideTable: true,
-                  onPressed: () async => model.openMarket(position.marketId, position.outcomeIndex),
-                ),
-              ),
             ];
           },
           rowCount: model.positions.length,
           emptyPlaceholder: 'You hold no share yet',
-          drawGrid: true,
         ),
       ),
     );
@@ -287,7 +337,6 @@ class _YourMarketsCard extends StatelessWidget {
       error: model.marketsError,
       bottomPadding: false,
       child: SizedBox(
-        height: _yourMarketsHeight,
         child: ListenableBuilder(
           listenable: formatter,
           builder: (context, _) => SailTable(
@@ -297,36 +346,25 @@ class _YourMarketsCard extends StatelessWidget {
               SailTableHeaderCell(name: 'State'),
               SailTableHeaderCell(name: 'Volume'),
               SailTableHeaderCell(name: 'Liquidity'),
-              SailTableHeaderCell(name: 'Action'),
             ],
+            contextMenuItems: (id) => [menuItem('Open', () => unawaited(model.openMarket(id, null)))],
             rowBuilder: (context, row, selected) {
               final market = markets[row];
               return [
                 SailTableCell(value: market.title),
                 SailTableCell(
                   value: market.marketState.displayName,
-                  child: SailBadge(
-                    market.marketState.displayName,
-                    tone: market.isTrading ? SailBadgeTone.success : SailBadgeTone.neutral,
+                  child: StatusDotCell(
+                    label: market.marketState.displayName,
+                    tone: market.isTrading ? SailStatusTone.success : SailStatusTone.neutral,
                   ),
                 ),
                 SailTableCell(value: formatter.formatSats(market.totalVolumeSats), monospace: true),
                 SailTableCell(value: formatter.formatBTC(market.liquidity), monospace: true),
-                SailTableCell(
-                  value: 'Open',
-                  child: SailButton(
-                    plainLabel: true,
-                    label: 'Open',
-                    small: true,
-                    insideTable: true,
-                    onPressed: () async => model.openMarket(market.marketId, null),
-                  ),
-                ),
               ];
             },
             rowCount: markets.length,
             emptyPlaceholder: 'You created no market yet',
-            drawGrid: true,
           ),
         ),
       ),
@@ -368,12 +406,15 @@ class _SendVotecoinCard extends StatelessWidget {
             onChanged: (_) => model.onSendFormChanged(),
           ),
           if (model.sendError != null) SailInlineError(model.sendError!),
-          SailButton(
-            plainLabel: true,
-            label: 'Send Votecoin',
-            loading: model.isSendingVotecoin,
-            disabled: !model.canSendVotecoin,
-            onPressed: () async => model.sendVotecoin(context),
+          SizedBox(
+            width: double.infinity,
+            child: SailButton(
+              plainLabel: true,
+              label: 'Send Votecoin',
+              loading: model.isSendingVotecoin,
+              disabled: !model.canSendVotecoin,
+              onPressed: () async => model.sendVotecoin(context),
+            ),
           ),
         ],
       ),

@@ -62,6 +62,8 @@ void main() {
   tearDown(() => GetIt.I.reset());
 
   testWidgets('a tap on a column header sorts by that column', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     final model = LatestWalletTransactionsViewModel();
     await tester.pumpWidget(
       MaterialApp(

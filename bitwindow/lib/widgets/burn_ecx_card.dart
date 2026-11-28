@@ -274,18 +274,8 @@ class _BurnEcxCardState extends State<BurnEcxCard> {
         spacing: SailStyleValues.padding04,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SailText.primary15('Burn ${_network!.name} Coins', bold: true),
+          _BurnHead(title: 'Burn ${_network!.name} Coins', items: _burnListItems),
           SailText.secondary13('Burn your coins to receive 1/${_network!.creditDivisor} of the amount as real ECX'),
-          SailButton(
-            label: 'See all ${_network!.name} burns',
-            variant: ButtonVariant.link,
-            onPressed: () => showEcxBurnList(context, networkName: _network!.name, networkId: _context.networkId),
-          ),
-          SailButton(
-            label: 'See all Alphanet burns',
-            variant: ButtonVariant.link,
-            onPressed: () => showEcxBurnList(context, networkName: 'Alphanet', networkId: 'alphanet'),
-          ),
         ],
       ),
       SailColumn(
@@ -425,8 +415,25 @@ class _BurnEcxCardState extends State<BurnEcxCard> {
     ],
   );
 
+  List<SailMenuEntity> _burnListItems() => [
+    SailMenuItem(
+      onSelected: () => showEcxBurnList(context, networkName: _network!.name, networkId: _context.networkId),
+      child: SailText.primary12('See all ${_network!.name} burns'),
+    ),
+    SailMenuItem(
+      onSelected: () => showEcxBurnList(context, networkName: 'Alphanet', networkId: 'alphanet'),
+      child: SailText.primary12('See all Alphanet burns'),
+    ),
+  ];
+
   List<Widget> _receipt(SailThemeData theme) => [
-    SailText.primary15('Burn sent', bold: true),
+    _BurnHead(
+      title: 'Burn sent',
+      items: () => [
+        SailMenuItem(onSelected: () => setState(_reset), child: SailText.primary12('Back to burn form')),
+        ..._burnListItems(),
+      ],
+    ),
     if (_warningMessage.isNotEmpty) SailAlert(variant: SailAlertVariant.warning, description: _warningMessage),
     _route(theme, _amountSats!, sent: true),
     SailText.secondary12('Your real ECX credit remains pending.'),
@@ -435,7 +442,6 @@ class _BurnEcxCardState extends State<BurnEcxCard> {
     _panel(theme, SailText.primary12(_txid!, overflow: TextOverflow.visible)),
     SailButton(
       label: 'View on the explorer',
-      variant: ButtonVariant.link,
       icon: SailSVGAsset.externalLink,
       onPressed: () async {
         final version = _version;
@@ -456,10 +462,20 @@ class _BurnEcxCardState extends State<BurnEcxCard> {
       },
     ),
     if (_error != null) SailText.secondary12(_error!, color: theme.colors.error),
-    SailButton(
-      label: 'Back to burn form',
-      variant: ButtonVariant.link,
-      onPressed: () async => setState(_reset),
-    ),
   ];
+}
+
+class _BurnHead extends StatelessWidget {
+  final String title;
+  final List<SailMenuEntity> Function() items;
+
+  const _BurnHead({required this.title, required this.items});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(child: SailText.primary16(title, bold: true)),
+      SailRowMenuButton(items: items),
+    ],
+  );
 }

@@ -7,6 +7,7 @@ import 'package:sail_ui/sail_ui.dart';
 import 'package:sail_ui/shell/chain_navigator.dart';
 import 'package:zside/providers/transactions_provider.dart';
 import 'package:zside/widgets/containers/dashboard_action_modal.dart';
+import 'package:zside/widgets/v2_parts.dart';
 
 class SendOnSidechainAction extends StatelessWidget {
   final double? maxAmount;
@@ -42,12 +43,12 @@ class SendOnSidechainAction extends StatelessWidget {
               },
             ),
             children: [
-              LargeEmbeddedInput(
+              ZSideField(
                 controller: model.bitcoinAddressController,
                 hintText: 'Enter a sidechain-address',
                 autofocus: true,
               ),
-              LargeEmbeddedInput(
+              ZSideField(
                 controller: model.bitcoinAmountController,
                 hintText: 'Enter a ${model.ticker}-amount',
                 suffixText: model.ticker,
@@ -179,11 +180,10 @@ class SendOnSidechainViewModel extends BaseViewModel {
         return;
       }
 
-      await successDialog(
-        context: context,
-        action: 'Send on sidechain',
-        title: 'You sent $amount $ticker to $address',
-        subtitle: 'TXID: $sendTXID',
+      await showSendSentDialog(
+        context,
+        sentText: 'You sent $amount $ticker to $address',
+        txid: sendTXID,
       );
       // also pop the info modal
       await _navigator.pop();
@@ -192,12 +192,7 @@ class SendOnSidechainViewModel extends BaseViewModel {
         return;
       }
 
-      await errorDialog(
-        context: context,
-        action: 'Send on sidechain',
-        title: 'Could not execute withdrawal',
-        subtitle: error.toString(),
-      );
+      await showSendFailedDialog(context, error: error.toString());
     }
   }
 
@@ -284,5 +279,86 @@ class ReceiveViewModel extends BaseViewModel {
     }
 
     return await _rpc.getSideAddress();
+  }
+}
+
+const _sendTitle = 'Send on sidechain';
+
+Future<void> showSendSentDialog(
+  BuildContext context, {
+  required String sentText,
+  required String txid,
+}) async {
+  await widgetDialog(
+    context: context,
+    title: _sendTitle,
+    maxWidth: 480,
+    child: SendResultBody(
+      lead: SailText.primary13(sentText, overflow: TextOverflow.visible),
+      detail: 'TXID: $txid',
+    ),
+  );
+}
+
+Future<void> showSendFailedDialog(
+  BuildContext context, {
+  required String error,
+}) async {
+  await widgetDialog(
+    context: context,
+    title: _sendTitle,
+    maxWidth: 480,
+    child: SendResultBody(
+      lead: const _SendErrorRow('Could not execute withdrawal'),
+      detail: error,
+    ),
+  );
+}
+
+/// The body of a send result: the outcome line over the grey detail.
+class SendResultBody extends StatelessWidget {
+  final Widget lead;
+  final String detail;
+
+  const SendResultBody({super.key, required this.lead, required this.detail});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        lead,
+        const SizedBox(height: SailStyleValues.padding12),
+        SailText.primary13(
+          detail,
+          color: SailTheme.of(context).colors.textSecondary,
+          overflow: TextOverflow.visible,
+        ),
+        const DialogButtons(onPressed: null),
+      ],
+    );
+  }
+}
+
+class _SendErrorRow extends StatelessWidget {
+  final String message;
+
+  const _SendErrorRow(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SailStyleValues.padding12,
+        vertical: SailStyleValues.padding10,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colors.formField,
+        borderRadius: theme.chrome.radius,
+      ),
+      child: SailInlineError(message),
+    );
   }
 }

@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:bitwindow/pages/wallet/wallet_receive.dart';
 import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/providers/hd_wallet_provider.dart';
@@ -157,6 +160,12 @@ Future<void> _pumpReceiveTab(
   await tester.pump();
 }
 
+Finder _strip() => find.byType(ReceiveAddressStrip);
+
+Finder _stripQr() => find.descendant(of: _strip(), matching: find.byType(QrImageView));
+
+Finder _stripAddress() => find.descendant(of: _strip(), matching: find.text(_address));
+
 Finder _addressCard() => find.widgetWithText(SailCard, _cardTitle);
 
 Finder _qr() => find.descendant(of: _addressCard(), matching: find.byType(QrImageView));
@@ -250,17 +259,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the QR code sits inside the address card', (tester) async {
+  testWidgets('the QR code sits inside the address strip', (tester) async {
     await _pumpReceiveTab(tester);
 
-    expect(_addressCard(), findsOneWidget);
-    expect(_qr(), findsOneWidget);
+    expect(_strip(), findsOneWidget);
+    expect(_stripQr(), findsOneWidget);
   });
 
-  testWidgets('the QR code sits to the right of the address field', (tester) async {
+  testWidgets('the QR code sits to the left of the address', (tester) async {
     await _pumpReceiveTab(tester);
 
-    expect(tester.getTopLeft(_qr()).dx, greaterThanOrEqualTo(tester.getTopRight(_addressField()).dx));
+    expect(tester.getTopRight(_stripQr()).dx, lessThanOrEqualTo(tester.getTopLeft(_stripAddress()).dx));
   });
 
   testWidgets('on a 390 px phone the address wraps beside the QR code', (tester) async {
@@ -275,18 +284,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the address type dropdown sits above the address field', (tester) async {
+  testWidgets('the address type dropdown sits above the address', (tester) async {
     await _pumpReceiveTab(
       tester,
       addressTypes: const [wmpb.AddressType.ADDRESS_TYPE_SEGWIT, wmpb.AddressType.ADDRESS_TYPE_TAPROOT],
     );
 
-    final dropdown = find.descendant(
-      of: _addressCard(),
-      matching: find.byType(SailDropdownButton<wmpb.AddressType>),
-    );
+    final dropdown = find.descendant(of: _strip(), matching: find.byType(SailDropdownButton<wmpb.AddressType>));
     expect(dropdown, findsOneWidget);
-    expect(tester.getTopLeft(dropdown).dy, lessThan(tester.getTopLeft(_addressField()).dy));
+    expect(tester.getTopLeft(dropdown).dy, lessThan(tester.getTopLeft(_stripAddress()).dy));
   });
 
   testWidgets('a wallet with one address type shows no dropdown', (tester) async {
@@ -297,21 +303,23 @@ void main() {
 
   for (final size in const [Size(1200, 600), Size(1024, 700)]) {
     testWidgets(
-      'a Taproot address shows in full with the path below the field at ${size.width.toInt()}x${size.height.toInt()}',
+      'a Taproot address shows in full with the path below it at ${size.width.toInt()}x${size.height.toInt()}',
       (tester) async {
         await _pumpReceiveTab(tester, address: _taprootAddress, derivationPath: _taprootPath);
         await _setWindowSize(tester, size);
 
         expect(_taprootAddress, hasLength(62));
-        final editable = _addressEditable();
-        expect(editable.text?.toPlainText(), _taprootAddress);
-        expect(editable.getMaxIntrinsicWidth(double.infinity), lessThanOrEqualTo(editable.size.width));
+        final address = find.descendant(of: _strip(), matching: find.text(_taprootAddress));
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(of: address, matching: find.byType(RichText)),
+        );
+        expect(paragraph.didExceedMaxLines, isFalse);
+        expect(paragraph.getMaxIntrinsicWidth(double.infinity), lessThanOrEqualTo(paragraph.size.width));
 
-        final path = find.descendant(of: _addressCard(), matching: find.text(_taprootPath));
+        final path = find.descendant(of: _strip(), matching: find.text(_taprootPath));
         expect(path, findsOneWidget);
-        expect(find.descendant(of: _addressField(), matching: find.text(_taprootPath)), findsNothing);
-        expect(tester.getTopLeft(path).dy, greaterThan(tester.getBottomLeft(_addressField()).dy));
-        expect(tester.getTopLeft(path).dx, tester.getTopLeft(_addressField()).dx);
+        expect(tester.getTopLeft(path).dy, greaterThan(tester.getBottomLeft(address).dy));
+        expect(tester.getTopLeft(path).dx, tester.getTopLeft(address).dx);
         expect(tester.takeException(), isNull);
       },
     );
@@ -321,18 +329,63 @@ void main() {
     await _pumpReceiveTab(tester, address: _taprootAddress, derivationPath: '');
     await _setWindowSize(tester, const Size(1200, 600));
 
-    expect(find.descendant(of: _addressCard(), matching: find.textContaining(RegExp(r'^m/'))), findsNothing);
+    expect(find.descendant(of: _strip(), matching: find.textContaining(RegExp(r'^m/'))), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the derivation path sits below the field at the narrow window minimum', (tester) async {
+  testWidgets('the narrowest window stacks the strip, the addresses and the claim card', (tester) async {
     await _pumpReceiveTab(tester);
     await _setWindowSize(tester, const Size(400, 900));
 
-    final path = find.descendant(of: _addressCard(), matching: find.text(_derivationPath));
+    final path = find.descendant(of: _strip(), matching: find.text(_derivationPath));
     expect(path, findsOneWidget);
-    expect(tester.getTopLeft(path).dy, greaterThan(tester.getBottomLeft(_addressField()).dy));
+    expect(tester.getTopLeft(path).dy, greaterThan(tester.getBottomLeft(_stripAddress()).dy));
+    expect(
+      tester.getTopLeft(find.byType(ReceiveAddressesTable)).dy,
+      greaterThan(tester.getBottomLeft(_strip()).dy),
+    );
     expect(tester.takeException(), isNull);
-    expect(tester.getSize(_addressField()).width, greaterThan(200));
+  });
+
+  testWidgets('the strip has Copy and New address, and the search filters the addresses', (tester) async {
+    await _pumpReceiveTab(tester);
+    await _setWindowSize(tester, const Size(1440, 900));
+    final transactions = GetIt.I<TransactionProvider>() as _FakeTransactions;
+    transactions
+      ..receiveAddresses = [
+        ReceiveAddress(address: _address, label: 'Exchange', derivationPath: _derivationPath),
+        ReceiveAddress(address: 'bcrt1qcoldstorage0000000000000000000000000', isChange: true),
+      ]
+      ..notifyListeners();
+    await tester.pump();
+
+    expect(find.descendant(of: _strip(), matching: find.widgetWithText(SailButton, 'Copy')), findsOneWidget);
+    expect(find.descendant(of: _strip(), matching: find.widgetWithText(SailButton, 'New address')), findsOneWidget);
+    final table = find.byType(ReceiveAddressesTable);
+    expect(find.descendant(of: table, matching: find.text('Exchange')), findsOneWidget);
+    expect(find.descendant(of: table, matching: find.text('No label')), findsOneWidget);
+    await _shot(tester, 'receive');
+
+    await tester.enterText(
+      find.descendant(of: table, matching: find.byType(EditableText)),
+      'exch',
+    );
+    await tester.pump();
+    expect(find.descendant(of: table, matching: find.text('Exchange')), findsOneWidget);
+    expect(find.descendant(of: table, matching: find.text('No label')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+Future<void> _shot(WidgetTester tester, String name) async {
+  final dir = Platform.environment['WALLET_SHOT_DIR'];
+  if (dir == null) {
+    return;
+  }
+  final boundary = tester.renderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary).first);
+  await tester.runAsync(() async {
+    final image = await boundary.toImage();
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    File('$dir/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
   });
 }

@@ -1,6 +1,8 @@
 import 'package:truthcoin/widgets/market_stat_tile.dart';
 import 'package:flutter/widgets.dart';
-import 'package:sail_ui/sail_ui.dart' show SailStatList, SailStatRow, SailStyleValues, SailTheme;
+import 'package:sail_ui/sail_ui.dart'
+    show SailButton, SailRowMenuButton, SailStatList, SailStatRow, SailStyleValues, SailTheme;
+import 'package:truthcoin/widgets/v2_parts.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
@@ -93,6 +95,20 @@ void main() {
       final theme = SailTheme.of(tester.element(find.text('Portfolio')));
       expect(pnl.valueColor, anyOf(theme.colors.success, theme.colors.error));
     });
+    testWidgets('the head card "…" holds Refresh and Markets; rows have no buttons', (tester) async {
+      await tester.pumpSailPage(const PortfolioPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PageHeadCard), findsOneWidget);
+      expect(find.widgetWithText(SailButton, 'Trade'), findsNothing);
+      expect(find.text('Action'), findsNothing);
+
+      await tester.tap(find.descendant(of: find.byType(PageHeadCard), matching: find.byType(SailRowMenuButton)));
+      await tester.pumpAndSettle();
+      expect(find.text('Refresh'), findsOneWidget);
+      expect(find.text('Markets'), findsOneWidget);
+    });
+
     testWidgets('shows the four stat tiles', (tester) async {
       await tester.pumpSailPage(const PortfolioPage());
       await tester.pumpAndSettle();

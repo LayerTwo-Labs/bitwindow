@@ -81,42 +81,32 @@ class _MiningSettingsDialogState extends State<MiningSettingsDialog> {
       error: _error,
       maxWidth: 520,
       withCloseButton: true,
-      actions: [
-        SailButton(
-          label: 'Cancel',
-          variant: ButtonVariant.secondary,
-          onPressed: () async => Navigator.of(context).pop(),
-        ),
-        SailButton(label: 'Save', onPressed: _save),
-      ],
+      action: SailDialogAction(label: 'Save', onPressed: _save),
       child: SailColumn(
         spacing: SailStyleValues.padding16,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _row(
-            'Port',
-            SizedBox(
-              width: 120,
-              child: SailTextField(controller: _port, hintText: '3333', textFieldType: TextFieldType.number),
-            ),
+          SailTextField(
+            controller: _port,
+            label: 'Port',
+            hintText: '3333',
+            textFieldType: TextFieldType.number,
           ),
-          _row(
-            'Minimum difficulty',
-            SizedBox(
-              width: 120,
-              child: SailTextField(controller: _minDifficulty, hintText: '8192', textFieldType: TextFieldType.number),
-            ),
+          SailTextField(
+            controller: _minDifficulty,
+            label: 'Minimum difficulty',
+            hintText: '8192',
+            textFieldType: TextFieldType.number,
           ),
           _row(
             'Mine with this computer',
             SailSwitch(value: _cpuMining, onChanged: (next) => setState(() => _cpuMining = next)),
           ),
-          _row(
-            'CPU threads',
-            SizedBox(
-              width: 120,
-              child: SailTextField(controller: _threads, hintText: '4', textFieldType: TextFieldType.number),
-            ),
+          SailTextField(
+            controller: _threads,
+            label: 'CPU threads',
+            hintText: '4',
+            textFieldType: TextFieldType.number,
           ),
           _row(
             'Keep mining when bitwindow closes',

@@ -72,11 +72,19 @@ void main() {
     expect(tester.widget<Text>(value).style!.fontSize, 13);
   });
 
-  testWidgets('on desktop the section titles stay 20', (tester) async {
+  testWidgets('on desktop the stats are grey groups in two columns under 13 px titles', (tester) async {
     await tester.pumpSailPage(const NetworkStatisticsPage());
 
-    expect(fontSize(tester, 'Bandwidth Graph'), 20);
-    expect(fontSize(tester, 'Blockchain'), 20);
+    expect(tester.takeException(), isNull);
+    expect(fontSize(tester, 'Bandwidth Graph'), 13);
+    expect(fontSize(tester, 'Blockchain'), 13);
+    expect(find.byType(SailDetailGroup), findsNWidgets(3));
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x), findsOneWidget);
+    final blockchain = tester.getRect(find.text('Blockchain'));
+    final transfer = tester.getRect(find.text('Data Transfer'));
+    expect(transfer.top, closeTo(blockchain.top, 1));
+    expect(transfer.left, greaterThan(blockchain.right));
+    expect(tester.getRect(find.text('Network')).top, greaterThan(blockchain.bottom));
   });
 
   testWidgets('on a phone the bandwidth chart has two plain lines, no axis labels and round legend dots', (
@@ -106,12 +114,22 @@ void main() {
     expect(dot.shape, BoxShape.circle);
   });
 
-  testWidgets('on desktop the bandwidth chart keeps its axis labels and fill', (tester) async {
+  testWidgets('on desktop the bandwidth chart has an orange and a blue plain line and a dash legend', (tester) async {
     await tester.pumpSailPage(const NetworkStatisticsPage());
 
     final data = tester.widget<LineChart>(find.byType(LineChart)).data;
-    expect(data.titlesData.show, isTrue);
-    expect(data.lineBarsData.first.belowBarData.show, isTrue);
+    expect(data.titlesData.show, isFalse);
+    expect(data.gridData.show, isFalse);
+    for (final line in data.lineBarsData) {
+      expect(line.belowBarData.show, isFalse);
+      expect(line.isCurved, isFalse);
+    }
+    final colors = SailTheme.of(tester.element(find.byType(LineChart))).colors;
+    expect(data.lineBarsData.map((l) => l.color), [colors.orange, colors.info]);
+    expect(find.byKey(const ValueKey('bandwidth-legend-dash')), findsNWidgets(2));
     expect(find.byKey(const ValueKey('bandwidth-legend-dot')), findsNothing);
+    final legend = tester.getRect(find.text('Received'));
+    final refresh = tester.getRect(find.text('Auto-refreshing every 5 seconds'));
+    expect(refresh.center.dy, closeTo(legend.center.dy, 1));
   });
 }

@@ -29,7 +29,8 @@ class SailInfoBox extends StatelessWidget {
         Expanded(
           child: onPressed != null ? SailText.primary15(text) : SailText.primary13(text),
         ),
-        if (onPressed != null) SailSVG.fromAsset(SailSVGAsset.arrowRight, color: theme.colors.text),
+        if (onPressed != null)
+          SailSVG.fromAsset(SailSVGAsset.arrowRight, width: 16, height: 16, color: theme.colors.text),
       ],
     );
 

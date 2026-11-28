@@ -17,7 +17,7 @@ class LearnPage extends StatelessWidget {
         return QtPage(
           child: SingleChildScrollView(
             child: SailColumn(
-              spacing: SailStyleValues.padding16,
+              spacing: SailStyleValues.padding12,
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -71,7 +71,7 @@ class _ArticleGroupCarouselState extends State<ArticleGroupCarousel> {
     }
 
     return SailColumn(
-      spacing: SailStyleValues.padding20,
+      spacing: SailStyleValues.padding12,
       children: [
         for (final group in groups)
           ArticleGroupCard(
@@ -136,59 +136,71 @@ class _ArticleGroupCardState extends State<ArticleGroupCard> {
       return _ArticleGroupList(group: widget.group);
     }
 
-    final showArrows = widget.group.articles.length > 3;
-    final scrollDistance = MediaQuery.of(context).size.width >= 768 ? 800.0 : 400.0;
+    final showArrows = widget.group.articles.length > 4;
     final theme = SailTheme.of(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding40),
-      decoration: BoxDecoration(
-        color: theme.colors.background,
-        borderRadius: context.sailTheme.chrome.radiusLarge,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SailText.primary24(
-                  widget.group.title,
-                  bold: true,
-                ),
-                const SailSpacing(5),
-                SailText.secondary15(widget.group.subtitle),
-                const SailSpacing(SailStyleValues.padding20),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 280,
-            child: Stack(
-              children: [
-                NotificationListener<ScrollMetricsNotification>(
+      padding: const EdgeInsets.all(SailStyleValues.padding16),
+      decoration: theme.chrome.panel(theme.colors),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const gap = SailStyleValues.padding12;
+          final cardWidth = ((constraints.maxWidth - 3 * gap) / 4).clamp(240.0, 420.0);
+          final scrollDistance = (cardWidth + gap) * 2;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SailText.primary16(widget.group.title, bold: true),
+                        if (widget.group.subtitle.isNotEmpty) ...[
+                          const SailSpacing(2),
+                          SailText.secondary13(widget.group.subtitle),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (showArrows && _isScrolled) ...[
+                    const SizedBox(width: SailStyleValues.padding08),
+                    _ScrollButton(onPressed: () => _scroll(-scrollDistance), isLeft: true),
+                  ],
+                  if (showArrows && !_isAtEnd) ...[
+                    const SizedBox(width: SailStyleValues.padding08),
+                    _ScrollButton(onPressed: () => _scroll(scrollDistance), isLeft: false),
+                  ],
+                ],
+              ),
+              const SailSpacing(SailStyleValues.padding12),
+              SizedBox(
+                height: _StoryCardContent.height,
+                child: NotificationListener<ScrollMetricsNotification>(
                   onNotification: (notification) => _updateEdges(notification.metrics),
                   child: NotificationListener<ScrollUpdateNotification>(
                     onNotification: (notification) => _updateEdges(notification.metrics),
                     child: ListView.separated(
                       controller: _scrollController,
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding20),
                       itemCount: widget.group.articles.length,
-                      separatorBuilder: (context, index) => const SizedBox(width: SailStyleValues.padding20),
+                      separatorBuilder: (context, index) => const SizedBox(width: gap),
                       itemBuilder: (context, index) {
                         return SizedBox(
-                          width: MediaQuery.of(context).size.width >= 768 ? 400 : 280,
+                          width: cardWidth,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: theme.colors.backgroundSecondary,
-                              borderRadius: context.sailTheme.chrome.radiusLarge,
+                              border: Border.all(color: theme.colors.border),
+                              borderRadius: theme.chrome.radiusLarge,
                             ),
-                            child: ArticleCard(
-                              groupTitle: widget.group.title,
-                              article: widget.group.articles[index],
+                            child: ClipRRect(
+                              borderRadius: theme.chrome.radiusLarge,
+                              child: ArticleCard(
+                                groupTitle: widget.group.title,
+                                article: widget.group.articles[index],
+                              ),
                             ),
                           ),
                         );
@@ -196,64 +208,10 @@ class _ArticleGroupCardState extends State<ArticleGroupCard> {
                     ),
                   ),
                 ),
-                if (showArrows) ...[
-                  if (_isScrolled)
-                    Positioned(
-                      left: 0,
-                      top: 100,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 24,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [
-                                  theme.colors.background,
-                                  theme.colors.background.withValues(alpha: 0),
-                                ],
-                              ),
-                            ),
-                          ),
-                          _ScrollButton(
-                            onPressed: () => _scroll(-scrollDistance),
-                            isLeft: true,
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (!_isAtEnd)
-                    Positioned(
-                      right: 0,
-                      top: 100,
-                      child: Row(
-                        children: [
-                          _ScrollButton(
-                            onPressed: () => _scroll(scrollDistance),
-                            isLeft: false,
-                          ),
-                          Container(
-                            width: 24,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.centerRight,
-                                end: Alignment.centerLeft,
-                                colors: [
-                                  theme.colors.background,
-                                  theme.colors.background.withValues(alpha: 0),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -404,10 +362,12 @@ class _StoryCardContent extends StatelessWidget {
     this.background,
   });
 
+  static const double height = 246;
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 280,
+      height: height,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -419,7 +379,7 @@ class _StoryCardContent extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(SailStyleValues.padding16),
+            padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding12, vertical: 10),
             child: Row(
               children: [
                 Expanded(
@@ -427,7 +387,7 @@ class _StoryCardContent extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SailText.primary15(
+                      SailText.primary13(
                         title,
                         bold: true,
                         maxLines: 1,
@@ -439,7 +399,7 @@ class _StoryCardContent extends StatelessWidget {
                     ],
                   ),
                 ),
-                SailSVG.fromAsset(SailSVGAsset.chevronRight, color: SailTheme.of(context).colors.icon),
+                SailSVG.fromAsset(SailSVGAsset.chevronRight, width: 12, color: SailTheme.of(context).colors.text),
               ],
             ),
           ),
@@ -460,26 +420,9 @@ class _ScrollButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colors.text,
-        borderRadius: context.sailTheme.chrome.radius,
-      ),
-      child: SailTappable(
-        onTap: () async => onPressed(),
-        borderRadius: context.sailTheme.chrome.radius,
-        child: Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          child: SailSVG.fromAsset(
-            isLeft ? SailSVGAsset.chevronLeft : SailSVGAsset.chevronRight,
-            width: 16,
-            color: theme.colors.background,
-          ),
-        ),
-      ),
+    return SailIconBoxButton(
+      icon: isLeft ? SailSVGAsset.chevronLeft : SailSVGAsset.chevronRight,
+      onPressed: () async => onPressed(),
     );
   }
 }

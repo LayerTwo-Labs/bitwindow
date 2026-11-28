@@ -38,12 +38,12 @@ void main() {
     expect(find.text('Total'), findsOneWidget);
   });
 
-  testWidgets('the desktop keeps the big total over the available and pending lines', (tester) async {
+  testWidgets('the desktop shows the big total over a grey group of available and pending', (tester) async {
     SailStyleValues.phoneLayoutOverride = false;
     await tester.pumpSailPage(card());
     await tester.pumpAndSettle();
 
     expect(find.byType(SidechainBalanceRows), findsNothing);
-    expect(find.byType(BalanceRow), findsNWidgets(2));
+    expect(find.byType(SailDetailLine), findsNWidgets(2));
   });
 }

@@ -6,6 +6,8 @@ import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+import '../svg_finder.dart';
+
 /// BinaryProvider double that exposes setters for the exact fields the
 /// PersistentStatusBar inspects (isConnected / isInitializing / isStopping /
 /// connectionError) and records calls to [restart].
@@ -145,7 +147,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Restart'), findsNothing);
-    expect(find.byIcon(Icons.error_outline), findsNothing);
+    expect(findSailSVG(SailSVGAsset.circleAlert), findsNothing);
     final size = tester.getSize(find.byType(PersistentStatusBar));
     expect(size.height, 0);
   });
@@ -169,7 +171,7 @@ void main() {
     await tester.pumpWidget(wrap(const PersistentStatusBar()));
     await tester.pump();
 
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(findSailSVG(SailSVGAsset.circleAlert), findsOneWidget);
     expect(find.textContaining('Drivechaind'), findsOneWidget);
     // SailButton renders its label twice (visual shadow layer), so accept widgets.
     expect(find.text('Restart'), findsWidgets);
@@ -201,7 +203,7 @@ void main() {
     await tester.pumpWidget(wrap(const PersistentStatusBar()));
     await tester.pump();
 
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(findSailSVG(SailSVGAsset.circleAlert), findsOneWidget);
     expect(find.textContaining('Drivechaind'), findsOneWidget);
   });
 

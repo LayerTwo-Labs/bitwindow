@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:bitwindow/pages/wallet/bump_fee_dialog.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -60,14 +59,6 @@ Future<void> _pumpDialog(WidgetTester tester, {bool phone = false}) async {
   await tester.pumpAndSettle();
 }
 
-// A sheet as wide as the phone, with no dialog inset.
-Future<void> _pumpSheetBody(WidgetTester tester) async {
-  await tester.pumpSailPage(const BumpFeeDialog(txid: 'ab12'));
-  await tester.binding.setSurfaceSize(const Size(470, 844));
-  addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpAndSettle();
-}
-
 void main() {
   setUpAll(loadBundledFonts);
 
@@ -84,84 +75,59 @@ void main() {
     await GetIt.I.reset();
   });
 
-  testWidgets('on a phone Replace is full width, Cancel and RBF share a row, Close comes last', (tester) async {
-    SailStyleValues.phoneLayoutOverride = true;
-    await _pumpSheetBody(tester);
+  Future<void> openMenu(WidgetTester tester) async {
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+  }
 
-    final replace = tester.getRect(_button('Replace transaction'));
-    final cancel = tester.getRect(_button('Cancel transaction'));
-    final rbf = tester.getRect(_button('I want to RBF it'));
-    final close = tester.getRect(_button('Close'));
-    expect(cancel.top, greaterThan(replace.bottom - 1));
-    expect(rbf.center.dy, closeTo(cancel.center.dy, 1));
-    expect(rbf.left, greaterThan(cancel.right - 1));
-    expect(close.top, greaterThan(cancel.bottom - 1));
-    expect(close.width, closeTo(replace.width, 1));
-    expect(rbf.right - cancel.left, closeTo(replace.width, 1));
-  });
-
-  testWidgets('in a 390 px dialog the narrow button pair stacks with no overflow', (tester) async {
-    SailStyleValues.phoneLayoutOverride = true;
-    await _pumpDialog(tester, phone: true);
-
-    final cancel = tester.getRect(_button('Cancel transaction'));
-    final rbf = tester.getRect(_button('I want to RBF it'));
-    expect(rbf.top, greaterThan(cancel.bottom - 1));
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('on a phone the headings are 13 px', (tester) async {
-    SailStyleValues.phoneLayoutOverride = true;
-    await _pumpDialog(tester, phone: true);
-
-    expect(tester.widget<Text>(find.text('This transaction')).style?.fontSize, 13);
-    expect(tester.widget<Text>(find.text('New fee')).style?.fontSize, 13);
-  });
-
-  testWidgets('on a desktop the buttons share one row and the headings are 15 px', (tester) async {
-    SailStyleValues.phoneLayoutOverride = false;
+  testWidgets('Replace is the one button; Cancel and RBF sit in "…"; no Close', (tester) async {
     await _pumpDialog(tester);
 
-    final replace = tester.getRect(_button('Replace transaction'));
-    final close = tester.getRect(_button('Close'));
-    expect(close.center.dy, closeTo(replace.center.dy, 1));
-    expect(tester.widget<Text>(find.text('This transaction')).style?.fontSize, 15);
+    expect(find.byType(SailButton), findsOneWidget);
+    expect(_button('Replace transaction'), findsOneWidget);
+    expect(_button('Close'), findsNothing);
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x), findsOneWidget);
+
+    await openMenu(tester);
+    expect(find.text('Cancel transaction'), findsOneWidget);
+    expect(find.text('I want to RBF it'), findsOneWidget);
   });
 
-  testWidgets('on a phone the cancel labels take a 148 px column', (tester) async {
-    SailStyleValues.phoneLayoutOverride = true;
-    await _pumpDialog(tester, phone: true);
-
-    await tester.tap(_button('Cancel transaction'));
+  testWidgets('I want to RBF it shows the outputs to take the fee from', (tester) async {
+    await _pumpDialog(tester);
+    await openMenu(tester);
+    await tester.tap(find.text('I want to RBF it'));
     await tester.pumpAndSettle();
 
-    final label = tester.getRect(find.text('Returns to this wallet'));
-    expect(tester.getTopLeft(find.text('Fee')).dx, closeTo(label.left, 1));
-    expect(tester.getTopLeft(find.textContaining('0.0009')).dx, closeTo(label.left + 148, 1));
-    expect(tester.getTopLeft(find.text('ab12')).dx, closeTo(label.left + 148, 1));
+    expect(find.text('Take the fee from'), findsOneWidget);
+    expect(find.text('Output 0 · payment'), findsOneWidget);
+    expect(find.text('tb1qpayment'), findsOneWidget);
   });
 
-  testWidgets('on a phone the bump values start 132 px from the labels', (tester) async {
+  testWidgets('Cancel transaction has a ← back and one destructive button', (tester) async {
+    await _pumpDialog(tester);
+    await openMenu(tester);
+    await tester.tap(find.text('Cancel transaction'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cancel the transaction'), findsOneWidget);
+    expect(find.text('Returns to this wallet'), findsOneWidget);
+    expect(find.byType(SailButton), findsOneWidget);
+    expect(tester.widget<SailButton>(_button('Cancel transaction')).variant, ButtonVariant.destructive);
+    expect(_button('Back'), findsNothing);
+
+    await tester.tap(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.arrowLeft));
+    await tester.pumpAndSettle();
+    expect(find.text('Bump the fee'), findsOneWidget);
+  });
+
+  testWidgets('on a phone the dialog fits with no overflow', (tester) async {
     SailStyleValues.phoneLayoutOverride = true;
     await _pumpDialog(tester, phone: true);
 
-    final label = tester.getRect(find.text('Inputs'));
-    expect(tester.getTopLeft(find.textContaining('1 coins')).dx, closeTo(label.left + 132, 1));
+    expect(find.text('This transaction'), findsOneWidget);
+    expect(find.text('New fee'), findsOneWidget);
+    expect(_button('Replace transaction'), findsOneWidget);
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('on a desktop the fee field is 120 px and Estimate ends at the right edge', (tester) async {
-    SailStyleValues.phoneLayoutOverride = false;
-    await _pumpDialog(tester);
-
-    final field = find.byWidgetPredicate((w) => w is SailTextField && w.textFieldType == TextFieldType.number).first;
-    expect(tester.getSize(field).width, 120);
-    final dropdown = tester.getRect(
-      find.ancestor(of: find.text('Estimate'), matching: find.byType(SailDropdownButton<int>)),
-    );
-    final heading = tester.getRect(find.text('New fee'));
-    final dialog = tester.getRect(find.byType(BumpFeeDialog));
-    // The content is centered, so its right edge mirrors the left edge of the heading.
-    expect(dropdown.right, closeTo(dialog.right - (heading.left - dialog.left), 1));
   });
 }

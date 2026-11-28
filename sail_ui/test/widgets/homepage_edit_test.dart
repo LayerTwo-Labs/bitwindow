@@ -45,7 +45,7 @@ class _MemoryHomepageProvider extends HomepageProvider {
 
 List<String> _ids(List<HomepageWidgetConfig> widgets) => [for (final w in widgets) w.widgetId];
 
-Future<_MemoryHomepageProvider> _pump(WidgetTester tester) async {
+Future<_MemoryHomepageProvider> _pump(WidgetTester tester, {SailThemeStyle style = SailThemeStyle.sail}) async {
   await tester.binding.setSurfaceSize(const Size(1600, 1200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -63,7 +63,7 @@ Future<_MemoryHomepageProvider> _pump(WidgetTester tester) async {
   await tester.pumpWidget(
     MaterialApp(
       builder: (context, child) => SailTheme(
-        data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+        data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter, style),
         child: child!,
       ),
       home: Scaffold(
@@ -119,6 +119,18 @@ Rect _visibleRect(WidgetTester tester, Finder finder) {
 }
 
 void main() {
+  for (final (style, gap) in [(SailThemeStyle.sail, 16.0), (SailThemeStyle.bitwindowV2, 12.0)]) {
+    testWidgets('widgets of the ${style.name} homepage are $gap apart', (tester) async {
+      await _pump(tester, style: style);
+
+      final quotes = tester.getRect(find.byKey(const ValueKey('HomepageWidget-quotes')));
+      final news = tester.getRect(find.byKey(const ValueKey('HomepageWidget-news')));
+      final blocks = tester.getRect(find.byKey(const ValueKey('HomepageWidget-blocks')));
+      expect(news.top - quotes.bottom, gap);
+      expect(blocks.left - news.right, gap);
+    });
+  }
+
   testWidgets('edit homepage starts edit mode, and done saves and ends it', (tester) async {
     final provider = await _pump(tester);
     expect(find.byKey(const Key('HomepageEditBar')), findsNothing);

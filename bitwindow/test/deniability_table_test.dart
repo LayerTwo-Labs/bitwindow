@@ -42,14 +42,6 @@ void main() {
   tearDown(() => GetIt.I.reset());
 
   Future<void> pumpTable(WidgetTester tester, {double width = 2300, List<UnspentOutput>? utxos}) async {
-    // The Actions cell overflows its column; this file tests the sort and the details only.
-    final onError = FlutterError.onError;
-    FlutterError.onError = (details) {
-      if (!details.exceptionAsString().contains('overflowed')) {
-        onError?.call(details);
-      }
-    };
-    addTearDown(() => FlutterError.onError = onError);
     await tester.pumpSailPage(
       SizedBox(
         width: width,
@@ -100,14 +92,12 @@ void main() {
     expect(shownUtxos(tester), ['cccccc..:0', 'bbbbbb..:0', 'aaaaaa..:1']);
   });
 
-  testWidgets('a tap on Actions keeps the order', (tester) async {
+  testWidgets('UTXO, Denial ID, Status and Hops stay separate columns, with no Actions column', (tester) async {
     await pumpTable(tester);
 
-    await tester.tap(find.text('Actions'));
-    await tester.pumpAndSettle();
-
-    expect(tester.takeException(), isNull);
-    expect(shownUtxos(tester), ['aaaaaa..:1', 'bbbbbb..:0', 'cccccc..:0']);
+    final headers = tester.widgetList<SailTableHeaderCell>(find.byType(SailTableHeaderCell)).map((h) => h.name);
+    expect(headers, ['UTXO', 'Denial ID', 'Status', 'Hops', 'Next Execution', 'Timestamp', 'Amount']);
+    expect(find.text('Actions'), findsNothing);
   });
 
   testWidgets('a double tap on a row opens the UTXO details', (tester) async {

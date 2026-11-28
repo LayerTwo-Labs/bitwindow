@@ -58,27 +58,85 @@ class SidechainSettingsPageState extends State<SidechainSettingsPage> {
     final module = GetIt.I.get<SidechainModule>();
     final version = module.version;
 
+    final sections = [
+      SailSettingsSection(label: 'Appearance', builder: (_) => const SettingsAppearance()),
+      SailSettingsSection(
+        label: 'Reset',
+        builder: (_) => SettingsReset(binary: module.chain, appName: module.fullName),
+      ),
+      SailSettingsSection(
+        label: 'About',
+        builder: (_) => SettingsInfo(
+          appName: module.fullName,
+          versionString: version.versionString,
+          buildDate: version.buildDate,
+          commitFull: version.commitFull,
+          applicationName: version.appName,
+        ),
+      ),
+    ];
+    final subtitle = 'Manage your ${module.appName} settings';
+
+    if (SailTheme.of(context).isBitwindowV2 && !SailStyleValues.phoneLayout(context)) {
+      return ChainSettingsCard(
+        subtitle: subtitle,
+        sections: sections,
+        selectedIndex: _selectedIndex,
+        onSectionSelected: setSelectedIndex,
+      );
+    }
     return SailSettingsScaffold(
-      subtitle: 'Manage your ${module.appName} settings',
+      subtitle: subtitle,
       selectedIndex: _selectedIndex,
       onSectionSelected: setSelectedIndex,
-      sections: [
-        SailSettingsSection(label: 'Appearance', builder: (_) => const SettingsAppearance()),
-        SailSettingsSection(
-          label: 'Reset',
-          builder: (_) => SettingsReset(binary: module.chain, appName: module.fullName),
-        ),
-        SailSettingsSection(
-          label: 'About',
-          builder: (_) => SettingsInfo(
-            appName: module.fullName,
-            versionString: version.versionString,
-            buildDate: version.buildDate,
-            commitFull: version.commitFull,
-            applicationName: version.appName,
+      sections: sections,
+    );
+  }
+}
+
+/// The chain settings in one card: the title, a segmented control, and the selected section.
+class ChainSettingsCard extends StatelessWidget {
+  final String subtitle;
+  final List<SailSettingsSection> sections;
+  final int selectedIndex;
+  final ValueChanged<int> onSectionSelected;
+
+  const ChainSettingsCard({
+    super.key,
+    required this.subtitle,
+    required this.sections,
+    required this.selectedIndex,
+    required this.onSectionSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final index = selectedIndex.clamp(0, sections.length - 1);
+    return QtPage(
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: SailCard(
+            title: 'Settings',
+            subtitle: subtitle,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SailSpacing(SailStyleValues.padding08),
+                SailSegments(
+                  labels: [for (final section in sections) section.label],
+                  activeIndex: index,
+                  onSelect: onSectionSelected,
+                ),
+                const SailSpacing(SailStyleValues.padding16),
+                Flexible(child: sections[index].builder(context)),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

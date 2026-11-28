@@ -15,15 +15,7 @@ class ExplorerPage extends StatelessWidget {
     final tabs = TabsRouterScope.of(context, watch: true)?.controller;
     return TickerMode(
       enabled: tabs == null || tabs.current.name == ExplorerRoute.name,
-      child: QtPage(
-        child: InlineTabBar(
-          tabs: const [
-            SingleTabItem(label: 'Chain', child: ChainExplorerTab()),
-            SingleTabItem(label: 'Withdrawals', child: WithdrawalsTab()),
-          ],
-          initialIndex: 0,
-        ),
-      ),
+      child: const QtPage(child: ChainExplorerTab()),
     );
   }
 }

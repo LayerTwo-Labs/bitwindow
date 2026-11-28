@@ -44,16 +44,22 @@ void main() {
 
     GetIt.I.registerLazySingleton<SidechainRPC>(() => mockRpc);
     GetIt.I.registerLazySingleton<TruthcoinRPC>(() => mockRpc);
-    GetIt.I.registerLazySingleton<BitcoindConnection>(() => MockBitcoindConnection());
+    GetIt.I.registerLazySingleton<BitcoindConnection>(
+      () => MockBitcoindConnection(),
+    );
     GetIt.I.registerLazySingleton<Logger>(() => Logger(level: Level.off));
 
     final marketProvider = MarketProvider();
     GetIt.I.registerLazySingleton<MarketProvider>(() => marketProvider);
-    GetIt.I.registerLazySingleton<PriceHistoryProvider>(() => PriceHistoryProvider());
+    GetIt.I.registerLazySingleton<PriceHistoryProvider>(
+      () => PriceHistoryProvider(),
+    );
     GetIt.I.registerLazySingleton<VotingProvider>(() => VotingProvider());
 
     final balanceProvider = SidechainBalanceProvider(sidechain: mockRpc);
-    GetIt.I.registerLazySingleton<SidechainBalanceProvider>(() => balanceProvider);
+    GetIt.I.registerLazySingleton<SidechainBalanceProvider>(
+      () => balanceProvider,
+    );
     await balanceProvider.fetch();
   });
 
@@ -101,22 +107,46 @@ void main() {
       expect(find.text('Create market'), findsWidgets);
     });
 
-    testWidgets('under the eCash theme a page button keeps its case and the regular weight', (tester) async {
-      await tester.pumpSailPage(
-        SailTheme(
-          data: SailThemeData.darkTheme(SailColorScheme.orange, false, SailFontValues.ibmMono, SailThemeStyle.ecash),
-          child: const MarketCreationPage(),
-        ),
-      );
+    testWidgets(
+      'under the eCash theme a page button keeps its case and the regular weight',
+      (tester) async {
+        await tester.pumpSailPage(
+          SailTheme(
+            data: SailThemeData.darkTheme(
+              SailColorScheme.orange,
+              false,
+              SailFontValues.ibmMono,
+              SailThemeStyle.ecash,
+            ),
+            child: const MarketCreationPage(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        for (final label in [
+          'Add New Decision',
+          'Calculate cost',
+          'Create market',
+        ]) {
+          expect(find.text(label.toUpperCase()), findsNothing);
+          final text = tester.widgetList<Text>(find.text(label)).last;
+          expect(text.style?.fontWeight, FontWeight.w400, reason: label);
+        }
+      },
+    );
+    testWidgets('the Preview "…" holds Cancel', (WidgetTester tester) async {
+      await tester.pumpSailPage(const MarketCreationPage());
       await tester.pumpAndSettle();
 
-      for (final label in ['Add New Decision', 'Calculate cost', 'Cancel', 'Create market']) {
-        expect(find.text(label.toUpperCase()), findsNothing);
-        final text = tester.widgetList<Text>(find.text(label)).last;
-        expect(text.style?.fontWeight, FontWeight.w400, reason: label);
-      }
+      expect(find.text('Cancel'), findsNothing);
+      await tester.tap(find.byType(SailRowMenuButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Cancel'), findsOneWidget);
     });
-    testWidgets('Add New Decision adds one more decision card', (WidgetTester tester) async {
+
+    testWidgets('Add New Decision adds one more decision card', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpSailPage(const MarketCreationPage());
       await tester.pumpAndSettle();
 
@@ -125,52 +155,77 @@ void main() {
       final periodLabels = find.text('Period 21 · 9 sats · 30 slots').evaluate().length;
       expect(periodLabels, greaterThan(0));
 
-      final addButton = find.byWidgetPredicate((w) => w is SailButton && w.label == 'Add New Decision');
+      final addButton = find.byWidgetPredicate(
+        (w) => w is SailButton && w.label == 'Add New Decision',
+      );
       await tester.ensureVisible(addButton);
       await tester.tap(addButton);
       await tester.pumpAndSettle();
 
       expect(find.text('New decision #2'), findsOneWidget);
-      expect(find.text('Period 21 · 9 sats · 30 slots'), findsNWidgets(periodLabels * 2));
+      expect(
+        find.text('Period 21 · 9 sats · 30 slots'),
+        findsNWidgets(periodLabels * 2),
+      );
       expect(find.text('Header'), findsNWidgets(2));
       expect(find.text('Option 0 label'), findsNWidgets(2));
       expect(find.text('Option 1 label'), findsNWidgets(2));
     });
 
-    testWidgets('the X removes a card, and the market keeps only the other card', (WidgetTester tester) async {
-      await tester.pumpSailPage(const MarketCreationPage());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'Remove in the card menu removes a card, and the market keeps only the other card',
+      (WidgetTester tester) async {
+        await tester.pumpSailPage(const MarketCreationPage());
+        await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('remove_new_decision_1')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('remove_new_decision_1')),
+          findsNothing,
+        );
 
-      final addButton = find.byWidgetPredicate((w) => w is SailButton && w.label == 'Add New Decision');
-      await tester.ensureVisible(addButton);
-      await tester.tap(addButton);
-      await tester.pumpAndSettle();
+        final addButton = find.byWidgetPredicate(
+          (w) => w is SailButton && w.label == 'Add New Decision',
+        );
+        await tester.ensureVisible(addButton);
+        await tester.tap(addButton);
+        await tester.pumpAndSettle();
 
-      final headers = find.byWidgetPredicate((w) => w is SailTextField && w.hintText == 'Decision-specific question');
-      await tester.enterText(headers.at(0), _daaHeader);
-      await tester.enterText(headers.at(1), _blockTimeHeader);
-      await tester.pumpAndSettle();
+        final headers = find.byWidgetPredicate(
+          (w) => w is SailTextField && w.hintText == 'Decision-specific question',
+        );
+        await tester.enterText(headers.at(0), _daaHeader);
+        await tester.enterText(headers.at(1), _blockTimeHeader);
+        await tester.pumpAndSettle();
 
-      final remove = find.byKey(const ValueKey('remove_new_decision_1'));
-      await tester.ensureVisible(remove);
-      await tester.tap(remove);
-      await tester.pumpAndSettle();
+        final remove = find.byKey(const ValueKey('remove_new_decision_1'));
+        await tester.ensureVisible(remove);
+        await tester.tap(remove);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('New decision #1'), findsOneWidget);
-      expect(find.text('New decision #2'), findsNothing);
-      expect(find.byKey(const ValueKey('remove_new_decision_1')), findsNothing);
+        expect(find.text('New decision #1'), findsOneWidget);
+        expect(find.text('New decision #2'), findsNothing);
+        expect(
+          find.byKey(const ValueKey('remove_new_decision_1')),
+          findsNothing,
+        );
 
-      final model = getParentViewModel<MarketCreationViewModel>(tester.element(headers.first), listen: false);
-      expect(
-        model.dimensionInputs,
-        '[{"type":"new","period_index":21,"decision_type":"binary","header":"$_blockTimeHeader"}]',
-      );
-      expect(tester.takeException(), isNull);
-    });
+        final model = getParentViewModel<MarketCreationViewModel>(
+          tester.element(headers.first),
+          listen: false,
+        );
+        expect(
+          model.dimensionInputs,
+          '[{"type":"new","period_index":21,"decision_type":"binary","header":"$_blockTimeHeader"}]',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
 
-    testWidgets('the Type tabs swap the rows below the header', (WidgetTester tester) async {
+    testWidgets('the Type tabs swap the rows below the header', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpSailPage(const MarketCreationPage());
       await tester.pumpAndSettle();
 
@@ -249,17 +304,20 @@ void main() {
       model.dispose();
     });
 
-    test('an existing decision goes first, a blank card adds nothing', () async {
-      final model = await readyModel();
-      model.addExistingDecision('002a0001');
-      model.addNewDecision();
+    test(
+      'an existing decision goes first, a blank card adds nothing',
+      () async {
+        final model = await readyModel();
+        model.addExistingDecision('002a0001');
+        model.addNewDecision();
 
-      expect(model.dimensionInputs, '[{"type":"existing","id":"002a0001"}]');
-      expect(model.listingFeeSats, 0);
-      expect(model.canCreate, true);
+        expect(model.dimensionInputs, '[{"type":"existing","id":"002a0001"}]');
+        expect(model.listingFeeSats, 0);
+        expect(model.canCreate, true);
 
-      model.dispose();
-    });
+        model.dispose();
+      },
+    );
 
     test('the cost holds the listing fee of each picked period', () async {
       final model = await readyModel();
@@ -274,7 +332,9 @@ void main() {
       model.dispose();
     });
 
-    testWidgets('Create market caps the listing fee at the fee on the page', (tester) async {
+    testWidgets('Create market caps the listing fee at the fee on the page', (
+      tester,
+    ) async {
       await tester.pumpWidget(const SizedBox());
       final model = await readyModel();
       model.newDecisions.first.header.text = _daaHeader;
@@ -286,13 +346,18 @@ void main() {
       await model.createMarket(tester.element(find.byType(SizedBox)));
 
       expect(mockRpc.lastMarketCreateMaxListingFeeSats, 27);
-      expect(model.createError, contains('Listing fee 36 exceeds max_listing_fee_sats 27'));
+      expect(
+        model.createError,
+        contains('Listing fee 36 exceeds max_listing_fee_sats 27'),
+      );
 
       mockRpc.marketCreateError = null;
       model.dispose();
     });
 
-    testWidgets('Create market sends no cap without a new decision', (tester) async {
+    testWidgets('Create market sends no cap without a new decision', (
+      tester,
+    ) async {
       await tester.pumpWidget(const SizedBox());
       final model = await readyModel();
       model.addExistingDecision('002a0001');
@@ -306,19 +371,22 @@ void main() {
       model.dispose();
     });
 
-    test('a card with an error or no decision at all blocks the market', () async {
-      final model = await readyModel();
-      expect(model.canCreate, false);
+    test(
+      'a card with an error or no decision at all blocks the market',
+      () async {
+        final model = await readyModel();
+        expect(model.canCreate, false);
 
-      model.newDecisions.first.option1Label.text = 'Yes';
-      expect(model.newDecisions.first.error, 'Write a header.');
-      expect(model.canCreate, false);
+        model.newDecisions.first.option1Label.text = 'Yes';
+        expect(model.newDecisions.first.error, 'Write a header.');
+        expect(model.canCreate, false);
 
-      model.newDecisions.first.header.text = _daaHeader;
-      expect(model.canCreate, true);
+        model.newDecisions.first.header.text = _daaHeader;
+        expect(model.canCreate, true);
 
-      model.dispose();
-    });
+        model.dispose();
+      },
+    );
 
     test('Create market sends the dimensions and the initial liquidity', () async {
       final model = await readyModel();
@@ -366,16 +434,25 @@ void main() {
       ];
 
       final model = await readyModel();
-      expect(model.claimedSlots.map((s) => s.slotIdHex), containsAll(['002a0001', '002a0004']));
+      expect(
+        model.claimedSlots.map((s) => s.slotIdHex),
+        containsAll(['002a0001', '002a0004']),
+      );
 
       model.addExistingDecision('002a0004');
       expect(model.outcomeCount, 3);
 
       model.addExistingDecision('002a0001');
       model.addExistingDecision('002a0001');
-      expect(model.dimensionInputs, '[{"type":"existing","id":"002a0004"},{"type":"existing","id":"002a0001"}]');
+      expect(
+        model.dimensionInputs,
+        '[{"type":"existing","id":"002a0004"},{"type":"existing","id":"002a0001"}]',
+      );
       expect(model.outcomeCount, 6);
-      expect(model.addableSlots.map((s) => s.slotIdHex), isNot(contains('002a0001')));
+      expect(
+        model.addableSlots.map((s) => s.slotIdHex),
+        isNot(contains('002a0001')),
+      );
 
       model.removeExistingDecision('002a0004');
       expect(model.dimensionInputs, '[{"type":"existing","id":"002a0001"}]');
@@ -395,27 +472,30 @@ void main() {
       model.dispose();
     });
 
-    test('beta mode asks for a calculation before it creates a market', () async {
-      final model = MarketCreationViewModel();
-      model.init();
-      await model.loadSlots();
-      model
-        ..titleController.text = 'Will the price rise?'
-        ..descriptionController.text = 'The voter reads the close.'
-        ..addExistingDecision('002a0001')
-        ..setLiquidityMethod(LiquidityMethod.beta);
+    test(
+      'beta mode asks for a calculation before it creates a market',
+      () async {
+        final model = MarketCreationViewModel();
+        model.init();
+        await model.loadSlots();
+        model
+          ..titleController.text = 'Will the price rise?'
+          ..descriptionController.text = 'The voter reads the close.'
+          ..addExistingDecision('002a0001')
+          ..setLiquidityMethod(LiquidityMethod.beta);
 
-      expect(model.subsidySats, null);
-      expect(model.totalCostSats, null);
-      expect(model.canCreate, false);
+        expect(model.subsidySats, null);
+        expect(model.totalCostSats, null);
+        expect(model.canCreate, false);
 
-      await model.calculateLiquidityPreview();
+        await model.calculateLiquidityPreview();
 
-      expect(model.subsidySats, isNotNull);
-      expect(model.canCreate, true);
+        expect(model.subsidySats, isNotNull);
+        expect(model.canCreate, true);
 
-      model.dispose();
-    });
+        model.dispose();
+      },
+    );
 
     test('a late cost calculation never wins', () async {
       final model = MarketCreationViewModel();

@@ -10,14 +10,52 @@ const _minSats = 546;
 const _maxSats = 21000000 * 100000000;
 
 @RoutePage()
-class CreateCheckPage extends StatefulWidget {
+class CreateCheckPage extends StatelessWidget {
   const CreateCheckPage({super.key});
 
   @override
-  State<CreateCheckPage> createState() => _CreateCheckPageState();
+  Widget build(BuildContext context) {
+    final phone = SailStyleValues.phoneLayout(context);
+    return SailScaffold(
+      backgroundColor: SailTheme.of(context).colors.background,
+      appBar: SailAppBar.build(context, title: SailText.primary20('Create Check')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 600),
+              padding: EdgeInsets.all(phone ? SailStyleValues.padding16 : SailStyleValues.padding20),
+              child: _PhonePanel(phone: phone, child: const _CreateCheckForm()),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _CreateCheckPageState extends State<CreateCheckPage> {
+/// Opens Create Check as a dialog. Returns the id of the new check, or null.
+Future<int?> showCreateCheckDialog(BuildContext context) => showThemedDialog<int>(
+  context: context,
+  builder: (context) => SailDialog(
+    title: 'Create Check',
+    withCloseButton: true,
+    maxWidth: 480,
+    child: _CreateCheckForm(onCreated: (id) => Navigator.of(context).pop(id)),
+  ),
+);
+
+class _CreateCheckForm extends StatefulWidget {
+  /// Gets the id of the new check. Null opens the check page in place of the create page.
+  final void Function(int checkId)? onCreated;
+
+  const _CreateCheckForm({this.onCreated});
+
+  @override
+  State<_CreateCheckForm> createState() => _CreateCheckFormState();
+}
+
+class _CreateCheckFormState extends State<_CreateCheckForm> {
   final CheckProvider _checkProvider = GetIt.I.get<CheckProvider>();
   final WalletReaderProvider _walletReader = GetIt.I.get<WalletReaderProvider>();
   final TextEditingController _amountController = TextEditingController();
@@ -33,59 +71,56 @@ class _CreateCheckPageState extends State<CreateCheckPage> {
   @override
   Widget build(BuildContext context) {
     final phone = SailStyleValues.phoneLayout(context);
-    return SailScaffold(
-      backgroundColor: SailTheme.of(context).colors.background,
-      appBar: SailAppBar.build(context, title: SailText.primary20('Create Check')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 600),
-              padding: EdgeInsets.all(phone ? SailStyleValues.padding16 : SailStyleValues.padding20),
-              child: _PhonePanel(
-                phone: phone,
-                child: SailColumn(
-                  spacing: phone ? SailStyleValues.padding16 : SailStyleValues.padding32,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    phone
-                        ? SailText.primary15('How much should the check be for?', bold: true)
-                        : SailText.primary24('How much should the check be for?'),
-                    SailTextField(
-                      controller: _amountController,
-                      hintText: '0.00000000',
-                      suffix: activeTicker.symbol,
-                      textFieldType: TextFieldType.bitcoin,
-                      onChanged: (_) {
-                        if (_error != null) {
-                          setState(() => _error = null);
-                        }
-                      },
-                    ),
-                    SailRow(
-                      spacing: SailStyleValues.padding08,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        SailButton(
-                          label: 'Cancel',
-                          variant: ButtonVariant.ghost,
-                          onPressed: () async => context.router.maybePop(),
-                        ),
-                        SailButton(
-                          label: 'Create',
-                          loading: _isCreating,
-                          onPressed: () async => _createCheck(),
-                        ),
-                      ],
-                    ),
-                    if (_error != null) SailInlineError(_error!),
-                  ],
-                ),
-              ),
+    final field = SailTextField(
+      controller: _amountController,
+      hintText: '0.00000000',
+      suffix: activeTicker.symbol,
+      textFieldType: TextFieldType.bitcoin,
+      onChanged: (_) {
+        if (_error != null) {
+          setState(() => _error = null);
+        }
+      },
+    );
+    if (widget.onCreated != null) {
+      return SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SailText.secondary13('How much should the check be for?'),
+          field,
+          if (_error != null) SailInlineError(_error!),
+          SailButton(label: 'Create', loading: _isCreating, onPressed: () async => _createCheck()),
+        ],
+      );
+    }
+    return SailColumn(
+      spacing: phone ? SailStyleValues.padding16 : SailStyleValues.padding32,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        phone
+            ? SailText.primary15('How much should the check be for?', bold: true)
+            : SailText.primary24('How much should the check be for?'),
+        field,
+        SailRow(
+          spacing: SailStyleValues.padding08,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            SailButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              onPressed: () async => context.router.maybePop(),
             ),
-          ),
+            SailButton(
+              label: 'Create',
+              loading: _isCreating,
+              onPressed: () async => _createCheck(),
+            ),
+          ],
         ),
-      ),
+        if (_error != null) SailInlineError(_error!),
+      ],
     );
   }
 
@@ -116,6 +151,11 @@ class _CreateCheckPageState extends State<CreateCheckPage> {
     try {
       final check = await _checkProvider.createCheck(sats);
       if (!mounted) {
+        return;
+      }
+      final onCreated = widget.onCreated;
+      if (onCreated != null) {
+        onCreated(check.id.toInt());
         return;
       }
       await context.router.replace(CheckDetailRoute(checkId: check.id.toInt()));

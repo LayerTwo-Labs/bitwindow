@@ -327,16 +327,13 @@ class _NodeModePopoverState extends State<NodeModePopover> {
             }),
           ),
         if (_error != null) SailText.secondary12(_error!, color: theme.colors.error),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            SailButton(
-              label: label,
-              loading: _switching,
-              disabled: current && !(_toFull && fullModeNeedsDataDir(_conf)),
-              onPressed: _confirm,
-            ),
-          ],
+        _NodeModePrimary(
+          button: SailButton(
+            label: label,
+            loading: _switching,
+            disabled: current && !(_toFull && fullModeNeedsDataDir(_conf)),
+            onPressed: _confirm,
+          ),
         ),
       ],
     );
@@ -344,6 +341,7 @@ class _NodeModePopoverState extends State<NodeModePopover> {
 
   Widget _dataDirPage(BuildContext context) {
     final theme = SailTheme.of(context);
+    final v2 = theme.isBitwindowV2;
     final chosen = _dataDir.selectedPath;
     return SailColumn(
       spacing: SailStyleValues.padding12,
@@ -352,15 +350,22 @@ class _NodeModePopoverState extends State<NodeModePopover> {
       children: [
         Row(
           children: [
-            SailButton(
-              variant: ButtonVariant.icon,
-              icon: SailSVGAsset.chevronLeft,
-              iconHeight: 14,
-              iconWidth: 14,
-              small: true,
-              disabled: _switching,
-              onPressed: () async => setState(() => _onDataDirPage = false),
-            ),
+            if (v2)
+              SailIconBoxButton(
+                icon: SailSVGAsset.chevronLeft,
+                tooltip: 'Back',
+                onPressed: _switching ? null : () async => setState(() => _onDataDirPage = false),
+              )
+            else
+              SailButton(
+                variant: ButtonVariant.icon,
+                icon: SailSVGAsset.chevronLeft,
+                iconHeight: 14,
+                iconWidth: 14,
+                small: true,
+                disabled: _switching,
+                onPressed: () async => setState(() => _onDataDirPage = false),
+              ),
             const SizedBox(width: 8),
             Expanded(child: SailText.primary15('Configure Data Directory', bold: true)),
           ],
@@ -369,41 +374,66 @@ class _NodeModePopoverState extends State<NodeModePopover> {
           '${_conf.network.toDisplayName()} requires a data directory to store blockchain data.\n'
           'This will require significant disk space (700GB+ for mainnet).',
         ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(color: theme.colors.border),
-            borderRadius: context.sailTheme.chrome.radiusSmall,
+        if (v2)
+          DataDirField(
+            path: chosen,
+            browse: SailButton(
+              label: 'Browse',
+              variant: ButtonVariant.ghost,
+              small: true,
+              loading: _dataDir.selecting,
+              disabled: _switching,
+              onPressed: _dataDir.browse,
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.colors.border),
+              borderRadius: context.sailTheme.chrome.radiusSmall,
+            ),
+            child: Row(
+              children: [
+                Expanded(child: SailText.secondary13(chosen ?? 'No directory selected')),
+                const SizedBox(width: 16),
+                SailButton(
+                  label: 'Browse',
+                  variant: chosen == null ? ButtonVariant.primary : ButtonVariant.secondary,
+                  loading: _dataDir.selecting,
+                  disabled: _switching,
+                  onPressed: _dataDir.browse,
+                ),
+              ],
+            ),
           ),
-          child: Row(
-            children: [
-              Expanded(child: SailText.secondary13(chosen ?? 'No directory selected')),
-              const SizedBox(width: 16),
-              SailButton(
-                label: 'Browse',
-                variant: chosen == null ? ButtonVariant.primary : ButtonVariant.secondary,
-                loading: _dataDir.selecting,
-                disabled: _switching,
-                onPressed: _dataDir.browse,
-              ),
-            ],
-          ),
-        ),
         if (_dataDir.error != null) SailText.secondary12(_dataDir.error!, color: theme.colors.error),
         if (_error != null) SailText.secondary12(_error!, color: theme.colors.error),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            SailButton(
-              label: 'Continue',
-              loading: _switching,
-              disabled: chosen == null,
-              onPressed: _continueWithDataDir,
-            ),
-          ],
+        _NodeModePrimary(
+          button: SailButton(
+            label: 'Continue',
+            loading: _switching,
+            disabled: chosen == null,
+            onPressed: _continueWithDataDir,
+          ),
         ),
       ],
     );
+  }
+}
+
+/// The one button of a page: full width in v2, at the right otherwise.
+class _NodeModePrimary extends StatelessWidget {
+  final SailButton button;
+
+  const _NodeModePrimary({required this.button});
+
+  @override
+  Widget build(BuildContext context) {
+    if (SailTheme.of(context).isBitwindowV2) {
+      return SizedBox(width: double.infinity, child: button);
+    }
+    return Row(mainAxisAlignment: MainAxisAlignment.end, children: [button]);
   }
 }
 
@@ -424,6 +454,35 @@ class NodeModeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    if (theme.isBitwindowV2) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: theme.colors.formField,
+            border: Border.all(color: selected ? theme.colors.primary : theme.colors.border),
+            borderRadius: theme.chrome.radius,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  _RadioDot(selected: selected),
+                  const SizedBox(width: 8),
+                  Flexible(child: SailText.primary15(label, bold: true)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              SailText.secondary13(description),
+            ],
+          ),
+        ),
+      );
+    }
 
     return GestureDetector(
       onTap: onTap,
@@ -443,6 +502,52 @@ class NodeModeCard extends StatelessWidget {
             SailText.secondary13(description),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RadioDot extends StatelessWidget {
+  final bool selected;
+
+  const _RadioDot({required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? theme.colors.primary : null,
+        border: selected ? null : Border.all(color: theme.colors.border, width: 1.5),
+      ),
+    );
+  }
+}
+
+/// A chosen data directory in a 40 px field, with [browse] at its right end.
+class DataDirField extends StatelessWidget {
+  final String? path;
+  final Widget? browse;
+
+  const DataDirField({super.key, required this.path, this.browse});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 40),
+      padding: EdgeInsets.only(left: 16, right: browse == null ? 16 : 4),
+      decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+      child: Row(
+        children: [
+          Expanded(
+            child: SailText.primary13(path ?? 'No directory selected'),
+          ),
+          if (browse != null) ...[const SizedBox(width: 8), browse!],
+        ],
       ),
     );
   }

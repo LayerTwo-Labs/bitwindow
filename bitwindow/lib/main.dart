@@ -104,14 +104,26 @@ void main(List<String> args) async {
               ? await WindowController.fromCurrentEngine()
               : null;
 
-          final (applicationDir, logFile, log) = await init(windowController?.arguments ?? '');
+          final (applicationDir, logFile, log) = await init(
+            windowController?.arguments ?? '',
+          );
           if (windowController != null && subWindowTimers != null) {
-            return await runPooledSubWindow(windowController, subWindowTimers, log, logFile);
+            return await runPooledSubWindow(
+              windowController,
+              subWindowTimers,
+              log,
+              logFile,
+            );
           }
 
           // If arguments are not empty, this is a sub-window
           if (windowController != null && windowController.arguments.isNotEmpty) {
-            return runMultiWindow(windowController.arguments, log, applicationDir, logFile);
+            return runMultiWindow(
+              windowController.arguments,
+              log,
+              applicationDir,
+              logFile,
+            );
           }
 
           await runMainWindow(log, applicationDir, logFile);
@@ -152,7 +164,10 @@ Future<void> runPooledSubWindow(
     timers: timers,
     buildPage: (arguments) {
       final page = subWindowPage(arguments, logFile, logCursors);
-      return (app: buildSailWindowApp(log, page.title, page.child, _subWindowAccent), work: page.work);
+      return (
+        app: buildSailWindowApp(log, page.title, page.child, _subWindowAccent),
+        work: page.work,
+      );
     },
     announceShown: () => windows.sendMessageToMain(windowShownMethod, null),
     announceHidden: (windowType) => announceHiddenWindow(windowController.windowId, windowType),
@@ -165,11 +180,15 @@ Future<void> runPooledSubWindow(
     await GetIt.I.get<SettingsProvider>().reload();
     unawaited(GetIt.I.get<BitcoinConfProvider>().loadConfig());
     refetchBuiltOnOpen();
-    await host.open(jsonDecode(call.arguments as String) as Map<String, dynamic>);
+    await host.open(
+      jsonDecode(call.arguments as String) as Map<String, dynamic>,
+    );
     return null;
   });
   if (!isSpareWindowArguments(windowController.arguments)) {
-    return host.open(jsonDecode(windowController.arguments) as Map<String, dynamic>);
+    return host.open(
+      jsonDecode(windowController.arguments) as Map<String, dynamic>,
+    );
   }
   timers.pause();
   await announceSpareWindow(windowController.windowId);
@@ -197,7 +216,9 @@ Future<(Directory, File, Logger)> init(String arguments) async {
     }
 
     if (logFile == null || applicationDir == null) {
-      throw ArgumentError('Missing required arguments for multi-window mode: application_dir, log_file');
+      throw ArgumentError(
+        'Missing required arguments for multi-window mode: application_dir, log_file',
+      );
     }
   }
 
@@ -211,7 +232,11 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   LocalAuth.configure(applicationDir);
   logFile ??= await getLogFile();
 
-  final log = await logger(Environment.fileLog, Environment.consoleLog, logFile);
+  final log = await logger(
+    Environment.fileLog,
+    Environment.consoleLog,
+    logFile,
+  );
   log.i('starting bitwindow, writing logs to $logFile');
 
   Environment.validateAtRuntime();
@@ -248,13 +273,19 @@ Future<(Directory, File, Logger)> init(String arguments) async {
       return provider;
     }
     refetchWired = true;
-    scheduleMicrotask(() => GetIt.I<SyncProvider>().onNewBlock((_) => refetchBuiltOnNewBlock()));
+    scheduleMicrotask(
+      () => GetIt.I<SyncProvider>().onNewBlock((_) => refetchBuiltOnNewBlock()),
+    );
     return provider;
   }
 
   // Register the logger
   GetIt.I.registerLazySingleton<Logger>(() => log);
-  final windowProvider = await WindowProvider.newInstance(logFile, applicationDir, isMainWindow: !isSubWindow);
+  final windowProvider = await WindowProvider.newInstance(
+    logFile,
+    applicationDir,
+    isMainWindow: !isSubWindow,
+  );
   GetIt.I.registerLazySingleton<WindowProvider>(() => windowProvider);
   if (!hasDesktopWindow) {
     final windowLogFile = logFile;
@@ -270,11 +301,17 @@ Future<(Directory, File, Logger)> init(String arguments) async {
     };
   }
   GetIt.I.registerLazySingleton<AppRouter>(() => AppRouter());
-  GetIt.I.registerLazySingleton<ClientSettings>(() => ClientSettings(store: storage, log: log));
-  GetIt.I.registerLazySingleton<BitwindowClientSettings>(() => BitwindowClientSettings(store: storage, log: log));
+  GetIt.I.registerLazySingleton<ClientSettings>(
+    () => ClientSettings(store: storage, log: log),
+  );
+  GetIt.I.registerLazySingleton<BitwindowClientSettings>(
+    () => BitwindowClientSettings(store: storage, log: log),
+  );
   final settingsProvider = await SettingsProvider.create();
   GetIt.I.registerLazySingleton<SettingsProvider>(() => settingsProvider);
-  GetIt.I.registerLazySingleton<FormatterProvider>(() => FormatterProvider(settingsProvider));
+  GetIt.I.registerLazySingleton<FormatterProvider>(
+    () => FormatterProvider(settingsProvider),
+  );
 
   // Initialize BitcoinConfProvider eagerly to load config before UI renders
   BitcoinConfProvider.promptForDataDir = promptForBitcoinDataDir;
@@ -286,11 +323,15 @@ Future<(Directory, File, Logger)> init(String arguments) async {
 
   // Initialize EnforcerConfProvider to load enforcer config
   final enforcerConfProvider = await EnforcerConfProvider.create();
-  GetIt.I.registerLazySingleton<EnforcerConfProvider>(() => enforcerConfProvider);
+  GetIt.I.registerLazySingleton<EnforcerConfProvider>(
+    () => enforcerConfProvider,
+  );
 
   GetIt.I.registerLazySingleton<ContentProvider>(() => ContentProvider());
   GetIt.I.registerLazySingleton<PriceProvider>(() => PriceProvider());
-  GetIt.I.registerLazySingleton<NotificationProvider>(() => NotificationProvider());
+  GetIt.I.registerLazySingleton<NotificationProvider>(
+    () => NotificationProvider(),
+  );
   GetIt.I.registerLazySingleton<NotificationActions>(
     () => NotificationActions(
       {
@@ -313,7 +354,11 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   GetIt.I.registerSingleton<ChainsConfigProvider>(chainsConfigProvider);
 
   if (!isSubWindow) {
-    await copyBinariesFromAssets(log, applicationDir, onStaged: _daemonWarmUp.onStaged);
+    await copyBinariesFromAssets(
+      log,
+      applicationDir,
+      onStaged: _daemonWarmUp.onStaged,
+    );
   }
 
   // Register LogProvider for process output capture
@@ -325,13 +370,21 @@ Future<(Directory, File, Logger)> init(String arguments) async {
     initialBinaries: initalBinaries(),
     shutdownEnabled: !isSubWindow,
     upChecks: {
-      BinaryType.BINARY_TYPE_BITWINDOWD: tcpUpCheck(Environment.bitwindowdHost.value, Environment.bitwindowdPort.value),
+      BinaryType.BINARY_TYPE_BITWINDOWD: tcpUpCheck(
+        Environment.bitwindowdHost.value,
+        Environment.bitwindowdPort.value,
+      ),
     },
   );
   GetIt.I.registerSingleton<BinaryProvider>(binaryProvider);
   put<BitcoindConnection>(() => BitcoindConnection());
   // Enforcer services are bridged by bitwindowd — same endpoint as BitwindowRPC.
-  put<EnforcerRPC>(() => EnforcerLive(host: Environment.bitwindowdHost.value, port: Environment.bitwindowdPort.value));
+  put<EnforcerRPC>(
+    () => EnforcerLive(
+      host: Environment.bitwindowdHost.value,
+      port: Environment.bitwindowdPort.value,
+    ),
+  );
   // Shared system boundary for runtime and wallet flows used across apps.
   final orchestrator = OrchestratorRPC(
     host: Environment.orchestratorHost.value,
@@ -344,19 +397,28 @@ Future<(Directory, File, Logger)> init(String arguments) async {
       reportExit: (id, error) => orchestrator.reportAppRunExit(id, error: error),
       log: log,
     )..watch(orchestrator);
-    GetIt.I.registerSingleton<AppRunHost>(appRuns, dispose: (host) => host.dispose());
+    GetIt.I.registerSingleton<AppRunHost>(
+      appRuns,
+      dispose: (host) => host.dispose(),
+    );
   }
   // Eager, and after the orchestrator it polls: nothing ever resolves it.
   put<ECashUpgradeWatcher>(() => ECashUpgradeWatcher());
   put<BackendStateProvider>(() => BackendStateProvider(orchestrator));
 
-  final bitwindow = BitwindowRPCLive(host: Environment.bitwindowdHost.value, port: Environment.bitwindowdPort.value);
+  final bitwindow = BitwindowRPCLive(
+    host: Environment.bitwindowdHost.value,
+    port: Environment.bitwindowdPort.value,
+  );
   GetIt.I.registerSingleton<BitwindowRPC>(bitwindow);
 
   // bitwindow applies the swap through bitwindowd so it recycles its
   // per-network database in the same step.
-  bitcoinConfProvider.networkSwapper = (network, dataDir, networkId) =>
-      bitwindow.bitwindowd.updateNetwork(network, dataDir: dataDir, networkId: networkId);
+  bitcoinConfProvider.networkSwapper = (network, dataDir, networkId) => bitwindow.bitwindowd.updateNetwork(
+    network,
+    dataDir: dataDir,
+    networkId: networkId,
+  );
 
   // now register all sidedchains
   put<BitAssetsRPC>(() => BitAssetsLive());
@@ -376,11 +438,18 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   final walletReader = WalletReaderProvider(applicationDir);
   GetIt.I.registerLazySingleton<WalletReaderProvider>(() => walletReader);
   NetworkScopedRegistry.enrol(walletReader);
-  _rootSnapshot?.restore(nodeMode: GetIt.I.get<NodeModeProvider>(), walletReader: walletReader);
+  _rootSnapshot?.restore(
+    nodeMode: GetIt.I.get<NodeModeProvider>(),
+    walletReader: walletReader,
+  );
   await walletReader.init();
 
-  GetIt.I.registerLazySingleton<CoreVariantProvider>(() => CoreVariantProvider());
-  GetIt.I.registerLazySingleton<ElectrumServerProvider>(() => ElectrumServerProvider());
+  GetIt.I.registerLazySingleton<CoreVariantProvider>(
+    () => CoreVariantProvider(),
+  );
+  GetIt.I.registerLazySingleton<ElectrumServerProvider>(
+    () => ElectrumServerProvider(),
+  );
   GetIt.I.registerLazySingleton<TorConfigProvider>(() => TorConfigProvider());
 
   final walletWriter = WalletWriterProvider(bitwindowAppDir: applicationDir);
@@ -409,7 +478,10 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   );
   GetIt.I.registerLazySingleton<SyncProvider>(
     () => SyncProvider(
-      additionalConnection: SyncConnection(rpc: bitwindow, name: bitwindow.binary.name),
+      additionalConnection: SyncConnection(
+        rpc: bitwindow,
+        name: bitwindow.binary.name,
+      ),
     ),
   );
   NetworkScopedRegistry.enrolLazy<BalanceProvider>();
@@ -418,7 +490,9 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   putScoped<PeersProvider>(() => PeersProvider());
   putScoped<BlockchainProvider>(() => refetchOnNewBlock(BlockchainProvider()));
   put<NetworkProvider>(() => NetworkProvider());
-  putScoped<TransactionProvider>(() => refetchOnNewBlock(TransactionProvider()));
+  putScoped<TransactionProvider>(
+    () => refetchOnNewBlock(TransactionProvider()),
+  );
 
   // Refetch live on every new mainchain block so the user sees fresh blocks,
   // balance, and transactions without waiting for each provider's slower
@@ -466,8 +540,12 @@ Future<(Directory, File, Logger)> init(String arguments) async {
   putScoped<PsbtDraftProvider>(() => PsbtDraftProvider());
   put<TimestampProvider>(() => TimestampProvider());
   final bitwindowHomepageProvider = BitwindowHomepageProvider();
-  GetIt.I.registerLazySingleton<BitwindowHomepageProvider>(() => bitwindowHomepageProvider);
-  GetIt.I.registerLazySingleton<HomepageProvider>(() => bitwindowHomepageProvider);
+  GetIt.I.registerLazySingleton<BitwindowHomepageProvider>(
+    () => bitwindowHomepageProvider,
+  );
+  GetIt.I.registerLazySingleton<HomepageProvider>(
+    () => bitwindowHomepageProvider,
+  );
   GetIt.I.registerLazySingleton<MempoolProvider>(() => MempoolProvider());
   put<NotificationStreamProvider>(() => NotificationStreamProvider());
   putScoped<ForkProvider>(() => ForkProvider()..init());
@@ -512,12 +590,20 @@ void refetchBuiltOnOpen() {
   }
 }
 
-Future<void> runMainWindow(Logger log, Directory applicationDir, File logFile) async {
+Future<void> runMainWindow(
+  Logger log,
+  Directory applicationDir,
+  File logFile,
+) async {
   // bitwindowd's output already reaches the console. drivechaind runs
   // detached and writes to the shared file, so a terminal launch shows nothing
   // of the daemon that starts every other one.
   if (!orchestratorLogsToStdout(Platform.environment)) {
-    await SharedLogTail(file: logFile, source: 'orchestrator', onLine: debugPrint).start();
+    await SharedLogTail(
+      file: logFile,
+      source: 'orchestrator',
+      onLine: debugPrint,
+    ).start();
   }
 
   final snapshot = _rootSnapshot;
@@ -553,7 +639,12 @@ Future<void> runMainWindow(Logger log, Directory applicationDir, File logFile) a
     }
   }();
   unawaited(
-    boot.then((_) => SchedulerBinding.instance.scheduleTask(GetIt.I.get<WindowProvider>().startSpare, Priority.idle)),
+    boot.then(
+      (_) => SchedulerBinding.instance.scheduleTask(
+        GetIt.I.get<WindowProvider>().startSpare,
+        Priority.idle,
+      ),
+    ),
   );
   // The router mounts with the root page, one frame after the boot.
   unawaited(
@@ -610,7 +701,12 @@ Future<void> runMainWindow(Logger log, Directory applicationDir, File logFile) a
   return runApp(BitwindowApp(log: log, showRoot: showRoot, look: await look));
 }
 
-void runMultiWindow(String argumentsStr, Logger log, Directory applicationDir, File logFile) async {
+void runMultiWindow(
+  String argumentsStr,
+  Logger log,
+  Directory applicationDir,
+  File logFile,
+) async {
   final arguments = jsonDecode(argumentsStr) as Map<String, dynamic>;
   final windowTitle = arguments['window_title'] as String?;
   final windowX = arguments['window_x'] as double? ?? 100;
@@ -619,12 +715,16 @@ void runMultiWindow(String argumentsStr, Logger log, Directory applicationDir, F
   final windowHeight = arguments['window_height'] as double? ?? 600;
 
   if (windowTitle == null) {
-    throw ArgumentError('Missing required arguments for multi-window mode: window_title');
+    throw ArgumentError(
+      'Missing required arguments for multi-window mode: window_title',
+    );
   }
 
   // window_manager acts on the main window of the process, not on this one.
   final windowController = await WindowController.fromCurrentEngine();
-  await windowController.setFrame(Rect.fromLTWH(windowX, windowY, windowWidth, windowHeight));
+  await windowController.setFrame(
+    Rect.fromLTWH(windowX, windowY, windowWidth, windowHeight),
+  );
   await windowController.setTitle(windowTitle);
   await windowController.show();
 
@@ -632,10 +732,15 @@ void runMultiWindow(String argumentsStr, Logger log, Directory applicationDir, F
 
   unawaited(
     WidgetsBinding.instance.waitUntilFirstFrameRasterized.then(
-      (_) => GetIt.I.get<WindowProvider>().sendMessageToMain(windowShownMethod, null),
+      (_) => GetIt.I.get<WindowProvider>().sendMessageToMain(
+        windowShownMethod,
+        null,
+      ),
     ),
   );
-  return runApp(buildSailWindowApp(log, page.title, page.child, _subWindowAccent));
+  return runApp(
+    buildSailWindowApp(log, page.title, page.child, _subWindowAccent),
+  );
 }
 
 const _subWindowAccent = Color.fromARGB(255, 255, 153, 0);
@@ -652,7 +757,9 @@ const _subWindowAccent = Color.fromARGB(255, 255, 153, 0);
   Timer? work;
   Widget child = SailCard(
     title: 'Unknown window type: $windowType',
-    child: SailText.primary15('Programmers messed up, and supplied an unknown window type: $windowType'),
+    child: SailText.primary15(
+      'Programmers messed up, and supplied an unknown window type: $windowType',
+    ),
   );
 
   // Map string identifiers to window types
@@ -662,14 +769,21 @@ const _subWindowAccent = Color.fromARGB(255, 255, 153, 0);
       break;
 
     case SubWindowTypes.logsId:
-      final logWindow = LogWindowArguments.fromWindowArguments(arguments, bitwindowLogPath: logFile.path);
+      final logWindow = LogWindowArguments.fromWindowArguments(
+        arguments,
+        bitwindowLogPath: logFile.path,
+      );
       work = ProcessLogRelay(
         GetIt.I.get<WindowProvider>(),
         GetIt.I.get<LogProvider>(),
         only: logWindow.binaryType,
         cursors: logCursors,
       ).start();
-      child = LogPage(logPath: logWindow.logPath, title: logWindow.title, binaryType: logWindow.binaryType);
+      child = LogPage(
+        logPath: logWindow.logPath,
+        title: logWindow.title,
+        binaryType: logWindow.binaryType,
+      );
       break;
 
     case SubWindowTypes.deniabilityId:
@@ -708,13 +822,18 @@ const _subWindowAccent = Color.fromARGB(255, 255, 153, 0);
   return (title: '$windowTitle | Bitwindow', child: child, work: work);
 }
 
-void ignoreOverflowErrors(FlutterErrorDetails details, {bool forceReport = false}) {
+void ignoreOverflowErrors(
+  FlutterErrorDetails details, {
+  bool forceReport = false,
+}) {
   bool ifIsOverflowError = false;
 
   // Detect overflow error.
   var exception = details.exception;
   if (exception is FlutterError) {
-    ifIsOverflowError = !exception.diagnostics.any((e) => e.value.toString().startsWith('A RenderFlex overflowed by'));
+    ifIsOverflowError = !exception.diagnostics.any(
+      (e) => e.value.toString().startsWith('A RenderFlex overflowed by'),
+    );
   }
 
   // Ignore if is overflow error.
@@ -735,7 +854,12 @@ class BitwindowApp extends StatefulWidget {
   final ValueNotifier<bool> showRoot;
   final SailAppLook? look;
 
-  const BitwindowApp({super.key, required this.log, required this.showRoot, this.look});
+  const BitwindowApp({
+    super.key,
+    required this.log,
+    required this.showRoot,
+    this.look,
+  });
 
   @override
   State<BitwindowApp> createState() => _BitwindowAppState();
@@ -808,8 +932,11 @@ class _BitwindowAppContent extends StatelessWidget {
       title: 'Bitcoin Core + CUSF BIP 300/301 Enforcer',
       theme: ThemeData(
         visualDensity: VisualDensity.compact,
-        fontFamily: theme.chrome.textFamily(monospace: font == SailFontValues.ibmMono),
+        fontFamily: theme.chrome.textFamily(
+          monospace: font == SailFontValues.ibmMono,
+        ),
         scaffoldBackgroundColor: theme.colors.background,
+        dialogTheme: sailDialogTheme(theme),
       ),
       builder: (context, child) {
         // PersistentStatusBar collapses to SizedBox.shrink when orch +
@@ -834,7 +961,9 @@ class _BitwindowAppContent extends StatelessWidget {
         return _ErrorBoundary(
           child: Scaffold(
             body: child ?? const SizedBox.shrink(),
-            bottomNavigationBar: const BackendSwapBar(child: PersistentStatusBar()),
+            bottomNavigationBar: const BackendSwapBar(
+              child: PersistentStatusBar(),
+            ),
           ),
         );
       },
@@ -855,7 +984,7 @@ class _SplashScreen extends StatelessWidget {
       home: QtPage(
         child: Stack(
           children: [
-            Center(child: SailSVG.fromAsset(SailSVGAsset.layerTwoLabsLogo, height: 71)),
+            const Center(child: LayerTwoLabsLogo()),
             Positioned(
               bottom: 50,
               left: 0,
@@ -869,7 +998,12 @@ class _SplashScreen extends StatelessWidget {
                     const BackendSwapSplash(),
                     const SizedBox(
                       width: 200,
-                      child: ProgressBar(current: 0, goal: 1, hideProgressInside: true, small: true),
+                      child: ProgressBar(
+                        current: 0,
+                        goal: 1,
+                        hideProgressInside: true,
+                        small: true,
+                      ),
                     ),
                   ],
                 ),
@@ -946,7 +1080,11 @@ class _ErrorCatcher extends StatelessWidget {
             '⚠ Failed to render this component\n${details.exceptionAsString()}',
             maxLines: 6,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontFamily: 'monospace'),
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontSize: 12,
+              fontFamily: 'monospace',
+            ),
           ),
         ),
       );
@@ -988,7 +1126,10 @@ Future<bool> waitForDrivechaind(
 }
 
 /// The readiness reads wait for [firstFrame], so their replies do not hold it back.
-Future<void> bootBitwindowBackend(Logger log, {Future<void>? firstFrame}) async {
+Future<void> bootBitwindowBackend(
+  Logger log, {
+  Future<void>? firstFrame,
+}) async {
   log.i('STARTUP: Booting BitWindow backend');
 
   final binaryProvider = GetIt.I.get<BinaryProvider>();
@@ -1011,7 +1152,10 @@ Future<void> bootBitwindowBackend(Logger log, {Future<void>? firstFrame}) async 
   final localAuthFlag = Platform.environment['ORCHESTRATOR_LOCAL_AUTH']?.toLowerCase();
   final localAuth = localAuthFlag != 'false' && localAuthFlag != '0';
   log.i('STARTUP: starting bitwindowd');
-  await startBitwindowd(binaryProvider, swap: GetIt.I.get<BackendSwapProvider>());
+  await startBitwindowd(
+    binaryProvider,
+    swap: GetIt.I.get<BackendSwapProvider>(),
+  );
   await firstFrame;
 
   // 1b. Local auth is on by default; the kill switch is ORCHESTRATOR_LOCAL_AUTH
@@ -1023,7 +1167,9 @@ Future<void> bootBitwindowBackend(Logger log, {Future<void>? firstFrame}) async 
   if (localAuth) {
     log.i('STARTUP: waiting for local auth cookie');
     final loaded = await LocalAuth.load();
-    log.i(loaded ? 'STARTUP: local auth cookie loaded' : 'STARTUP: local auth cookie did not appear');
+    log.i(
+      loaded ? 'STARTUP: local auth cookie loaded' : 'STARTUP: local auth cookie did not appear',
+    );
   }
 
   // 2. Wait for drivechaind (managed by bitwindowd) to become ready.
@@ -1039,8 +1185,14 @@ Future<void> bootBitwindowBackend(Logger log, {Future<void>? firstFrame}) async 
     bitwindowRpc.connectionError = null;
     bitwindowRpc.markStateChanged();
   }
-  binaryProvider.addStartupLogForBinary(BinaryType.BINARY_TYPE_DRIVECHAIND, 'Waiting for drivechaind...');
-  binaryProvider.addStartupLogForBinary(BinaryType.BINARY_TYPE_BITWINDOWD, 'Waiting for drivechaind...');
+  binaryProvider.addStartupLogForBinary(
+    BinaryType.BINARY_TYPE_DRIVECHAIND,
+    'Waiting for drivechaind...',
+  );
+  binaryProvider.addStartupLogForBinary(
+    BinaryType.BINARY_TYPE_BITWINDOWD,
+    'Waiting for drivechaind...',
+  );
 
   final orchestratorReady = await waitForDrivechaind(() async {
     await orchestrator.listBinaries();
@@ -1060,7 +1212,9 @@ Future<void> bootBitwindowBackend(Logger log, {Future<void>? firstFrame}) async 
       bitwindowRpc.markStateChanged();
     }
   } else {
-    log.e('STARTUP: drivechaind did not become ready after ${drivechaindReadyTimeout.inSeconds}s');
+    log.e(
+      'STARTUP: drivechaind did not become ready after ${drivechaindReadyTimeout.inSeconds}s',
+    );
   }
   // If the wait exhausted without success, leave initializingBinary alone —
   // let the error state surface naturally via backendState.startWatching().
@@ -1101,14 +1255,29 @@ Future<void> startBackendsForMode({
   required Logger log,
   Duration retryEvery = firstBootModeRetry,
 }) async {
-  streamBinaryLogs(orchestrator, 'bitcoind', BinaryType.BINARY_TYPE_BITCOIND, log);
-  streamBinaryLogs(orchestrator, 'enforcer', BinaryType.BINARY_TYPE_ENFORCER, log);
+  streamBinaryLogs(
+    orchestrator,
+    'bitcoind',
+    BinaryType.BINARY_TYPE_BITCOIND,
+    log,
+  );
+  streamBinaryLogs(
+    orchestrator,
+    'enforcer',
+    BinaryType.BINARY_TYPE_ENFORCER,
+    log,
+  );
 
   log.i('STARTUP: starting backend state watch');
   backendState.startWatching();
 
   if (orchestratorReady) {
-    await _bootForMode(orchestrator: orchestrator, orchestratorReady: true, log: log, retryEvery: retryEvery);
+    await _bootForMode(
+      orchestrator: orchestrator,
+      orchestratorReady: true,
+      log: log,
+      retryEvery: retryEvery,
+    );
     return;
   }
 
@@ -1120,7 +1289,14 @@ Future<void> startBackendsForMode({
     }
     backendState.removeListener(onBackendState);
     log.i('STARTUP: drivechaind answered after the readiness wait');
-    unawaited(_bootForMode(orchestrator: orchestrator, orchestratorReady: true, log: log, retryEvery: retryEvery));
+    unawaited(
+      _bootForMode(
+        orchestrator: orchestrator,
+        orchestratorReady: true,
+        log: log,
+        retryEvery: retryEvery,
+      ),
+    );
   }
 
   backendState.addListener(onBackendState);
@@ -1133,7 +1309,12 @@ Future<void> reconcileNodeMode({
   required OrchestratorRPC orchestrator,
   required Logger log,
   Duration retryEvery = firstBootModeRetry,
-}) => _bootForMode(orchestrator: orchestrator, orchestratorReady: true, log: log, retryEvery: retryEvery);
+}) => _bootForMode(
+  orchestrator: orchestrator,
+  orchestratorReady: true,
+  log: log,
+  retryEvery: retryEvery,
+);
 
 Future<void> _bootForMode({
   required OrchestratorRPC orchestrator,
@@ -1153,7 +1334,9 @@ Future<void> _bootForMode({
       throw StateError('the backend did not answer the node mode read');
     }
   } catch (e) {
-    log.e('STARTUP: could not record the node mode, trying again in ${retryEvery.inSeconds}s: $e');
+    log.e(
+      'STARTUP: could not record the node mode, trying again in ${retryEvery.inSeconds}s: $e',
+    );
     GetIt.I.get<NotificationProvider>().add(
       id: 'first-boot-node-mode',
       title: 'Could not switch',
@@ -1194,7 +1377,12 @@ final Set<String> _streamedBinaries = {};
 
 /// Starts the log stream of [binaryName], one per binary and app.
 @visibleForTesting
-void streamBinaryLogs(OrchestratorRPC orchestrator, String binaryName, BinaryType binaryType, Logger log) {
+void streamBinaryLogs(
+  OrchestratorRPC orchestrator,
+  String binaryName,
+  BinaryType binaryType,
+  Logger log,
+) {
   if (!_streamedBinaries.add(binaryName)) {
     return;
   }
@@ -1221,21 +1409,40 @@ void _watchBinaryLogs(
   final logProvider = GetIt.I.get<LogProvider>();
 
   orchestrator
-      .streamLogs(binaryName, tail: 100, runId: cursor?.runId ?? '', afterSequence: cursor?.sequence)
+      .streamLogs(
+        binaryName,
+        tail: 100,
+        runId: cursor?.runId ?? '',
+        afterSequence: cursor?.sequence,
+      )
       .listen(
         (response) {
           cursor = response;
           logProvider.addLog(
             FullProcessLogEntry(
-              timestamp: DateTime.fromMillisecondsSinceEpoch(response.timestampUnix.toInt() * 1000),
+              timestamp: DateTime.fromMillisecondsSinceEpoch(
+                response.timestampUnix.toInt() * 1000,
+              ),
               message: response.line,
               isStderr: response.stream == 'stderr',
               binaryType: binaryType,
             ),
           );
         },
-        onError: (e) => _reopenBinaryLogs(orchestrator, binaryName, binaryType, log, cursor),
-        onDone: () => _reopenBinaryLogs(orchestrator, binaryName, binaryType, log, cursor),
+        onError: (e) => _reopenBinaryLogs(
+          orchestrator,
+          binaryName,
+          binaryType,
+          log,
+          cursor,
+        ),
+        onDone: () => _reopenBinaryLogs(
+          orchestrator,
+          binaryName,
+          binaryType,
+          log,
+          cursor,
+        ),
         cancelOnError: true,
       );
 }
@@ -1291,7 +1498,11 @@ Future<void> _awaitDrivechaindExit(Logger log) async {
 
   while (DateTime.now().isBefore(deadline)) {
     try {
-      final socket = await Socket.connect(host, port, timeout: const Duration(seconds: 2));
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(seconds: 2),
+      );
       socket.destroy();
     } catch (_) {
       log.i('REBOOT: drivechaind released $host:$port');
@@ -1300,7 +1511,9 @@ Future<void> _awaitDrivechaindExit(Logger log) async {
     await Future.delayed(const Duration(milliseconds: 500));
   }
   // Booting now would adopt the daemon we meant to replace.
-  throw StateError('drivechaind is still holding $host:$port — restart BitWindow to finish');
+  throw StateError(
+    'drivechaind is still holding $host:$port — restart BitWindow to finish',
+  );
 }
 
 /// Restores a backup file (.zip/.json). With no wallet in this install, the
@@ -1318,7 +1531,9 @@ Future<bool> restoreBitwindowWalletFromFile(
 
   final validation = await walletApi.validateBackup(bytes, filename);
   if (!validation.valid) {
-    throw Exception(validation.errorMessage.isNotEmpty ? validation.errorMessage : 'Invalid backup file');
+    throw Exception(
+      validation.errorMessage.isNotEmpty ? validation.errorMessage : 'Invalid backup file',
+    );
   }
 
   final reader = GetIt.I.get<WalletReaderProvider>();
@@ -1335,7 +1550,12 @@ Future<bool> restoreBitwindowWalletFromFile(
     }
     password = answer;
   }
-  await walletApi.restoreBackup(bytes, filename, keepWallets: true, password: password);
+  await walletApi.restoreBackup(
+    bytes,
+    filename,
+    keepWallets: true,
+    password: password,
+  );
   await reader.init();
   return true;
 }
@@ -1377,8 +1597,12 @@ class SubWindowTypes {
     defaultPosition: Offset(100, 100),
   );
 
-  static SailWindow logsFor(String title) =>
-      SailWindow(identifier: logsId, name: title, defaultSize: logs.defaultSize, defaultPosition: logs.defaultPosition);
+  static SailWindow logsFor(String title) => SailWindow(
+    identifier: logsId,
+    name: title,
+    defaultSize: logs.defaultSize,
+    defaultPosition: logs.defaultPosition,
+  );
 
   static const String deniabilityId = 'deniability';
   static var deniability = SailWindow(
@@ -1455,12 +1679,18 @@ class SubWindowTypes {
 }
 
 List<Binary> initalBinaries() {
-  return [...coreBinaries, ...sidechainBinaries, resolveFromConfig(BinaryType.BINARY_TYPE_GRPCURL, () => GRPCurl())];
+  return [
+    ...coreBinaries,
+    ...sidechainBinaries,
+    resolveFromConfig(BinaryType.BINARY_TYPE_GRPCURL, () => GRPCurl()),
+  ];
 }
 
 Future<void> initAutoUpdater(Logger log) async {
   if (!Platform.isMacOS && !Platform.isWindows) {
-    log.i('Skipping auto updater initialization because we are not on macOS or Windows)');
+    log.i(
+      'Skipping auto updater initialization because we are not on macOS or Windows)',
+    );
     return;
   }
 
@@ -1483,13 +1713,24 @@ Future<void> initAutoUpdater(Logger log) async {
 }
 
 /// The page that [windowType] shows inside the app, where no sub-window exists.
-Widget inAppWindowPage(String? windowType, Map<String, dynamic> arguments, File logFile) {
+Widget inAppWindowPage(
+  String? windowType,
+  Map<String, dynamic> arguments,
+  File logFile,
+) {
   switch (windowType) {
     case SubWindowTypes.debugId:
       return DebugWindow();
     case SubWindowTypes.logsId:
-      final logWindow = LogWindowArguments.fromWindowArguments(arguments, bitwindowLogPath: logFile.path);
-      return LogPage(logPath: logWindow.logPath, title: logWindow.title, binaryType: logWindow.binaryType);
+      final logWindow = LogWindowArguments.fromWindowArguments(
+        arguments,
+        bitwindowLogPath: logFile.path,
+      );
+      return LogPage(
+        logPath: logWindow.logPath,
+        title: logWindow.title,
+        binaryType: logWindow.binaryType,
+      );
     case SubWindowTypes.deniabilityId:
       return DeniabilityTab(newWindowButton: null);
     case SubWindowTypes.blockExplorerId:
@@ -1511,6 +1752,8 @@ Widget inAppWindowPage(String? windowType, Map<String, dynamic> arguments, File 
   }
   return SailCard(
     title: 'Unknown window type: $windowType',
-    child: SailText.primary15('Programmers messed up, and supplied an unknown window type: $windowType'),
+    child: SailText.primary15(
+      'Programmers messed up, and supplied an unknown window type: $windowType',
+    ),
   );
 }

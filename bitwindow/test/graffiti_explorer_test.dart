@@ -93,6 +93,39 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('the explorer dialog closes with its ×, the homepage widget has none', (tester) async {
+    await pump(tester);
+    expect(find.byType(SailIconBoxButton), findsNothing);
+
+    SailStyleValues.phoneLayoutOverride = false;
+    await tester.pumpSailPage(
+      SailTheme(
+        data: SailThemeData.lightTheme(
+          SailColorScheme.orange,
+          false,
+          SailFontValues.inter,
+          SailThemeStyle.bitwindowV2,
+        ),
+        child: Builder(
+          builder: (context) =>
+              SailButton(label: 'Open', onPressed: () async => displayGraffitiExplorerDialog(context)),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byType(GraffitiExplorerView), findsOneWidget);
+
+    await tester.tap(find.byType(SailIconBoxButton));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byType(GraffitiExplorerView), findsNothing);
+  });
+
   testWidgets('each header asks the server for its own sort', (tester) async {
     await pump(tester);
     expect(misc.last.sort, OPReturnSort.OP_RETURN_SORT_TIME);

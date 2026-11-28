@@ -104,46 +104,32 @@ class _MerkleTreeDialogState extends State<MerkleTreeDialog> {
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
 
-    // Qt dialog size: 1213x780
     return SailModal(
       child: Container(
-        width: 1200,
+        width: 900,
         constraints: const BoxConstraints(maxHeight: 800),
+        padding: const EdgeInsets.all(SailStyleValues.padding16),
         decoration: BoxDecoration(
           color: theme.colors.backgroundSecondary,
-          borderRadius: context.sailTheme.chrome.radiusSmall,
-          border: Border.all(color: theme.colors.border, width: 1),
+          borderRadius: theme.chrome.radiusLarge,
+          border: Border.all(color: theme.colors.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header - matches Qt dialog title bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: theme.colors.border),
+            Row(
+              children: [
+                Expanded(child: SailText.primary15('Merkle Tree', bold: true)),
+                SailIconBoxButton(
+                  icon: SailSVGAsset.x,
+                  tooltip: 'Close',
+                  onPressed: () async => Navigator.of(context).pop(),
                 ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  SailText.primary20('Merkle Tree'), // Qt windowTitle
-                  SailTappable(
-                    onTap: () async => Navigator.of(context).pop(),
-                    borderRadius: context.sailTheme.chrome.radiusSmall,
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: SailSVG.fromAsset(SailSVGAsset.x, color: theme.colors.text),
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-
-            // Tab bar
-            // Content - Qt QVBoxLayout with tabs
-            Expanded(
+            const SizedBox(height: SailStyleValues.padding12),
+            Flexible(
               child: InlineTabBar(
                 initialIndex: 0,
                 tabs: [
@@ -173,49 +159,52 @@ class _MerkleTreeDialogState extends State<MerkleTreeDialog> {
                 ],
               ),
             ),
-
-            // Footer - RCB checkbox and Close button
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: theme.colors.border),
+            const SizedBox(height: SailStyleValues.padding12),
+            Row(
+              children: [
+                SailCheckbox(
+                  value: _showRCB,
+                  label: 'Display RCB',
+                  onChanged: (value) {
+                    setState(() => _showRCB = value);
+                    if (_tree != null) {
+                      unawaited(_calculateTree());
+                    }
+                  },
                 ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      SailCheckbox(
-                        value: _showRCB,
-                        onChanged: (value) {
-                          setState(() => _showRCB = value);
-                          if (_tree != null) {
-                            unawaited(_calculateTree());
-                          }
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      SailText.secondary13('Display RCB'),
-                      const SizedBox(width: 8),
-                      SailTooltip(
-                        message:
-                            'Reversed & Concatenated Bytes\n'
-                            'Used for manual verification with hash calculators',
-                        child: SailSVG.fromAsset(SailSVGAsset.info, width: 16, color: theme.colors.textSecondary),
-                      ),
-                    ],
-                  ),
-                  SailButton(
-                    label: 'Close',
-                    variant: ButtonVariant.secondary,
-                    onPressed: () async => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
+                const SizedBox(width: 8),
+                SailTooltip(
+                  message:
+                      'Reversed & Concatenated Bytes\n'
+                      'Used for manual verification with hash calculators',
+                  child: SailSVG.fromAsset(SailSVGAsset.info, width: 16, color: theme.colors.textSecondary),
+                ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Mono text on the grey field fill, as the tree and the help diagrams.
+class _MonoBox extends StatelessWidget {
+  final String text;
+
+  const _MonoBox(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(SailStyleValues.padding12),
+      decoration: BoxDecoration(color: theme.colors.background, borderRadius: theme.chrome.radius),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SailSelectableText(
+          text,
+          style: TextStyle(fontFamily: SailFonts.mono, fontSize: 11, color: theme.colors.text, height: 1.5),
         ),
       ),
     );
@@ -249,220 +238,78 @@ class _TreeTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
 
+    final root = tree?.last.first;
+    final rootMatches = root != null && expectedRoot != null && root.toLowerCase() == expectedRoot!.toLowerCase();
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.only(top: SailStyleValues.padding12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Input section
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: theme.colors.background,
-              borderRadius: context.sailTheme.chrome.radiusSmall,
-              border: Border.all(color: theme.colors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    SailSVG.fromAsset(SailSVGAsset.folderTree, width: 20, color: theme.colors.primary),
-                    const SizedBox(width: 8),
-                    SailText.primary15('Transaction IDs', bold: true),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SailText.secondary12(
-                  'Enter transaction IDs (TxIDs) one per line - 64 hex characters each',
-                ),
-                const SizedBox(height: 16),
-                SailTextField(
-                  controller: txidsController,
-                  hintText:
-                      'bd3a498beaca2b118b90f372c03ddf926cf167c3d97db260f4be32e3973a4ac1\n'
-                      '7c1a4b6f9a2e3d8c5b4a3f2e1d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c',
-                  monospace: true,
-                  minLines: 8,
-                  maxLines: 8,
-                  onChanged: (_) => onInputChanged(),
-                ),
-                const SizedBox(height: 16),
-                SailButton(
-                  onPressed: () async => onCalculate(),
-                  label: 'Calculate Merkle Tree',
-                ),
-              ],
-            ),
+          SailText.primary13('Transaction IDs', bold: true),
+          const SizedBox(height: SailStyleValues.padding08),
+          SailText.secondary12('Enter transaction IDs (TxIDs) one per line - 64 hex characters each'),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailTextField(
+            controller: txidsController,
+            hintText:
+                'bd3a498beaca2b118b90f372c03ddf926cf167c3d97db260f4be32e3973a4ac1\n'
+                '7c1a4b6f9a2e3d8c5b4a3f2e1d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c',
+            monospace: true,
+            minLines: 4,
+            maxLines: 8,
+            onChanged: (_) => onInputChanged(),
           ),
-          const SizedBox(height: 24),
-
-          // Error display
+          const SizedBox(height: SailStyleValues.padding12),
+          SailButton(onPressed: () async => onCalculate(), label: 'Calculate Merkle Tree'),
           if (error != null) ...[
+            const SizedBox(height: SailStyleValues.padding12),
             SailAlert(
               variant: SailAlertVariant.destructive,
               icon: SailSVG.fromAsset(SailSVGAsset.circleAlert, width: 24, color: theme.colors.error),
               description: error!,
             ),
-            const SizedBox(height: 24),
           ],
-
-          // Tree display
-          if (tree != null) ...[
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: theme.colors.background,
-                borderRadius: context.sailTheme.chrome.radiusSmall,
-                border: Border.all(color: theme.colors.success, width: 2),
+          if (root != null) ...[
+            const SizedBox(height: SailStyleValues.padding16),
+            Row(
+              children: [
+                SailText.primary13('Merkle Tree', bold: true),
+                const SizedBox(width: SailStyleValues.padding08),
+                SailDetailCopyIcon(onCopy: () => onCopy(formattedText ?? '', 'Merkle tree')),
+              ],
+            ),
+            const SizedBox(height: SailStyleValues.padding08),
+            SizedBox(width: double.infinity, child: _MonoBox(formattedText ?? '')),
+            const SizedBox(height: SailStyleValues.padding12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SailText.primary13('Merkle Root:', bold: true),
+                const SizedBox(width: SailStyleValues.padding08),
+                Expanded(
+                  child: SailSelectableText(
+                    root,
+                    style: TextStyle(fontFamily: SailFonts.mono, fontSize: 13, color: theme.colors.text),
+                  ),
+                ),
+              ],
+            ),
+            if (expectedRoot != null) ...[
+              const SizedBox(height: SailStyleValues.padding12),
+              SailText.primary13(
+                rootMatches ? 'Merkle root matches block header ✓' : 'Merkle root MISMATCH ✗',
+                color: rootMatches ? theme.colors.success : theme.colors.error,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: SailStyleValues.padding08),
+              SailDetailGroup(
+                fill: SailDetailFill.canvas,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          SailSVG.fromAsset(SailSVGAsset.circleCheck, width: 24, color: theme.colors.success),
-                          const SizedBox(width: 8),
-                          SailText.primary15('Merkle Tree', bold: true),
-                        ],
-                      ),
-                      SailTooltip(
-                        message: 'Copy tree to clipboard',
-                        child: SailTappable(
-                          onTap: () async => () {
-                            onCopy(formattedText ?? '', 'Merkle tree');
-                          }(),
-                          borderRadius: context.sailTheme.chrome.radiusSmall,
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: SailSVG.fromAsset(SailSVGAsset.copy, color: theme.colors.primary),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Display merkle root prominently
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.colors.success.withValues(alpha: 0.1),
-                      borderRadius: context.sailTheme.chrome.radiusSmall,
-                      border: Border.all(color: theme.colors.success),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SailText.primary13('Merkle Root:', bold: true),
-                        const SizedBox(height: 8),
-                        SailSelectableText(
-                          tree!.last.first,
-                          style: TextStyle(
-                            fontFamily: SailFonts.mono,
-                            fontSize: 13,
-                            color: theme.colors.success,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Validation against expected root (if provided)
-                  if (expectedRoot != null) ...[
-                    Builder(
-                      builder: (context) {
-                        final calculatedRoot = tree!.last.first;
-                        final isValid = calculatedRoot.toLowerCase() == expectedRoot!.toLowerCase();
-
-                        return Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: (isValid ? theme.colors.success : theme.colors.error).withValues(alpha: 0.1),
-                            borderRadius: context.sailTheme.chrome.radiusSmall,
-                            border: Border.all(
-                              color: isValid ? theme.colors.success : theme.colors.error,
-                              width: 2,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  SailSVG.fromAsset(
-                                    isValid ? SailSVGAsset.circleCheck : SailSVGAsset.circleAlert,
-                                    width: 24,
-                                    color: isValid ? theme.colors.success : theme.colors.error,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  SailText.primary15(
-                                    isValid ? 'Merkle root matches block header ✓' : 'Merkle root MISMATCH ✗',
-                                    bold: true,
-                                    color: isValid ? theme.colors.success : theme.colors.error,
-                                  ),
-                                ],
-                              ),
-                              if (!isValid) ...[
-                                const SizedBox(height: 16),
-                                SailText.primary13('Expected:', bold: true),
-                                const SizedBox(height: 4),
-                                SailSelectableText(
-                                  expectedRoot!,
-                                  style: TextStyle(
-                                    fontFamily: SailFonts.mono,
-                                    fontSize: 12,
-                                    color: theme.colors.text,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                SailText.primary13('Calculated:', bold: true),
-                                const SizedBox(height: 4),
-                                SailSelectableText(
-                                  calculatedRoot,
-                                  style: TextStyle(
-                                    fontFamily: SailFonts.mono,
-                                    fontSize: 12,
-                                    color: theme.colors.text,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // Display full tree
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.colors.backgroundSecondary,
-                      borderRadius: context.sailTheme.chrome.radiusSmall,
-                    ),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SailSelectableText(
-                        formattedText ?? '',
-                        style: TextStyle(
-                          fontFamily: SailFonts.mono,
-                          fontSize: 11,
-                          color: theme.colors.text,
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                  ),
+                  SailDetailLine(wrap: true, label: 'Expected:', value: expectedRoot!),
+                  SailDetailLine(wrap: true, label: 'Calculated:', value: root),
                 ],
               ),
-            ),
+            ],
           ],
         ],
       ),
@@ -478,25 +325,19 @@ class _HelpTab extends StatelessWidget {
     final theme = SailTheme.of(context);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.only(top: SailStyleValues.padding12),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(SailStyleValues.padding16),
         decoration: BoxDecoration(
-          color: theme.colors.background,
-          borderRadius: context.sailTheme.chrome.radiusSmall,
+          color: theme.colors.backgroundSecondary,
+          borderRadius: theme.chrome.radiusLarge,
           border: Border.all(color: theme.colors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                SailSVG.fromAsset(SailSVGAsset.circleHelp, width: 24, color: theme.colors.primary),
-                const SizedBox(width: 8),
-                SailText.primary15('How to Use the Merkle Tree Visualizer', bold: true),
-              ],
-            ),
-            const SizedBox(height: 20),
+            SailText.primary13('How to Use the Merkle Tree Visualizer', bold: true),
+            const SizedBox(height: SailStyleValues.padding12),
 
             SailSelectableText(
               'This window allows you to audit the "hashMerkleRoot" field. '
@@ -523,13 +364,13 @@ class _HelpTab extends StatelessWidget {
               style: TextStyle(
                 fontFamily: SailFonts.mono,
                 fontSize: 13,
-                color: theme.colors.textSecondary,
+                color: theme.colors.text,
                 height: 1.5,
               ),
             ),
             const SizedBox(height: 24),
 
-            SailText.primary15('What is RCB?', bold: true),
+            SailText.primary13('What is RCB?', bold: true),
             const SizedBox(height: 12),
             SailSelectableText(
               'Computers sometimes have a crazy way of reading from their computer memory, '
@@ -546,13 +387,13 @@ class _HelpTab extends StatelessWidget {
               style: TextStyle(
                 fontFamily: SailFonts.mono,
                 fontSize: 13,
-                color: theme.colors.textSecondary,
+                color: theme.colors.text,
                 height: 1.5,
               ),
             ),
             const SizedBox(height: 24),
 
-            SailText.primary15('Further Reading', bold: true),
+            SailText.primary13('Further Reading', bold: true),
             const SizedBox(height: 12),
             SailSelectableText(
               '• https://en.bitcoinwiki.org/wiki/Merkle_tree\n'
@@ -561,7 +402,7 @@ class _HelpTab extends StatelessWidget {
               style: TextStyle(
                 fontFamily: SailFonts.mono,
                 fontSize: 13,
-                color: theme.colors.textSecondary,
+                color: theme.colors.text,
                 height: 1.5,
               ),
             ),

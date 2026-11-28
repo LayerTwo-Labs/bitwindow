@@ -275,6 +275,7 @@ class _SidechainAppContent extends StatelessWidget {
       theme: ThemeData(
         fontFamily: theme.chrome.textFamily(monospace: font == SailFontValues.ibmMono),
         colorScheme: ColorScheme.fromSwatch().copyWith(secondary: rpc.chain.color),
+        dialogTheme: sailDialogTheme(theme),
       ),
     );
   }

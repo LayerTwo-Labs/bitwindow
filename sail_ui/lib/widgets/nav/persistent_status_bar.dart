@@ -84,7 +84,7 @@ class PersistentStatusBar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline, size: 16, color: SailColorScheme.red),
+                    SailSVG.fromAsset(SailSVGAsset.circleAlert, width: 16, height: 16, color: SailColorScheme.red),
                     const SizedBox(width: 8),
                     Expanded(
                       child: SailText.primary12(label, color: SailColorScheme.red),

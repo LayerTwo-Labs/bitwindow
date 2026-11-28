@@ -3,7 +3,6 @@ export 'package:flutter/material.dart'
     show
         Colors,
         Divider,
-        Icons,
         InkWell,
         LinearProgressIndicator,
         Material,
@@ -67,6 +66,7 @@ export 'viewmodels/view_model.dart';
 export 'viewmodels/enforcer_config_editor_viewmodel.dart';
 export 'widgets/buttons/back_button.dart';
 export 'widgets/buttons/button.dart';
+export 'widgets/buttons/sail_icon_box_button.dart';
 export 'widgets/buttons/sail_toggle_group.dart';
 export 'widgets/buttons/toggle.dart';
 export 'widgets/buttons/toggle_theme_button.dart';
@@ -92,6 +92,7 @@ export 'widgets/components/dashboard_group.dart';
 export 'widgets/components/sail_avatar.dart';
 export 'widgets/components/sail_info_box.dart';
 export 'widgets/components/table.dart';
+export 'widgets/components/sail_stat.dart';
 export 'widgets/components/utxo.dart';
 export 'widgets/console/cli_console_service.dart';
 export 'widgets/console/console_view.dart';
@@ -108,6 +109,10 @@ export 'widgets/containers/questions.dart';
 export 'widgets/containers/sail_accordion.dart';
 export 'widgets/containers/sail_border.dart';
 export 'widgets/containers/sail_card.dart';
+export 'widgets/containers/sail_side_panel.dart';
+export 'widgets/containers/sail_detail_group.dart';
+export 'widgets/containers/sail_segments.dart';
+export 'widgets/containers/sail_strip.dart';
 export 'widgets/containers/sail_list_rows.dart';
 export 'widgets/containers/sail_stat_list.dart';
 export 'widgets/containers/sail_collapsible.dart';
@@ -135,12 +140,14 @@ export 'widgets/core/sail_selectable_text.dart';
 export 'widgets/core/sail_separator.dart';
 export 'widgets/core/sail_shadow.dart';
 export 'widgets/core/sail_snackbar.dart';
+export 'widgets/core/layer_two_labs_logo.dart';
 export 'widgets/core/sail_svg.dart';
 export 'widgets/core/sail_text.dart';
 export 'widgets/core/scaffold.dart';
 export 'widgets/feedback/sail_alert.dart';
 export 'widgets/feedback/sail_skeleton.dart';
 export 'widgets/feedback/sail_toast.dart';
+export 'widgets/feedback/sail_status_pill.dart';
 export 'widgets/feedback/sail_info_icon.dart';
 export 'widgets/feedback/sail_inline_error.dart';
 export 'widgets/feedback/sail_tooltip.dart';

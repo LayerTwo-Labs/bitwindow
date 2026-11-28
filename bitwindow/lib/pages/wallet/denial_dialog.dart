@@ -308,19 +308,12 @@ class _DenialDialogState extends State<DenialDialog> {
       title: isBatch ? 'Deny All UTXOs' : 'Start Automatic Denial',
       maxWidth: 700,
       maxHeight: 850,
-      actions: [
-        SailButton(
-          label: 'Cancel',
-          onPressed: () async => Navigator.pop(context),
-          variant: ButtonVariant.secondary,
-          disabled: isProcessing,
-        ),
-        SailButton(
-          label: buttonLabel,
-          onPressed: startDenial,
-          disabled: isProcessing,
-        ),
-      ],
+      withCloseButton: !isProcessing,
+      action: SailDialogAction(
+        label: buttonLabel,
+        loadingLabel: isProcessing ? buttonLabel : null,
+        onPressed: startDenial,
+      ),
       child: SailColumn(
         spacing: SailStyleValues.padding12,
         crossAxisAlignment: CrossAxisAlignment.start,

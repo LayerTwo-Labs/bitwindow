@@ -1,4 +1,5 @@
 import 'package:bitwindow/pages/wallet/wallet_receive.dart';
+import 'package:bitwindow/pages/wallet/widgets/wallet_v2_parts.dart';
 import 'package:bitwindow/providers/address_book_provider.dart';
 import 'package:bitwindow/providers/hd_wallet_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
@@ -130,27 +131,27 @@ Future<_FakeTransactions> _pumpReceiveTab(WidgetTester tester) async {
   return transactions;
 }
 
-Finder _card(String title) => find.widgetWithText(SailCard, title);
-
 void main() {
   setUp(() async {
     await GetIt.I.reset();
   });
 
-  testWidgets('a failed address read shows on the address card in place of the loading hint', (tester) async {
+  testWidgets('a failed address read shows on the address strip in place of the loading hint', (tester) async {
     final transactions = await _pumpReceiveTab(tester);
     transactions
       ..addressError = 'no chain source'
       ..notifyListeners();
     await tester.pump();
 
-    final card = _card('Receive Bitcoin on L1');
+    final strip = find.byType(ReceiveAddressStrip);
     expect(
-      find.descendant(of: card, matching: find.text('Could not get a receive address: no chain source')),
+      find.descendant(of: strip, matching: find.text('Could not get a receive address: no chain source')),
       findsOneWidget,
     );
-    final field = tester.widget<SailTextField>(find.descendant(of: card, matching: find.byType(SailTextField)));
-    expect(field.loading?.enabled, isFalse);
+    expect(
+      find.descendant(of: strip, matching: find.text('Waiting for enforcer to start and wallet to sync..')),
+      findsNothing,
+    );
     expect(find.text('Generate new address'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -174,7 +175,7 @@ void main() {
       ..notifyListeners();
     await tester.pump();
 
-    final card = _card('Receive Addresses');
+    final card = find.widgetWithText(WalletTableCard, 'Addresses');
     expect(
       find.descendant(of: card, matching: find.text('Could not read the wallet: bitcoind is down')),
       findsOneWidget,

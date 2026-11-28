@@ -21,6 +21,9 @@ class SailThemeData with Diagnosticable {
 
   bool isLightMode() => type == SailThemeValues.light;
 
+  /// True for the square, dense BitWindow v2 style.
+  bool get isBitwindowV2 => style == SailThemeStyle.bitwindowV2;
+
   factory SailThemeData.lightTheme(
     Color primary,
     bool dense,

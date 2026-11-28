@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/pages/sidechains/sidechain_overview_page.dart' show SidechainBalanceRows;
 import 'package:sail_ui/sail_ui.dart';
 import 'package:zside/providers/transactions_provider.dart';
+import 'package:zside/widgets/containers/tabs/dashboard_tab_widgets.dart';
 
 class ZSideWidgetCatalog {
   static final Map<String, HomepageWidgetInfo> _widgets = {
@@ -86,35 +88,13 @@ class ZSideWidgetCatalog {
       builder: (_) => ViewModelBuilder<OverviewTabViewModel>.reactive(
         viewModelBuilder: () => OverviewTabViewModel(),
         builder: (context, model, child) {
-          return SizedBox(
-            height: 150,
-            child: SailCard(
-              title: 'Receive - Transparent Address',
-              error: model.receiveError,
-              child: SailRow(
-                spacing: SailStyleValues.padding08,
-                children: [
-                  Expanded(
-                    child: SailTextField(
-                      controller: TextEditingController(text: model.transparentReceiveAddress),
-                      hintText: 'Generating transparent address...',
-                      readOnly: true,
-                      suffixWidget: model.isGeneratingTransparentAddress
-                          ? const Padding(
-                              padding: EdgeInsets.only(right: 8),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: LoadingIndicator(),
-                              ),
-                            )
-                          : CopyButton(
-                              text: model.transparentReceiveAddress ?? '',
-                            ),
-                    ),
-                  ),
-                ],
-              ),
+          return SailCard(
+            title: 'Receive - Transparent Address',
+            error: model.receiveError,
+            child: ReceiveAddressBody(
+              address: model.transparentReceiveAddress,
+              hintText: 'Generating transparent address...',
+              generating: model.isGeneratingTransparentAddress,
             ),
           );
         },
@@ -128,35 +108,13 @@ class ZSideWidgetCatalog {
       builder: (_) => ViewModelBuilder<OverviewTabViewModel>.reactive(
         viewModelBuilder: () => OverviewTabViewModel(),
         builder: (context, model, child) {
-          return SizedBox(
-            height: 150,
-            child: SailCard(
-              title: 'Receive - Private Address',
-              error: model.shieldedReceiveError,
-              child: SailRow(
-                spacing: SailStyleValues.padding08,
-                children: [
-                  Expanded(
-                    child: SailTextField(
-                      controller: TextEditingController(text: model.shieldedReceiveAddress),
-                      hintText: 'Generating private address...',
-                      readOnly: true,
-                      suffixWidget: model.isGeneratingShieldedAddress
-                          ? const Padding(
-                              padding: EdgeInsets.only(right: 8),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: LoadingIndicator(),
-                              ),
-                            )
-                          : CopyButton(
-                              text: model.shieldedReceiveAddress ?? '',
-                            ),
-                    ),
-                  ),
-                ],
-              ),
+          return SailCard(
+            title: 'Receive - Private Address',
+            error: model.shieldedReceiveError,
+            child: ReceiveAddressBody(
+              address: model.shieldedReceiveAddress,
+              hintText: 'Generating private address...',
+              generating: model.isGeneratingShieldedAddress,
             ),
           );
         },
@@ -171,7 +129,6 @@ class ZSideWidgetCatalog {
         viewModelBuilder: () => OverviewTabViewModel(),
         builder: (context, model, child) {
           return SizedBox(
-            height: 300,
             child: SailCard(
               title: 'Send on Sidechain',
               error: model.sendError,
@@ -201,10 +158,13 @@ class ZSideWidgetCatalog {
                     controller: model.bitcoinAmountController,
                     hintText: '0.00',
                   ),
-                  SailButton(
-                    label: model.isShieldedAddress ? 'Send Private' : 'Send Transparent',
-                    onPressed: () async => model.executeSendOnSidechain(context),
-                    loading: model.isSending,
+                  SizedBox(
+                    width: double.infinity,
+                    child: SailButton(
+                      label: model.isShieldedAddress ? 'Send Private' : 'Send Transparent',
+                      onPressed: () async => model.executeSendOnSidechain(context),
+                      loading: model.isSending,
+                    ),
                   ),
                 ],
               ),
@@ -218,10 +178,7 @@ class ZSideWidgetCatalog {
       id: 'transactions_table',
       name: 'Transaction History',
       sizes: [WidgetSize.full],
-      builder: (_) => SizedBox(
-        height: 400,
-        child: const TransactionsTab(),
-      ),
+      builder: (_) => SizedBox(height: 400, child: const TransactionsTab()),
     ),
   };
 
@@ -273,7 +230,9 @@ class OverviewTabViewModel extends BaseViewModel {
 
   String get totalBitcoinAmount {
     final formatter = GetIt.I<FormatterProvider>();
-    return formatter.formatBTC((double.tryParse(bitcoinAmountController.text) ?? 0) + (sidechainFee ?? 0));
+    return formatter.formatBTC(
+      (double.tryParse(bitcoinAmountController.text) ?? 0) + (sidechainFee ?? 0),
+    );
   }
 
   double get balance => _balanceProvider.balance;
@@ -360,7 +319,9 @@ class OverviewTabViewModel extends BaseViewModel {
 
   Future<void> generateTransparentAddress() async {
     if (isGeneratingTransparentAddress) {
-      log.d('already generating transparent address, skipping duplicate request');
+      log.d(
+        'already generating transparent address, skipping duplicate request',
+      );
       return;
     }
 
@@ -453,11 +414,10 @@ class OverviewTabViewModel extends BaseViewModel {
       final txid = await _doSidechainSend(context, address, sendAmount!);
       if (!context.mounted) return;
 
-      await successDialog(
-        context: context,
-        action: 'Send on sidechain',
-        title: 'You sent $sendAmount $ticker to $address',
-        subtitle: 'TXID: $txid',
+      await showSendSentDialog(
+        context,
+        sentText: 'You sent $sendAmount $ticker to $address',
+        txid: txid,
       );
 
       // Clear the input fields after successful send
@@ -472,10 +432,16 @@ class OverviewTabViewModel extends BaseViewModel {
     }
   }
 
-  Future<String> _doSidechainSend(BuildContext context, String address, double amount) async {
+  Future<String> _doSidechainSend(
+    BuildContext context,
+    String address,
+    double amount,
+  ) async {
     final isShielded = isShieldedAddress;
     final transferType = isShielded ? 'shielded' : 'transparent';
-    log.i('doing sidechain $transferType transfer: $amount $ticker to $address with $sidechainFee SC fee');
+    log.i(
+      'doing sidechain $transferType transfer: $amount $ticker to $address with $sidechainFee SC fee',
+    );
 
     try {
       final String sendTXID;
@@ -585,7 +551,9 @@ class _TransactionTableState extends State<TransactionTable> {
       final (aIndex, aTx) = a;
       final (bIndex, bTx) = b;
       final order = switch (sortColumn) {
-        'status' => (aTx.confirmations == 0 ? 0 : 1).compareTo(bTx.confirmations == 0 ? 0 : 1),
+        'status' => (aTx.confirmations == 0 ? 0 : 1).compareTo(
+          bTx.confirmations == 0 ? 0 : 1,
+        ),
         'amount' => aTx.amount.compareTo(bTx.amount),
         _ => aTx.txid.compareTo(bTx.txid),
       };
@@ -612,14 +580,10 @@ class _TransactionTableState extends State<TransactionTable> {
                 'zSide records no time for a coin, so this list has no Date column. '
                 'Shielded transfers do not show here.',
             bottomPadding: false,
+            widgetHeaderEnd: SizedBox(width: 300, child: widget.searchWidget),
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: SailStyleValues.padding16,
-                  ),
-                  child: widget.searchWidget,
-                ),
+                const SizedBox(height: SailStyleValues.padding08),
                 Expanded(
                   child: SailTable(
                     getRowId: (index) => entries[index].txid,
@@ -639,14 +603,19 @@ class _TransactionTableState extends State<TransactionTable> {
                     ],
                     rowBuilder: (context, row, selected) {
                       final entry = entries[row];
-                      final amount = formatter.formatBTC(satoshiToBTC(entry.amount.toInt()));
+                      final amount = formatter.formatBTC(
+                        satoshiToBTC(entry.amount.toInt()),
+                      );
 
                       return [
-                        SailTableCell(value: _status(entry)),
                         SailTableCell(
-                          value: amount,
-                          monospace: true,
+                          value: _status(entry),
+                          child: StatusDotText(
+                            label: _status(entry),
+                            tone: entry.confirmations == 0 ? SailStatusTone.warning : SailStatusTone.success,
+                          ),
                         ),
+                        SailTableCell(value: amount, monospace: true),
                         SailTableCell(
                           value: '${entry.txid.substring(0, 6)}..:${entry.vout}',
                           copyValue: '${entry.txid}:${entry.vout}',
@@ -655,16 +624,22 @@ class _TransactionTableState extends State<TransactionTable> {
                     },
                     rowCount: entries.length,
                     emptyPlaceholder: 'No transactions yet',
-                    drawGrid: true,
+                    contextMenuItems: (rowId) => [
+                      SailMenuItem(
+                        onSelected: () => _showDetails(
+                          context,
+                          entries.firstWhere((tx) => tx.txid == rowId),
+                        ),
+                        child: SailText.primary12('Transaction Details'),
+                      ),
+                    ],
                     sortColumnIndex: _columns.indexOf(sortColumn),
                     sortAscending: sortAscending,
                     onSort: (columnIndex, ascending) {
                       onSort(_columns[columnIndex]);
                     },
                     onDoubleTap: (rowId) {
-                      final tx = entries.firstWhere(
-                        (u) => u.txid == rowId,
-                      );
+                      final tx = entries.firstWhere((u) => u.txid == rowId);
                       _showDetails(context, tx);
                     },
                   ),
@@ -684,22 +659,116 @@ class _TransactionTableState extends State<TransactionTable> {
     showThemedDialog(
       context: context,
       builder: (context) => SailModal(
-        constraints: const BoxConstraints(maxWidth: 800),
+        constraints: const BoxConstraints(maxWidth: 540),
         child: SailCard(
           title: 'Transaction Details',
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+          withCloseButton: true,
+          child: SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(
+                wrap: true,
+                label: 'TxID',
+                value: '${tx.txid}:${tx.vout}',
+                copyable: true,
+              ),
+              SailDetailLine(
+                wrap: true,
+                label: 'Amount',
+                value: formatter.formatBTC(satoshiToBTC(tx.amount.toInt())),
+              ),
+              SailDetailLine(wrap: true, label: 'Status', value: _status(tx)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An address in a grey box over a full-width Copy button.
+class ReceiveAddressBody extends StatelessWidget {
+  final String? address;
+  final String hintText;
+  final bool generating;
+
+  const ReceiveAddressBody({
+    super.key,
+    required this.address,
+    required this.hintText,
+    required this.generating,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final value = address ?? '';
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colors.background,
+            borderRadius: theme.chrome.radius,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
               children: [
-                DetailRow(label: 'TxID', value: '${tx.txid}:${tx.vout}'),
-                DetailRow(label: 'Amount', value: formatter.formatBTC(satoshiToBTC(tx.amount.toInt()))),
-                DetailRow(label: 'Status', value: _status(tx)),
+                Expanded(
+                  child: value.isEmpty
+                      ? SailText.secondary13(hintText)
+                      : SailText.primary13(
+                          value,
+                          monospace: true,
+                          overflow: TextOverflow.visible,
+                        ),
+                ),
+                if (generating)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: LoadingIndicator(),
+                  ),
               ],
             ),
           ),
         ),
-      ),
+        SailButton(
+          label: 'Copy',
+          variant: ButtonVariant.secondary,
+          disabled: value.isEmpty,
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: value));
+            if (!context.mounted) {
+              return;
+            }
+            showSnackBar(context, 'Copied $value');
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// A status dot and its label, for a table cell.
+class StatusDotText extends StatelessWidget {
+  final String label;
+  final SailStatusTone tone;
+
+  const StatusDotText({super.key, required this.label, required this.tone});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SailStatusDot(tone: tone),
+        const SizedBox(width: 6),
+        Flexible(child: SailText.primary13(label)),
+      ],
     );
   }
 }
@@ -725,12 +794,7 @@ class DetailRow extends StatelessWidget {
               color: context.sailTheme.colors.textTertiary,
             ),
           ),
-          Expanded(
-            child: SailText.secondary13(
-              value,
-              monospace: true,
-            ),
-          ),
+          Expanded(child: SailText.secondary13(value, monospace: true)),
         ],
       ),
     );
@@ -779,11 +843,7 @@ class BalanceRow extends StatelessWidget {
   final String label;
   final double amount;
 
-  const BalanceRow({
-    super.key,
-    required this.label,
-    required this.amount,
-  });
+  const BalanceRow({super.key, required this.label, required this.amount});
 
   @override
   Widget build(BuildContext context) {
@@ -848,10 +908,7 @@ class PoolBalanceRow extends StatelessWidget {
                     SailText.secondary13(label),
                   ],
                 ),
-                SailText.secondary13(
-                  formatter.formatBTC(total),
-                  bold: true,
-                ),
+                SailText.secondary13(formatter.formatBTC(total), bold: true),
               ],
             ),
             if (pending > 0)

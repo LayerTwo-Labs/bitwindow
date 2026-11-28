@@ -43,7 +43,9 @@ void main() {
     return GetIt.I.reset();
   });
 
-  testWidgets('on a phone the buttons sit below the title and each address is a two-line row', (tester) async {
+  testWidgets('on a phone the buttons sit below the title and each address is a two-line row with a menu', (
+    tester,
+  ) async {
     SailStyleValues.phoneLayoutOverride = true;
     await loadBundledFonts();
     await tester.pumpSailPage(const AddressBookTable());
@@ -55,9 +57,9 @@ void main() {
 
     final title = tester.getRect(find.text('Sending Addresses'));
     final add = tester.getRect(find.text('Add Address'));
-    final export = tester.getRect(find.text('Export'));
+    final more = tester.getRect(find.byWidgetPredicate((w) => w is SailRowMenuButton && w.filled));
     expect(add.top, greaterThan(title.bottom));
-    expect(export.center.dy, closeTo(add.center.dy, 1));
+    expect(more.center.dy, closeTo(add.center.dy, 1));
 
     final label = tester.getRect(find.text('bb privat'));
     final address = tester.getRect(find.text('bc1qjyeu20wv7yrwj6q96h5k7ewcc5v474n7yqv023'));
@@ -67,10 +69,8 @@ void main() {
     expect(address.height, lessThan(20));
     expect(tester.widget<SailButton>(find.widgetWithText(SailButton, 'Add Address')).small, isFalse);
 
-    final edit = find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.iconPen).first;
-    final delete = find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.iconDelete).first;
-    expect(tester.getRect(edit).left, greaterThan(address.right));
-    expect(tester.getRect(delete).left, greaterThan(tester.getRect(edit).left));
+    final rowMenu = find.byWidgetPredicate((w) => w is SailRowMenuButton && !w.filled).first;
+    expect(tester.getRect(rowMenu).left, greaterThan(address.right));
   });
 
   testWidgets('on desktop the buttons stay in the header and the entries stay a table', (tester) async {

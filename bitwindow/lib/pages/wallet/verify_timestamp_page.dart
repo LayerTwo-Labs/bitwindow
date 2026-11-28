@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:bitwindow/providers/timestamp_provider.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -183,6 +184,66 @@ class TimestampInfoRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Opens "Verify a Timestamp" as a dialog.
+Future<void> showVerifyTimestampDialog(BuildContext context) {
+  return showThemedDialog<void>(context: context, builder: (context) => const VerifyTimestampDialog());
+}
+
+class VerifyTimestampDialog extends StatelessWidget {
+  const VerifyTimestampDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ViewModelBuilder<VerifyTimestampViewModel>.reactive(
+      viewModelBuilder: () => VerifyTimestampViewModel(),
+      builder: (context, model, child) {
+        final theme = SailTheme.of(context);
+        final found = model.verificationResult?.timestamp;
+        final error = model.modelError;
+        return SailDialog(
+          title: 'Verify a Timestamp',
+          withCloseButton: true,
+          maxWidth: 480,
+          child: SailColumn(
+            spacing: SailStyleValues.padding12,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SailText.secondary13('Select a file to check if it has been timestamped on the Bitcoin blockchain.'),
+              if (found != null)
+                SailDetailGroup(
+                  fill: SailDetailFill.canvas,
+                  children: [
+                    StatusDotLabel(
+                      label: '${found.filename} was timestamped at ${formatConfirmedAt(found, 'MMM d, yyyy HH:mm:ss')}',
+                      tone: SailStatusTone.success,
+                    ),
+                    if (found.hasBlockHeight())
+                      SailStackedDetail(monospace: false, label: 'Block:', value: found.blockHeight.toString()),
+                    if (found.hasTxid()) SailStackedDetail(monospace: false, label: 'Transaction:', value: found.txid),
+                  ],
+                ),
+              if (error != null)
+                SailDetailGroup(
+                  fill: SailDetailFill.canvas,
+                  children: [
+                    if (model.selectedFilename != null) SailText.primary13(model.selectedFilename!),
+                    StatusDotLabel(label: error, tone: SailStatusTone.error, textColor: theme.colors.error),
+                  ],
+                ),
+              SailButton(
+                label: 'Choose File',
+                loading: model.isVerifying,
+                onPressed: () async => model.pickAndVerifyFile(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

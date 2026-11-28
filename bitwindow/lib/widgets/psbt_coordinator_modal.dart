@@ -80,11 +80,6 @@ class PSBTCoordinatorModal extends StatelessWidget {
                         loading: viewModel.isSigning,
                         variant: ButtonVariant.secondary,
                       ),
-                    SailButton(
-                      label: 'Cancel',
-                      onPressed: () async => Navigator.of(context).pop(),
-                      variant: ButtonVariant.ghost,
-                    ),
                   ],
                 ),
               ],

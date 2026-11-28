@@ -183,7 +183,7 @@ class ChatPage extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(SailStyleValues.padding12),
                           decoration: BoxDecoration(
-                            color: isSelected ? theme.colors.primary.withAlpha(30) : null,
+                            color: isSelected ? theme.colors.formField : null,
                             border: Border(
                               bottom: BorderSide(
                                 color: theme.colors.divider,
@@ -200,11 +200,11 @@ class ChatPage extends StatelessWidget {
                                       ? contact.displayName.substring(0, 1).toUpperCase()
                                       : '?';
                                   return Container(
-                                    width: 40,
-                                    height: 40,
+                                    width: 32,
+                                    height: 32,
                                     decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: theme.colors.primary.withAlpha(50),
+                                      color: theme.colors.formField,
+                                      borderRadius: theme.chrome.radius,
                                     ),
                                     child: Center(
                                       child: SailText.primary13(initials, bold: true),
@@ -655,13 +655,7 @@ class _AddContactDialogState extends State<_AddContactDialog> {
 
     return SailDialog(
       title: 'Add Contact',
-      actions: [
-        SailButton(
-          label: 'Cancel',
-          variant: ButtonVariant.secondary,
-          onPressed: () async => Navigator.of(context).pop(),
-        ),
-      ],
+      withCloseButton: true,
       child: SizedBox(
         width: 500,
         height: 400,
@@ -805,26 +799,7 @@ class _RegisterBitNameDialogState extends State<_RegisterBitNameDialog> {
 
     return SailDialog(
       title: 'Register BitName',
-      actions: [
-        SailButton(
-          label: 'Cancel',
-          variant: ButtonVariant.secondary,
-          onPressed: () async => Navigator.of(context).pop(),
-        ),
-        SailButton(
-          label: 'Register',
-          disabled: controller.text.isEmpty,
-          onPressed: () async {
-            if (controller.text.isNotEmpty) {
-              final name = controller.text;
-              // Close dialog immediately - progress shows in main status bar
-              Navigator.of(context).pop();
-              // Start claiming in background (fire and forget)
-              unawaited(widget.model.claimIdentity(name));
-            }
-          },
-        ),
-      ],
+      withCloseButton: true,
       child: SizedBox(
         width: 400,
         child: Column(
@@ -842,6 +817,23 @@ class _RegisterBitNameDialogState extends State<_RegisterBitNameDialog> {
             SailText.secondary12(
               'This will reserve and register the name on the BitNames sidechain.',
               color: theme.colors.textTertiary,
+            ),
+            const SizedBox(height: SailStyleValues.padding16),
+            SizedBox(
+              width: double.infinity,
+              child: SailButton(
+                label: 'Register',
+                disabled: controller.text.isEmpty,
+                onPressed: () async {
+                  if (controller.text.isNotEmpty) {
+                    final name = controller.text;
+                    // Close dialog immediately - progress shows in main status bar
+                    Navigator.of(context).pop();
+                    // Start claiming in background (fire and forget)
+                    unawaited(widget.model.claimIdentity(name));
+                  }
+                },
+              ),
             ),
           ],
         ),

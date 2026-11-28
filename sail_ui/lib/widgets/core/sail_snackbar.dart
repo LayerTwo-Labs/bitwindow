@@ -26,11 +26,22 @@ void showSnackBar(
       duration: Duration(seconds: duration),
       behavior: SnackBarBehavior.fixed,
       backgroundColor: theme.colors.backgroundSecondary,
-      content: SailPadding(
-        padding: const EdgeInsets.symmetric(
-          vertical: SailStyleValues.padding10,
-        ),
-        child: widget ?? SailText.primary13(message!),
+      content: Row(
+        children: [
+          Expanded(
+            child: SailPadding(
+              padding: const EdgeInsets.symmetric(
+                vertical: SailStyleValues.padding10,
+              ),
+              child: widget ?? SailText.primary13(message!),
+            ),
+          ),
+          const SizedBox(width: SailStyleValues.padding12),
+          SailTappable(
+            onTap: () async => messenger.hideCurrentSnackBar(reason: SnackBarClosedReason.dismiss),
+            child: SailSVG.fromAsset(SailSVGAsset.x, width: 24, height: 24, color: theme.colors.textSecondary),
+          ),
+        ],
       ),
     ),
   );

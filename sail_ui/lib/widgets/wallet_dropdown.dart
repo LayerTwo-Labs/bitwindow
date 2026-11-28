@@ -72,6 +72,8 @@ class WalletDropdown extends StatelessWidget {
           }
         },
         menuChildren: [
+          if (availableWallets.any((wallet) => wallet.id != currentWallet?.id))
+            Divider(key: const Key('wallet_menu_divider'), height: 9, color: SailTheme.of(context).colors.divider),
           if (onEditWallet != null && currentWallet != null)
             SailMenuItem(
               onSelected: () async => onEditWallet!(currentWallet!),
@@ -84,11 +86,11 @@ class WalletDropdown extends StatelessWidget {
               ),
             ),
           if (empty == null)
-            _MenuAction(icon: Icons.add, label: 'Create new wallet', onSelected: onCreateWallet)
+            _MenuAction(icon: SailSVGAsset.plus, label: 'Create new wallet', onSelected: onCreateWallet)
           else ...[
-            _MenuAction(icon: Icons.add, label: 'Generate wallet', onSelected: empty.onGenerate),
-            _MenuAction(icon: Icons.content_paste, label: 'Paste seed phrase', onSelected: empty.onPasteSeed),
-            _MenuAction(icon: Icons.download, label: 'Import descriptor', onSelected: empty.onImportDescriptor),
+            _MenuAction(icon: SailSVGAsset.plus, label: 'Generate wallet', onSelected: empty.onGenerate),
+            _MenuAction(icon: SailSVGAsset.clipboardPaste, label: 'Paste seed phrase', onSelected: empty.onPasteSeed),
+            _MenuAction(icon: SailSVGAsset.download, label: 'Import descriptor', onSelected: empty.onImportDescriptor),
           ],
         ],
       ),
@@ -97,7 +99,7 @@ class WalletDropdown extends StatelessWidget {
 }
 
 class _MenuAction extends StatelessWidget {
-  final IconData icon;
+  final SailSVGAsset icon;
   final String label;
   final VoidCallback onSelected;
 
@@ -113,7 +115,7 @@ class _MenuAction extends StatelessWidget {
 }
 
 class _ActionLabel extends StatelessWidget {
-  final IconData icon;
+  final SailSVGAsset icon;
   final String label;
 
   const _ActionLabel({required this.icon, required this.label});
@@ -126,11 +128,10 @@ class _ActionLabel extends StatelessWidget {
         Container(
           width: 24,
           height: 24,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: theme.colors.border, width: 2),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colors.formField),
+          child: Center(
+            child: SailSVG.fromAsset(icon, width: 14, height: 14, color: theme.colors.text),
           ),
-          child: Icon(icon, size: 14, color: theme.colors.text),
         ),
         const SizedBox(width: 12),
         SailText.primary13(label),
@@ -177,11 +178,7 @@ class _WalletRow extends StatelessWidget {
           const SizedBox(width: 12),
           SailTappable(
             onTap: onEdit!,
-            child: SailText.primary12(
-              'Edit',
-              decoration: TextDecoration.underline,
-              color: theme.colors.textSecondary,
-            ),
+            child: SailText.primary12('Edit', color: theme.colors.textSecondary),
           ),
         ],
       ],
@@ -268,23 +265,23 @@ class _PhoneWalletButton extends StatelessWidget {
                   row(
                     sheet,
                     onTap: d.onCreateWallet,
-                    child: const _ActionLabel(icon: Icons.add, label: 'Create new wallet'),
+                    child: const _ActionLabel(icon: SailSVGAsset.plus, label: 'Create new wallet'),
                   )
                 else ...[
                   row(
                     sheet,
                     onTap: empty.onGenerate,
-                    child: const _ActionLabel(icon: Icons.add, label: 'Generate wallet'),
+                    child: const _ActionLabel(icon: SailSVGAsset.plus, label: 'Generate wallet'),
                   ),
                   row(
                     sheet,
                     onTap: empty.onPasteSeed,
-                    child: const _ActionLabel(icon: Icons.content_paste, label: 'Paste seed phrase'),
+                    child: const _ActionLabel(icon: SailSVGAsset.clipboardPaste, label: 'Paste seed phrase'),
                   ),
                   row(
                     sheet,
                     onTap: empty.onImportDescriptor,
-                    child: const _ActionLabel(icon: Icons.download, label: 'Import descriptor'),
+                    child: const _ActionLabel(icon: SailSVGAsset.download, label: 'Import descriptor'),
                   ),
                 ],
               ],

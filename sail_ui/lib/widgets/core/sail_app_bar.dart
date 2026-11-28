@@ -8,12 +8,14 @@ class SailAppBar {
     Widget? leading,
     bool automaticallyImplyLeading = true,
   }) {
-    final colors = SailTheme.of(context).colors;
+    final theme = SailTheme.of(context);
+    final colors = theme.colors;
 
     return AppBar(
       elevation: 0,
       backgroundColor: colors.background,
-      foregroundColor: colors.icon,
+      // The v2 icon grey is too faint for the back button, the only control in the bar.
+      foregroundColor: theme.isBitwindowV2 ? colors.text : colors.icon,
       centerTitle: false,
       title: title,
       leading:

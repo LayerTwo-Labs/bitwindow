@@ -135,15 +135,43 @@ void main() {
     final theme = SailTheme.of(tester.element(find.text('LOAD & VERIFY')));
     expect((card.decoration! as BoxDecoration).color, isNot(theme.colors.background), reason: 'the card stands out');
 
-    await tester.tap(
-      find.descendant(
-        of: find.ancestor(of: find.text('SPEND'), matching: find.byType(Row)).first,
-        matching: find.byType(SailTappable),
-      ),
-    );
+    await tester.tap(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.eye));
     await tester.pumpAndSettle();
     expect(find.byType(QrImageView), findsNWidgets(2));
     expect(find.text('KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the dialog has one Save PDF button, × and "…" in the head, and Generate New in the "…"', (tester) async {
+    await tester.pumpSailPage(const PaperWalletDialog());
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(SailButton), findsOneWidget);
+    expect(find.widgetWithText(SailButton, 'Save PDF'), findsOneWidget);
+    expect(find.text('Print'), findsNothing);
+    expect(find.text('Close'), findsNothing);
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x), findsOneWidget);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text('Click the eye icon to reveal'), findsOneWidget);
+
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate New'));
+    await tester.pumpAndSettle();
+    expect(bitwindow.utils.calls, 2);
+  });
+
+  testWidgets('the eye shows the key, its QR code and the keep-secret line', (tester) async {
+    await tester.pumpSailPage(const PaperWalletDialog());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.eye));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(QrImageView), findsNWidgets(2));
+    expect(find.text('KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn'), findsOneWidget);
+    expect(find.text('KEEP SECRET: Anyone with this private key can spend your Bitcoin'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.eyeOff), findsOneWidget);
   });
 }

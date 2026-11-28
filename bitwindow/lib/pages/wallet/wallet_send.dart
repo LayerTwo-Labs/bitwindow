@@ -18,7 +18,7 @@ import 'package:bitwindow/signing/sign_and_broadcast.dart';
 import 'package:bitwindow/utils/base58.dart';
 import 'package:bitwindow/widgets/draft_panel.dart';
 import 'package:bitwindow/widgets/replay_protection_dialog.dart';
-import 'package:bitwindow/widgets/summary_line.dart';
+import 'package:bitwindow/widgets/send_panel_parts.dart';
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 import 'package:sidechain_core/gen/walletpsbt/v1/walletpsbt.pb.dart';
 import 'package:bitwindow/utils/coin_selection.dart';
@@ -79,15 +79,6 @@ class SendTab extends ViewModelWidget<SendPageViewModel> {
                   walletName: viewModel.walletName,
                 )
               : null;
-          final side = SailColumn(
-            spacing: SailStyleValues.padding12,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SummaryCard(),
-              _actions(context, viewModel),
-              if (viewModel.sendError != null) SailInlineError(viewModel.sendError!),
-            ],
-          );
 
           if (constraints.maxWidth < sendWideLayoutMinWidth) {
             return SailColumn(
@@ -96,7 +87,7 @@ class SendTab extends ViewModelWidget<SendPageViewModel> {
               children: [
                 const PayToCard(),
                 ?graph,
-                side,
+                const SummaryCard(),
                 SailSpacing(SailStyleValues.padding64),
               ],
             );
@@ -116,84 +107,70 @@ class SendTab extends ViewModelWidget<SendPageViewModel> {
                 ),
               ),
               const SizedBox(width: SailStyleValues.padding12),
-              SizedBox(width: sendSideColumnWidth, child: side),
+              const SizedBox(width: sendSideColumnWidth, child: SummaryCard()),
             ],
           );
         },
       ),
     );
   }
+}
 
-  Widget _actions(BuildContext context, SendPageViewModel viewModel) {
-    final oneKey = !viewModel.isMultisig;
-    return SendActions(
-      creating: viewModel.creating,
-      sendsNow: viewModel.sendsNow,
-      onCreate: viewModel.sendsNow
-          ? () => viewModel.sendNow(context)
-          : () async => unawaited(viewModel.createTransaction(context)),
-      onCancel: viewModel.cancelCreate,
-      onClear: viewModel.clearAll,
-      onAirgap: oneKey ? () => _externalSign(context, viewModel, AirgapPsbtSigner()) : null,
-      deviceType: oneKey && viewModel.isHardwareWallet ? viewModel.hardwareDeviceType : null,
-      onDevice: () => _externalSign(
-        context,
-        viewModel,
-        HwiPsbtSigner(
-          wmpb.HardwareDeviceSelector(
-            type: viewModel.hardwareDeviceType,
-            fingerprint: viewModel.hardwareFingerprint,
-          ),
-        ),
-      ),
-    );
+/// Builds the unsigned PSBT, signs it with [signer], then broadcasts.
+Future<void> _externalSign(BuildContext context, SendPageViewModel viewModel, PsbtSigner signer) async {
+  final walletId = GetIt.I<WalletReaderProvider>().activeWalletId;
+  if (walletId == null) {
+    return;
   }
-
-  /// Builds the unsigned PSBT, signs it with [signer], then broadcasts.
-  Future<void> _externalSign(BuildContext context, SendPageViewModel viewModel, PsbtSigner signer) async {
-    final walletId = GetIt.I<WalletReaderProvider>().activeWalletId;
-    if (walletId == null) {
+  viewModel.setSendError(null);
+  final plan = await viewModel.askReplayProtect(context);
+  if (plan == null || !context.mounted) {
+    return;
+  }
+  final psbt = await viewModel.buildUnsignedPsbtForAirgap(context, allowReplay: plan.allowReplay);
+  if (psbt == null || !context.mounted) {
+    return;
+  }
+  try {
+    final txid = await signAndBroadcast(
+      context,
+      walletId: walletId,
+      unsignedPsbtBase64: psbt,
+      signer: signer,
+    );
+    if (txid == null) {
       return;
     }
-    viewModel.setSendError(null);
-    final plan = await viewModel.askReplayProtect(context);
-    if (plan == null || !context.mounted) {
+    if (plan.risky && plan.allowReplay) {
+      GetIt.I<ForkProvider>().rememberUnprotectedSend(txid);
+    }
+    if (!context.mounted) {
       return;
     }
-    final psbt = await viewModel.buildUnsignedPsbtForAirgap(context, allowReplay: plan.allowReplay);
-    if (psbt == null || !context.mounted) {
-      return;
-    }
-    try {
-      final txid = await signAndBroadcast(
-        context,
-        walletId: walletId,
-        unsignedPsbtBase64: psbt,
-        signer: signer,
-      );
-      if (txid == null) {
-        return;
-      }
-      if (plan.risky && plan.allowReplay) {
-        GetIt.I<ForkProvider>().rememberUnprotectedSend(txid);
-      }
-      if (!context.mounted) {
-        return;
-      }
-      showSailToast(context, 'Transaction broadcast', variant: SailToastVariant.success);
-      await viewModel.onAirgapBroadcast();
-    } catch (e) {
-      viewModel.setSendError('Failed to broadcast: $e');
-    }
+    showSailToast(context, 'Transaction broadcast', variant: SailToastVariant.success);
+    await viewModel.onAirgapBroadcast();
+  } catch (e) {
+    viewModel.setSendError('Failed to broadcast: $e');
   }
 }
 
-const double sendWideLayoutMinWidth = 1200;
-const double sendSideColumnWidth = 400;
+const double sendWideLayoutMinWidth = 1000;
+const double sendSideColumnWidth = SailSidePanel.width;
 
-/// The buttons under the send summary. While a transaction builds, the main
-/// button waits and Cancel stops the build.
-class SendActions extends StatelessWidget {
+/// The Summary side panel of the send form: the total, the detail rows, one main button, and a "…" menu with the
+/// other ways to sign and Clear All. While a transaction builds, the main button waits and Cancel stops the build.
+class SendSummaryPanel extends StatelessWidget {
+  final String total;
+  final String totalOtherUnit;
+  final Future<void> Function()? onSwapUnit;
+
+  /// The rows of the grey detail group.
+  final List<Widget> details;
+
+  /// Shows under the detail group, as the field of a typed fee.
+  final Widget? feeField;
+  final String? error;
+
   final bool creating;
 
   /// A send to a BIP47 payment code broadcasts at once, with no saved transaction.
@@ -202,15 +179,24 @@ class SendActions extends StatelessWidget {
   final VoidCallback onCancel;
   final Future<void> Function() onClear;
 
-  /// Null hides the airgap button.
+  /// Null hides the airgap item.
   final Future<void> Function()? onAirgap;
 
-  /// The hardware device of the wallet. Null hides its sign button.
+  /// The hardware device of the wallet. Null hides its sign item.
   final String? deviceType;
   final Future<void> Function() onDevice;
 
-  const SendActions({
+  final bool showGraph;
+  final VoidCallback onToggleGraph;
+
+  const SendSummaryPanel({
     super.key,
+    required this.total,
+    required this.totalOtherUnit,
+    this.onSwapUnit,
+    required this.details,
+    this.feeField,
+    this.error,
     required this.creating,
     required this.sendsNow,
     required this.onCreate,
@@ -219,61 +205,51 @@ class SendActions extends StatelessWidget {
     required this.onAirgap,
     required this.deviceType,
     required this.onDevice,
+    required this.showGraph,
+    required this.onToggleGraph,
   });
+
+  List<SailMenuEntity> _menu(BuildContext context) => [
+    if (onAirgap != null)
+      sendMenuItem(context, 'External signer (airgap)', creating ? null : () => unawaited(onAirgap!())),
+    if (deviceType != null)
+      sendMenuItem(context, 'Sign with $deviceType', creating ? null : () => unawaited(onDevice())),
+    sendMenuItem(context, showGraph ? 'Hide graph' : 'Show graph', onToggleGraph),
+    const SailMenuItemDivider(),
+    if (creating)
+      sendMenuItem(context, 'Cancel', onCancel)
+    else
+      sendMenuItem(context, 'Clear All', () => unawaited(onClear())),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final airgap = onAirgap == null
-        ? null
-        : SailButton(
-            variant: ButtonVariant.secondary,
-            label: 'External signer (airgap)',
-            disabled: creating,
-            onPressed: onAirgap,
-          );
-    final stop = creating
-        ? SailButton(
-            variant: ButtonVariant.outline,
-            label: 'Cancel',
-            onPressed: () async => onCancel(),
-          )
-        : SailButton(
-            variant: ButtonVariant.outline,
-            label: 'Clear All',
-            onPressed: onClear,
-          );
-    final phone = SailStyleValues.phoneLayout(context);
-
-    return SailColumn(
-      spacing: SailStyleValues.padding08,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SailButton(
-          label: sendsNow ? 'Send' : 'Create Transaction',
-          loadingLabel: sendsNow ? 'Sending' : 'Creating…',
-          loading: creating,
-          disabled: creating,
-          onPressed: onCreate,
-        ),
-        if (!phone) ?airgap,
-        if (deviceType != null)
+    return SailSidePanel(
+      title: 'Summary',
+      menuItems: () => _menu(context),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SendAmountBlock(label: 'You send', amount: total, otherUnit: totalOtherUnit, onSwapUnit: onSwapUnit),
+          SailDetailGroup(fill: SailDetailFill.canvas, children: details),
+          ?feeField,
           SailButton(
-            variant: ButtonVariant.secondary,
-            label: 'Sign with $deviceType',
+            label: sendsNow ? 'Send' : 'Create Transaction',
+            loadingLabel: sendsNow ? 'Sending' : 'Creating…',
+            loading: creating,
             disabled: creating,
-            onPressed: onDevice,
+            onPressed: onCreate,
           ),
-        if (phone && airgap != null)
-          SailRow(
-            spacing: SailStyleValues.padding08,
-            children: [
-              Expanded(child: airgap),
-              Expanded(child: stop),
-            ],
-          )
-        else
-          stop,
-      ],
+          if (creating)
+            SailButton(
+              variant: ButtonVariant.outline,
+              label: 'Cancel',
+              onPressed: () async => onCancel(),
+            ),
+          if (error != null) SailInlineError(error!),
+        ],
+      ),
     );
   }
 }
@@ -397,7 +373,12 @@ class PayToCard extends ViewModelWidget<SendPageViewModel> {
     final phone = SailStyleValues.phoneLayout(context);
 
     return SailCard(
-      title: 'Pay To',
+      title: 'Pay to',
+      widgetHeaderEnd: SailButton(
+        label: 'Add recipient',
+        variant: ButtonVariant.ghost,
+        onPressed: () async => viewModel.addRecipient(),
+      ),
       child: SailColumn(
         spacing: SailStyleValues.padding12,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -427,15 +408,6 @@ class PayToCard extends ViewModelWidget<SendPageViewModel> {
                 viewModel.notifyListeners();
               },
             ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SailButton(
-              label: '+ Add recipient',
-              variant: ButtonVariant.link,
-              small: true,
-              onPressed: () async => viewModel.addRecipient(),
-            ),
-          ),
         ],
       ),
     );
@@ -463,10 +435,8 @@ class _RecipientDivider extends StatelessWidget {
   }
 }
 
-const int _addressFlex = 3;
-const int _amountFlex = 1;
-const double _amountMinWidth = 240;
-const double _removeWidth = 38;
+const double _amountWidth = 220;
+const double _removeWidth = 40;
 
 class RecipientColumnLabels extends StatelessWidget {
   final BitcoinUnit currentUnit;
@@ -478,23 +448,17 @@ class RecipientColumnLabels extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(flex: _addressFlex, child: SailText.primary13('Address', bold: true)),
+        Expanded(child: SailText.primary13('Address', bold: true)),
         const SizedBox(width: SailStyleValues.padding08),
-        Expanded(
-          flex: _amountFlex,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: _amountMinWidth),
-            child: SailText.primary13('Amount (${currentUnit.symbol})', bold: true),
-          ),
-        ),
+        SizedBox(width: _amountWidth, child: SailText.primary13('Amount (${currentUnit.symbol})', bold: true)),
         if (canRemove) const SizedBox(width: SailStyleValues.padding08 + _removeWidth),
       ],
     );
   }
 }
 
-/// One recipient: the address, the amount, and a remove button when
-/// [onRemove] is not null.
+/// One recipient: the address with its address book menu, the amount, and a remove button when [onRemove] is not
+/// null.
 class RecipientRow extends StatelessWidget {
   final RecipientModel recipient;
   final List<AddressBookEntry> addressBookEntries;
@@ -519,35 +483,13 @@ class RecipientRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final address = recipient.addressController.text;
-    final bookLabel = addressBookEntries.firstWhereOrNull((e) => e.address == address)?.label ?? '';
-
     final phone = SailStyleValues.phoneLayout(context);
-    final addressTools = SailRow(
-      children: [
-        PasteButton(onPaste: (text) => recipient.addressController.text = text),
-        if (address.isNotEmpty && !addressBookEntries.any((e) => e.address == address))
-          SailButton(
-            label: 'Save',
-            variant: ButtonVariant.ghost,
-            onPressed: () async => onSaveToAddressBook(context, address),
-          ),
-        Flexible(
-          child: SailDropdownButton<AddressBookEntry>(
-            value: null,
-            hint: addressBookEntries.isEmpty
-                ? 'No Addresses Saved'
-                : (bookLabel.isNotEmpty ? bookLabel : 'Address Book'),
-            items: [
-              for (final entry in addressBookEntries)
-                SailDropdownItem<AddressBookEntry>(value: entry, label: entry.label),
-            ],
-            icon: SailSVG.fromAsset(SailSVGAsset.bookUser, width: 13, color: theme.colors.inactiveNavText),
-            onChanged: onAddressSelected,
-          ),
-        ),
-      ],
+    final book = AddressBookButton(
+      key: Key('recipient_book_$index'),
+      entries: addressBookEntries,
+      address: recipient.addressController.text.trim(),
+      onPick: onAddressSelected,
+      onSave: (address) => onSaveToAddressBook(context, address),
     );
     final addressField = SailTextField(
       key: Key('recipient_address_$index'),
@@ -556,8 +498,15 @@ class RecipientRow extends StatelessWidget {
       size: TextFieldSize.small,
       minLines: 1,
       maxLines: null,
-      suffixWidget: phone ? null : addressTools,
-      bottomWidget: phone ? addressTools : null,
+      suffixWidget: phone ? null : book,
+      bottomWidget: phone
+          ? SailRow(
+              children: [
+                PasteButton(onPaste: (text) => recipient.addressController.text = text),
+                book,
+              ],
+            )
+          : null,
     );
     final maxButton = SailButton(
       label: 'MAX',
@@ -579,14 +528,12 @@ class RecipientRow extends StatelessWidget {
     );
     final removeButton = onRemove == null
         ? null
-        : SizedBox(
-            width: _removeWidth,
-            child: SailButton(
-              key: Key('recipient_remove_$index'),
-              variant: ButtonVariant.icon,
-              icon: SailSVGAsset.iconClose,
-              onPressed: () async => onRemove!(),
-            ),
+        : SailIconBoxButton(
+            key: Key('recipient_remove_$index'),
+            icon: SailSVGAsset.x,
+            tooltip: 'Remove recipient',
+            size: _removeWidth,
+            onPressed: () async => onRemove!(),
           );
 
     if (phone) {
@@ -608,17 +555,91 @@ class RecipientRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(flex: _addressFlex, child: addressField),
+        Expanded(child: addressField),
         const SizedBox(width: SailStyleValues.padding08),
-        Expanded(
-          flex: _amountFlex,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: _amountMinWidth),
-            child: amountField,
-          ),
-        ),
+        SizedBox(width: _amountWidth, child: amountField),
         if (removeButton != null) ...[const SizedBox(width: SailStyleValues.padding08), removeButton],
       ],
+    );
+  }
+}
+
+/// The book icon in an address field. It opens a menu to pick an address from the address book, or to save
+/// [address] in it.
+class AddressBookButton extends StatelessWidget {
+  final List<AddressBookEntry> entries;
+  final String address;
+  final ValueChanged<AddressBookEntry> onPick;
+  final Future<void> Function(String address) onSave;
+
+  const AddressBookButton({
+    super.key,
+    required this.entries,
+    required this.address,
+    required this.onPick,
+    required this.onSave,
+  });
+
+  bool get _canSave => address.isNotEmpty && !entries.any((e) => e.address == address);
+
+  Future<void> _open(BuildContext context, SailMenu menu) async {
+    final box = context.findRenderObject()! as RenderBox;
+    final overlay = Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
+    final anchor = box.localToGlobal(box.size.bottomRight(const Offset(0, 4)), ancestor: overlay);
+    await showSailMenu(context: context, preferredAnchorPoint: anchor, alignment: Alignment.topRight, menu: menu);
+  }
+
+  Future<void> _openBook(BuildContext context) async {
+    final theme = SailTheme.of(context);
+    await _open(
+      context,
+      SailMenu(
+        title: 'Address Book',
+        width: 380,
+        items: entries.isEmpty
+            ? [sendMenuItem(context, 'No Addresses Saved', null)]
+            : [
+                for (final entry in entries)
+                  SailMenuItem(
+                    key: Key('address_book_entry_${entry.address}'),
+                    height: 44,
+                    width: 380,
+                    onSelected: () => onPick(entry),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SailText.primary13(entry.label, bold: true),
+                        SailText.primary12(entry.address, color: theme.colors.textSecondary, monospace: true),
+                      ],
+                    ),
+                  ),
+              ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return SailTooltip(
+      message: 'Address book',
+      child: SailTappable(
+        borderRadius: theme.chrome.radius,
+        onTap: () => _open(
+          context,
+          SailMenu(
+            items: [
+              sendMenuItem(context, 'Pick from address book', () => unawaited(_openBook(context))),
+              sendMenuItem(context, 'Save to address book', _canSave ? () => unawaited(onSave(address)) : null),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(SailStyleValues.padding08),
+          child: SailSVG.fromAsset(SailSVGAsset.bookOpen, width: 16, height: 16, color: theme.colors.text),
+        ),
+      ),
     );
   }
 }
@@ -640,104 +661,132 @@ class AddFeeOnTopCheckbox extends StatelessWidget {
   }
 }
 
+/// A fee rate in the unit of the chain, with one decimal only when the rate has one.
+String feeRateLabel(double satPerVByte) {
+  final rate = satPerVByte == satPerVByte.roundToDouble()
+      ? satPerVByte.toStringAsFixed(0)
+      : satPerVByte.toStringAsFixed(1);
+  return '$rate ${activeTicker.feeRate}';
+}
+
+/// What the Fee row shows: the fee target and its rate, or Custom for a fee the user types.
+String feeChoiceLabel(int? confTarget, double? satPerVByte) {
+  if (confTarget == null) {
+    return feeTargetLabel(null);
+  }
+  if (satPerVByte == null) {
+    return feeTargetLabel(confTarget);
+  }
+  return '${feeTargetLabel(confTarget)} · ${feeRateLabel(satPerVByte)}';
+}
+
 class SummaryCard extends ViewModelWidget<SendPageViewModel> {
   const SummaryCard({super.key});
 
   @override
   Widget build(BuildContext context, SendPageViewModel viewModel) {
     final unit = viewModel.currentUnit;
+    final otherUnit = unit == BitcoinUnit.btc ? BitcoinUnit.sats : BitcoinUnit.btc;
     String fmt(int sats) => formatBitcoinWithUnit(satoshiToBTC(sats), unit);
     final estimate = approximateFeePrefix(viewModel.feeIsEstimate) ?? '';
+    final failed = viewModel.feeFailed;
+    final total = failed ? null : viewModel.totalSats;
+    final notification = viewModel.notificationCostSats;
+    final oneKey = !viewModel.isMultisig;
 
-    return SailCard(
-      title: 'Summary',
-      widgetHeaderEnd: SailButton(
-        label: viewModel.showTransactionGraph ? 'Hide graph' : 'Show graph',
-        variant: ButtonVariant.ghost,
-        small: true,
-        onPressed: () async => viewModel.toggleTransactionGraph(),
+    return SendSummaryPanel(
+      total: summarySats(total, fmt),
+      totalOtherUnit: summarySats(total, (sats) => formatBitcoinWithUnit(satoshiToBTC(sats), otherUnit)),
+      onSwapUnit: viewModel.swapUnit,
+      details: [
+        SailDetailLine(label: 'Recipients', value: '${viewModel.recipients.length}'),
+        SailDetailLine(label: 'Amount', value: fmt(viewModel.amountSats), monospace: true),
+        SailDetailLine.child(
+          label: 'Pay from',
+          child: SailPopover(
+            side: SailPopoverSide.bottom,
+            alignment: SailPopoverAlignment.end,
+            popover: const PayFromPanel(),
+            child: _SummaryChoice(payFromLabel(viewModel.coinSelectionStrategy, viewModel.selectedUtxos)),
+          ),
+        ),
+        SailDetailLine.child(
+          label: 'Fee',
+          child: _FeeMenu(
+            onTarget: viewModel.selectFeeTarget,
+            onCustom: viewModel.selectCustomFee,
+            child: _SummaryChoice(feeChoiceLabel(viewModel.selectedConfTarget, viewModel.estimatedSatPerVByte)),
+          ),
+        ),
+        SailDetailLine(
+          label: 'Fee amount',
+          value: viewModel.customFee
+              ? fmt(viewModel.feeSats)
+              : summarySats(failed ? null : viewModel.feeSats, (sats) => '$estimate${fmt(sats)}'),
+          monospace: true,
+        ),
+        if (notification > 0) SailDetailLine(label: 'BIP47 notification', value: fmt(notification), monospace: true),
+        SailDetailLine(
+          label: 'Balance after',
+          value: summarySats(total == null ? null : viewModel.balanceSats - total, fmt),
+          monospace: true,
+        ),
+      ],
+      feeField: viewModel.customFee
+          ? SailTextField(
+              key: const Key('send_custom_fee'),
+              label: 'Fee',
+              controller: viewModel.feeController,
+              hintText: 'Fee',
+              size: TextFieldSize.small,
+              textFieldType: unit == BitcoinUnit.btc ? TextFieldType.bitcoin : TextFieldType.number,
+              suffixWidget: SailText.secondary13(unit.symbol),
+            )
+          : null,
+      error: viewModel.sendError,
+      creating: viewModel.creating,
+      sendsNow: viewModel.sendsNow,
+      onCreate: viewModel.sendsNow
+          ? () => viewModel.sendNow(context)
+          : () async => unawaited(viewModel.createTransaction(context)),
+      onCancel: viewModel.cancelCreate,
+      onClear: viewModel.clearAll,
+      onAirgap: oneKey ? () => _externalSign(context, viewModel, AirgapPsbtSigner()) : null,
+      deviceType: oneKey && viewModel.isHardwareWallet ? viewModel.hardwareDeviceType : null,
+      onDevice: () => _externalSign(
+        context,
+        viewModel,
+        HwiPsbtSigner(
+          wmpb.HardwareDeviceSelector(
+            type: viewModel.hardwareDeviceType,
+            fingerprint: viewModel.hardwareFingerprint,
+          ),
+        ),
       ),
-      child: SailColumn(
-        spacing: SailStyleValues.padding12,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SummaryLine(label: 'Recipients', value: SailText.primary13('${viewModel.recipients.length}')),
-          SummaryLine(
-            label: 'Pay from',
-            value: SailPopover(
-              side: SailPopoverSide.bottom,
-              alignment: SailPopoverAlignment.end,
-              popover: const PayFromPanel(),
-              child: _SummaryLink(payFromLabel(viewModel.coinSelectionStrategy, viewModel.selectedUtxos)),
-            ),
-          ),
-          SummaryLine(label: 'Amount', value: SailText.primary13(fmt(viewModel.amountSats), monospace: true)),
-          SummaryLine(
-            label: 'Fee',
-            value: viewModel.customFee
-                ? SailRow(
-                    spacing: SailStyleValues.padding12,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _FeeMenu(
-                        onTarget: viewModel.selectFeeTarget,
-                        onCustom: viewModel.selectCustomFee,
-                        child: _SummaryLink(feeTargetLabel(null)),
-                      ),
-                      SizedBox(
-                        width: 200,
-                        child: SailTextField(
-                          key: const Key('send_custom_fee'),
-                          controller: viewModel.feeController,
-                          hintText: 'Fee',
-                          size: TextFieldSize.small,
-                          textFieldType: unit == BitcoinUnit.btc ? TextFieldType.bitcoin : TextFieldType.number,
-                          suffixWidget: SailText.secondary13(unit.symbol),
-                        ),
-                      ),
-                    ],
-                  )
-                : _FeeMenu(
-                    onTarget: viewModel.selectFeeTarget,
-                    onCustom: viewModel.selectCustomFee,
-                    child: _SummaryLink(
-                      '${feeTargetLabel(viewModel.selectedConfTarget)} · '
-                      '${summarySats(viewModel.feeFailed ? null : viewModel.feeSats, (sats) => '$estimate${fmt(sats)}')}',
-                    ),
-                  ),
-          ),
-          SummaryLine(
-            label: 'Total',
-            bold: true,
-            value: SailText.primary13(
-              summarySats(viewModel.feeFailed ? null : viewModel.totalSats, fmt),
-              monospace: true,
-              bold: true,
-            ),
-          ),
-        ],
-      ),
+      showGraph: viewModel.showTransactionGraph,
+      onToggleGraph: viewModel.toggleTransactionGraph,
     );
   }
 }
 
-class _SummaryLink extends StatelessWidget {
+/// A summary value that opens a menu: its label and a down chevron.
+class _SummaryChoice extends StatelessWidget {
   final String label;
 
-  const _SummaryLink(this.label);
+  const _SummaryChoice(this.label);
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.sailTheme;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: Text(
-        label,
-        overflow: TextOverflow.ellipsis,
-        style: SailStyleValues.thirteen.copyWith(
-          color: context.sailTheme.colors.text,
-          decoration: TextDecoration.underline,
-          fontFamily: context.sailTheme.chrome.fontFamily,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: SailText.primary13(label, bold: true)),
+          const SizedBox(width: 4),
+          SailSVG.fromAsset(SailSVGAsset.chevronDown, width: 12, height: 12, color: theme.colors.text),
+        ],
       ),
     );
   }
@@ -1055,6 +1104,24 @@ class SendPageViewModel extends BaseViewModel {
       subtractFee: _subtractFeeFromAmount,
       notificationSats: _pricedNotificationFeeSats > 0 ? _pricedNotificationFeeSats + dustSats : 0,
     );
+  }
+
+  /// What a first BIP47 payment pays for its notification: the fee and the dust output. 0 when the send has none.
+  int get notificationCostSats =>
+      _pricedMatchesForm && _pricedNotificationFeeSats > 0 ? _pricedNotificationFeeSats + dustSats : 0;
+
+  int get balanceSats => btcToSatoshi(balanceProvider.balance);
+
+  /// The rate of the fee target. Null for a fee the user types or a target with no estimate.
+  double? get estimatedSatPerVByte => customFee ? null : _estimatedSatPerVByte;
+
+  /// Shows the send in the other unit: sats for BTC, BTC for sats.
+  Future<void> swapUnit() async {
+    try {
+      await settingsProvider.updateBitcoinUnit(currentUnit == BitcoinUnit.btc ? BitcoinUnit.sats : BitcoinUnit.btc);
+    } catch (error) {
+      setSendError('Could not change the unit: $error');
+    }
   }
 
   bool get _pricedMatchesForm {
@@ -2128,63 +2195,58 @@ class _SaveToAddressBookDialogState extends State<SaveToAddressBookDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return SailModal(
-      backgroundColor: const Color(0x00000000),
-      constraints: const BoxConstraints(maxWidth: 400),
-      child: SailCard(
-        title: 'Save to Address Book',
-        subtitle: '',
-        withCloseButton: true,
-        child: SailColumn(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: SailStyleValues.padding16,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SailTextField(
-              label: 'Address',
-              controller: TextEditingController(text: widget.address),
-              hintText: widget.address,
-              readOnly: true,
-              size: TextFieldSize.small,
-              suffixWidget: CopyButton(
-                text: widget.address,
-              ),
+    return SignDialog(
+      title: 'Save to Address Book',
+      maxWidth: 440,
+      button: SailButton(
+        label: 'Save',
+        onPressed: () async {
+          if (labelController.text.isEmpty) {
+            return;
+          }
+          setState(() => _error = null);
+          try {
+            await widget.addressBookProvider.createEntry(
+              labelController.text,
+              widget.address,
+              Direction.DIRECTION_SEND,
+            );
+            if (context.mounted) {
+              Navigator.pop(context);
+              showSailToast(context, 'Address saved to address book');
+            }
+          } catch (e) {
+            widget.log.e('Error saving to address book: $e');
+            if (mounted) {
+              setState(() => _error = 'Failed to save address: $e');
+            }
+          }
+        },
+        disabled: labelController.text.isEmpty,
+      ),
+      child: SailColumn(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: SailStyleValues.padding16,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SailTextField(
+            label: 'Address',
+            controller: TextEditingController(text: widget.address),
+            hintText: widget.address,
+            readOnly: true,
+            size: TextFieldSize.small,
+            suffixWidget: CopyButton(
+              text: widget.address,
             ),
-            SailTextField(
-              label: 'Label',
-              controller: labelController,
-              hintText: 'Enter a label for this address',
-              size: TextFieldSize.small,
-            ),
-            SailButton(
-              label: 'Save',
-              onPressed: () async {
-                if (labelController.text.isEmpty) {
-                  return;
-                }
-                setState(() => _error = null);
-                try {
-                  await widget.addressBookProvider.createEntry(
-                    labelController.text,
-                    widget.address,
-                    Direction.DIRECTION_SEND,
-                  );
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    showSailToast(context, 'Address saved to address book');
-                  }
-                } catch (e) {
-                  widget.log.e('Error saving to address book: $e');
-                  if (mounted) {
-                    setState(() => _error = 'Failed to save address: $e');
-                  }
-                }
-              },
-              disabled: labelController.text.isEmpty,
-            ),
-            if (_error != null) SailInlineError(_error!),
-          ],
-        ),
+          ),
+          SailTextField(
+            label: 'Label',
+            controller: labelController,
+            hintText: 'Enter a label for this address',
+            size: TextFieldSize.small,
+          ),
+          if (_error != null) SailInlineError(_error!),
+        ],
       ),
     );
   }

@@ -131,68 +131,68 @@ class NetworkStatsContent extends StatelessWidget {
         ],
       );
     }
+    final rows = [
+      [
+        StatItem(
+          label: 'Peers',
+          value: stats.peerCount.toString(),
+          subtitle: '${stats.connectionsIn} in / ${stats.connectionsOut} out',
+        ),
+        StatItem(label: 'Block Height', value: stats.blockHeight.toString()),
+      ],
+      [
+        StatItem(
+          label: 'Download',
+          value: _formatBandwidth(currentRxRate),
+          subtitle: _formatBytes(stats.totalBytesReceived.toInt()),
+        ),
+        StatItem(
+          label: 'Upload',
+          value: _formatBandwidth(currentTxRate),
+          subtitle: _formatBytes(stats.totalBytesSent.toInt()),
+        ),
+      ],
+      if (stats.hasBitcoindBandwidth())
+        [
+          StatItem(
+            label: 'bitcoind',
+            value: '${stats.bitcoindBandwidth.connectionCount} conn',
+            subtitle: 'PID ${stats.bitcoindBandwidth.pid}',
+          ),
+          if (stats.hasEnforcerBandwidth())
+            StatItem(
+              label: 'enforcer',
+              value: '${stats.enforcerBandwidth.connectionCount} conn',
+              subtitle: 'PID ${stats.enforcerBandwidth.pid}',
+            ),
+        ],
+    ];
+    final theme = SailTheme.of(context);
+    Widget row(List<Widget> items) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [for (final item in items) Expanded(child: item)],
+    );
+    if (theme.isBitwindowV2) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final items in rows)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.colors.divider)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding12),
+                child: row(items),
+              ),
+            ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: StatItem(
-                label: 'Peers',
-                value: stats.peerCount.toString(),
-                subtitle: '${stats.connectionsIn} in / ${stats.connectionsOut} out',
-              ),
-            ),
-            Expanded(
-              child: StatItem(
-                label: 'Block Height',
-                value: stats.blockHeight.toString(),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: SailStyleValues.padding16),
-        Row(
-          children: [
-            Expanded(
-              child: StatItem(
-                label: 'Download',
-                value: _formatBandwidth(currentRxRate),
-                subtitle: _formatBytes(stats.totalBytesReceived.toInt()),
-              ),
-            ),
-            Expanded(
-              child: StatItem(
-                label: 'Upload',
-                value: _formatBandwidth(currentTxRate),
-                subtitle: _formatBytes(stats.totalBytesSent.toInt()),
-              ),
-            ),
-          ],
-        ),
-        if (stats.hasBitcoindBandwidth()) ...[
-          const SizedBox(height: SailStyleValues.padding16),
-          Row(
-            children: [
-              Expanded(
-                child: StatItem(
-                  label: 'bitcoind',
-                  value: '${stats.bitcoindBandwidth.connectionCount} conn',
-                  subtitle: 'PID ${stats.bitcoindBandwidth.pid}',
-                ),
-              ),
-              if (stats.hasEnforcerBandwidth())
-                Expanded(
-                  child: StatItem(
-                    label: 'enforcer',
-                    value: '${stats.enforcerBandwidth.connectionCount} conn',
-                    subtitle: 'PID ${stats.enforcerBandwidth.pid}',
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ],
+      spacing: SailStyleValues.padding16,
+      children: [for (final items in rows) row(items)],
     );
   }
 

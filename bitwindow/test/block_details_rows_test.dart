@@ -49,8 +49,15 @@ void main() {
   }
 
   String rowValue(WidgetTester tester, String label) {
-    final row = find.ancestor(of: find.text(label), matching: find.byType(DetailRow)).first;
-    return tester.widget<DetailRow>(row).value;
+    final row = find.ancestor(
+      of: find.text(label),
+      matching: find.byWidgetPredicate((w) => w is SailDetailLine || w is SailStackedDetail),
+    );
+    return switch (tester.widget(row.first)) {
+      final SailDetailLine r => r.value!,
+      final SailStackedDetail r => r.value,
+      _ => throw StateError('no row for $label'),
+    };
   }
 
   testWidgets('the details show the next block hash and the difficulty', (tester) async {

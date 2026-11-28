@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/pages/sidechains/explorer/transaction_broadcast.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -115,157 +116,341 @@ class _ExplorerDetailState extends State<ExplorerDetail> {
     }
   }
 
+  Future<void> _close() async => widget.onClose();
+
   @override
   Widget build(BuildContext context) {
     final result = _result;
-    return SailColumn(
-      spacing: SailStyleValues.padding16,
-      children: [
-        SailRow(
-          spacing: SailStyleValues.padding08,
+    final colors = SailTheme.of(context).colors;
+    if (_error != null) {
+      return SailSidePanel(
+        title: 'Not found',
+        onClose: _close,
+        child: SailColumn(
+          spacing: SailStyleValues.padding12,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SailButton(
-              label: 'Back to the chain',
-              variant: ButtonVariant.secondary,
-              icon: SailSVGAsset.arrowLeft,
-              onPressed: () async => widget.onClose(),
-            ),
+            const SailStatusPill(label: 'Not found', tone: SailStatusTone.error),
+            SailText.primary13(_error!, color: colors.error, overflow: TextOverflow.visible),
           ],
         ),
-        if (_error != null)
-          SailCard(title: 'Not found', subtitle: _error, child: const SizedBox(height: 24))
-        else if (result == null)
-          SailCard(title: 'Reading', child: const SizedBox(height: 24))
-        else if (result is pb.GetBlockResponse)
-          _BlockView(response: result, onOpen: widget.onOpen)
-        else if (result is pb.Transaction)
-          _TransactionView(model: widget.model, transaction: result, onOpen: widget.onOpen)
-        else if (result is pb.GetAddressResponse)
-          _AddressView(response: result, onOpen: widget.onOpen),
+      );
+    }
+    if (result == null) {
+      return SailSidePanel(
+        title: 'Reading',
+        onClose: _close,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(vertical: SailStyleValues.padding16),
+          child: Center(child: LoadingIndicator()),
+        ),
+      );
+    }
+    if (result is pb.GetBlockResponse) {
+      return _BlockPanel(response: result, onOpen: widget.onOpen, onClose: _close);
+    }
+    if (result is pb.Transaction) {
+      return _TransactionPanel(model: widget.model, transaction: result, onOpen: widget.onOpen, onClose: _close);
+    }
+    return _AddressPanel(response: result as pb.GetAddressResponse, onOpen: widget.onOpen, onClose: _close);
+  }
+}
+
+List<SailMenuEntity> _copyItem(String label, String text) => [
+  SailMenuItem(
+    onSelected: () async => Clipboard.setData(ClipboardData(text: text)),
+    child: SailText.primary12(label),
+  ),
+];
+
+/// The long id under the panel title, in grey, wrapped onto more lines.
+class _PanelId extends StatelessWidget {
+  final String id;
+
+  const _PanelId(this.id);
+
+  @override
+  Widget build(BuildContext context) => SailText.secondary12(id, overflow: TextOverflow.visible);
+}
+
+/// The big value at the top of a panel, with its grey caption.
+class _PanelAmount extends StatelessWidget {
+  final String value;
+  final String caption;
+
+  const _PanelAmount({required this.value, required this.caption});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SailTheme.of(context).colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SailText.primary24(value, bold: true),
+        SailText.primary15(caption, color: colors.textSecondary),
       ],
     );
   }
 }
 
-class _BlockView extends StatelessWidget {
+class _BlockPanel extends StatelessWidget {
   final pb.GetBlockResponse response;
   final void Function(ExplorerTarget) onOpen;
+  final Future<void> Function() onClose;
 
-  const _BlockView({required this.response, required this.onOpen});
+  const _BlockPanel({required this.response, required this.onOpen, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
     final block = response.block;
+    final network = GetIt.I.get<BitcoinConfProvider>().network;
+    final bid = block.hasBid() ? block.bid : null;
+    final age = explorerAge(block.blockTime.toInt());
     final deposits = response.activity.where((r) => r.kind == pb.Kind.KIND_DEPOSIT).toList();
     final transactions = response.activity.where((r) => r.kind != pb.Kind.KIND_DEPOSIT).toList();
-    return SailColumn(
-      spacing: SailStyleValues.padding16,
-      children: [
-        _Header(title: 'Block ${block.height}', id: block.hash),
-        SailRow(
-          spacing: SailStyleValues.padding16,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: SailCard(
-                title: 'Details',
-                subtitle: explorerAge(block.blockTime.toInt()),
-                child: SailColumn(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    _Row(label: 'Transactions', value: '${block.txCount}'),
-                    _Row(label: 'Deposits', value: '${block.depositCount}'),
-                    _Row(label: 'Value', value: explorerAmount(context, block.valueSats.toInt())),
-                    if (block.depositCount != 0)
-                      _Row(
-                        label: 'Deposited',
-                        value: explorerAmount(context, block.depositValueSats.toInt()),
-                      ),
-                    _Row(
-                      label: 'Transaction bytes',
-                      value: block.sizeBytes == 0 ? '—' : '${block.sizeBytes}',
-                    ),
-                    if (block.feesKnown) _Row(label: 'Fees', value: explorerAmount(context, block.feesSats.toInt())),
-                    _Row(label: 'Merkle root', value: shortenId(block.merkleRoot)),
-                  ],
+    return SailSidePanel(
+      title: 'Block ${block.height}',
+      onClose: onClose,
+      menuItems: () => _copyItem('Copy hash', block.hash),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PanelId(block.hash),
+          if (age.isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SailStatusPill(label: age),
+            ),
+          const SailDetailHeading('Details'),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(label: 'Transactions', value: '${block.txCount}'),
+              SailDetailLine(label: 'Deposits', value: '${block.depositCount}'),
+              SailDetailLine(label: 'Value', value: explorerAmount(context, block.valueSats.toInt())),
+              if (block.depositCount != 0)
+                SailDetailLine(label: 'Deposited', value: explorerAmount(context, block.depositValueSats.toInt())),
+              SailDetailLine(label: 'Transaction bytes', value: block.sizeBytes == 0 ? '—' : '${block.sizeBytes}'),
+              if (block.feesKnown)
+                SailDetailLine(label: 'Fees', value: explorerAmount(context, block.feesSats.toInt())),
+              SailDetailLine(label: 'Merkle root', value: shortenId(block.merkleRoot)),
+            ],
+          ),
+          SailDetailHeading('Blind merge mine', note: bid == null ? 'This install reads no bid for the block' : null),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              if (bid != null) ...[
+                SailDetailLine(label: 'Winning bid', value: explorerAmount(context, bid.sats.toInt())),
+                SailDetailLine(
+                  label: 'Bid block',
+                  value: '${bid.blockHeight}',
+                  onTap: () async => openUrl(Uri.parse(mempoolBlockUrl(bid.blockHash, network))),
                 ),
-              ),
-            ),
+                SailDetailLine(
+                  label: 'Bid outpoint',
+                  value: '${shortenId(bid.txid)} : ${bid.vout}',
+                  onTap: () async => openUrl(Uri.parse(mempoolTxUrl(bid.txid, network))),
+                ),
+              ],
+              if (block.mainchainHash.isEmpty)
+                const SailDetailLine(label: 'Parent block', value: 'Unknown')
+              else
+                SailDetailLine(
+                  label: 'Parent block',
+                  value: block.mainchainHeight != 0 ? '${block.mainchainHeight}' : shortenId(block.mainchainHash),
+                  onTap: () async => openUrl(Uri.parse(mempoolBlockUrl(block.mainchainHash, network))),
+                ),
+              if (block.prevHash.isNotEmpty)
+                SailDetailLine(
+                  label: 'Previous block',
+                  value: shortenId(block.prevHash),
+                  onTap: () async => onOpen(ExplorerTarget.block(hash: block.prevHash)),
+                ),
+            ],
+          ),
+          SailDetailHeading('Transactions', note: '${block.txCount} in this block'),
+          _MiniTable(
+            headers: const ['Transaction', 'Kind', 'Value'],
+            empty: 'Nothing in this block',
+            rows: [
+              for (final row in transactions)
+                _MiniRow(
+                  cells: [shortenId(row.id), kindLabel(row.kind), explorerAmount(context, row.valueSats.toInt())],
+                  onTap: () async => onOpen(ExplorerTarget.transaction(row.id)),
+                ),
+            ],
+          ),
+          SailDetailHeading('Deposits', note: '${block.depositCount} in this block'),
+          _MiniTable(
+            headers: const ['Mainchain transaction', 'Amount'],
+            empty: 'No deposits yet',
+            rows: [
+              for (final row in deposits)
+                _MiniRow(
+                  cells: [shortenId(row.id), explorerAmount(context, row.valueSats.toInt())],
+                  secondary: row.address.isEmpty ? null : shortenId(row.address),
+                  onTap: () async => openUrl(Uri.parse(mempoolTxUrl(row.id, network))),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniRow {
+  final List<String> cells;
+  final String? secondary;
+  final Future<void> Function() onTap;
+
+  const _MiniRow({required this.cells, required this.onTap, this.secondary});
+}
+
+class _MiniLine extends StatelessWidget {
+  final List<Widget> cells;
+
+  const _MiniLine(this.cells);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < cells.length; i++)
+          if (i == cells.length - 1)
             Expanded(
-              child: _BlindMergeMineCard(block: block, onOpen: onOpen),
+              child: Align(alignment: Alignment.centerRight, child: cells[i]),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(right: SailStyleValues.padding16),
+              child: i == 0 ? SizedBox(width: 136, child: cells[i]) : cells[i],
             ),
-          ],
-        ),
-        SailRow(
-          spacing: SailStyleValues.padding16,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _ActivityTable(
-                title: 'Transactions',
-                subtitle: '${block.txCount} in this block',
-                rows: transactions,
-                onOpen: onOpen,
-              ),
-            ),
-            Expanded(
-              child: DepositsCard(
-                rows: deposits,
-                subtitle: '${block.depositCount} in this block',
-                compact: true,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
 }
 
-/// _BlindMergeMineCard names the M8 a miner took to mine this block: what it
-/// paid, and the mainchain outpoint that carried it.
-class _BlindMergeMineCard extends StatelessWidget {
-  final pb.Block block;
-  final void Function(ExplorerTarget) onOpen;
+/// A small table in a grey group: the first column at the left, the last one at the right.
+class _MiniTable extends StatelessWidget {
+  final List<String> headers;
+  final List<_MiniRow> rows;
+  final String empty;
 
-  const _BlindMergeMineCard({required this.block, required this.onOpen});
+  const _MiniTable({required this.headers, required this.rows, required this.empty});
 
   @override
   Widget build(BuildContext context) {
-    final network = GetIt.I.get<BitcoinConfProvider>().network;
-    final bid = block.hasBid() ? block.bid : null;
-    return SailCard(
-      title: 'Blind merge mine',
-      headerValue: bid != null ? explorerAmount(context, bid.sats.toInt()) : null,
-      subtitle: bid != null ? 'Winning bid' : 'This install reads no bid for the block',
+    final colors = SailTheme.of(context).colors;
+    return SailDetailGroup(
+      fill: SailDetailFill.canvas,
+      children: [
+        _MiniLine([for (final header in headers) SailText.primary12(header, color: colors.textSecondary)]),
+        if (rows.isEmpty) SailText.secondary13(empty),
+        for (final row in rows)
+          SailTappable(
+            onTap: row.onTap,
+            child: _MiniLine([
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SailText.primary13(row.cells.first),
+                  if (row.secondary != null) SailText.secondary12(row.secondary!),
+                ],
+              ),
+              for (final cell in row.cells.skip(1)) SailText.primary13(cell),
+            ]),
+          ),
+      ],
+    );
+  }
+}
+
+class _TransactionPanel extends StatefulWidget {
+  final ExplorerModel model;
+  final pb.Transaction transaction;
+  final void Function(ExplorerTarget) onOpen;
+  final Future<void> Function() onClose;
+
+  const _TransactionPanel({
+    required this.model,
+    required this.transaction,
+    required this.onOpen,
+    required this.onClose,
+  });
+
+  @override
+  State<_TransactionPanel> createState() => _TransactionPanelState();
+}
+
+class _TransactionPanelState extends State<_TransactionPanel> {
+  var _actions = GlobalKey<ExplorerTransactionActionsState>();
+
+  @override
+  void didUpdateWidget(covariant _TransactionPanel old) {
+    super.didUpdateWidget(old);
+    if (old.transaction.txid != widget.transaction.txid) {
+      _actions = GlobalKey<ExplorerTransactionActionsState>();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final transaction = widget.transaction;
+    final hasActions = explorerTransactionHasActions(widget.model.chain, transaction);
+    final coins = [...transaction.inputs, ...transaction.outputs];
+    return SailSidePanel(
+      title: 'Transaction',
+      onClose: widget.onClose,
+      menuItems: () => [
+        ..._copyItem('Copy TxID', transaction.txid),
+        if (hasActions)
+          SailMenuItem(
+            onSelected: () async => _actions.currentState?.copy(),
+            child: SailText.primary12('Copy Signed Transaction'),
+          ),
+      ],
       child: SailColumn(
-        spacing: SailStyleValues.padding08,
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (bid != null)
-            _LinkRow(
-              label: 'Bid block',
-              value: '${bid.blockHeight}',
-              onTap: () async => openUrl(Uri.parse(mempoolBlockUrl(bid.blockHash, network))),
+          _PanelAmount(value: explorerAmount(context, _paidOut(transaction)), caption: 'Total value'),
+          _PanelId(transaction.txid),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: transaction.confirmed
+                ? SailStatusPill(label: 'Block ${transaction.blockHeight}')
+                : const SailStatusPill(label: 'Unconfirmed', tone: SailStatusTone.warning),
+          ),
+          if (hasActions)
+            ExplorerTransactionActions(
+              key: _actions,
+              model: widget.model,
+              transaction: transaction,
+              onOpen: widget.onOpen,
             ),
-          if (bid != null)
-            _LinkRow(
-              label: 'Bid outpoint',
-              value: '${shortenId(bid.txid)} : ${bid.vout}',
-              onTap: () async => openUrl(Uri.parse(mempoolTxUrl(bid.txid, network))),
-            ),
-          if (block.mainchainHash.isEmpty)
-            const _Row(label: 'Parent block', value: 'Unknown')
-          else
-            _LinkRow(
-              label: 'Parent block',
-              value: block.mainchainHeight != 0 ? '${block.mainchainHeight}' : shortenId(block.mainchainHash),
-              onTap: () async => openUrl(Uri.parse(mempoolBlockUrl(block.mainchainHash, network))),
-            ),
-          if (block.prevHash.isNotEmpty)
-            _LinkRow(
-              label: 'Previous block',
-              value: shortenId(block.prevHash),
-              onTap: () async => onOpen(ExplorerTarget.block(hash: block.prevHash)),
+          const SailDetailHeading('Details'),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(label: 'Kind', value: kindLabel(transaction.kind)),
+              SailDetailLine(label: 'Size', value: '${transaction.sizeBytes} bytes'),
+              SailDetailLine(label: 'Fee', value: explorerAmount(context, transaction.feeSats.toInt())),
+              SailDetailLine(label: 'Total value', value: explorerAmount(context, _paidOut(transaction))),
+            ],
+          ),
+          SailDetailHeading(
+            'Inputs and outputs',
+            note: '${transaction.inputs.length} in · ${transaction.outputs.length} out',
+          ),
+          if (coins.isNotEmpty)
+            SailDetailGroup(
+              fill: SailDetailFill.canvas,
+              children: [for (final coin in coins) _CoinRow(coin: coin, onOpen: widget.onOpen)],
             ),
         ],
       ),
@@ -273,179 +458,96 @@ class _BlindMergeMineCard extends StatelessWidget {
   }
 }
 
-class _TransactionView extends StatelessWidget {
-  final ExplorerModel model;
-  final pb.Transaction transaction;
+class _CoinRow extends StatelessWidget {
+  final pb.Coin coin;
   final void Function(ExplorerTarget) onOpen;
 
-  const _TransactionView({required this.model, required this.transaction, required this.onOpen});
-
-  @override
-  Widget build(BuildContext context) {
-    return SailColumn(
-      spacing: SailStyleValues.padding16,
-      children: [
-        _Header(
-          title: 'Transaction',
-          id: transaction.txid,
-          trailing: transaction.confirmed
-              ? SailBadge('Block ${transaction.blockHeight}')
-              : const SailBadge('Unconfirmed', tone: SailBadgeTone.warning),
-        ),
-        ExplorerTransactionActions(
-          key: ValueKey(transaction.txid),
-          model: model,
-          transaction: transaction,
-          onOpen: onOpen,
-        ),
-        SailCard(
-          title: 'Details',
-          child: SailRow(
-            spacing: SailStyleValues.padding16,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: SailColumn(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    _Row(label: 'Kind', value: kindLabel(transaction.kind)),
-                    _Row(label: 'Size', value: '${transaction.sizeBytes} bytes'),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SailColumn(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    _Row(label: 'Fee', value: explorerAmount(context, transaction.feeSats.toInt())),
-                    _Row(
-                      label: 'Total value',
-                      value: explorerAmount(context, _paidOut(transaction)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        SailCard(
-          title: 'Inputs and outputs',
-          subtitle: '${transaction.inputs.length} in · ${transaction.outputs.length} out',
-          child: SailRow(
-            spacing: SailStyleValues.padding16,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _CoinList(coins: transaction.inputs, onOpen: onOpen),
-              ),
-              Expanded(
-                child: _CoinList(coins: transaction.outputs, onOpen: onOpen),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CoinList extends StatelessWidget {
-  final List<pb.Coin> coins;
-  final void Function(ExplorerTarget) onOpen;
-
-  const _CoinList({required this.coins, required this.onOpen});
+  const _CoinRow({required this.coin, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
     final colors = SailTheme.of(context).colors;
-    return SailColumn(
-      spacing: SailStyleValues.padding08,
-      children: [
-        for (final coin in coins)
-          SailTappable(
-            onTap: coin.address.isEmpty ? null : () async => onOpen(ExplorerTarget.address(coin.address)),
-            child: Container(
-              padding: const EdgeInsets.all(SailStyleValues.padding08),
-              decoration: BoxDecoration(
-                color: colors.backgroundSecondary,
-                borderRadius: BorderRadius.circular(6),
-                border: coin.mainAddress.isEmpty ? null : Border(left: BorderSide(color: colors.orange, width: 3)),
-              ),
-              child: SailColumn(
-                spacing: 2,
-                children: [
-                  SailRow(
-                    spacing: SailStyleValues.padding08,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(child: SailText.primary13(shortenId(coin.address), color: colors.info)),
-                      SailText.primary13(explorerAmount(context, coin.valueSats.toInt())),
-                    ],
-                  ),
-                  if (coin.mainAddress.isNotEmpty)
-                    SailText.secondary12(
-                      'Withdrawal to ${shortenId(coin.mainAddress)} · '
-                      'mainchain fee ${explorerAmount(context, coin.mainFeeSats.toInt())}',
-                    )
-                  else if (coin.outpointKind == 'deposit')
-                    SailText.secondary12('Deposit ${shortenId(coin.txid)}'),
-                ],
-              ),
-            ),
+    final note = coin.mainAddress.isNotEmpty
+        ? 'Withdrawal to ${shortenId(coin.mainAddress)} · '
+              'mainchain fee ${explorerAmount(context, coin.mainFeeSats.toInt())}'
+        : coin.outpointKind == 'deposit'
+        ? 'Deposit ${shortenId(coin.txid)}'
+        : null;
+    return SailTappable(
+      onTap: coin.address.isEmpty ? null : () async => onOpen(ExplorerTarget.address(coin.address)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: SailText.primary13(shortenId(coin.address), color: colors.textSecondary)),
+              const SizedBox(width: SailStyleValues.padding08),
+              SailText.primary13(explorerAmount(context, coin.valueSats.toInt())),
+            ],
           ),
-      ],
+          if (note != null) SailText.secondary12(note),
+        ],
+      ),
     );
   }
 }
 
-class _AddressView extends StatelessWidget {
+class _AddressPanel extends StatelessWidget {
   final pb.GetAddressResponse response;
   final void Function(ExplorerTarget) onOpen;
+  final Future<void> Function() onClose;
 
-  const _AddressView({required this.response, required this.onOpen});
+  const _AddressPanel({required this.response, required this.onOpen, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
-    return SailColumn(
-      spacing: SailStyleValues.padding16,
-      children: [
-        _Header(title: 'Address', id: response.address),
-        SailCard(
-          title: 'Summary',
-          subtitle: '${response.confirmedBalanceSats} sats confirmed, over ${response.confirmedCoinCount} coins',
-          child: SailRow(
-            spacing: SailStyleValues.padding16,
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return SailSidePanel(
+      title: 'Address',
+      onClose: onClose,
+      menuItems: () => _copyItem('Copy address', response.address),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PanelAmount(
+            value: explorerAmount(context, response.totalReceivedSats.toInt()),
+            caption: 'Total received',
+          ),
+          _PanelId(response.address),
+          SailDetailHeading(
+            'Summary',
+            note: '${response.confirmedBalanceSats} sats confirmed, over ${response.confirmedCoinCount} coins',
+          ),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
             children: [
-              Expanded(
-                child: SailColumn(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    _Row(label: 'Total received', value: explorerAmount(context, response.totalReceivedSats.toInt())),
-                    _Row(label: 'Unconfirmed', value: explorerAmount(context, response.unconfirmedBalanceSats.toInt())),
-                  ],
-                ),
+              SailDetailLine(
+                label: 'Total received',
+                value: explorerAmount(context, response.totalReceivedSats.toInt()),
               ),
-              Expanded(
-                child: SailColumn(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    _Row(label: 'Unconfirmed coins', value: '${response.unconfirmedCoinCount}'),
-                    _Row(label: 'Transactions', value: '${response.txCount}'),
-                  ],
-                ),
+              SailDetailLine(
+                label: 'Unconfirmed',
+                value: explorerAmount(context, response.unconfirmedBalanceSats.toInt()),
               ),
+              SailDetailLine(label: 'Unconfirmed coins', value: '${response.unconfirmedCoinCount}'),
+              SailDetailLine(label: 'Transactions', value: '${response.txCount}'),
             ],
           ),
-        ),
-        for (final tx in response.transactions) _AddressTransaction(transaction: tx, onOpen: onOpen),
-      ],
+          if (response.transactions.isNotEmpty) ...[
+            const SailDetailHeading('Transactions'),
+            SailDetailGroup(
+              fill: SailDetailFill.canvas,
+              children: [
+                for (final tx in response.transactions) _AddressTransaction(transaction: tx, onOpen: onOpen),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-/// _AddressTransaction marks a deposit or a withdrawal with a coloured accent,
-/// so a reader scanning an address sees money arriving or leaving at a glance.
 class _AddressTransaction extends StatelessWidget {
   final pb.Transaction transaction;
   final void Function(ExplorerTarget) onOpen;
@@ -454,175 +556,26 @@ class _AddressTransaction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SailTheme.of(context).colors;
-    final accent = switch (transaction.kind) {
-      pb.Kind.KIND_DEPOSIT => colors.success,
-      pb.Kind.KIND_WITHDRAWAL => colors.orange,
-      _ => colors.divider,
-    };
     final deposit = transaction.kind == pb.Kind.KIND_DEPOSIT;
+    final where = transaction.confirmed ? 'Block ${transaction.blockHeight}' : 'Unconfirmed';
     return SailTappable(
       onTap: deposit ? null : () async => onOpen(ExplorerTarget.transaction(transaction.txid)),
-      child: Container(
-        padding: const EdgeInsets.all(SailStyleValues.padding12),
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: accent, width: 3)),
-        ),
-        child: SailColumn(
-          spacing: SailStyleValues.padding08,
-          children: [
-            SailRow(
-              spacing: SailStyleValues.padding08,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Flexible(child: SailText.primary13(shortenId(transaction.txid), color: colors.info)),
-                kindBadge(transaction.kind),
-                SailText.secondary12(
-                  transaction.confirmed ? 'Block ${transaction.blockHeight}' : 'Unconfirmed',
-                ),
+                SailText.primary13(shortenId(transaction.txid), bold: true),
+                SailText.secondary12('${kindLabel(transaction.kind)} · $where'),
               ],
             ),
-            SailText.secondary12(
-              '${explorerAmount(context, transaction.feeSats.toInt())} fee · '
-              '${transaction.inputs.length} in · ${transaction.outputs.length} out',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivityTable extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final List<pb.Activity> rows;
-  final void Function(ExplorerTarget) onOpen;
-
-  const _ActivityTable({
-    required this.title,
-    required this.subtitle,
-    required this.rows,
-    required this.onOpen,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SailCard(
-      title: title,
-      subtitle: subtitle,
-      child: SizedBox(
-        height: 240,
-        child: SailTable(
-          getRowId: (index) => rows[index].id,
-          headerBuilder: (context) => const [
-            SailTableHeaderCell(name: 'Transaction'),
-            SailTableHeaderCell(name: 'Kind'),
-            SailTableHeaderCell(name: 'Value'),
-          ],
-          rowBuilder: (context, index, selected) {
-            final row = rows[index];
-            return [
-              SailTableCell(value: shortenId(row.id), monospace: true),
-              SailTableCell(value: '', child: kindBadge(row.kind)),
-              SailTableCell(value: explorerAmount(context, row.valueSats.toInt())),
-            ];
-          },
-          rowCount: rows.length,
-          onDoubleTap: (rowId) {
-            final row = rows.firstWhere((r) => r.id == rowId);
-            if (row.kind == pb.Kind.KIND_DEPOSIT) {
-              return;
-            }
-            onOpen(ExplorerTarget.transaction(rowId));
-          },
-          emptyPlaceholder: 'Nothing in this block',
-        ),
-      ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  final String title;
-  final String id;
-  final Widget? trailing;
-
-  const _Header({required this.title, required this.id, this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    return SailRow(
-      spacing: SailStyleValues.padding12,
-      children: [
-        SailText.primary24(title, bold: true),
-        Expanded(child: SailText.secondary13(id)),
-        CopyButton(text: id),
-        ?trailing,
-      ],
-    );
-  }
-}
-
-/// _LinkRow is a field whose value opens something.
-class _LinkRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Future<void> Function() onTap;
-
-  const _LinkRow({required this.label, required this.value, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SailTheme.of(context).colors;
-    return SailTappable(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: SailStyleValues.padding12,
-          vertical: SailStyleValues.padding08,
-        ),
-        decoration: BoxDecoration(
-          color: colors.backgroundSecondary,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: SailRow(
-          spacing: SailStyleValues.padding08,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SailText.secondary13(label),
-            Flexible(child: SailText.primary13(value, color: colors.info)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Row extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _Row({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SailTheme.of(context).colors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: SailStyleValues.padding12,
-        vertical: SailStyleValues.padding08,
-      ),
-      decoration: BoxDecoration(
-        color: colors.backgroundSecondary,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: SailRow(
-        spacing: SailStyleValues.padding08,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          SailText.secondary13(label),
-          Flexible(child: SailText.primary13(value)),
+          ),
+          const SizedBox(width: SailStyleValues.padding08),
+          SailText.secondary12(
+            '${explorerAmount(context, transaction.feeSats.toInt())} fee · '
+            '${transaction.inputs.length} in · ${transaction.outputs.length} out',
+          ),
         ],
       ),
     );

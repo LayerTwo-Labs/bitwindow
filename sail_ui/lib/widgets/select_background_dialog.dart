@@ -133,7 +133,7 @@ class _BackgroundTileState extends State<_BackgroundTile> {
           opacity: widget.isTaken ? 0.5 : 1,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: theme.isBitwindowV2 ? theme.chrome.radiusLarge : BorderRadius.circular(12),
               border: Border.all(
                 color: widget.isSelected
                     ? theme.colors.primary
@@ -144,7 +144,7 @@ class _BackgroundTileState extends State<_BackgroundTile> {
               ),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: theme.isBitwindowV2 ? theme.chrome.radius : BorderRadius.circular(10),
               child: AspectRatio(
                 aspectRatio: ratio,
                 child: Stack(

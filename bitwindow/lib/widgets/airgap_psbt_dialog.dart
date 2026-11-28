@@ -68,15 +68,12 @@ class _AirgapPsbtDialogState extends State<AirgapPsbtDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return SailModal(
-      constraints: const BoxConstraints(maxWidth: 560, maxHeight: 760),
-      child: AirgapSignStep(
-        unsignedPsbtBase64: widget.unsignedPsbtBase64,
-        onSigned: _finalizeAndBroadcast,
-        onCancel: () => Navigator.of(context).pop(false),
-        error: _error,
-        busy: _broadcasting,
-      ),
+    return AirgapSignStep(
+      unsignedPsbtBase64: widget.unsignedPsbtBase64,
+      onSigned: _finalizeAndBroadcast,
+      onCancel: () => Navigator.of(context).pop(false),
+      error: _error,
+      busy: _broadcasting,
     );
   }
 }

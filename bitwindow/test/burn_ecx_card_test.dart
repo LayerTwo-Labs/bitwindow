@@ -294,10 +294,10 @@ void main() {
 
   testWidgets('links to the burn list of the network', (tester) async {
     await pumpCard(tester);
-    expect(
-      find.byWidgetPredicate((widget) => widget is SailButton && widget.label == 'See all Betanet burns'),
-      findsOneWidget,
-    );
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    expect(find.text('See all Betanet burns'), findsOneWidget);
+    expect(find.text('See all Alphanet burns'), findsOneWidget);
   });
 
   testWidgets('shows the backend warning before and after the burn', (tester) async {

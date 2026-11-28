@@ -25,8 +25,12 @@ class _Book extends ChangeNotifier implements AddressBookProvider {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Finder _deleteButton() =>
-    find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.iconDelete).hitTestable().first;
+Future<void> _openDelete(WidgetTester tester) async {
+  await tester.tap(find.byWidgetPredicate((w) => w is SailRowMenuButton && !w.filled).hitTestable().first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Delete').hitTestable().last);
+  await tester.pumpAndSettle();
+}
 
 Finder _dialogText(String text) => find.descendant(of: find.byType(SailModal), matching: find.text(text));
 
@@ -42,8 +46,7 @@ void main() {
     await tester.pumpSailPage(const AddressBookTable());
     await tester.pumpAndSettle();
 
-    await tester.tap(_deleteButton());
-    await tester.pumpAndSettle();
+    await _openDelete(tester);
 
     expect(_dialogText('Are you sure you want to delete "Landlord"?'), findsOneWidget);
   });
@@ -54,8 +57,7 @@ void main() {
 
     await tester.tap(find.text('Receive').hitTestable().first);
     await tester.pumpAndSettle();
-    await tester.tap(_deleteButton());
-    await tester.pumpAndSettle();
+    await _openDelete(tester);
 
     expect(_dialogText('Are you sure you want to delete "$_unlabeled"?'), findsOneWidget);
     expect(find.textContaining('delete ""'), findsNothing);

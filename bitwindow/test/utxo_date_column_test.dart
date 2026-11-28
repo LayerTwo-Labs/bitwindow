@@ -1,11 +1,11 @@
 import 'package:bitwindow/pages/wallet/wallet_utxos.dart';
+import 'package:bitwindow/pages/wallet/widgets/wallet_v2_parts.dart';
 import 'package:bitwindow/providers/coin_selection_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
-import 'package:sail_ui/sail_ui.dart';
 import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 
@@ -68,11 +68,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(formatDate(_confirmedAt.toLocal())), findsOneWidget);
-    expect(find.text('Pending'), findsOneWidget);
+    expect(find.text(walletRowDate(_confirmedAt.toLocal())), findsOneWidget);
+    expect(find.text(walletRowTime(_confirmedAt.toLocal())), findsOneWidget);
+    final dateColumn = tester.getRect(find.text('Date')).left;
+    final pendingDates = find
+        .text('Pending')
+        .evaluate()
+        .where((element) => (tester.getRect(find.byWidget(element.widget)).left - dateColumn).abs() < 16);
+    expect(pendingDates, hasLength(1));
   });
 
-  testWidgets('a 1050 px window shows the amount right after the date and cuts the address in the middle', (
+  testWidgets('a 1050 px window shows the amount last, after the date, and cuts the address in the middle', (
     tester,
   ) async {
     final entries = [
@@ -82,7 +88,7 @@ void main() {
         receivedAt: Timestamp.fromDateTime(_confirmedAt),
       ),
     ];
-    final formattedAmount = GetIt.I<FormatterProvider>().formatSats(100000);
+    final formattedAmount = walletAmountText(100000);
 
     await tester.pumpSailPage(
       UTXOTable(entries: entries, model: LatestUTXOsViewModel()),
@@ -91,7 +97,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpAndSettle();
 
-    final headers = ['Date', 'Amount', 'Label', 'Deniability', 'Split', 'Output', 'Address', 'Path'];
+    final headers = ['Output', 'Status', 'Address', 'Date', 'Amount'];
     final lefts = headers.map((name) => tester.getTopLeft(find.text(name)).dx).toList();
     for (var i = 1; i < lefts.length; i++) {
       expect(lefts[i], greaterThan(lefts[i - 1]), reason: '${headers[i]} comes after ${headers[i - 1]}');

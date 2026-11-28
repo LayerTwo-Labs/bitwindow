@@ -403,6 +403,7 @@ class _ConsoleViewState extends State<ConsoleView> {
   @override
   Widget build(BuildContext context) {
     final theme = context.sailTheme;
+    final v2 = theme.isBitwindowV2;
 
     return Column(
       children: [
@@ -421,8 +422,11 @@ class _ConsoleViewState extends State<ConsoleView> {
           ),
         ),
         Container(
-          color: theme.colors.backgroundSecondary,
-          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.colors.backgroundSecondary,
+            border: v2 ? Border(top: BorderSide(color: theme.colors.divider)) : null,
+          ),
+          padding: EdgeInsets.all(v2 ? 12 : 8),
           child: SailColumn(
             mainAxisSize: MainAxisSize.min,
             spacing: SailStyleValues.padding04,
@@ -462,7 +466,7 @@ class _ConsoleViewState extends State<ConsoleView> {
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: context.sailTheme.chrome.radius,
-                      borderSide: BorderSide(color: theme.colors.border),
+                      borderSide: v2 ? BorderSide.none : BorderSide(color: theme.colors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: context.sailTheme.chrome.radius,
@@ -472,7 +476,7 @@ class _ConsoleViewState extends State<ConsoleView> {
                       borderRadius: context.sailTheme.chrome.radius,
                       borderSide: BorderSide(color: theme.colors.border),
                     ),
-                    fillColor: theme.colors.background,
+                    fillColor: v2 ? theme.colors.formField : theme.colors.background,
                     filled: true,
                   ),
                   onSubmitted: _handleSubmitted,
@@ -612,9 +616,10 @@ class ConsoleEntryWidget extends StatelessWidget {
                       ),
                     )
                   else
-                    Icon(
-                      Icons.chevron_right,
-                      size: 16,
+                    SailSVG.fromAsset(
+                      SailSVGAsset.chevronRight,
+                      width: 16,
+                      height: 16,
                       color: theme.colors.textSecondary,
                     ),
                 ] else

@@ -5,7 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/explorer/v1/explorer.pb.dart' as pb;
 
-bool _supportsBroadcast(String chain) => chain == 'bitnames' || chain == 'bitassets';
+/// True when [chain] takes a signed transaction from this explorer.
+bool explorerSupportsBroadcast(String chain) => chain == 'bitnames' || chain == 'bitassets';
+
+/// True when [transaction] waits in the mempool of a chain that rebroadcasts.
+bool explorerTransactionHasActions(String chain, pb.Transaction transaction) =>
+    explorerSupportsBroadcast(chain) && !transaction.confirmed && transaction.kind != pb.Kind.KIND_DEPOSIT;
 
 class ExplorerTransactionActions extends StatefulWidget {
   final ExplorerModel model;
@@ -15,10 +20,10 @@ class ExplorerTransactionActions extends StatefulWidget {
   const ExplorerTransactionActions({super.key, required this.model, required this.transaction, required this.onOpen});
 
   @override
-  State<ExplorerTransactionActions> createState() => _ExplorerTransactionActionsState();
+  State<ExplorerTransactionActions> createState() => ExplorerTransactionActionsState();
 }
 
-class _ExplorerTransactionActionsState extends State<ExplorerTransactionActions> {
+class ExplorerTransactionActionsState extends State<ExplorerTransactionActions> {
   bool _busy = false;
   String? _error;
   String? _notice;
@@ -50,7 +55,8 @@ class _ExplorerTransactionActionsState extends State<ExplorerTransactionActions>
     }
   }
 
-  Future<void> _copy() async {
+  /// Puts the signed transaction on the clipboard.
+  Future<void> copy() async {
     if (_busy) {
       return;
     }
@@ -78,31 +84,17 @@ class _ExplorerTransactionActionsState extends State<ExplorerTransactionActions>
 
   @override
   Widget build(BuildContext context) {
-    final transaction = widget.transaction;
-    if (!_supportsBroadcast(widget.model.chain) || transaction.confirmed || transaction.kind == pb.Kind.KIND_DEPOSIT) {
+    if (!explorerTransactionHasActions(widget.model.chain, widget.transaction)) {
       return const SizedBox.shrink();
     }
     final response = _response;
     return SailColumn(
       spacing: SailStyleValues.padding08,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: SailStyleValues.padding08,
-          runSpacing: SailStyleValues.padding08,
-          children: [
-            SailButton(
-              label: 'Rebroadcast',
-              variant: ButtonVariant.secondary,
-              disabled: _busy,
-              onPressed: _rebroadcast,
-            ),
-            SailButton(
-              label: 'Copy Signed Transaction',
-              variant: ButtonVariant.secondary,
-              disabled: _busy,
-              onPressed: _copy,
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: SailButton(label: 'Rebroadcast', disabled: _busy, onPressed: _rebroadcast),
         ),
         if (_error != null)
           SailText.primary13(_error!, color: SailTheme.of(context).colors.error, overflow: TextOverflow.visible),
@@ -150,15 +142,13 @@ class _ExplorerBroadcastButtonState extends State<ExplorerBroadcastButton> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_supportsBroadcast(widget.model.chain)) {
+    if (!explorerSupportsBroadcast(widget.model.chain)) {
       return const SizedBox.shrink();
     }
-    return SailButton(
-      label: 'Broadcast Transaction',
-      variant: ButtonVariant.secondary,
-      disabled: _open,
-      skipLoading: true,
-      onPressed: _showForm,
+    return SailRowMenuButton(
+      items: () => [
+        SailMenuItem(onSelected: _showForm, child: SailText.primary12('Broadcast Transaction')),
+      ],
     );
   }
 }
@@ -227,36 +217,54 @@ class _BroadcastDialogState extends State<_BroadcastDialog> {
     final response = _response;
     return PopScope(
       canPop: !_busy,
-      child: SailDialog(
-        title: 'Broadcast Transaction',
-        subtitle: 'Paste the full signed transaction JSON for ${widget.model.chain}.',
-        error: _error,
-        maxWidth: 600,
-        actions: [
-          SailButton(
-            label: 'Close',
-            variant: ButtonVariant.secondary,
-            disabled: _busy,
-            onPressed: () async => Navigator.of(context).pop(),
-          ),
-          if (response == null) SailButton(label: 'Broadcast', disabled: _busy, onPressed: _broadcast),
-        ],
-        child: response != null
-            ? _BroadcastResult(
-                txid: response.txid,
-                peerCount: response.peerCount,
-                onOpen: (target) => Navigator.of(context).pop(target.id),
-              )
-            : SailTextarea(
-                controller: _transaction,
-                label: 'Signed transaction JSON',
-                placeholder: 'Paste the signed transaction JSON',
-                minLines: 5,
-                maxLines: 8,
-                autofocus: true,
-                enabled: !_busy,
-                monospace: true,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: SailTheme.of(context).chrome.radiusLarge),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 600),
+          child: SingleChildScrollView(
+            child: SailCard(
+              title: 'Broadcast Transaction',
+              subtitle: 'Paste the full signed transaction JSON for ${widget.model.chain}.',
+              error: _error,
+              withCloseButton: true,
+              onClose: () async {
+                if (_busy) {
+                  return;
+                }
+                Navigator.of(context).pop();
+              },
+              child: SailColumn(
+                spacing: SailStyleValues.padding16,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (response != null)
+                    _BroadcastResult(txid: response.txid, peerCount: response.peerCount)
+                  else
+                    SailTextarea(
+                      controller: _transaction,
+                      label: 'Signed transaction JSON',
+                      placeholder: 'Paste the signed transaction JSON',
+                      minLines: 5,
+                      maxLines: 8,
+                      autofocus: true,
+                      enabled: !_busy,
+                      monospace: true,
+                    ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: response != null
+                        ? SailButton(
+                            label: 'Open Transaction',
+                            onPressed: () async => Navigator.of(context).pop(response.txid),
+                          )
+                        : SailButton(label: 'Broadcast', disabled: _busy, onPressed: _broadcast),
+                  ),
+                ],
               ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -265,14 +273,17 @@ class _BroadcastDialogState extends State<_BroadcastDialog> {
 class _BroadcastResult extends StatelessWidget {
   final String txid;
   final int peerCount;
-  final ValueChanged<ExplorerTarget> onOpen;
 
-  const _BroadcastResult({required this.txid, required this.peerCount, required this.onOpen});
+  /// Null hides the Open Transaction button, for a host that holds its own.
+  final ValueChanged<ExplorerTarget>? onOpen;
+
+  const _BroadcastResult({required this.txid, required this.peerCount, this.onOpen});
 
   @override
   Widget build(BuildContext context) {
     return SailColumn(
       spacing: SailStyleValues.padding08,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SailText.primary13('The node accepted the transaction.'),
         SailText.secondary13(
@@ -282,11 +293,12 @@ class _BroadcastResult extends StatelessWidget {
         ),
         SailText.secondary13('The transaction remains pending until a block includes it.'),
         SailText.primary13(txid, monospace: true, overflow: TextOverflow.visible),
-        SailButton(
-          label: 'Open Transaction',
-          variant: ButtonVariant.secondary,
-          onPressed: () async => onOpen(ExplorerTarget.transaction(txid)),
-        ),
+        if (onOpen != null)
+          SailButton(
+            label: 'Open Transaction',
+            variant: ButtonVariant.secondary,
+            onPressed: () async => onOpen!(ExplorerTarget.transaction(txid)),
+          ),
       ],
     );
   }

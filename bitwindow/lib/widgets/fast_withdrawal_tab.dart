@@ -74,14 +74,14 @@ class _WithdrawalFormState extends State<_WithdrawalForm> {
     final provider = widget.provider;
     final isRequesting = provider.stage == FastWithdrawalStage.requesting;
 
-    return SailCard(
+    final form = SailCard(
       title: 'Fast Withdrawal',
       subtitle: 'Quickly withdraw L2 coins to your L1-wallet',
       padding: true,
       error: provider.errorMessage,
       child: SailColumn(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: SailStyleValues.padding16,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: SailStyleValues.padding12,
         children: [
           SailTextField(
             label: 'Withdraw amount (BTC)',
@@ -92,45 +92,30 @@ class _WithdrawalFormState extends State<_WithdrawalForm> {
               onPaste: (text) => amountController.text = text,
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SailText.secondary13('From L2'),
-              const SizedBox(height: 8),
-              SailDropdownButton(
-                items: FastWithdrawalProvider.supportedLayer2Chains
-                    .map((chain) => SailDropdownItem(label: chain, value: chain))
-                    .toList(),
-                value: provider.layer2Chain,
-                onChanged: (dynamic value) {
-                  provider.setLayer2Chain(value as String);
-                },
-              ),
-            ],
+          _FieldLabel(
+            label: 'From L2',
+            child: SailDropdownButton(
+              items: FastWithdrawalProvider.supportedLayer2Chains
+                  .map((chain) => SailDropdownItem(label: chain, value: chain))
+                  .toList(),
+              value: provider.layer2Chain,
+              onChanged: (dynamic value) {
+                provider.setLayer2Chain(value as String);
+              },
+            ),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SailText.secondary13('Using fast withdrawal server'),
-                    const SizedBox(height: 8),
-                    SailDropdownButton(
-                      items: FastWithdrawalProvider.fastWithdrawalServers
-                          .map((e) => SailDropdownItem(label: e['name']!, value: e['url']!))
-                          .toList(),
-                      value: provider.selectedServer,
-                      onChanged: (dynamic value) {
-                        provider.setSelectedServer(value as String);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          _FieldLabel(
+            label: 'Using fast withdrawal server',
+            child: SailDropdownButton(
+              items: FastWithdrawalProvider.fastWithdrawalServers
+                  .map((e) => SailDropdownItem(label: e['name']!, value: e['url']!))
+                  .toList(),
+              value: provider.selectedServer,
+              onChanged: (dynamic value) {
+                provider.setSelectedServer(value as String);
+              },
+            ),
           ),
-          const SizedBox(height: 24),
           SailButton(
             label: isRequesting ? 'Requesting...' : 'Request Withdrawal',
             onPressed: isRequesting ? null : () => provider.requestWithdrawal(amountController.text),
@@ -139,6 +124,38 @@ class _WithdrawalFormState extends State<_WithdrawalForm> {
           ),
         ],
       ),
+    );
+    if (SailStyleValues.phoneLayout(context)) {
+      return form;
+    }
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _formWidth),
+        child: form,
+      ),
+    );
+  }
+}
+
+const double _formWidth = 560;
+
+/// A field label over a full-width field.
+class _FieldLabel extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _FieldLabel({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SailText.primary13(label, bold: true),
+        const SizedBox(height: SailStyleValues.padding08),
+        SizedBox(width: double.infinity, child: child),
+      ],
     );
   }
 }

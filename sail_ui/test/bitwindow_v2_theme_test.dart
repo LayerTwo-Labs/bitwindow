@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sail_ui/sail_ui.dart';
+
+import 'svg_finder.dart';
 
 Widget _themed(SailThemeData data, Widget child) => Directionality(
   textDirection: TextDirection.ltr,
@@ -84,13 +87,33 @@ void main() {
   });
 
   group('chrome', () {
-    test('radii are 8, 12 and 20 with no terminal style', () {
+    test('radii are 4, 6 and 8 with no terminal style', () {
       final chrome = _v2().chrome;
-      expect(chrome.radiusSmall, const BorderRadius.all(Radius.circular(8)));
-      expect(chrome.radius, const BorderRadius.all(Radius.circular(12)));
-      expect(chrome.radiusLarge, const BorderRadius.all(Radius.circular(20)));
+      expect(chrome.radiusSmall, const BorderRadius.all(Radius.circular(4)));
+      expect(chrome.radius, const BorderRadius.all(Radius.circular(6)));
+      expect(chrome.radiusLarge, const BorderRadius.all(Radius.circular(8)));
       expect(chrome.terminalStyle, isFalse);
       expect(chrome.beveled, isFalse);
+    });
+
+    test('the panel is a square card with a 1 px border', () {
+      final data = _v2();
+      final panel = data.chrome.panel(data.colors);
+      expect(panel.borderRadius, const BorderRadius.all(Radius.circular(8)));
+      expect((panel.border! as Border).top.width, 1);
+      expect(panel.color, data.colors.backgroundSecondary);
+    });
+
+    test('only the BitWindow v2 style reports itself as v2', () {
+      for (final style in SailThemeStyle.values) {
+        final data = SailThemeData.darkTheme(SailColorScheme.orange, false, SailFontValues.inter, style);
+        expect(data.isBitwindowV2, style == SailThemeStyle.bitwindowV2);
+      }
+    });
+
+    test('the other styles keep their radii', () {
+      expect(sailBundleFor(SailThemeStyle.sail).chrome.radiusLarge, SailStyleValues.borderRadiusLarge);
+      expect(sailBundleFor(SailThemeStyle.ecash).chrome.radius, const BorderRadius.all(Radius.circular(4)));
     });
 
     test('text uses Inter and mono text keeps mono', () {
@@ -181,7 +204,38 @@ void main() {
       final box = tester.widget<Container>(find.byType(Container).first).decoration! as BoxDecoration;
       expect(box.color, _v2().colors.primary);
       expect(box.boxShadow, isNull);
-      expect(tester.widget<Icon>(find.byType(Icon)).color, _v2().colors.primaryButtonText);
+      expect(
+        tester.widget<SvgPicture>(findSailSVG(SailSVGAsset.check)).colorFilter,
+        tint(_v2().colors.primaryButtonText),
+      );
+    });
+
+    testWidgets('a BitWindow v2 card and button take the square radii', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: _themed(
+            _v2(),
+            Column(
+              children: [
+                const SailCard(title: 'Send', child: SizedBox(height: 10)),
+                SailButton(label: 'Go', onPressed: () async {}),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final cardRadii = tester
+          .widgetList<DecoratedBox>(find.descendant(of: find.byType(SailCard), matching: find.byType(DecoratedBox)))
+          .map((b) => (b.decoration as BoxDecoration).borderRadius);
+      expect(cardRadii, contains(const BorderRadius.all(Radius.circular(8))));
+
+      final buttonRadii = tester
+          .widgetList<DecoratedBox>(find.descendant(of: find.byType(SailButton), matching: find.byType(DecoratedBox)))
+          .map((b) => b.decoration)
+          .whereType<BoxDecoration>()
+          .map((d) => d.borderRadius);
+      expect(buttonRadii, contains(const BorderRadius.all(Radius.circular(6))));
     });
 
     testWidgets('a BitWindow v2 card fills with the raised surface, a sail card with the page colour', (tester) async {

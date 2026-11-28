@@ -124,23 +124,28 @@ void main() {
   for (final phone in [true, false]) {
     final name = phone ? 'phone' : 'desktop';
 
-    testWidgets('the $name UTXO table shows ${phone ? 'Amount, Label and Output' : 'every column'}', (tester) async {
-      SailStyleValues.phoneLayoutOverride = phone;
-      final coin = UnspentOutput(output: 'aa11:0', address: 'bc1qxy2kgdygjrsqtzq', valueSats: Int64(100000));
+    testWidgets(
+      'the $name UTXO table shows ${phone ? 'Amount, Label and Output' : 'Output, Status, Address, Date and Amount'}',
+      (tester) async {
+        SailStyleValues.phoneLayoutOverride = phone;
+        final coin = UnspentOutput(output: 'aa11:0', address: 'bc1qxy2kgdygjrsqtzq', valueSats: Int64(100000));
 
-      await tester.pumpSailPage(UTXOTable(entries: [coin], model: LatestUTXOsViewModel()));
-      if (phone) {
-        await tester.usePhoneSize();
-      }
-      await tester.pumpAndSettle();
+        await tester.pumpSailPage(UTXOTable(entries: [coin], model: LatestUTXOsViewModel()));
+        if (phone) {
+          await tester.usePhoneSize();
+        }
+        await tester.pumpAndSettle();
 
-      for (final shown in ['Amount', 'Label', 'Output']) {
-        expect(_header(shown), findsOneWidget, reason: shown);
-      }
-      for (final other in ['Date', 'Deniability', 'Split', 'Address', 'Path']) {
-        expect(_header(other), phone ? findsNothing : findsOneWidget, reason: other);
-      }
-    });
+        final shownHeaders = phone ? ['Amount', 'Label', 'Output'] : ['Output', 'Status', 'Address', 'Date', 'Amount'];
+        final hiddenHeaders = phone ? ['Date', 'Deniability', 'Split', 'Address', 'Path'] : ['Label', 'Path'];
+        for (final shown in shownHeaders) {
+          expect(_header(shown), findsOneWidget, reason: shown);
+        }
+        for (final other in hiddenHeaders) {
+          expect(_header(other), findsNothing, reason: other);
+        }
+      },
+    );
 
     testWidgets('the $name empty UTXO table keeps the same columns', (tester) async {
       SailStyleValues.phoneLayoutOverride = phone;

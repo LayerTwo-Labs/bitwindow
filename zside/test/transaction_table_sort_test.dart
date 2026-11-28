@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:zside/widgets/homepage_widget_catalog.dart';
@@ -39,7 +40,7 @@ List<String> _txidColumn(WidgetTester tester) {
 Widget _table(List<CoreTransaction> entries) {
   return MaterialApp(
     home: SailTheme(
-      data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+      data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter, SailThemeStyle.bitwindowV2),
       child: Scaffold(
         body: SizedBox(
           width: 1000,
@@ -116,5 +117,45 @@ void main() {
     expect(find.text('Confirmed'), findsNWidgets(2));
     expect(find.text('Date'), findsNothing);
     expect(find.text('Confirmation Height'), findsNothing);
+  });
+
+  testWidgets('a row shows a status dot and its "…" opens Transaction Details', (tester) async {
+    await tester.pumpWidget(_table([_tx('aaaaaaaa', amount: 1, confirmations: 0)]));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(StatusDotText, 'Unconfirmed'), findsOneWidget);
+
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Transaction Details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Transaction Details'), findsOneWidget);
+    expect(find.text('aaaaaaaa:0'), findsOneWidget);
+  });
+
+  testWidgets('a receive card shows the address over a full-width Copy button', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SailTheme(
+          data: SailThemeData.lightTheme(
+            SailColorScheme.orange,
+            true,
+            SailFontValues.inter,
+            SailThemeStyle.bitwindowV2,
+          ),
+          child: const Scaffold(
+            body: SizedBox(
+              width: 400,
+              child: ReceiveAddressBody(address: 'tmAddress', hintText: 'Generating', generating: false),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('tmAddress'), findsOneWidget);
+    expect(tester.getSize(find.byType(SailButton)).width, 400);
   });
 }

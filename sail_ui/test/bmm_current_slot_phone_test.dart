@@ -105,14 +105,15 @@ void main() {
     expect(tester.getRect(find.text(model.satsLabel(8000))).right, greaterThan(300));
   });
 
-  testWidgets('the desktop keeps the figures side by side and the wait at the right of the head', (tester) async {
+  testWidgets('the desktop keeps the figures side by side at the right, the wait under the head', (tester) async {
     SailStyleValues.phoneLayoutOverride = false;
     await pumpSlot(tester, 1100);
 
     expect(find.byType(SailStatList), findsNothing);
     final head = tester.getRect(find.text('Current slot'));
     final hint = tester.getRect(find.textContaining('Waiting for a miner'));
-    expect(hint.left, greaterThan(head.right));
+    expect(hint.top, greaterThan(head.bottom - 1));
+    expect(tester.getRect(find.text('Block worth')).left, greaterThan(hint.right));
     expect(tester.getRect(find.text('Your bid')).top, tester.getRect(find.text('Block worth')).top);
   });
 
@@ -134,13 +135,15 @@ void main() {
     expect(manual.top, greaterThan(maxBid.bottom));
   });
 
-  testWidgets('the desktop keeps the bid controls on two rows', (tester) async {
+  testWidgets('the desktop keeps the bid controls on one row, labels over the fields', (tester) async {
     SailStyleValues.phoneLayoutOverride = false;
     await pumpAt(tester, 1800, BmmControls(viewModel: model));
 
     expect(tester.takeException(), isNull);
     final wallet = tester.getRect(find.text('Wallet:'));
-    expect(tester.getCenter(find.text('Max bid:')).dy, closeTo(tester.getCenter(find.text('Min bid:')).dy, 1));
-    expect(tester.getRect(find.text('Min bid:')).top, greaterThan(wallet.bottom));
+    expect(tester.getCenter(find.text('Max bid:')).dy, closeTo(wallet.center.dy, 1));
+    expect(tester.getCenter(find.text('Min bid:')).dy, closeTo(wallet.center.dy, 1));
+    expect(find.widgetWithText(SailButton, 'Bid manually'), findsNothing);
+    expect(find.byType(SailRowMenuButton), findsOneWidget);
   });
 }

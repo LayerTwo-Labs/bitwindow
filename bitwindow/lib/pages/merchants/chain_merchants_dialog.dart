@@ -44,47 +44,71 @@ class ChainMerchantsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return SailDialog(
       title: 'Chain Merchants',
+      withCloseButton: true,
       subtitle: 'Merchants and services that accept Bitcoin payments',
-      maxWidth: 600,
+      maxWidth: 720,
       child: SailStyleValues.phoneLayout(context)
           ? const _PhoneMerchantList(merchants: merchants)
-          : SailTable(
-              getRowId: (index) => index.toString(),
-              headerBuilder: (context) => [
-                const SailTableHeaderCell(name: 'Name'),
-                const SailTableHeaderCell(name: 'Description'),
-              ],
-              rowBuilder: (context, index, selected) {
-                final merchant = merchants[index];
-                return [
-                  SailTableCell(
-                    value: merchant.name,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () async {
-                          await openUrl(Uri.parse(merchant.url));
-                        },
-                        child: SailText.primary12(
-                          merchant.name,
-                          color: context.sailTheme.colors.info,
-                          decoration: TextDecoration.underline,
+          : _BorderedTable(
+              child: SailTable(
+                getRowId: (index) => index.toString(),
+                headerBuilder: (context) => [
+                  const SailTableHeaderCell(name: 'Name'),
+                  const SailTableHeaderCell(name: 'Description'),
+                ],
+                rowBuilder: (context, index, selected) {
+                  final merchant = merchants[index];
+                  return [
+                    SailTableCell(
+                      value: merchant.name,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: () async {
+                            await openUrl(Uri.parse(merchant.url));
+                          },
+                          child: SailText.primary13(
+                            merchant.name,
+                            color: context.sailTheme.colors.primary,
+                            underline: true,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  SailTableCell(value: merchant.description),
-                ];
-              },
-              rowCount: merchants.length,
-              shrinkWrap: true,
-              emptyPlaceholder: 'No merchants available',
-              backgroundColor: context.sailTheme.colors.backgroundSecondary,
-              onDoubleTap: (rowId) async {
-                final index = int.parse(rowId);
-                await openUrl(Uri.parse(merchants[index].url));
-              },
+                    SailTableCell(value: merchant.description),
+                  ];
+                },
+                rowCount: merchants.length,
+                shrinkWrap: true,
+                emptyPlaceholder: 'No merchants available',
+                backgroundColor: context.sailTheme.colors.backgroundSecondary,
+                onDoubleTap: (rowId) async {
+                  final index = int.parse(rowId);
+                  await openUrl(Uri.parse(merchants[index].url));
+                },
+              ),
             ),
+    );
+  }
+}
+
+/// The square card with a 1 px border around the merchant table.
+class _BorderedTable extends StatelessWidget {
+  final Widget child;
+
+  const _BorderedTable({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return DecoratedBox(
+      key: const Key('merchant-table-card'),
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        borderRadius: theme.chrome.radiusLarge,
+        border: Border.all(color: theme.colors.border),
+      ),
+      child: ClipRRect(borderRadius: theme.chrome.radiusLarge, child: child),
     );
   }
 }

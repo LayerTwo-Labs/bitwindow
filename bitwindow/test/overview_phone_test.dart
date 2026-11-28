@@ -33,8 +33,13 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
   final saved = <String, String>{};
   final feeDialog = Completer<void>();
 
+  final bumped = <String>[];
+
   @override
-  Future<void> openBumpFee(BuildContext context, walletpb.WalletTransaction tx) => feeDialog.future;
+  Future<void> openBumpFee(BuildContext context, walletpb.WalletTransaction tx) {
+    bumped.add(tx.txid);
+    return feeDialog.future;
+  }
 
   @override
   Future<void> saveNote(BuildContext context, String txid, String note) async {
@@ -49,6 +54,12 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
 class _Conf extends ChangeNotifier implements BitcoinConfProvider {
   @override
   BitcoinNetwork get network => BitcoinNetwork.BITCOIN_NETWORK_REGTEST;
+
+  @override
+  String get ecashNetworkId => '';
+
+  @override
+  String get currentNetworkOptionId => '';
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -143,16 +154,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('on the desktop the history keeps the grid and the unit', (tester) async {
+  testWidgets('on the desktop each amount shows its unit on a second line', (tester) async {
     SailStyleValues.phoneLayoutOverride = false;
     await _pumpTable(tester, _Overview([_deposit]));
 
-    expect(tester.widget<SailTable>(find.byType(SailTable)).drawGrid, isTrue);
-    expect(find.textContaining('BTC'), findsWidgets);
+    final amount = find.text('-0.0100,0000');
+    final unit = find.text('BTC');
+    expect(amount, findsOneWidget);
+    expect(unit, findsOneWidget);
+    expect(tester.getRect(unit).top, greaterThanOrEqualTo(tester.getRect(amount).bottom));
   });
 
   for (final width in [1024.0, 1200.0]) {
-    testWidgets('the history fee action fits at desktop width $width', (tester) async {
+    testWidgets('the history fee action sits in the row menu at desktop width $width', (tester) async {
       SailStyleValues.phoneLayoutOverride = false;
       final time = Timestamp.fromDateTime(DateTime.utc(2026, 11, 25, 9, 22));
       final outgoing = walletpb.WalletTransaction(
@@ -170,6 +184,7 @@ void main() {
         immature: true,
         receivedSatoshi: Int64(5000000000),
       );
+      GetIt.I.registerSingleton<BitcoinConfProvider>(_Conf());
       final model = _Overview([outgoing, coinbase]);
       await tester.pumpSailPage(
         Center(
@@ -182,17 +197,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.widgetWithText(SailButton, 'Bump fee'), findsNothing, reason: 'no buttons in rows');
       final table = find.byType(SailTable);
-      final button = find.widgetWithText(SailButton, 'Bump fee');
-      expect(tester.getRect(button).right, lessThanOrEqualTo(tester.getRect(table).right));
-      await tester.tap(button);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      final menu = find.byType(SailRowMenuButton);
+      expect(menu, findsNWidgets(2));
+      final sentRow = tester.getCenter(find.text('Sent')).dy;
+      final sentMenu = menu.evaluate().firstWhere(
+        (element) => (tester.getCenter(find.byWidget(element.widget)).dy - sentRow).abs() < 20,
+      );
+      expect(tester.getRect(find.byWidget(sentMenu.widget)).right, lessThanOrEqualTo(tester.getRect(table).right));
+      await tester.tap(find.byWidget(sentMenu.widget));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bump fee'));
+      await tester.pumpAndSettle();
+      expect(model.bumped, ['cd' * 32]);
       expect(tester.takeException(), isNull);
-      final waitLabel = find.text('Wait');
-      final waitButton = find.ancestor(of: waitLabel, matching: find.byType(SailButton));
-      expect(tester.getRect(waitLabel).right, lessThanOrEqualTo(tester.getRect(waitButton).right));
-      expect(tester.getRect(waitButton).right, lessThanOrEqualTo(tester.getRect(table).right));
       model.feeDialog.complete();
       await tester.pumpAndSettle();
     });

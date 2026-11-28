@@ -48,10 +48,48 @@ void main() {
     );
   });
 
-  testWidgets('the desktop keeps the centered 24 px titles', (tester) async {
-    await _pump(tester, phone: false);
+  testWidgets('the desktop card holds one Melt button and moves the rest into its "…" menu', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var melts = 0;
+    final picked = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SailTheme(
+          data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+          child: Scaffold(
+            body: MeltCastCard(
+              title: 'Pending melts',
+              action: 'Melt',
+              line: 'Click here to Melt ALL of your transparent Coins',
+              subtitle: 'See list of ongoing melts and their status',
+              onAction: () async => melts++,
+              showAction: true,
+              menuItems: () => [
+                for (final label in ['Melt help', 'Do everything for me', 'Consolidate Transparent'])
+                  SailMenuItem(onSelected: () => picked.add(label), child: SailText.primary12(label)),
+              ],
+              table: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
 
-    expect(tester.widget<Text>(find.text('Melt')).style!.fontSize, 24);
-    expect(tester.getCenter(find.text('Click here to Melt ALL of your transparent Coins')).dx, closeTo(600, 1));
+    expect(find.byType(SailButton), findsOneWidget);
+    expect(find.text('Click here to Melt ALL of your transparent Coins'), findsOneWidget);
+    expect(find.text('See list of ongoing melts and their status'), findsOneWidget);
+
+    await tester.tap(find.byType(SailButton));
+    await tester.pump();
+    expect(melts, 1);
+
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Melt help'), findsOneWidget);
+    expect(find.text('Do everything for me'), findsOneWidget);
+    await tester.tap(find.text('Consolidate Transparent'));
+    await tester.pumpAndSettle();
+    expect(picked, ['Consolidate Transparent']);
   });
 }

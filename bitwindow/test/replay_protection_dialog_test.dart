@@ -63,12 +63,17 @@ void main() {
     expect(find.text('This coin exists on both chains'), findsOneWidget);
   });
 
-  testWidgets('the protected send is the primary action', (tester) async {
+  testWidgets('the protected send is the one button; Send without protection is in "…"', (tester) async {
     await openDialog(tester, [coin('tb1qm4v000000000000000008xr2', 30000000)]);
 
-    expect(find.text('Cancel'), findsWidgets);
-    expect(find.text('Send without protection'), findsWidgets);
-    expect(find.text('Enable replay protection'), findsWidgets);
+    expect(find.byType(SailButton), findsOneWidget);
+    expect(button('Enable replay protection'), findsOneWidget);
+    expect(find.text('Cancel'), findsNothing);
+    expect(find.text('Send without protection'), findsNothing);
+
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Send without protection'), findsOneWidget);
   });
 
   testWidgets('an unread wallet raises the prompt without a coin list', (tester) async {
@@ -87,26 +92,43 @@ void main() {
     expect(card.height, lessThan(screen.height * 0.7));
   });
 
-  testWidgets('on a phone Enable, Send without and Cancel stack in that order', (tester) async {
-    SailStyleValues.phoneLayoutOverride = true;
-    await openDialog(tester, [coin('tb1qm4v000000000000000008xr2', 30000000)]);
+  Future<ReplayChoice?> answer(WidgetTester tester, Future<void> Function() act) async {
+    ReplayChoice? choice;
+    await tester.pumpSailPage(
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () async =>
+              choice = await askReplayProtection(context, coins: [coin('tb1qm4v000000000000000008xr2', 30000000)]),
+          child: const Text('open'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await act();
+    await tester.pumpAndSettle();
+    return choice;
+  }
 
-    final protect = tester.getRect(button('Enable replay protection'));
-    final plain = tester.getRect(button('Send without protection'));
-    final cancel = tester.getRect(button('Cancel'));
-    expect(plain.top, greaterThan(protect.bottom - 1));
-    expect(cancel.top, greaterThan(plain.bottom - 1));
-    expect(plain.width, closeTo(protect.width, 1));
-    expect(cancel.center.dx, closeTo(protect.center.dx, 1));
+  testWidgets('Enable replay protection sends protected', (tester) async {
+    final choice = await answer(tester, () => tester.tap(button('Enable replay protection')));
+    expect(choice, ReplayChoice.sendProtected);
   });
 
-  testWidgets('on a desktop the three answers share one row', (tester) async {
-    SailStyleValues.phoneLayoutOverride = false;
-    await openDialog(tester, [coin('tb1qm4v000000000000000008xr2', 30000000)]);
+  testWidgets('Send without protection in "…" sends plain', (tester) async {
+    final choice = await answer(tester, () async {
+      await tester.tap(find.byType(SailRowMenuButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Send without protection'));
+    });
+    expect(choice, ReplayChoice.sendPlain);
+  });
 
-    final protect = tester.getRect(button('Enable replay protection'));
-    final cancel = tester.getRect(button('Cancel'));
-    expect(cancel.center.dy, closeTo(protect.center.dy, 1));
-    expect(cancel.right, lessThan(protect.left));
+  testWidgets('the × cancels the send', (tester) async {
+    final choice = await answer(
+      tester,
+      () => tester.tap(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x)),
+    );
+    expect(choice, ReplayChoice.cancel);
   });
 }

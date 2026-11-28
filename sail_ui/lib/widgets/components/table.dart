@@ -10,6 +10,7 @@ import 'package:sail_ui/sail_ui.dart';
 const double defaultMinColumnWidth = 60;
 const double _sortArrowGap = 4;
 const double _sortArrowSize = 10;
+const double _menuColumnWidth = 36;
 
 class SailTable extends StatefulWidget {
   const SailTable({
@@ -24,6 +25,7 @@ class SailTable extends StatefulWidget {
     this.onRowTap,
     this.onDoubleTap,
     this.contextMenuItems,
+    this.rowHasMenu,
     this.cellHeight = 40.0,
     this.minColumnWidths = const {},
     this.shrinkWrap = false,
@@ -56,6 +58,9 @@ class SailTable extends StatefulWidget {
   final ValueChanged<String>? onRowTap;
   final void Function(String rowId)? onDoubleTap;
   final List<SailMenuEntity> Function(String rowId)? contextMenuItems;
+
+  /// False hides the "…" of that row, as on a group label row. Null shows it on every row.
+  final bool Function(String rowId)? rowHasMenu;
   final double cellHeight;
 
   /// Minimum widths in logical pixels, by column index.
@@ -100,6 +105,10 @@ class _SailTableState extends State<SailTable> {
   List<bool> _hugging = const [];
 
   double get _totalColumnWidths => _widths.fold(0, (prev, e) => prev + e);
+
+  /// BitWindow v2 ends each row with a "…" that opens the row's context menu.
+  bool _menuColumn(BuildContext context) =>
+      widget.contextMenuItems != null && SailTheme.of(context).isBitwindowV2 && !SailStyleValues.phoneLayout(context);
 
   List<int>? _visibleColumns(BuildContext context) =>
       widget.phoneColumns != null && SailStyleValues.phoneLayout(context) ? widget.phoneColumns : null;
@@ -269,7 +278,9 @@ class _SailTableState extends State<SailTable> {
 
         // Calculate total width including resize handles
         final handleWidth = widget.resizableColumns ? (_numColumns! - 1) * 8.0 : 0.0;
-        final tableWidth = _totalColumnWidths + handleWidth;
+        final menuColumn = _menuColumn(context);
+        final tableWidth = _totalColumnWidths + handleWidth + (menuColumn ? _menuColumnWidth : 0);
+        final v2 = theme.isBitwindowV2;
 
         // Build header cells with resize handles
         final headerCells = <Widget>[];
@@ -391,8 +402,13 @@ class _SailTableState extends State<SailTable> {
                           bottom: BorderSide(color: theme.colors.divider),
                         ),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding10),
-                      child: Row(children: headerCells),
+                      padding: EdgeInsets.symmetric(vertical: v2 ? 6 : SailStyleValues.padding10),
+                      child: Row(
+                        children: [
+                          ...headerCells,
+                          if (menuColumn) const SizedBox(width: _menuColumnWidth),
+                        ],
+                      ),
                     ),
                     if (rowsExpand) Expanded(child: rowsContent),
                     if (!rowsExpand) rowsContent,
@@ -410,7 +426,8 @@ class _SailTableState extends State<SailTable> {
     final rowId = widget.getRowId(index);
     final isSelected = rowId == _selectedId;
     final isLastRow = index == widget.rowCount - 1;
-    final bgColor = widget.rowBackgroundColor?.call(index) ?? (index % 2 == 1 ? widget.altBackgroundColor : null);
+    final zebra = index % 2 == 1 && !SailTheme.of(context).isBitwindowV2 ? widget.altBackgroundColor : null;
+    final bgColor = widget.rowBackgroundColor?.call(index) ?? zebra;
     return _TableRow(
       cells: _cells(context, index, isSelected),
       widths: _widths,
@@ -423,6 +440,8 @@ class _SailTableState extends State<SailTable> {
       onPressed: () => _handleRowSelection(rowId),
       onDoubleTap: widget.onDoubleTap == null ? null : () => widget.onDoubleTap!(rowId),
       contextMenuItems: widget.contextMenuItems,
+      menuColumn: _menuColumn(context),
+      menuButton: widget.rowHasMenu?.call(rowId) ?? true,
       rowId: rowId,
     );
   }
@@ -437,18 +456,20 @@ class _SailTableState extends State<SailTable> {
     });
   }
 
-  void _autoSizeColumns(double availableWidth) {
+  void _autoSizeColumns(double tableWidth) {
     _widths.clear();
+    final availableWidth = tableWidth - (_menuColumn(context) ? _menuColumnWidth : 0);
 
     final columnWidths = List<double>.filled(_numColumns!, 0);
     final fixedColumns = List<bool>.filled(_numColumns!, false);
 
     final headers = _headers(context);
+    final headerWidths = List<double>.filled(_numColumns!, 0);
     for (int col = 0; col < headers.length; col++) {
       final header = headers[col];
       final sorted = header is SailTableHeaderCell && header.sortable && col == _sortColumnIndex;
-      final headerWidth = _calculateColumnWidth(header) + (sorted ? _sortArrowGap + _sortArrowSize : 0);
-      columnWidths[col] = max(columnWidths[col], headerWidth);
+      headerWidths[col] = _calculateColumnWidth(header) + (sorted ? _sortArrowGap + _sortArrowSize : 0);
+      columnWidths[col] = max(columnWidths[col], headerWidths[col]);
     }
 
     final rowsToSample = <int>[];
@@ -509,7 +530,10 @@ class _SailTableState extends State<SailTable> {
           others += columnWidths[i];
         }
       }
-      columnWidths[fillColumn] = max(defaultMinColumnWidth, availableWidth - handleWidth - others);
+      columnWidths[fillColumn] = max(
+        max(defaultMinColumnWidth, headerWidths[fillColumn]),
+        availableWidth - handleWidth - others,
+      );
     } else {
       _stretchToFill(columnWidths, fixedColumns, availableWidth);
     }
@@ -559,7 +583,15 @@ class _SailTableState extends State<SailTable> {
       textStyle = SailStyleValues.thirteen.copyWith(
         fontFamily: SailTheme.of(context).chrome.textFamily(monospace: widget.monospace),
       );
-      return _calculateTextWidth(text, textStyle, widget.padding.horizontal);
+      final width = _calculateTextWidth(text, textStyle, widget.padding.horizontal);
+      final secondary = widget.secondaryValue;
+      if (secondary == null || widget.child != null) {
+        return width;
+      }
+      final secondaryStyle = SailStyleValues.twelve.copyWith(
+        fontFamily: SailTheme.of(context).chrome.textFamily(monospace: widget.monospace),
+      );
+      return max(width, _calculateTextWidth(secondary, secondaryStyle, widget.padding.horizontal));
     } else if (widget is SailTableHeaderCell) {
       text = widget.name;
       textStyle = SailStyleValues.thirteen.copyWith(
@@ -924,11 +956,13 @@ class _ResizeHandleState extends State<_ResizeHandle> {
         },
         child: Container(
           width: 8,
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(color: context.sailTheme.colors.divider),
-            ),
-          ),
+          decoration: context.sailTheme.isBitwindowV2
+              ? null
+              : BoxDecoration(
+                  border: Border(
+                    left: BorderSide(color: context.sailTheme.colors.divider),
+                  ),
+                ),
           child: const SizedBox(height: 20),
         ),
       ),
@@ -949,6 +983,8 @@ class _TableRow extends StatefulWidget {
     this.backgroundColor,
     this.onDoubleTap,
     this.contextMenuItems,
+    this.menuColumn = false,
+    this.menuButton = true,
     required this.rowId,
   });
 
@@ -965,6 +1001,12 @@ class _TableRow extends StatefulWidget {
   final bool drawBorder;
   final void Function()? onDoubleTap;
   final List<SailMenuEntity> Function(String rowId)? contextMenuItems;
+
+  /// True ends the row with a "…" that opens [contextMenuItems].
+  final bool menuColumn;
+
+  /// False leaves the "…" cell of [menuColumn] empty.
+  final bool menuButton;
   final String rowId;
 
   @override
@@ -1002,6 +1044,7 @@ class _TableRowState extends State<_TableRow> {
     final theme = SailTheme.of(context);
     var isWindows = context.isWindows;
     final phone = SailStyleValues.phoneLayout(context);
+    final v2 = theme.isBitwindowV2;
 
     var cellWidgets = <Widget>[];
     int i = 0;
@@ -1034,7 +1077,7 @@ class _TableRowState extends State<_TableRow> {
                     )
                   : null,
               child: Container(
-                decoration: widget.grid
+                decoration: widget.grid && !v2
                     ? BoxDecoration(
                         border: Border(
                           right: BorderSide(
@@ -1063,9 +1106,38 @@ class _TableRowState extends State<_TableRow> {
       i += 1;
     }
 
+    if (widget.menuColumn) {
+      cellWidgets.add(
+        SizedBox(
+          width: _menuColumnWidth,
+          height: widget.height,
+          child: widget.menuButton
+              ? Center(
+                  child: SailRowMenuButton(
+                    filled: false,
+                    items: () => widget.contextMenuItems!(widget.rowId),
+                  ),
+                )
+              : null,
+        ),
+      );
+    }
+
     Widget contents;
 
-    if (isWindows || widget.grid) {
+    if (v2) {
+      contents = DecoratedBox(
+        decoration: BoxDecoration(
+          color: widget.selected
+              ? theme.colors.formField
+              : isHovered
+              ? theme.colors.formField.withValues(alpha: 0.5)
+              : widget.backgroundColor,
+          border: widget.drawBorder ? Border(bottom: BorderSide(color: theme.colors.divider)) : null,
+        ),
+        child: Row(children: cellWidgets),
+      );
+    } else if (isWindows || widget.grid) {
       contents = DecoratedBox(
         decoration: BoxDecoration(
           color: widget.selected || isHovered ? theme.colors.backgroundSecondary : widget.backgroundColor,
@@ -1111,6 +1183,7 @@ class _TableRowState extends State<_TableRow> {
 class SailTableCell extends StatelessWidget {
   const SailTableCell({
     required this.value,
+    this.secondaryValue,
     this.copyValue,
     this.child,
     this.width,
@@ -1128,6 +1201,9 @@ class SailTableCell extends StatelessWidget {
   });
 
   final String value;
+
+  /// A second line under [value] about the same item, such as a txid under a title. Ignored with a [child].
+  final String? secondaryValue;
   final String? copyValue;
   final Widget? child;
   // Width override for cells whose child is wider than the value text.
@@ -1158,13 +1234,23 @@ class SailTableCell extends StatelessWidget {
       color: backgroundColor,
       child:
           child ??
-          SailText.primary13(
-            value,
-            color: textColor,
-            monospace: monospace,
-            italic: italic,
-            overflow: null,
-          ),
+          (secondaryValue == null
+              ? SailText.primary13(value, color: textColor, monospace: monospace, italic: italic, overflow: null)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: alignment.x > 0 ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  children: [
+                    SailText.primary13(value, color: textColor, monospace: monospace, italic: italic, maxLines: 1),
+                    const SizedBox(height: 1),
+                    SailText.primary12(
+                      secondaryValue!,
+                      color: SailTheme.of(context).colors.textSecondary,
+                      monospace: monospace,
+                      maxLines: 1,
+                    ),
+                  ],
+                )),
     );
   }
 }
@@ -1215,12 +1301,14 @@ class SailTableHeaderCell extends StatelessWidget {
                 },
                 children: [
                   Flexible(
-                    child: SailText.primary13(
-                      name,
-                      bold: true,
-                      overflow: TextOverflow.ellipsis,
-                      color: theme.colors.textSecondary,
-                    ),
+                    child: theme.isBitwindowV2
+                        ? SailText.primary12(name, bold: true, color: theme.colors.textSecondary)
+                        : SailText.primary13(
+                            name,
+                            bold: true,
+                            overflow: TextOverflow.ellipsis,
+                            color: theme.colors.textSecondary,
+                          ),
                   ),
                   if (isSorted) ...[
                     const SizedBox(width: _sortArrowGap),

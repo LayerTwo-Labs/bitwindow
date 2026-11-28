@@ -502,6 +502,16 @@ void main() {
     expect(find.textContaining('electrum is down'), findsOneWidget);
   });
 
+  testWidgets('"← Back" is the one back control, no arrow at the top left', (tester) async {
+    await _pumpPage(tester);
+
+    expect(find.byWidgetPredicate((widget) => widget is SailButton && widget.label == '← Back'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((widget) => widget is SailButton && widget.icon == SailSVGAsset.chevronLeft),
+      findsNothing,
+    );
+  });
+
   testWidgets('Back on re-enter keeps the field and the words', (tester) async {
     await _pumpPage(tester);
     await tester.enterText(_field, 'my own entropy');

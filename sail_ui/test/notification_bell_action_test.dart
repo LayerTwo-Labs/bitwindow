@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
@@ -71,6 +72,31 @@ void main() {
 
     expect(ran, isEmpty);
     expect(find.text('Notifications'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('each row shows the icon of its type and a × that dismisses it', (tester) async {
+    notifications.add(id: 'found', title: 'Block found', content: 'x', dialogType: DialogType.success);
+    notifications.add(id: 'down', title: 'Migration status unavailable', content: 'y', dialogType: DialogType.error);
+    notifications.add(id: 'net', title: 'betanet is out', content: 'z', dialogType: DialogType.info);
+    await openPanel(tester);
+
+    final theme = SailTheme.of(tester.element(find.text('Notifications')));
+    for (final type in DialogType.values) {
+      final icon = find.byWidgetPredicate(
+        (w) =>
+            w is SvgPicture &&
+            w.colorFilter == ColorFilter.mode(notificationTypeColor(theme.colors, type), BlendMode.srcIn),
+      );
+      expect(icon, findsOneWidget, reason: type.name);
+    }
+    expect(notificationTypeIcon(DialogType.success), SailSVGAsset.circleCheck);
+    expect(notificationTypeIcon(DialogType.error), SailSVGAsset.circleAlert);
+    expect(notificationTypeIcon(DialogType.info), SailSVGAsset.info);
+
+    await tester.tap(find.byWidgetPredicate((w) => w is SailTooltip && w.message == 'Dismiss').first);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(notifications.history, hasLength(2));
     await tester.pump(const Duration(seconds: 6));
   });
 }

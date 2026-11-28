@@ -1,5 +1,10 @@
+import 'package:bitwindow/pages/wallet/create_timestamp_page.dart';
+import 'package:bitwindow/pages/wallet/timestamp_detail_page.dart';
+import 'package:bitwindow/pages/wallet/verify_timestamp_page.dart';
 import 'package:bitwindow/providers/timestamp_provider.dart';
 import 'package:bitwindow/routing/router.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -11,6 +16,9 @@ class TimestampsTabViewModel extends BaseViewModel {
   bool get isLoading => _timestampProvider.isLoading;
   @override
   String? get modelError => _timestampProvider.modelError;
+
+  /// The timestamp in the side panel.
+  int? selectedTimestampId;
 
   TimestampsTabViewModel() {
     _timestampProvider.addListener(_onTimestampProviderChanged);
@@ -24,12 +32,28 @@ class TimestampsTabViewModel extends BaseViewModel {
     await _timestampProvider.fetch();
   }
 
-  void timestampFile(BuildContext context) {
-    GetIt.I.get<AppRouter>().push(const CreateTimestampRoute());
+  void selectTimestamp(int? id) {
+    selectedTimestampId = id;
+    notifyListeners();
   }
 
-  void verifyFile(BuildContext context) {
-    GetIt.I.get<AppRouter>().push(const VerifyTimestampRoute());
+  Future<void> timestampFile(BuildContext context) async {
+    if (SailStyleValues.phoneLayout(context)) {
+      await GetIt.I.get<AppRouter>().push(const CreateTimestampRoute());
+      return;
+    }
+    final created = await showCreateTimestampDialog(context);
+    if (created != null) {
+      selectTimestamp(created.id.toInt());
+    }
+  }
+
+  Future<void> verifyFile(BuildContext context) async {
+    if (SailStyleValues.phoneLayout(context)) {
+      await GetIt.I.get<AppRouter>().push(const VerifyTimestampRoute());
+      return;
+    }
+    await showVerifyTimestampDialog(context);
   }
 
   @override
@@ -48,7 +72,9 @@ class TimestampsTab extends StatelessWidget {
       viewModelBuilder: () => TimestampsTabViewModel(),
       onViewModelReady: (model) => model.refresh(),
       builder: (context, model, child) {
-        return SailCard(
+        final phone = SailStyleValues.phoneLayout(context);
+        final selectedId = phone ? null : model.selectedTimestampId;
+        final card = SailCard(
           title: 'File Timestamps',
           error: model.modelError,
           bottomPadding: false,
@@ -93,7 +119,17 @@ class TimestampsTab extends StatelessWidget {
                     ],
                   ),
                 )
-              : TimestampsTable(timestamps: model.timestamps),
+              : TimestampsTable(
+                  timestamps: model.timestamps,
+                  selectedTimestampId: selectedId,
+                  onSelectTimestamp: phone ? null : model.selectTimestamp,
+                ),
+        );
+        return SailPageWithPanel(
+          panel: selectedId == null
+              ? null
+              : TimestampDetailPanel(timestampId: selectedId, onClose: () async => model.selectTimestamp(null)),
+          child: card,
         );
       },
     );
@@ -103,59 +139,61 @@ class TimestampsTab extends StatelessWidget {
 class TimestampsTable extends StatelessWidget {
   final List<FileTimestamp> timestamps;
 
-  const TimestampsTable({
-    super.key,
-    required this.timestamps,
-  });
+  /// The timestamp in the side panel.
+  final int? selectedTimestampId;
+
+  /// Opens a timestamp in the side panel, or closes it with null. Null pushes the details page.
+  final ValueChanged<int?>? onSelectTimestamp;
+
+  const TimestampsTable({super.key, required this.timestamps, this.selectedTimestampId, this.onSelectTimestamp});
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SailTable(
-        drawGrid: true,
-        getRowId: (index) => timestamps[index].id.toString(),
-        headerBuilder: (context) => [
-          SailTableHeaderCell(name: 'Filename'),
-          SailTableHeaderCell(name: 'Hash'),
-          SailTableHeaderCell(name: 'Timestamped'),
-          SailTableHeaderCell(name: 'Status'),
-          SailTableHeaderCell(name: 'Block Height'),
-          SailTableHeaderCell(name: 'Actions'),
-        ],
-        rowBuilder: (context, row, selected) {
-          final timestamp = timestamps[row];
-          return [
-            SailTableCell(value: timestamp.filename),
-            SailTableCell(
-              value: _truncateHash(timestamp.fileHash),
-              copyValue: timestamp.fileHash,
-            ),
-            SailTableCell(value: formatConfirmedAt(timestamp, 'MMM d, yyyy HH:mm')),
-            SailTableCell(
-              value: _getStatusLabel(timestamp.status, timestamp.confirmations),
-              textColor: _getStatusColor(context, timestamp.status),
-            ),
-            SailTableCell(
-              value: timestamp.hasBlockHeight() ? timestamp.blockHeight.toString() : '-',
-            ),
-            SailTableCell(
-              value: 'View Details',
-              child: SailButton(
-                label: 'View Details',
-                onPressed: () async => _viewTimestamp(context, timestamp),
-                variant: ButtonVariant.secondary,
-                insideTable: true,
-              ),
-            ),
-          ];
-        },
-        rowCount: timestamps.length,
-        onDoubleTap: (rowId) {
-          final timestamp = timestamps.firstWhere((t) => t.id.toString() == rowId);
-          _viewTimestamp(context, timestamp);
-        },
-      ),
+    return SailTable(
+      getRowId: (index) => timestamps[index].id.toString(),
+      selectedRowId: selectedTimestampId?.toString(),
+      onSelectedRow: (rowId) => onSelectTimestamp?.call(rowId == null ? null : int.parse(rowId)),
+      headerBuilder: (context) => [
+        SailTableHeaderCell(name: 'Filename'),
+        SailTableHeaderCell(name: 'Hash'),
+        SailTableHeaderCell(name: 'Timestamped'),
+        SailTableHeaderCell(name: 'Status'),
+        SailTableHeaderCell(name: 'Block Height', alignment: Alignment.centerRight),
+      ],
+      rowBuilder: (context, row, selected) {
+        final timestamp = timestamps[row];
+        final status = _getStatusLabel(timestamp.status, timestamp.confirmations);
+        return [
+          SailTableCell(value: timestamp.filename),
+          SailTableCell(value: _truncateHash(timestamp.fileHash), copyValue: timestamp.fileHash),
+          SailTableCell(value: formatConfirmedAt(timestamp, 'MMM d, yyyy HH:mm')),
+          SailTableCell(
+            value: status,
+            child: StatusDotLabel(label: status, tone: timestampStatusTone(timestamp.status)),
+          ),
+          SailTableCell(
+            value: timestamp.hasBlockHeight() ? timestamp.blockHeight.toString() : '-',
+            alignment: Alignment.centerRight,
+          ),
+        ];
+      },
+      rowCount: timestamps.length,
+      onDoubleTap: (rowId) => _viewTimestamp(timestamps.firstWhere((t) => t.id.toString() == rowId)),
+      contextMenuItems: (rowId) {
+        final timestamp = timestamps.firstWhere((t) => t.id.toString() == rowId);
+        return [
+          SailMenuItem(onSelected: () => _viewTimestamp(timestamp), child: SailText.primary12('View Details')),
+          SailMenuItem(
+            onSelected: () async {
+              await Clipboard.setData(ClipboardData(text: timestamp.fileHash));
+              if (context.mounted) {
+                showSailToast(context, 'Hash copied to clipboard');
+              }
+            },
+            child: SailText.primary12('Copy hash'),
+          ),
+        ];
+      },
     );
   }
 
@@ -181,23 +219,12 @@ class TimestampsTable extends StatelessWidget {
     }
   }
 
-  Color _getStatusColor(BuildContext context, String status) {
-    final theme = context.sailTheme.colors;
-    switch (status) {
-      case 'pending':
-        return theme.orange;
-      case 'confirming':
-        return theme.primary;
-      case 'confirmed':
-        return theme.success;
-      case 'failed':
-        return theme.error;
-      default:
-        return theme.text;
+  void _viewTimestamp(FileTimestamp timestamp) {
+    final select = onSelectTimestamp;
+    if (select != null) {
+      select(timestamp.id.toInt());
+      return;
     }
-  }
-
-  void _viewTimestamp(BuildContext context, FileTimestamp timestamp) {
     GetIt.I.get<AppRouter>().push(TimestampDetailRoute(timestampId: timestamp.id.toInt()));
   }
 }

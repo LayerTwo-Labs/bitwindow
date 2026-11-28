@@ -13,13 +13,15 @@ class ConsolePage extends StatefulWidget {
 class _ConsolePageState extends State<ConsolePage> {
   @override
   Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
     return QtPage(
-      child: SailColumn(
-        children: [
-          const Expanded(
-            child: CLIConsoleView(),
-          ),
-        ],
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.colors.border),
+          borderRadius: theme.chrome.radiusLarge,
+        ),
+        child: ClipRRect(borderRadius: theme.chrome.radiusLarge, child: const CLIConsoleView()),
       ),
     );
   }

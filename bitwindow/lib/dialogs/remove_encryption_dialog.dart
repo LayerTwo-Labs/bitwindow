@@ -72,19 +72,13 @@ class _RemoveEncryptionDialogState extends State<RemoveEncryptionDialog> {
       title: 'Remove Encryption',
       subtitle: 'This will decrypt your wallet and store it unencrypted.',
       error: _errorMessage,
-      actions: [
-        SailButton(
-          label: 'Cancel',
-          variant: ButtonVariant.secondary,
-          onPressed: _isRemoving ? null : () async => Navigator.of(context).pop(false),
-        ),
-        SailButton(
-          label: 'Remove Encryption',
-          variant: ButtonVariant.destructive,
-          loading: _isRemoving,
-          onPressed: () async => _removeEncryption(),
-        ),
-      ],
+      withCloseButton: !_isRemoving,
+      action: SailDialogAction(
+        label: 'Remove Encryption',
+        variant: ButtonVariant.destructive,
+        loadingLabel: _isRemoving ? 'Remove Encryption' : null,
+        onPressed: () async => _removeEncryption(),
+      ),
       child: SailColumn(
         spacing: SailStyleValues.padding16,
         crossAxisAlignment: CrossAxisAlignment.start,

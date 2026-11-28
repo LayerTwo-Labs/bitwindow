@@ -71,4 +71,21 @@ void main() {
     expect(find.text('value of second'), findsOneWidget);
     expect(find.text('value of first'), findsNothing);
   });
+
+  testWidgets('the results sit in one card of grey groups, and each row has a copy icon', (tester) async {
+    await tester.pumpSailPage(const ConverterWindow());
+    await tester.enterText(find.byType(SailTextField).first, 'abc');
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SailCard), findsNWidgets(2));
+    expect(find.text('Encodings'), findsOneWidget);
+    expect(find.text('Hashes'), findsNothing);
+    expect(find.byType(SailDetailGroup), findsOneWidget);
+    final label = tester.getRect(find.text('ASCII'));
+    final value = tester.getRect(find.text('value of abc'));
+    expect(value.center.dy, closeTo(label.center.dy, 1));
+    expect(value.left, greaterThan(label.right));
+    expect(find.byWidgetPredicate((w) => w is CopyButton && w.text == 'value of abc'), findsOneWidget);
+  });
 }

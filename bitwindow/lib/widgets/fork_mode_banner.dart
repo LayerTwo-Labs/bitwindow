@@ -163,6 +163,170 @@ class _ClaimEcashCardState extends State<_ClaimEcashCard> {
     _syncSelection();
     final selectedSats = _selectedSats;
     final claims = _claims;
+    if (theme.isBitwindowV2) {
+      final selectedClaims = _claims.where((c) => (_selected[c.walletId] ?? {}).isNotEmpty).toList();
+      final multisig = selectedClaims.where((c) => c.isMultisig).firstOrNull?.multisig;
+      Widget row(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: _row(
+          SailText.primary13(label, color: theme.colors.textSecondary),
+          SailText.primary13(value, textAlign: TextAlign.right),
+        ),
+      );
+      final wallets = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final claim in claims) ...[
+            Builder(
+              key: ValueKey('claim-wallet-${claim.walletId}'),
+              builder: (_) {
+                final selected = _selected[claim.walletId] ?? {};
+                final receivedAt = _receivedAtByOutpoint();
+                final multisigNote = claim.isMultisig ? ' · ${claim.multisig!.m}-of-${claim.multisig!.n} multisig' : '';
+                final coinCount = claim.utxos.length == 1 ? '1 coin' : '${claim.utxos.length} coins';
+                return DecoratedBox(
+                  decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SailText.primary13(claim.walletName, bold: true),
+                        const SizedBox(height: 2),
+                        SailText.secondary12('$coinCount$multisigNote'),
+                        const SizedBox(height: 10),
+                        SailText.secondary12('Coins to split'),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: _coinRow(
+                            lead: const SizedBox.shrink(),
+                            amount: SailText.secondary12('Amount'),
+                            block: SailText.secondary12('Block'),
+                            received: SailText.secondary12('Received', textAlign: TextAlign.right),
+                          ),
+                        ),
+                        for (final u in claim.utxos) ...[
+                          Divider(height: 1, color: theme.colors.divider),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: _coinLine(claim, u, selected, receivedAt, formatter),
+                          ),
+                        ],
+                        Divider(height: 1, color: theme.colors.divider),
+                        const SizedBox(height: 10),
+                        SailText.secondary12('Transaction outputs'),
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SailText.primary13('To ${claim.walletName}'),
+                              SailText.secondary12('A fresh address$multisigNote'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              row('Network fee', '${ForkProvider.sweepFeeRateSatPerVbyte} sat/vB, from the output'),
+              if (multisig != null) row('Signatures', '${multisig.m} of ${multisig.n} keys'),
+              row('Total to split', formatter.formatSats(selectedSats)),
+            ],
+          ),
+          if (_selectionValid || _busy) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: SailButton(
+                label: _buttonLabel(formatter, selectedSats, claims),
+                loadingLabel: 'Creating transaction',
+                loading: _busy,
+                onPressed: () => _claim(context),
+              ),
+            ),
+          ],
+          if (_claimError != null) ...[const SizedBox(height: 12), SailInlineError(_claimError!)],
+        ],
+      );
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: SailCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+                    child: SizedBox.square(
+                      dimension: 28,
+                      child: Center(
+                        child: SailSVG.fromAsset(
+                          SailSVGAsset.iconWallet,
+                          width: 14,
+                          height: 14,
+                          color: theme.colors.text,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: SailText.primary15('You have eCash to claim', bold: true)),
+                  SailIconBoxButton(
+                    icon: SailSVGAsset.x,
+                    tooltip: 'Close',
+                    onPressed: () async => widget.fork.dismissClaimCardFor(widget.walletId),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * _claimCardBodyHeightShare,
+                  ),
+                  child: SingleChildScrollView(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth < _claimCardTwoColumnWidth) {
+                          return SailColumn(
+                            spacing: 24,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [wallets, _whyThisIsNecessary()],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: wallets),
+                            const SizedBox(width: 24),
+                            Expanded(child: _whyThisIsNecessary()),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),

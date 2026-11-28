@@ -3,6 +3,7 @@ import 'package:bitwindow/pages/mining/mining_page.dart';
 import 'package:bitwindow/pages/mining/mining_tab.dart';
 import 'package:bitwindow/providers/mining_pools_provider.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -20,6 +21,14 @@ class _FakeStratum implements OrchestratorStratumRPC {
   GetHashrateHistoryResponse history = GetHashrateHistoryResponse();
   ListPoolBlocksResponse blocks = ListPoolBlocksResponse();
   SetMiningSettingsRequest? saved;
+  int? started;
+  bool stopped = false;
+
+  @override
+  Future<void> start({int port = 0}) async => started = port;
+
+  @override
+  Future<void> stop() async => stopped = true;
 
   @override
   Future<void> setTarget(Target target) async {
@@ -244,7 +253,7 @@ void main() {
     expect(find.text('1 miner'), findsOneWidget);
   });
 
-  testWidgets('the server card carries a settings button', (tester) async {
+  testWidgets('the strip menu opens the mining settings', (tester) async {
     await _pump(tester, (stratum) {
       stratum.next = GetStratumStatusResponse(
         running: true,
@@ -253,7 +262,80 @@ void main() {
       );
     });
 
-    expect(find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.tabSettings), findsOneWidget);
+    await tester.tap(find.descendant(of: find.byType(SailStrip), matching: find.byType(SailRowMenuButton)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mining settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MiningSettingsDialog), findsOneWidget);
+  });
+
+  testWidgets('the strip has one primary that starts and stops the server', (tester) async {
+    final rpc = await _pump(tester, (stratum) {
+      stratum.next = GetStratumStatusResponse(
+        target: Target(kind: TargetKind.TARGET_KIND_SOLO),
+        settings: MiningSettings(port: 3333),
+      );
+    });
+    Finder stripButton(String label) => find.descendant(
+      of: find.byType(SailStrip),
+      matching: find.byWidgetPredicate((w) => w is SailButton && w.label == label),
+    );
+    final buttons = find.descendant(of: find.byType(SailStrip), matching: find.byType(SailButton));
+
+    expect(buttons, findsOneWidget);
+    expect(stripButton('Start'), findsOneWidget);
+    expect(tester.widget<SailButton>(stripButton('Start')).variant, ButtonVariant.primary);
+    expect(find.descendant(of: find.byType(SailStrip), matching: find.text('Stopped')), findsOneWidget);
+
+    await tester.tap(stripButton('Start'));
+    await tester.pumpAndSettle();
+    expect(rpc.started, 3333);
+
+    rpc.next = GetStratumStatusResponse(
+      running: true,
+      target: Target(kind: TargetKind.TARGET_KIND_SOLO),
+      settings: MiningSettings(port: 3333),
+    );
+    await GetIt.I.get<StratumProvider>().refresh();
+    await tester.pump();
+
+    expect(buttons, findsOneWidget);
+    expect(stripButton('Stop'), findsOneWidget);
+    expect(tester.widget<SailButton>(stripButton('Stop')).variant, ButtonVariant.primary);
+    expect(find.descendant(of: find.byType(SailStrip), matching: find.text('Running')), findsOneWidget);
+
+    await tester.tap(stripButton('Stop'));
+    await tester.pumpAndSettle();
+    expect(rpc.stopped, isTrue);
+  });
+
+  testWidgets('the Mine to menu copies the pool address', (tester) async {
+    await _pump(tester, (stratum) {
+      stratum.next = GetStratumStatusResponse(
+        running: true,
+        poolUrl: 'stratum+tcp://192.168.1.20:3333',
+        target: Target(kind: TargetKind.TARGET_KIND_SOLO),
+        settings: MiningSettings(port: 3333),
+      );
+    });
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await tester.tap(find.descendant(of: find.byType(SailSidePanel), matching: find.byType(SailRowMenuButton)));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy password'), findsOneWidget);
+    await tester.tap(find.text('Copy pool address'));
+    await tester.pump();
+
+    expect(copied, 'stratum+tcp://192.168.1.20:3333');
+    await tester.pump(const Duration(seconds: 10));
   });
 
   testWidgets('the settings dialog saves every field', (tester) async {

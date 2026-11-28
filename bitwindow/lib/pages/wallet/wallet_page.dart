@@ -118,6 +118,9 @@ class WalletPage extends StatelessWidget {
     model.handleBitcoinURI(uri);
   }
 
+  @visibleForTesting
+  static set sendViewModel(SendPageViewModel? model) => _sendViewModel = model;
+
   /// Selects [outpoints] as the coins of the send form. Returns how many coins it took.
   static int selectSendCoins(List<String> outpoints) => _sendViewModel?.selectOutpoints(outpoints) ?? 0;
 

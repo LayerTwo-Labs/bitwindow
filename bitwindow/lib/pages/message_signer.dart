@@ -7,20 +7,12 @@ class MessageSigner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SailCard(
-      padding: false,
+    return const Padding(
+      padding: EdgeInsets.all(SailStyleValues.padding12),
       child: InlineTabBar(
-        tabs: const [
-          TabItem(
-            label: 'Sign Message',
-            icon: SailSVGAsset.iconPen,
-            child: SignMessageTab(),
-          ),
-          TabItem(
-            label: 'Verify Message',
-            icon: SailSVGAsset.iconCheck,
-            child: VerifyMessageTab(),
-          ),
+        tabs: [
+          TabItem(label: 'Sign Message', child: SignMessageTab()),
+          TabItem(label: 'Verify Message', child: VerifyMessageTab()),
         ],
         initialIndex: 0,
       ),
@@ -29,6 +21,27 @@ class MessageSigner extends StatelessWidget {
 }
 
 String _errorText(Object e) => e is WalletException ? e.message : e.toString();
+
+/// A tab card that hugs its fields and scrolls when the window is short.
+Widget _tabCard({required String title, required String subtitle, required List<Widget> children}) {
+  return Align(
+    alignment: Alignment.topCenter,
+    child: SingleChildScrollView(
+      child: SailCard(
+        title: title,
+        subtitle: subtitle,
+        child: SailColumn(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: SailStyleValues.padding12,
+          mainAxisSize: MainAxisSize.min,
+          children: children,
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _fullWidth(Widget child) => SizedBox(width: double.infinity, child: child);
 
 class SignMessageTab extends StatefulWidget {
   const SignMessageTab({super.key});
@@ -99,43 +112,28 @@ class _SignMessageTabState extends State<SignMessageTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SailCard(
+    return _tabCard(
       title: 'Sign Message',
       subtitle: 'You can sign messages/agreements with your addresses to prove you can receive Drivechain coins sent to them. Be careful not to sign anything vague or random, as phishing attacks may try to trick you into signing your identity over to them. Only sign fully-detailed statements you agree to.',
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SailTextField(
-              controller: _addressController,
-              label: 'Enter a Drivechain address (e.g. n2wxQmfexkjwEPgdD6iJA7T7RtzkrnHxhFc)',
-              hintText: '',
-            ),
-            const SizedBox(height: 24),
-            SailTextField(
-              controller: _messageController,
-              maxLines: 5,
-              hintText: 'Message',
-            ),
-            const SizedBox(height: 24),
-            SailTextField(
-              controller: _signatureController,
-              readOnly: true,
-              hintText: 'Signature',
-            ),
-            const SizedBox(height: 24),
-            SailButton(
-              onPressed: _signMessage,
-              label: 'Sign Message',
-              icon: SailSVGAsset.iconPen,
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              SailInlineError(_error!),
-            ],
-          ],
+      children: [
+        SailTextField(
+          controller: _addressController,
+          label: 'Enter a Drivechain address (e.g. n2wxQmfexkjwEPgdD6iJA7T7RtzkrnHxhFc)',
+          hintText: '',
         ),
-      ),
+        SailTextField(
+          controller: _messageController,
+          maxLines: 5,
+          hintText: 'Message',
+        ),
+        SailTextField(
+          controller: _signatureController,
+          readOnly: true,
+          hintText: 'Signature',
+        ),
+        _fullWidth(SailButton(onPressed: _signMessage, label: 'Sign Message')),
+        if (_error != null) SailInlineError(_error!),
+      ],
     );
   }
 }
@@ -217,69 +215,35 @@ class _VerifyMessageTabState extends State<VerifyMessageTab> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.sailTheme;
-
-    return SailCard(
+    return _tabCard(
       title: 'Verify Message',
       subtitle: "Enter the receiver's address, message (ensure you copy line breaks, spaces, tabs, etc. exactly) and signature below to verify the message. Be careful not to read more into the signature than what is in the signed message itself, to avoid being tricked by a man-in-the-middle attack. Note that this only proves the signing party receives with the address, it cannot prove sendership of any transaction!",
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: SailColumn(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: SailStyleValues.padding16,
-            children: [
-              SailTextField(
-                controller: _addressController,
-                label: 'Enter a Drivechain address (e.g. n2wxQmfexkjwEPgdD6iJA7T7RtzkrnHxhFc)',
-                hintText: '',
-              ),
-              SailTextField(
-                controller: _messageController,
-                label: 'Message',
-                maxLines: 5,
-                hintText: '',
-              ),
-              SailTextField(
-                controller: _signatureController,
-                label: 'Signature',
-                hintText: '',
-              ),
-              SailRow(
-                spacing: SailStyleValues.padding16,
-                children: [
-                  SailButton(
-                    label: 'Verify Message',
-                    icon: SailSVGAsset.iconQuestion,
-                    onPressed: _verifyMessage,
-                  ),
-                  if (_error != null)
-                    Expanded(child: SailInlineError(_error!))
-                  else if (_isValid case final valid?)
-                    Expanded(
-                      child: SailRow(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        spacing: SailStyleValues.padding08,
-                        children: [
-                          SailSVG.fromAsset(
-                            valid ? SailSVGAsset.circleCheck : SailSVGAsset.circleAlert,
-                            color: valid ? theme.colors.success : theme.colors.error,
-                          ),
-                          Flexible(
-                            child: SailText.primary13(
-                              valid ? 'Message verified' : 'Invalid signature',
-                              color: valid ? theme.colors.success : theme.colors.error,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
+      children: [
+        SailTextField(
+          controller: _addressController,
+          label: 'Enter a Drivechain address (e.g. n2wxQmfexkjwEPgdD6iJA7T7RtzkrnHxhFc)',
+          hintText: '',
         ),
-      ),
+        SailTextField(
+          controller: _messageController,
+          label: 'Message',
+          maxLines: 5,
+          hintText: '',
+        ),
+        SailTextField(
+          controller: _signatureController,
+          label: 'Signature',
+          hintText: '',
+        ),
+        _fullWidth(SailButton(label: 'Verify Message', onPressed: _verifyMessage)),
+        if (_error != null)
+          SailInlineError(_error!)
+        else if (_isValid case final valid?)
+          SailStatusPill(
+            label: valid ? 'Message verified' : 'Invalid signature',
+            tone: valid ? SailStatusTone.success : SailStatusTone.error,
+          ),
+      ],
     );
   }
 }

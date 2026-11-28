@@ -284,7 +284,7 @@ Future<bool> openECashUpgrade(BuildContext context, [NotificationItem? notice]) 
         builder: (context) => SailDialog(
           title: 'Migration unavailable',
           error: e.toString(),
-          actions: [SailButton(label: 'Close', onPressed: () async => Navigator.of(context).pop())],
+          withCloseButton: true,
           child: SailText.secondary13(
             'The app could not read the migration status. Try again after the daemon connects.',
           ),
@@ -299,7 +299,7 @@ Future<bool> openECashUpgrade(BuildContext context, [NotificationItem? notice]) 
         context: context,
         builder: (context) => SailDialog(
           title: 'ECX migration',
-          actions: [SailButton(label: 'Close', onPressed: () async => Navigator.of(context).pop())],
+          withCloseButton: true,
           child: SailText.secondary13('No network upgrade or saved migration is available.'),
         ),
       );
@@ -402,14 +402,8 @@ class _ECashUpgradeDialogState extends State<ECashUpgradeDialog> {
       return SailDialog(
         title: 'Switch to ${widget.pending.pendingNetworkId}',
         error: _error,
-        actions: [
-          SailButton(
-            label: 'Close',
-            variant: ButtonVariant.secondary,
-            onPressed: () async => Navigator.of(context).pop(false),
-          ),
-          if (_error != null) SailButton(label: 'Retry', onPressed: _readPlan),
-        ],
+        withCloseButton: true,
+        action: _error == null ? null : SailDialogAction(label: 'Retry', onPressed: _readPlan),
         child: SailText.secondary13('The app reads the network change plan.'),
       );
     }

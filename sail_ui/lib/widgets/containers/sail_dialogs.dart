@@ -36,6 +36,31 @@ Future<T?> showSailDialog<T>({
   return showDialog<T>(context: context, builder: builder, barrierDismissible: barrierDismissible);
 }
 
+/// Opens [builder] as a 380 px panel at the right edge of the window; a phone shows it as a sheet.
+Future<void> showSailSidePanel(
+  BuildContext context,
+  Widget Function(BuildContext context, Future<void> Function() close) builder,
+) {
+  Future<void> Function() closer(BuildContext context) =>
+      () async => Navigator.of(context).pop();
+  if (SailStyleValues.phoneLayout(context)) {
+    return showSailDialog<void>(context: context, builder: (context) => builder(context, closer(context)));
+  }
+  return showDialog<void>(
+    context: context,
+    barrierColor: const Color(0x00000000),
+    builder: (context) => SafeArea(
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.all(SailStyleValues.padding12),
+          child: builder(context, closer(context)),
+        ),
+      ),
+    ),
+  );
+}
+
 Future<T?> _showDialogSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -236,6 +261,52 @@ Future<T?> _baseDialogSimple<T>({
   );
 }
 
+/// The one main action at the bottom of a dialog.
+class SailDialogAction {
+  final String label;
+  final Future<void> Function() onPressed;
+  final ButtonVariant variant;
+
+  /// Non-null shows the button as busy with this label.
+  final String? loadingLabel;
+
+  const SailDialogAction({
+    required this.label,
+    required this.onPressed,
+    this.variant = ButtonVariant.primary,
+    this.loadingLabel,
+  });
+}
+
+/// The full-width button of a [SailDialogAction].
+class SailDialogActionButton extends StatelessWidget {
+  final SailDialogAction action;
+
+  const SailDialogActionButton({super.key, required this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SailButton(
+        label: action.label,
+        variant: action.variant,
+        loading: action.loadingLabel != null,
+        loadingLabel: action.loadingLabel,
+        onPressed: action.onPressed,
+      ),
+    );
+  }
+}
+
+/// The square card shape in BitWindow v2; null keeps the Material default.
+ShapeBorder? _dialogShape(SailThemeData theme) =>
+    theme.isBitwindowV2 ? RoundedRectangleBorder(borderRadius: theme.chrome.radiusLarge) : null;
+
+/// The app-wide Material dialog theme: square dialogs in BitWindow v2.
+DialogThemeData? sailDialogTheme(SailThemeData theme) =>
+    theme.isBitwindowV2 ? DialogThemeData(shape: _dialogShape(theme)) : null;
+
 Future<T?> widgetDialog<T>({
   required String title,
   required BuildContext context,
@@ -243,6 +314,12 @@ Future<T?> widgetDialog<T>({
   String? subtitle,
   double maxWidth = 740,
   Color? color,
+
+  /// One full-width button under [child].
+  SailDialogAction? action,
+
+  /// Sits in the head, before the ×.
+  Widget? headerEnd,
 }) async {
   final theme = SailTheme.of(context);
 
@@ -250,6 +327,7 @@ Future<T?> widgetDialog<T>({
     context: context,
     builder: (context) => Dialog(
       backgroundColor: theme.colors.backgroundSecondary,
+      shape: _dialogShape(theme),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         // Unbounded height makes the card hug its content; taller content scrolls.
@@ -258,8 +336,18 @@ Future<T?> widgetDialog<T>({
             title: title,
             subtitle: subtitle,
             withCloseButton: true,
+            widgetHeaderEnd: headerEnd,
             color: color,
-            child: child,
+            child: action == null
+                ? child
+                : SailColumn(
+                    spacing: SailStyleValues.padding16,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      child,
+                      SailDialogActionButton(action: action),
+                    ],
+                  ),
           ),
         ),
       ),
@@ -352,6 +440,14 @@ class DialogButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (SailTheme.of(context).isBitwindowV2) {
+      // The × in the head closes the dialog.
+      return onPressed == null
+          ? const SizedBox.shrink()
+          : SailDialogActionButton(
+              action: SailDialogAction(label: 'Confirm', onPressed: onPressed!),
+            );
+    }
     return SailRow(
       spacing: SailStyleValues.padding08,
       children: [
@@ -393,6 +489,7 @@ class SailModal extends StatelessWidget {
     // the full height of the screen.
     return Dialog(
       backgroundColor: backgroundColor ?? SailColorScheme.transparent,
+      shape: _dialogShape(SailTheme.of(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -415,6 +512,9 @@ class SailDialog extends StatelessWidget {
   final String? error;
   final Widget child;
   final List<Widget>? actions;
+
+  /// One full-width button at the bottom, under [actions].
+  final SailDialogAction? action;
   final double maxWidth;
   final double maxHeight;
   final bool withCloseButton;
@@ -427,6 +527,7 @@ class SailDialog extends StatelessWidget {
     this.error,
     required this.child,
     this.actions,
+    this.action,
     this.maxWidth = 600,
     this.maxHeight = 600,
     this.withCloseButton = false,
@@ -437,6 +538,7 @@ class SailDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
+      shape: _dialogShape(SailTheme.of(context)),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
         child: SingleChildScrollView(
@@ -457,6 +559,7 @@ class SailDialog extends StatelessWidget {
                     spacing: SailStyleValues.padding08,
                     children: actions!,
                   ),
+                if (action != null) SailDialogActionButton(action: action!),
               ],
             ),
           ),

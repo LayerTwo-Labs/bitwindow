@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart' as foundation;
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
@@ -19,119 +20,161 @@ class ZSideTransferTabPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
     return ViewModelBuilder.reactive(
       viewModelBuilder: () => ZSideTransferTabViewModel(),
       builder: ((context, model, child) {
         final tabsRouter = AutoTabsRouter.of(context);
+        final phone = SailStyleValues.phoneLayout(context);
 
-        return SailPage(
-          scrollable: true,
-          widgetTitle: ZSideWidgetTitle(
-            depositNudgeAction: () => tabsRouter.setActiveIndex(ShellTabIndex.of(ZSideModule()).parentChain),
-          ),
-          body: Padding(
-            padding: const EdgeInsets.only(bottom: SailStyleValues.padding32),
-            child: SailColumn(
-              spacing: SailStyleValues.padding32,
-              children: [
-                SailRow(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 0,
+        final transparent = TransparentUTXOTable(
+          entries: model.transparentUTXOs,
+          searchWidget: UTXOSearchField(controller: model.searchController),
+          onSend: () async => model.sendTransparent(context),
+          menuItems: () => [
+            SailMenuItem(
+              onSelected: () => model.receiveTransparent(context),
+              child: SailText.primary12('Receive transparent coins'),
+            ),
+            SailMenuItem(
+              onSelected: () => model.copyTransparentAddress(context),
+              child: SailText.primary12('Copy address'),
+            ),
+          ],
+        );
+        final private = PrivateUTXOTable(
+          entries: model.shieldedUTXOs,
+          searchWidget: UTXOSearchField(controller: model.privateSearchController),
+          onSend: () async => model.sendPrivate(context),
+          menuItems: () => [
+            SailMenuItem(
+              onSelected: () => model.receivePrivate(context),
+              child: SailText.primary12('Receive private coins'),
+            ),
+            SailMenuItem(
+              onSelected: () => model.copyPrivateAddress(context),
+              child: SailText.primary12('Copy address'),
+            ),
+          ],
+        );
+
+        final title = ZSideWidgetTitle(
+          depositNudgeAction: () => tabsRouter.setActiveIndex(ShellTabIndex.of(ZSideModule()).parentChain),
+        );
+
+        if (phone) {
+          return QtPage(
+            child: TransferPhoneLayout(title: title, transparent: transparent, private: private),
+          );
+        }
+
+        return QtPage(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              title,
+              const SizedBox(height: SailStyleValues.padding12),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Flexible(
-                      child: SailColumn(
-                        spacing: SailStyleValues.padding32,
-                        children: [
-                          DashboardGroup(
-                            title: 'Transparent coins',
-                            children: [
-                              ActionTile(
-                                title: 'Send transparent coins',
-                                category: Category.sidechain,
-                                icon: SailSVGAsset.iconArrowForward,
-                                onTap: () async {
-                                  model.sendTransparent(context);
-                                },
-                              ),
-                              ActionTile(
-                                title: 'Receive transparent coins',
-                                category: Category.sidechain,
-                                icon: SailSVGAsset.iconArrow,
-                                onTap: () async {
-                                  model.receiveTransparent(context);
-                                },
-                              ),
-                            ],
-                          ),
-                          DashboardGroup(
-                            title: 'Transparent UTXOs',
-                            children: [
-                              TransparentUTXOTable(
-                                entries: model.transparentUTXOs,
-                                searchWidget: LargeEmbeddedInput(
-                                  controller: model.searchController,
-                                  hintText: 'Search UTXOs...',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    SailSeparator.vertical(
-                      thickness: 1,
-                      color: theme.colors.divider,
-                    ),
-                    Flexible(
-                      child: SailColumn(
-                        spacing: SailStyleValues.padding32,
-                        children: [
-                          DashboardGroup(
-                            title: 'Private coins',
-                            children: [
-                              ActionTile(
-                                title: 'Send private coins',
-                                category: Category.sidechain,
-                                icon: SailSVGAsset.iconArrowForward,
-                                onTap: () async {
-                                  await model.sendPrivate(context);
-                                },
-                              ),
-                              ActionTile(
-                                title: 'Receive private coins',
-                                category: Category.sidechain,
-                                icon: SailSVGAsset.iconArrow,
-                                onTap: () async {
-                                  model.receivePrivate(context);
-                                },
-                              ),
-                            ],
-                          ),
-                          DashboardGroup(
-                            title: 'Private UTXOs',
-                            children: [
-                              PrivateUTXOTable(
-                                entries: model.shieldedUTXOs,
-                                searchWidget: LargeEmbeddedInput(
-                                  controller: model.privateSearchController,
-                                  hintText: 'Search UTXOs...',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                    Expanded(child: transparent),
+                    const SizedBox(width: SailStyleValues.padding12),
+                    Expanded(child: private),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       }),
+    );
+  }
+}
+
+/// The phone Transfer page: both cards at a fixed height in one vertical scroll.
+class TransferPhoneLayout extends StatelessWidget {
+  final Widget title;
+  final Widget transparent;
+  final Widget private;
+
+  const TransferPhoneLayout({super.key, required this.title, required this.transparent, required this.private});
+
+  static const double cardHeight = 420;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          title,
+          const SizedBox(height: SailStyleValues.padding12),
+          SizedBox(height: cardHeight, child: transparent),
+          const SizedBox(height: SailStyleValues.padding12),
+          SizedBox(height: cardHeight, child: private),
+        ],
+      ),
+    );
+  }
+}
+
+/// The search box over a UTXO table.
+class UTXOSearchField extends StatelessWidget {
+  final TextEditingController controller;
+
+  const UTXOSearchField({super.key, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailTextField(
+      controller: controller,
+      hintText: 'Search UTXOs...',
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: SailStyleValues.padding10),
+        child: SailSVG.fromAsset(SailSVGAsset.search, width: 14, height: 14, color: SailTheme.of(context).colors.icon),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 14),
+    );
+  }
+}
+
+/// The head of a Transfer card: a grey kind label over the title, the send button and the "…" menu.
+class _TransferCardHead extends StatelessWidget {
+  final String kind;
+  final String title;
+  final String subtitle;
+  final String sendLabel;
+  final Future<void> Function() onSend;
+  final List<SailMenuEntity> Function() menuItems;
+
+  const _TransferCardHead({
+    required this.kind,
+    required this.title,
+    required this.subtitle,
+    required this.sendLabel,
+    required this.onSend,
+    required this.menuItems,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SailText.secondary12(kind),
+        const SizedBox(height: SailStyleValues.padding04),
+        Row(
+          children: [
+            Expanded(child: SailText.primary16(title, bold: true)),
+            SailButton(label: sendLabel, onPressed: onSend),
+            const SizedBox(width: SailStyleValues.padding08),
+            SailRowMenuButton(items: menuItems),
+          ],
+        ),
+        const SizedBox(height: SailStyleValues.padding08),
+        SailText.secondary13(subtitle),
+      ],
     );
   }
 }
@@ -233,6 +276,35 @@ class ZSideTransferTabViewModel extends BaseViewModel {
     );
   }
 
+  Future<void> copyTransparentAddress(BuildContext context) async {
+    try {
+      final address = await _zsideProvider.rpc.getSideAddress();
+      await Clipboard.setData(ClipboardData(text: address));
+      if (!context.mounted) {
+        return;
+      }
+      showSnackBar(context, 'Copied $address');
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      await errorDialog(
+        context: context,
+        action: 'Copy address',
+        title: 'Could not get a transparent address',
+        subtitle: error.toString(),
+      );
+    }
+  }
+
+  Future<void> copyPrivateAddress(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: zsideAddress));
+    if (!context.mounted) {
+      return;
+    }
+    showSnackBar(context, 'Copied $zsideAddress');
+  }
+
   void receiveTransparent(BuildContext context) async {
     await showThemedDialog(
       context: context,
@@ -271,12 +343,24 @@ class ZSideWidgetTitle extends StatelessWidget {
       viewModelBuilder: () => ZSideWidgetTitleViewModel(),
       builder: ((context, model, child) {
         if (model.balance != 0) {
-          return SailRow(
-            spacing: SailStyleValues.padding08,
-            children: [
-              SailText.secondary13('Your ZSide-address: ${model.zsideAddress}'),
-              Expanded(child: Container()),
-            ],
+          return SailCard(
+            child: Row(
+              children: [
+                Expanded(child: SailText.primary13('Your ZSide-address: ${model.zsideAddress}')),
+                const SizedBox(width: SailStyleValues.padding08),
+                SailIconBoxButton(
+                  icon: SailSVGAsset.iconCopy,
+                  tooltip: 'Copy address',
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: model.zsideAddress));
+                    if (!context.mounted) {
+                      return;
+                    }
+                    showSnackBar(context, 'Copied ${model.zsideAddress}');
+                  },
+                ),
+              ],
+            ),
           );
         }
 
@@ -341,11 +425,15 @@ class ZSideWidgetTitleViewModel extends BaseViewModel {
 class TransparentUTXOTable extends StatefulWidget {
   final List<UnshieldedUTXO> entries;
   final Widget searchWidget;
+  final Future<void> Function() onSend;
+  final List<SailMenuEntity> Function() menuItems;
 
   const TransparentUTXOTable({
     super.key,
     required this.entries,
     required this.searchWidget,
+    required this.onSend,
+    required this.menuItems,
   });
 
   @override
@@ -421,19 +509,23 @@ class _TransparentUTXOTableState extends State<TransparentUTXOTable> {
       builder: (context, child) => LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           return SailCard(
-            title: 'Transparent UTXOs',
-            subtitle: 'List of unspent transaction outputs in your transparent address',
             bottomPadding: false,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _TransferCardHead(
+                  kind: 'Transparent coins',
+                  title: 'Transparent UTXOs',
+                  subtitle: 'List of unspent transaction outputs in your transparent address',
+                  sendLabel: 'Send transparent coins',
+                  onSend: widget.onSend,
+                  menuItems: widget.menuItems,
+                ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: SailStyleValues.padding16,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding12),
                   child: widget.searchWidget,
                 ),
-                SizedBox(
-                  height: 300,
+                Expanded(
                   child: SailTable(
                     getRowId: (index) => widget.entries[index].txid,
                     headerBuilder: (context) => [
@@ -468,13 +560,12 @@ class _TransparentUTXOTableState extends State<TransparentUTXOTable> {
                           value: entry.address,
                         ),
                         SailTableCell(
-                          value: entry.txid.substring(0, 6),
+                          value: entry.txid,
                           copyValue: entry.txid,
                         ),
                       ];
                     },
                     rowCount: widget.entries.length,
-                    drawGrid: true,
                     sortColumnIndex: [
                       'confirmations',
                       'amount',
@@ -509,6 +600,7 @@ class _TransparentUTXOTableState extends State<TransparentUTXOTable> {
         constraints: const BoxConstraints(maxWidth: 800),
         child: SailCard(
           title: 'UTXO Details',
+          withCloseButton: true,
           subtitle: 'Details of the selected UTXO',
           child: SingleChildScrollView(
             child: Column(
@@ -531,11 +623,15 @@ class _TransparentUTXOTableState extends State<TransparentUTXOTable> {
 class PrivateUTXOTable extends StatefulWidget {
   final List<ShieldedUTXO> entries;
   final Widget searchWidget;
+  final Future<void> Function() onSend;
+  final List<SailMenuEntity> Function() menuItems;
 
   const PrivateUTXOTable({
     super.key,
     required this.entries,
     required this.searchWidget,
+    required this.onSend,
+    required this.menuItems,
   });
 
   @override
@@ -607,19 +703,23 @@ class _PrivateUTXOTableState extends State<PrivateUTXOTable> {
       builder: (context, child) => LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           return SailCard(
-            title: 'Private UTXOs',
-            subtitle: 'List of unspent transaction outputs in your private address',
             bottomPadding: false,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _TransferCardHead(
+                  kind: 'Private coins',
+                  title: 'Private UTXOs',
+                  subtitle: 'List of unspent transaction outputs in your private address',
+                  sendLabel: 'Send private coins',
+                  onSend: widget.onSend,
+                  menuItems: widget.menuItems,
+                ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: SailStyleValues.padding16,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding12),
                   child: widget.searchWidget,
                 ),
-                SizedBox(
-                  height: 300,
+                Expanded(
                   child: SailTable(
                     getRowId: (index) => widget.entries[index].txid,
                     headerBuilder: (context) => [
@@ -648,13 +748,12 @@ class _PrivateUTXOTableState extends State<PrivateUTXOTable> {
                           textColor: getCastColor(entry.amount, SailTheme.of(context).colors),
                         ),
                         SailTableCell(
-                          value: entry.txid.substring(0, 6),
+                          value: entry.txid,
                           copyValue: entry.txid,
                         ),
                       ];
                     },
                     rowCount: widget.entries.length,
-                    drawGrid: true,
                     sortColumnIndex: [
                       'confirmations',
                       'amount',
@@ -688,6 +787,7 @@ class _PrivateUTXOTableState extends State<PrivateUTXOTable> {
         constraints: const BoxConstraints(maxWidth: 800),
         child: SailCard(
           title: 'UTXO Details',
+          withCloseButton: true,
           subtitle: 'Details of the selected UTXO',
           child: SingleChildScrollView(
             child: Column(

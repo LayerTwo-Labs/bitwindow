@@ -35,21 +35,7 @@ class FeeCoinNewsView extends ViewModelWidget<FeeCoinNewsViewModel> {
       title: 'Coin News',
       titleTooltip: "On-chain news ranked by fee, within each topic's retention window",
       error: viewModel.readError,
-      widgetHeaderEnd: ExtraActionsDropdown(
-        title: 'Extra Coin News Actions',
-        items: [
-          ExtraActionItem(
-            label: 'Manage Topics',
-            icon: SailSVGAsset.newspaper,
-            onSelect: () => displayCreateTopicDialog(context),
-          ),
-          ExtraActionItem(
-            label: 'Graffiti Explorer',
-            icon: SailSVGAsset.sprayCan,
-            onSelect: () => displayGraffitiExplorerDialog(context),
-          ),
-        ],
-      ),
+      widgetHeaderEnd: SailRowMenuButton(items: () => coinNewsMenuItems(context)),
       child: SailColumn(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 0,
@@ -147,117 +133,106 @@ class FeeCoinNewsLargeView extends ViewModelWidget<FeeCoinNewsLargeViewModel> {
   @override
   Widget build(BuildContext context, FeeCoinNewsLargeViewModel viewModel) {
     final phone = SailStyleValues.phoneLayout(context);
-    Widget panel(Widget card) => phone ? card : Expanded(child: card);
-    Widget stories(Widget table) => phone ? table : Expanded(child: table);
     final cards = [
-      panel(
-        SailCard(
-          child: SailColumn(
-            mainAxisSize: phone ? MainAxisSize.min : MainAxisSize.max,
-            children: [
-              SizedBox(
-                height: 36,
-                child: SailRow(
-                  children: [
-                    SailText.primary15('Coin News', bold: true),
-                    Expanded(child: Container()),
-                    SailDropdownButton<String>(
-                      items: viewModel.topicItems,
-                      onChanged: (value) {
-                        if (value != null) {
-                          viewModel.setLeftTopic(value);
-                        }
-                      },
-                      value: viewModel.leftTopic,
-                    ),
-                  ],
-                ),
-              ),
-              if (viewModel.readError != null) NewsReadError(viewModel.readError!),
-              stories(
-                FeeCoinNewsTable(
-                  entries: viewModel.leftEntries,
-                  loading: viewModel.loading,
-                  shrinkWrap: phone,
-                  onArticleSelected: (news) => showCoinNewsArticle(context, news),
-                ),
-              ),
-            ],
-          ),
-        ),
+      _TopicCard(
+        head: [
+          SailText.primary15('Coin News', bold: true),
+          const Spacer(),
+          _TopicDropdown(topic: viewModel.leftTopic, items: viewModel.topicItems, onChanged: viewModel.setLeftTopic),
+        ],
+        readError: viewModel.readError,
+        entries: viewModel.leftEntries,
+        loading: viewModel.loading,
       ),
-      panel(
-        SailCard(
-          child: SailColumn(
-            mainAxisSize: phone ? MainAxisSize.min : MainAxisSize.max,
-            children: [
-              SizedBox(
-                height: 36,
-                child: SailRow(
-                  children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: SailDropdownButton<String>(
-                          items: viewModel.topicItems,
-                          onChanged: (value) {
-                            if (value != null) {
-                              viewModel.setRightTopic(value);
-                            }
-                          },
-                          value: viewModel.rightTopic,
-                        ),
-                      ),
-                    ),
-                    SailButton(
-                      label: 'Broadcast News',
-                      variant: ButtonVariant.primary,
-                      icon: SailSVGAsset.newspaper,
-                      onPressed: () => displayBroadcastNewsDialog(context, topic: viewModel.rightTopic),
-                      skipLoading: true,
-                    ),
-                    ExtraActionsDropdown(
-                      title: 'Extra Coin News Actions',
-                      items: [
-                        ExtraActionItem(
-                          label: 'Manage Topics',
-                          icon: SailSVGAsset.newspaper,
-                          onSelect: () => displayCreateTopicDialog(context),
-                        ),
-                        ExtraActionItem(
-                          label: 'Graffiti Explorer',
-                          icon: SailSVGAsset.sprayCan,
-                          onSelect: () => displayGraffitiExplorerDialog(context),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (viewModel.readError != null) NewsReadError(viewModel.readError!),
-              stories(
-                FeeCoinNewsTable(
-                  entries: viewModel.rightEntries,
-                  loading: viewModel.loading,
-                  shrinkWrap: phone,
-                  onArticleSelected: (news) => showCoinNewsArticle(context, news),
-                ),
-              ),
-            ],
+      _TopicCard(
+        head: [
+          _TopicDropdown(
+            topic: viewModel.rightTopic,
+            items: viewModel.topicItems,
+            onChanged: viewModel.setRightTopic,
           ),
-        ),
+          const Spacer(),
+          SailButton(
+            label: 'Broadcast News',
+            variant: ButtonVariant.primary,
+            onPressed: () => displayBroadcastNewsDialog(context, topic: viewModel.rightTopic),
+            skipLoading: true,
+          ),
+          const SizedBox(width: SailStyleValues.padding08),
+          SailRowMenuButton(items: () => coinNewsMenuItems(context)),
+        ],
+        readError: viewModel.readError,
+        entries: viewModel.rightEntries,
+        loading: viewModel.loading,
       ),
     ];
     if (phone) {
       return SailColumn(spacing: SailStyleValues.padding16, mainAxisSize: MainAxisSize.min, children: cards);
     }
     return SizedBox(
-      height: 300,
+      height: _largeCardHeight,
       child: SailRow(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: SailStyleValues.padding16,
-        children: cards,
+        spacing: SailStyleValues.padding12,
+        children: [for (final card in cards) Expanded(child: card)],
       ),
+    );
+  }
+}
+
+/// Both cards share one height, so their tables line up.
+const double _largeCardHeight = 300;
+
+/// One topic of the large Coin News widget: a card with its head over its stories.
+class _TopicCard extends StatelessWidget {
+  final List<Widget> head;
+  final String? readError;
+  final List<CoinNews> entries;
+  final bool loading;
+
+  const _TopicCard({required this.head, required this.readError, required this.entries, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = SailStyleValues.phoneLayout(context);
+    final table = FeeCoinNewsTable(
+      entries: entries,
+      loading: loading,
+      shrinkWrap: phone,
+      onArticleSelected: (news) => showCoinNewsArticle(context, news),
+    );
+    return SailCard(
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: phone ? MainAxisSize.min : MainAxisSize.max,
+        children: [
+          SizedBox(height: 36, child: Row(children: head)),
+          if (readError != null) NewsReadError(readError!),
+          if (phone) table else Expanded(child: table),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopicDropdown extends StatelessWidget {
+  final String topic;
+  final List<SailDropdownItem<String>> items;
+  final Future<void> Function(String topic) onChanged;
+
+  const _TopicDropdown({required this.topic, required this.items, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailDropdownButton<String>(
+      items: items,
+      onChanged: (value) {
+        if (value != null) {
+          onChanged(value);
+        }
+      },
+      value: topic,
     );
   }
 }
@@ -375,9 +350,9 @@ class FeeCoinNewsTable extends StatelessWidget {
           rowBuilder: (context, row, selected) {
             final entry = entries[row];
             return [
-              SailTableCell(value: formatter.formatSats(entry.feeSats.toInt())),
-              SailTableCell(value: storyTime(entry, (time) => formatDate(time, long: false))),
-              SailTableCell(value: _truncateHeadline(entry.headline)),
+              SailTableCell(value: formatter.formatSats(entry.feeSats.toInt()), hugContent: true),
+              SailTableCell(value: storyTime(entry, (time) => formatDate(time, long: false)), hugContent: true),
+              _headlineCell(_truncateHeadline(entry.headline)),
             ];
           },
           rowCount: entries.length,
@@ -410,6 +385,13 @@ class FeeCoinNewsTable extends StatelessWidget {
     );
   }
 }
+
+/// A headline takes the width the other columns leave, so the row "…" stays in the card.
+SailTableCell _headlineCell(String headline) => SailTableCell(
+  value: headline,
+  fill: true,
+  child: SailText.primary13(headline, overflow: TextOverflow.ellipsis),
+);
 
 /// The phone form of [FeeCoinNewsTable]: one row per story, with the headline and time at the left and the fee at the right.
 class _FeeStoryList extends StatelessWidget {

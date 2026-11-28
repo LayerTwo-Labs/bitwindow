@@ -26,7 +26,9 @@ WalletClaim _claim({int coins = 1, wmpb.MultisigInfo? multisig}) => WalletClaim(
   ),
 );
 
-Future<void> _pumpCard(WidgetTester tester, WalletClaim claim) async {
+final _v2 = SailThemeData.lightTheme(SailColorScheme.orange, false, SailFontValues.inter, SailThemeStyle.bitwindowV2);
+
+Future<void> _pumpCard(WidgetTester tester, WalletClaim claim, {SailThemeData? theme}) async {
   await registerTestDependencies();
   _fork.claims = [claim];
   if (!GetIt.I.isRegistered<ForkProvider>()) {
@@ -38,55 +40,77 @@ Future<void> _pumpCard(WidgetTester tester, WalletClaim claim) async {
   if (!GetIt.I.isRegistered<TransactionProvider>()) {
     GetIt.I.registerSingleton<TransactionProvider>(TransactionProvider());
   }
-  await tester.pumpSailPage(
-    Column(
-      children: [
-        ForkModeBanner(key: UniqueKey()),
-        Expanded(child: Container()),
-      ],
-    ),
+  final page = Column(
+    children: [
+      ForkModeBanner(key: UniqueKey()),
+      Expanded(child: Container()),
+    ],
   );
+  await tester.pumpSailPage(theme == null ? page : SailTheme(data: theme, child: page));
 }
 
 void main() {
-  testWidgets('the card shows the coins, the output and the total', (tester) async {
-    await _pumpCard(tester, _claim());
+  for (final (name, theme) in [('default', null), ('v2', _v2)]) {
+    testWidgets('$name: the card shows the coins, the output and the total', (tester) async {
+      await _pumpCard(tester, _claim(), theme: theme);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Main wallet'), findsOneWidget);
+      expect(find.text('1 coin'), findsOneWidget);
+      expect(find.text('Coins to split'), findsOneWidget);
+      expect(find.text('Transaction outputs'), findsOneWidget);
+      expect(find.text('To Main wallet'), findsOneWidget);
+      expect(find.text('A fresh address'), findsOneWidget);
+      expect(find.text('${ForkProvider.sweepFeeRateSatPerVbyte} sat/vB, from the output'), findsOneWidget);
+      expect(find.text('Total to split'), findsOneWidget);
+      expect(find.text('Signatures'), findsNothing);
+    });
+
+    testWidgets('$name: the card fits the narrowest window', (tester) async {
+      await _pumpCard(tester, _claim(), theme: theme);
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('$name: the checkbox keeps clear of the amount', (tester) async {
+      await _pumpCard(tester, _claim(), theme: theme);
+
+      final checkbox = tester.getRect(find.byType(SailCheckbox));
+      final amount = tester.getRect(find.text('Amount'));
+      expect(checkbox.right, lessThan(amount.left));
+    });
+
+    testWidgets('$name: a multisig claim shows its policy and the signatures', (tester) async {
+      await _pumpCard(tester, _claim(coins: 2, multisig: wmpb.MultisigInfo(m: 2, n: 3)), theme: theme);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('2 coins · 2-of-3 multisig'), findsOneWidget);
+      expect(find.text('A fresh address · 2-of-3 multisig'), findsOneWidget);
+      expect(find.text('2 of 3 keys'), findsOneWidget);
+    });
+  }
+
+  testWidgets('in v2 the head has a lead icon box and a ×, the coins sit in one grey block', (tester) async {
+    await _pumpCard(tester, _claim(coins: 2), theme: _v2);
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Main wallet'), findsOneWidget);
-    expect(find.text('1 coin'), findsOneWidget);
-    expect(find.text('Coins to split'), findsOneWidget);
-    expect(find.text('Transaction outputs'), findsOneWidget);
-    expect(find.text('To Main wallet'), findsOneWidget);
-    expect(find.text('A fresh address'), findsOneWidget);
-    expect(find.text('${ForkProvider.sweepFeeRateSatPerVbyte} sat/vB, from the output'), findsOneWidget);
-    expect(find.text('Total to split'), findsOneWidget);
-    expect(find.text('Signatures'), findsNothing);
-  });
+    expect(find.byType(SailCard), findsOneWidget);
+    expect(find.byKey(const ValueKey('claim-wallet-w1')), findsOneWidget);
+    expect(find.descendant(of: find.byType(SailCard), matching: find.byType(SailIconBoxButton)), findsOneWidget);
+    final block = tester.getRect(find.byKey(const ValueKey('claim-wallet-w1')));
+    final split = tester.getRect(
+      find.byWidgetPredicate((w) => w is SailButton && (w.label ?? '').startsWith('Split ')),
+    );
+    expect(split.width, closeTo(block.width, 1));
+    expect(split.top, greaterThan(block.bottom));
+    final why = tester.getRect(find.text('WHY THIS IS NECESSARY'));
+    expect(why.left, greaterThan(block.right));
 
-  testWidgets('the card fits the narrowest window', (tester) async {
-    await _pumpCard(tester, _claim());
-    await tester.binding.setSurfaceSize(const Size(400, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.tap(find.byType(SailIconBoxButton));
     await tester.pump();
-
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('the checkbox keeps clear of the amount', (tester) async {
-    await _pumpCard(tester, _claim());
-
-    final checkbox = tester.getRect(find.byType(SailCheckbox));
-    final amount = tester.getRect(find.text('Amount'));
-    expect(checkbox.right, lessThan(amount.left));
-  });
-
-  testWidgets('a multisig claim shows its policy and the signatures', (tester) async {
-    await _pumpCard(tester, _claim(coins: 2, multisig: wmpb.MultisigInfo(m: 2, n: 3)));
-
-    expect(tester.takeException(), isNull);
-    expect(find.text('2 coins · 2-of-3 multisig'), findsOneWidget);
-    expect(find.text('A fresh address · 2-of-3 multisig'), findsOneWidget);
-    expect(find.text('2 of 3 keys'), findsOneWidget);
+    expect(find.text('You have eCash to claim'), findsNothing);
   });
 }

@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+import 'svg_finder.dart';
+
 WalletMetadata _wallet(String id, String name) => WalletMetadata(
   id: id,
   name: name,
@@ -106,6 +108,51 @@ void main() {
       return d is BoxDecoration && d.shape == BoxShape.circle && c.constraints?.maxWidth == 8;
     });
     expect(dots, isEmpty);
+  });
+
+  testWidgets('a hairline parts the other wallets from the actions, and the plus sits on a filled circle', (
+    tester,
+  ) async {
+    await tester.pumpWidget(host(const {}));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(WalletDropdown));
+    await tester.pumpAndSettle();
+
+    final divider = tester.getRect(find.byKey(const Key('wallet_menu_divider')));
+    expect(divider.top, greaterThan(tester.getRect(find.text('Cold')).bottom));
+    expect(divider.bottom, lessThanOrEqualTo(tester.getRect(find.text('Create new wallet')).top));
+
+    final theme = SailTheme.of(tester.element(find.text('Create new wallet')));
+    final plus = tester.widget<Container>(
+      find.ancestor(of: findSailSVG(SailSVGAsset.plus), matching: find.byType(Container)).first,
+    );
+    final decoration = plus.decoration! as BoxDecoration;
+    expect(decoration.color, theme.colors.formField);
+    expect(decoration.border, isNull);
+  });
+
+  testWidgets('one wallet has no hairline above the actions', (tester) async {
+    await tester.pumpWidget(
+      SailTheme(
+        data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+        child: MaterialApp(
+          home: Scaffold(
+            body: WalletDropdown(
+              currentWallet: _wallet('a', 'Main'),
+              availableWallets: [_wallet('a', 'Main')],
+              onWalletSelected: (_) {},
+              onCreateWallet: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(WalletDropdown));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('wallet_menu_divider')), findsNothing);
   });
 }
 

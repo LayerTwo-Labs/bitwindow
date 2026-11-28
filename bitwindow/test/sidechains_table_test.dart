@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:bitwindow/pages/sidechains_page.dart';
+import 'package:bitwindow/pages/wallet/wallet_overview.dart' show phoneHistoryAmount;
 import 'package:bitwindow/providers/sidechain_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:fixnum/fixnum.dart';
@@ -15,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
+import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 import 'package:sidechain_core/mocks/mocks.dart';
 import 'package:sidechain_core/providers/binaries/app_run_host.dart';
 
@@ -185,20 +187,6 @@ Thunder _thunder({bool downloaded = true, bool updateAvailable = false}) {
 
 Finder _button(String label) => find.byWidgetPredicate((widget) => widget is SailButton && widget.label == label);
 
-final Finder _updateButton = find.byWidgetPredicate(
-  (widget) => widget is SailButton && widget.icon == SailSVGAsset.circleArrowUp,
-);
-
-final Finder _openWindowButton = find.byWidgetPredicate(
-  (widget) => widget is SailButton && widget.icon == SailSVGAsset.externalLink,
-);
-
-final Finder _startMenuButton = find.byWidgetPredicate(
-  (widget) => widget is SailButton && widget.icon == SailSVGAsset.chevronDown,
-);
-
-SailButton _buttonWidget(WidgetTester tester, String label) => tester.widget<SailButton>(_button(label));
-
 Future<void> registerSettings() async {
   GetIt.I.registerSingleton<BitwindowClientSettings>(
     BitwindowClientSettings(
@@ -268,71 +256,84 @@ void main() {
     await GetIt.I.reset();
   });
 
-  Future<void> pumpTable(WidgetTester tester, {bool narrow = false, bool ecash = false}) async {
+  Future<void> pumpTable(WidgetTester tester, {Size size = const Size(1440, 1024)}) async {
     addTearDown(() => tester.pumpWidget(const SizedBox()));
     await tester.pumpSailPage(
       ViewModelBuilder<SidechainsViewModel>.reactive(
         viewModelBuilder: () => SidechainsViewModel(openHere: (chain) async => openedHere.add(chain)),
-        builder: (context, model, child) {
-          Widget table = narrow
-              ? const Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 6, child: SidechainsList(smallVersion: false)),
-                    SizedBox(width: 8),
-                    Expanded(flex: 4, child: SizedBox()),
-                  ],
-                )
-              : const SidechainsList(smallVersion: false);
-          if (ecash) {
-            table = SailTheme(
-              data: SailThemeData.lightTheme(SailColorScheme.black, false, SailFontValues.inter, SailThemeStyle.ecash),
-              child: table,
-            );
-          }
-          return narrow || ecash
-              ? RepaintBoundary(key: const ValueKey('sidechains-table-screen'), child: table)
-              : table;
-        },
-      ),
-    );
-    await tester.pumpAndSettle();
-  }
-
-  testWidgets('on a phone the table shows slot, name and balance, with the toggle under the title', (tester) async {
-    SailStyleValues.phoneLayoutOverride = true;
-    addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
-    setUpChain(_thunder());
-    addTearDown(() => tester.pumpWidget(const SizedBox()));
-    await tester.pumpSailPage(
-      ViewModelBuilder<SidechainsViewModel>.reactive(
-        viewModelBuilder: () => SidechainsViewModel(),
-        builder: (context, model, child) => const Column(
-          children: [
-            SidechainsList(smallVersion: false),
-            SizedBox(height: 280, child: DepositWithdrawView()),
-          ],
+        builder: (context, model, child) => RepaintBoundary(
+          key: const ValueKey('sidechains-table-screen'),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: SailStyleValues.phoneLayout(context)
+                ? const SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        SidechainsList(smallVersion: false),
+                        SizedBox(height: 280, child: DepositWithdrawView()),
+                      ],
+                    ),
+                  )
+                : const SidechainsOverview(),
+          ),
         ),
       ),
     );
-    await tester.usePhoneSize();
+    await tester.binding.setSurfaceSize(size);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpAndSettle();
+  }
+
+  Future<void> tapRow(WidgetTester tester, String text) async {
+    await tester.tap(find.text(text).first);
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openRowMenu(WidgetTester tester, String rowText) async {
+    final row = tester.getCenter(find.text(rowText).first).dy;
+    final menu = find
+        .byType(SailRowMenuButton)
+        .evaluate()
+        .firstWhere(
+          (element) => (tester.getCenter(find.byWidget(element.widget)).dy - row).abs() < 12,
+        );
+    await tester.tap(find.byWidget(menu.widget));
+    // The row waits for a double tap before the menu gets the tap.
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> pickMenuItem(WidgetTester tester, String label) async {
+    await tester.tap(find.text(label));
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+  }
+
+  Finder panelPrimary(int slot) => find.byKey(ValueKey('sidechain_panel_primary_$slot'));
+
+  SailButton panelButton(WidgetTester tester, int slot) => tester.widget<SailButton>(panelPrimary(slot));
+
+  testWidgets('on a phone the table shows slot, name and balance, with search under the title', (tester) async {
+    SailStyleValues.phoneLayoutOverride = true;
+    addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
+    setUpChain(_thunder());
+    await pumpTable(tester, size: const Size(390, 844));
 
     expect(tester.takeException(), isNull);
-    for (final header in ['Slot', 'Name', 'Sidechain Balance']) {
+    for (final header in ['Slot', 'Sidechain', 'Sidechain balance']) {
       expect(find.text(header), findsOneWidget, reason: header);
     }
+    expect(find.text('Status'), findsNothing);
     expect(find.text('Your balance'), findsNothing);
-    expect(find.widgetWithText(SailButton, 'Deposit'), findsNothing);
+    expect(find.byType(SidechainPanel), findsNothing);
     expect(find.textContaining('BTC'), findsNothing, reason: 'the balance has no unit');
-    expect(tester.getRect(find.text('Slot')).left, closeTo(tester.getRect(find.text('9')).left, 1));
     final title = tester.getRect(find.text('Sidechains').first);
-    final toggle = tester.getRect(find.text('Show only filled slots'));
-    expect(toggle.top, greaterThan(title.bottom));
+    final search = tester.getRect(find.byKey(const ValueKey('sidechains_search')));
+    expect(search.top, greaterThan(title.bottom));
     for (final header in ['Txid', 'Fee', 'Confirmations']) {
       expect(find.text(header), findsOneWidget, reason: header);
     }
-    expect(find.text('Amount'), findsNothing);
 
     await tester.tap(find.text('Thunder'));
     await tester.pump(const Duration(milliseconds: 500));
@@ -345,16 +346,217 @@ void main() {
     expect(tester.widget<TextField>(address).maxLines, 3, reason: 'a phone shows the whole deposit address');
   });
 
-  testWidgets('a downloaded chain offers a primary Start and an outline Deposit', (tester) async {
+  testWidgets('the table shows the chain tile, version, status and balances on two lines', (tester) async {
+    setUpChain(_thunder().copyWith(version: '0.12.1'));
+    await pumpTable(tester);
+    await _captureTable(tester, 'overview');
+
+    for (final header in ['Slot', 'Sidechain', 'Status', 'Sidechain balance', 'Your balance']) {
+      expect(find.text(header), findsOneWidget, reason: header);
+    }
+    expect(find.byType(SidechainIconTile), findsNWidgets(2), reason: 'Thunder and the empty slots');
+    expect(find.text('v0.12.1'), findsOneWidget);
+    expect(find.text('Not running'), findsOneWidget);
+    expect(find.text('Downloaded'), findsOneWidget);
+    expect(find.text(phoneHistoryAmount(11000000, BitcoinUnit.btc)), findsOneWidget);
+    expect(find.text('—'), findsOneWidget, reason: 'a stopped chain has no wallet balance');
+    expect(find.byType(SidechainPanel), findsNothing, reason: 'no row is selected');
+    expect(tester.takeException(), isNull);
+  });
+
+  group('empty slots', () {
+    testWidgets('fold into one row that a tap opens and closes', (tester) async {
+      setUpChain(_thunder());
+      await pumpTable(tester);
+
+      expect(find.text('255 empty slots'), findsOneWidget);
+      expect(find.text('0–8, 10–255'), findsOneWidget);
+      expect(find.text('0'), findsNothing);
+
+      await tapRow(tester, '255 empty slots');
+      expect(find.text('0'), findsOneWidget);
+      expect(find.text('8'), findsOneWidget);
+      expect(_top(tester, '255 empty slots'), lessThan(_top(tester, '0')));
+      expect(find.byType(SidechainPanel), findsNothing, reason: 'an empty slot has no panel');
+
+      await tapRow(tester, '255 empty slots');
+      expect(find.text('0'), findsNothing);
+    });
+
+    testWidgets('a tap on an open empty slot opens no panel', (tester) async {
+      setUpChain(_thunder());
+      await pumpTable(tester);
+      await tapRow(tester, '255 empty slots');
+
+      await tapRow(tester, '3');
+      expect(find.byType(SidechainPanel), findsNothing);
+    });
+
+    test('slotRanges joins runs of three or more', () {
+      expect(slotRanges([0, 1, 3, 5, 6, 7, 8, 10, 11, 12, 14]), '0, 1, 3, 5–8, 10–12, 14');
+      expect(slotRanges([4]), '4');
+      expect(slotRanges([]), '');
+    });
+  });
+
+  testWidgets('the search keeps the chains and slots that match', (tester) async {
     setUpChain(_thunder());
+    (GetIt.I.get<SidechainProvider>() as _Sidechains).addChain(2, 'BitNames');
     await pumpTable(tester);
 
-    expect(_buttonWidget(tester, 'Start').variant, ButtonVariant.primary);
-    final deposit = _buttonWidget(tester, 'Deposit');
-    expect(deposit.variant, ButtonVariant.outline);
-    // A stopped chain still deposits: the modal takes a pasted address.
-    expect(deposit.disabled, isFalse);
-    expect(find.byType(ProgressBar), findsNothing);
+    await tester.enterText(find.byKey(const ValueKey('sidechains_search')), 'thun');
+    await tester.pumpAndSettle();
+    expect(find.text('Thunder'), findsOneWidget);
+    expect(find.text('BitNames'), findsNothing);
+    expect(find.textContaining('empty slot'), findsNothing);
+
+    await tester.enterText(find.byKey(const ValueKey('sidechains_search')), '25');
+    await tester.pumpAndSettle();
+    expect(find.text('Thunder'), findsNothing);
+    expect(find.text('9 empty slots'), findsOneWidget);
+    expect(find.text('25, 125, 225, 250–255'), findsOneWidget);
+  });
+
+  group('panel', () {
+    void addDeposits() {
+      final provider = GetIt.I.get<SidechainProvider>() as _Sidechains;
+      provider.sidechains = List.of(provider.sidechains);
+      provider.sidechains[9] = SidechainOverview(
+        ListSidechainsResponse_Sidechain(title: 'Thunder', slot: 9, balanceSatoshi: Int64(11000000)),
+        [
+          ListSidechainDepositsResponse_SidechainDeposit(
+            txid: '9a41aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae07c',
+            amount: Int64(50000000),
+            fee: Int64(2100),
+            confirmations: 6,
+          ),
+        ],
+        [WithdrawalBundle(m6id: 'm6aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab1f', status: 'Pending')],
+      );
+      provider.sidechains[2] = SidechainOverview(
+        ListSidechainsResponse_Sidechain(title: 'BitNames', slot: 2, balanceSatoshi: Int64(321000000)),
+        [
+          ListSidechainDepositsResponse_SidechainDeposit(
+            txid: 'c3f8bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb1b2d',
+            amount: Int64(25000000),
+            fee: Int64(1800),
+            confirmations: 142,
+          ),
+        ],
+        [],
+      );
+    }
+
+    testWidgets('shows the deposits of the selected chain only, and closes with ×', (tester) async {
+      setUpChain(_thunder());
+      addDeposits();
+      await pumpTable(tester);
+      expect(find.byType(SidechainPanel), findsNothing);
+
+      await tapRow(tester, 'Thunder');
+      await _captureTable(tester, 'panel');
+      expect(find.byType(SidechainPanel), findsOneWidget);
+      expect(find.text('9a41…e07c'), findsOneWidget);
+      expect(find.text('6 conf.'), findsOneWidget);
+      expect(find.text('c3f8…1b2d'), findsNothing);
+      expect(find.text('Pending'), findsOneWidget, reason: 'the withdrawal bundle in the details');
+
+      await tester.tap(find.text('Withdrawals'));
+      await tester.pumpAndSettle();
+      expect(find.text('m6aa…ab1f'), findsOneWidget);
+      expect(find.text('9a41…e07c'), findsNothing);
+
+      await tapRow(tester, 'BitNames');
+      expect(find.text('c3f8…1b2d'), findsOneWidget);
+      expect(find.text('142 conf.'), findsOneWidget);
+      expect(find.text('9a41…e07c'), findsNothing);
+      expect(find.text('None pending'), findsOneWidget);
+
+      await tester.tap(find.text('Withdrawals'));
+      await tester.pumpAndSettle();
+      expect(find.text('No withdrawal bundles found for this sidechain'), findsOneWidget);
+
+      await tester.tap(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x));
+      await tester.pumpAndSettle();
+      expect(find.byType(SidechainPanel), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a second tap on the selected row closes the panel', (tester) async {
+      setUpChain(_thunder());
+      await pumpTable(tester);
+
+      await tapRow(tester, 'Thunder');
+      expect(find.byType(SidechainPanel), findsOneWidget);
+      expect(find.text('No deposits yet'), findsOneWidget);
+      await tapRow(tester, 'Thunder');
+      expect(find.byType(SidechainPanel), findsNothing);
+    });
+
+    testWidgets('the panel is 380 px wide at the right of the table', (tester) async {
+      setUpChain(_thunder());
+      await pumpTable(tester);
+      await tapRow(tester, 'Thunder');
+
+      final panel = tester.getRect(find.byType(SidechainPanel));
+      expect(panel.width, SailSidePanel.width);
+      expect(panel.left, greaterThan(tester.getRect(find.byType(SailTable)).right));
+    });
+  });
+
+  group('primary action', () {
+    testWidgets('a downloaded chain offers Start, and Deposit stays in the menu', (tester) async {
+      setUpChain(_thunder());
+      await pumpTable(tester);
+      await tapRow(tester, 'Thunder');
+
+      expect(panelButton(tester, 9).label, 'Start');
+      expect(panelButton(tester, 9).variant, ButtonVariant.primary);
+      await openRowMenu(tester, 'Thunder');
+      expect(find.text('Deposit'), findsWidgets);
+    });
+
+    testWidgets('a running chain offers Deposit and shows its wallet balance', (tester) async {
+      setUpChain(_thunder());
+      thunderRPC.wallet = (4.1, 0.0);
+      thunderRPC.setConnected(true);
+      await balances.fetch();
+      await pumpTable(tester);
+      await tapRow(tester, 'Thunder');
+
+      expect(panelButton(tester, 9).label, 'Deposit');
+      expect(find.text(phoneHistoryAmount(410000000, BitcoinUnit.btc)), findsOneWidget, reason: 'the wallet column');
+      expect(find.text(GetIt.I.get<FormatterProvider>().formatBTC(4.1)), findsOneWidget, reason: 'the panel');
+      expect(find.text('Running'), findsWidgets);
+      expect(panelButton(tester, 9).onPressed, isNotNull);
+    });
+
+    testWidgets('a chain that is not downloaded offers Download', (tester) async {
+      setUpChain(_thunder(downloaded: false));
+      await pumpTable(tester);
+      await tapRow(tester, 'Thunder');
+
+      expect(panelButton(tester, 9).label, 'Download');
+      expect(find.text('Not downloaded'), findsWidgets);
+    });
+
+    testWidgets('a download in progress shows its percent and a waiting Download', (tester) async {
+      setUpChain(_thunder(downloaded: false));
+      downloads.progress[BinaryType.BINARY_TYPE_THUNDER] = const DownloadProgress(
+        binary: BinaryType.BINARY_TYPE_THUNDER,
+        mbDownloaded: 62,
+        mbTotal: 100,
+      );
+      await pumpTable(tester);
+      await tester.tap(find.text('Thunder'));
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pump();
+
+      expect(find.text('Downloading'), findsOneWidget);
+      expect(find.text('62%'), findsOneWidget);
+      expect(find.text('Downloading · 62%'), findsOneWidget);
+      expect(panelButton(tester, 9).loading, isTrue);
+    });
   });
 
   testWidgets('a stopped chain shows a dash for Your balance', (tester) async {
@@ -365,17 +567,51 @@ void main() {
     expect(find.text('—'), findsOneWidget);
   });
 
-  testWidgets('a running chain offers an outline Stop and shows Your balance', (tester) async {
-    setUpChain(_thunder());
-    thunderRPC.wallet = (4.1, 0.0);
-    thunderRPC.setConnected(true);
-    await balances.fetch();
-    await pumpTable(tester);
+  group('row menu', () {
+    testWidgets('a running chain offers Stop, Deposit, Settings and Pin to top', (tester) async {
+      setUpChain(_thunder());
+      thunderRPC.setConnected(true);
+      await pumpTable(tester);
+      await openRowMenu(tester, 'Thunder');
 
-    expect(_buttonWidget(tester, 'Stop').variant, ButtonVariant.outline);
-    expect(_buttonWidget(tester, 'Deposit').disabled, isFalse);
-    expect(find.text(GetIt.I.get<FormatterProvider>().formatBTC(4.1)), findsOneWidget);
-    expect(find.text('—'), findsNothing);
+      for (final label in ['Stop', 'Deposit', 'Settings', 'Pin to top']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      expect(find.text('Start'), findsNothing);
+      expect(find.text('Show Chaintip Transaction'), findsNothing, reason: 'the chain has no chaintip');
+    });
+
+    testWidgets('an update adds Update to the menu, and it updates the chain', (tester) async {
+      final binaries = setUpChain(_thunder(updateAvailable: true));
+      await pumpTable(tester);
+      await openRowMenu(tester, 'Thunder');
+
+      await pickMenuItem(tester, 'Update Thunder');
+      expect(binaries.updated.single.type, BinaryType.BINARY_TYPE_THUNDER);
+    });
+
+    testWidgets('an update in progress shows Updating and a percent, and no Update item', (tester) async {
+      setUpChain(_thunder(updateAvailable: true));
+      downloads.progress[BinaryType.BINARY_TYPE_THUNDER] = const DownloadProgress(
+        binary: BinaryType.BINARY_TYPE_THUNDER,
+        mbDownloaded: 45,
+        mbTotal: 100,
+      );
+      await pumpTable(tester);
+
+      expect(find.text('Updating'), findsOneWidget);
+      expect(find.text('45%'), findsOneWidget);
+      await openRowMenu(tester, 'Thunder');
+      expect(find.text('Update Thunder'), findsNothing);
+      expect(find.textContaining('Start'), findsNothing);
+    });
+
+    testWidgets('group and empty slot rows have no "…"', (tester) async {
+      setUpChain(_thunder());
+      await pumpTable(tester);
+
+      expect(find.byType(SailRowMenuButton), findsOneWidget);
+    });
   });
 
   group('a chain that the app runs on a phone', () {
@@ -390,32 +626,10 @@ void main() {
 
     tearDown(() => SailStyleValues.phoneLayoutOverride = null);
 
-    Future<void> openRowMenu(WidgetTester tester) async {
-      await tester.usePhoneSize();
-      await tester.pumpAndSettle();
+    Future<void> openPhoneRowMenu(WidgetTester tester) async {
       await tester.longPress(find.text('Thunder'));
       await tester.pumpAndSettle();
     }
-
-    testWidgets('the row menu starts the node and opens the chain', (tester) async {
-      GetIt.I.registerSingleton<AppRunHost>(
-        AppRunHost(
-          {'thunder': _NoRunner()},
-          reportExit: (_, _) async {},
-          log: Logger(level: Level.off),
-        ),
-      );
-      setUpChain(_thunder(downloaded: false));
-      await pumpTable(tester);
-      await openRowMenu(tester);
-
-      expect(find.text('Start Thunder'), findsOneWidget);
-      await tester.tap(find.text('Start Thunder'));
-      await tester.pumpAndSettle();
-
-      expect(orchestrator.starts, [('thunder', true)]);
-      expect(openedHere.map((chain) => chain.name), ['Thunder']);
-    });
 
     void hostThunder() => GetIt.I.registerSingleton<AppRunHost>(
       AppRunHost(
@@ -425,12 +639,24 @@ void main() {
       ),
     );
 
+    testWidgets('the row menu starts the node and opens the chain', (tester) async {
+      hostThunder();
+      setUpChain(_thunder(downloaded: false));
+      await pumpTable(tester, size: const Size(390, 844));
+      await openPhoneRowMenu(tester);
+
+      expect(find.text('Start Thunder'), findsOneWidget);
+      await tester.tap(find.text('Start Thunder'));
+      await tester.pumpAndSettle();
+
+      expect(orchestrator.starts, [('thunder', true)]);
+      expect(openedHere.map((chain) => chain.name), ['Thunder']);
+    });
+
     testWidgets('a Start button on the row starts the node and opens the chain', (tester) async {
       hostThunder();
       setUpChain(_thunder(downloaded: false));
-      await pumpTable(tester);
-      await tester.usePhoneSize();
-      await tester.pumpAndSettle();
+      await pumpTable(tester, size: const Size(390, 844));
 
       await tester.tap(find.widgetWithText(SailButton, 'Start'));
       // The row waits for a double tap before the button gets the tap.
@@ -445,13 +671,10 @@ void main() {
       hostThunder();
       setUpChain(_thunder(downloaded: false));
       thunderRPC.setConnected(true);
-      await pumpTable(tester);
-      await tester.usePhoneSize();
-      await tester.pumpAndSettle();
+      await pumpTable(tester, size: const Size(390, 844));
 
       expect(find.widgetWithText(SailButton, 'Start'), findsNothing);
       await tester.tap(find.widgetWithText(SailButton, 'Open'));
-      // The row waits for a double tap before the button gets the tap.
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
 
@@ -464,7 +687,7 @@ void main() {
       addTearDown(() => GetIt.I.unregister<NodeModeProvider>());
       hostThunder();
       setUpChain(_thunder(downloaded: false));
-      await pumpTable(tester);
+      await pumpTable(tester, size: const Size(390, 844));
 
       expect(find.text('This platform has no sidechain build.'), findsNothing);
     });
@@ -473,7 +696,7 @@ void main() {
       GetIt.I.registerSingleton<NodeModeProvider>(NodeModeProvider()..localBuildsAvailable = false);
       addTearDown(() => GetIt.I.unregister<NodeModeProvider>());
       setUpChain(_thunder(downloaded: false));
-      await pumpTable(tester);
+      await pumpTable(tester, size: const Size(390, 844));
 
       expect(find.text('This platform has no sidechain build.'), findsOneWidget);
       expect(find.widgetWithText(SailButton, 'Start'), findsNothing);
@@ -481,8 +704,8 @@ void main() {
 
     testWidgets('the row menu has no start for a chain that the app does not run', (tester) async {
       setUpChain(_thunder(downloaded: false));
-      await pumpTable(tester);
-      await openRowMenu(tester);
+      await pumpTable(tester, size: const Size(390, 844));
+      await openPhoneRowMenu(tester);
 
       expect(find.text('Pin to top'), findsOneWidget, reason: 'the menu is open');
       expect(find.text('Start Thunder'), findsNothing);
@@ -499,98 +722,64 @@ void main() {
       await GetIt.I.get<SettingsProvider>().updateOpenSidechainsInWindow(true);
     });
 
-    Future<void> tapButton(WidgetTester tester, Finder button) async {
-      await tester.tap(button);
-      await tester.pump(kDoubleTapTimeout);
-      await tester.pumpAndSettle();
-    }
-
     testWidgets('a running chain with its window open offers no Open window', (tester) async {
       setUpChain(_thunder());
       thunderRPC.setConnected(true);
       thunderRPC.windowOpen = true;
       await pumpTable(tester);
+      await openRowMenu(tester, 'Thunder');
 
-      expect(_button('Stop'), findsOneWidget);
-      expect(_openWindowButton, findsNothing);
-      expect(_startMenuButton, findsNothing);
+      expect(find.text('Stop'), findsOneWidget);
+      expect(find.text('Open window'), findsNothing);
     });
 
     testWidgets('a running chain with its window closed offers Open window before Stop', (tester) async {
       setUpChain(_thunder());
       thunderRPC.setConnected(true);
       await pumpTable(tester);
+      await openRowMenu(tester, 'Thunder');
 
-      expect(tester.widget<SailButton>(_openWindowButton).variant, ButtonVariant.icon);
-      expect(_tooltip('Open window'), findsOneWidget);
-      expect(tester.getRect(_openWindowButton).right, lessThan(tester.getRect(_button('Stop')).left));
-      expect(tester.getRect(_button('Deposit')).right, lessThanOrEqualTo(tester.getRect(find.byType(SailTable)).right));
-      expect(tester.takeException(), isNull);
-
-      await tapButton(tester, _openWindowButton);
+      expect(_top(tester, 'Open window'), lessThan(_top(tester, 'Stop')));
+      await pickMenuItem(tester, 'Open window');
       expect(orchestrator.starts, [('thunder', false)]);
     });
 
-    testWidgets('a stopped chain offers a chevron after Start that opens the start menu', (tester) async {
+    testWidgets('a stopped chain lists the ways to start in its menu', (tester) async {
       setUpChain(_thunder());
       await pumpTable(tester);
+      await openRowMenu(tester, 'Thunder');
 
-      expect(_button('Start'), findsOneWidget);
-      expect(_startMenuButton, findsOneWidget);
-      expect(tester.getRect(_button('Start')).right, lessThan(tester.getRect(_startMenuButton).left));
-      expect(find.text('Start with window'), findsNothing);
-
-      await tapButton(tester, _startMenuButton);
       expect(find.text('Start with window'), findsOneWidget);
-      expect(find.text('Opens the Thunder app.'), findsOneWidget);
       expect(find.text('Start in background'), findsOneWidget);
-      expect(find.text('Runs the node only. Open the window later.'), findsOneWidget);
       expect(orchestrator.starts, isEmpty);
-      expect(tester.takeException(), isNull);
     });
 
     testWidgets('Start in background starts the node and opens no window', (tester) async {
       setUpChain(_thunder());
       await pumpTable(tester);
-
-      await tapButton(tester, _startMenuButton);
-      await tapButton(tester, find.text('Start in background'));
+      await openRowMenu(tester, 'Thunder');
+      await pickMenuItem(tester, 'Start in background');
 
       expect(orchestrator.starts, [('thunder', true)]);
-      expect(find.text('Start in background'), findsNothing);
     });
 
     testWidgets('Start with window starts the chain with its window', (tester) async {
       setUpChain(_thunder());
       await pumpTable(tester);
-
-      await tapButton(tester, _startMenuButton);
-      await tapButton(tester, find.text('Start with window'));
+      await openRowMenu(tester, 'Thunder');
+      await pickMenuItem(tester, 'Start with window');
 
       expect(orchestrator.starts, [('thunder', false)]);
-      expect(find.text('Start with window'), findsNothing);
     });
 
-    testWidgets('a plain Start still opens the window', (tester) async {
+    testWidgets('the panel Start still opens the window', (tester) async {
       setUpChain(_thunder());
       await pumpTable(tester);
-
-      await tapButton(tester, _button('Start'));
-
-      expect(orchestrator.starts, [('thunder', false)]);
-    });
-
-    testWidgets('a 1075 px window keeps Open window and Stop in view', (tester) async {
-      setUpChain(_thunder());
-      thunderRPC.setConnected(true);
-      await pumpTable(tester, narrow: true);
-      await tester.binding.setSurfaceSize(const Size(1075, 720));
+      await tapRow(tester, 'Thunder');
+      await tester.tap(panelPrimary(9));
       await tester.pumpAndSettle();
 
-      final table = tester.getRect(find.byType(SailTable));
-      expect(tester.getRect(_openWindowButton).right, lessThanOrEqualTo(table.right));
-      expect(tester.getRect(_button('Stop')).right, lessThanOrEqualTo(table.right));
-      expect(tester.takeException(), isNull);
+      expect(orchestrator.starts, [('thunder', false)]);
     });
   });
 
@@ -603,37 +792,32 @@ void main() {
       await registerSettings();
     });
 
-    Future<void> tapButton(WidgetTester tester, Finder button) async {
-      await tester.tap(button);
-      await tester.pump(kDoubleTapTimeout);
-      await tester.pumpAndSettle();
-    }
-
     test('the window setting is off by default', () {
       expect(GetIt.I.get<SettingsProvider>().bitwindowSettings.openSidechainsInWindow, isFalse);
     });
 
-    testWidgets('Start runs the node in the background and opens the chain here', (tester) async {
+    testWidgets('the panel Start runs the node in the background and opens the chain here', (tester) async {
       setUpChain(_thunder());
       await pumpTable(tester);
-
-      await tapButton(tester, _button('Start'));
+      await tapRow(tester, 'Thunder');
+      await tester.tap(panelPrimary(9));
+      await tester.pumpAndSettle();
 
       expect(orchestrator.starts, [('thunder', true)]);
       expect(openedHere.map((chain) => chain.name), ['Thunder']);
     });
 
-    testWidgets('the start menu offers here, background and a separate window', (tester) async {
+    testWidgets('the menu offers here, background and a separate window', (tester) async {
       setUpChain(_thunder());
       await pumpTable(tester);
+      await openRowMenu(tester, 'Thunder');
 
-      await tapButton(tester, _startMenuButton);
       expect(find.text('Start and open here'), findsOneWidget);
       expect(find.text('Start in background'), findsOneWidget);
       expect(find.text('Start in a separate window'), findsOneWidget);
       expect(find.text('Start with window'), findsNothing);
 
-      await tapButton(tester, find.text('Start in a separate window'));
+      await pickMenuItem(tester, 'Start in a separate window');
       expect(orchestrator.starts, [('thunder', false)]);
       expect(openedHere, isEmpty);
     });
@@ -641,25 +825,22 @@ void main() {
     testWidgets('Start in background opens nothing', (tester) async {
       setUpChain(_thunder());
       await pumpTable(tester);
-
-      await tapButton(tester, _startMenuButton);
-      await tapButton(tester, find.text('Start in background'));
+      await openRowMenu(tester, 'Thunder');
+      await pickMenuItem(tester, 'Start in background');
 
       expect(orchestrator.starts, [('thunder', true)]);
       expect(openedHere, isEmpty);
     });
 
-    testWidgets('a running chain offers Open before Stop, and no window icon', (tester) async {
+    testWidgets('a running chain offers Open before Stop, and no Open window', (tester) async {
       setUpChain(_thunder());
       thunderRPC.setConnected(true);
       await pumpTable(tester);
+      await openRowMenu(tester, 'Thunder');
 
-      expect(_buttonWidget(tester, 'Open').variant, ButtonVariant.primary);
-      expect(tester.getRect(_button('Open')).right, lessThan(tester.getRect(_button('Stop')).left));
-      expect(_openWindowButton, findsNothing);
-      expect(tester.takeException(), isNull);
-
-      await tapButton(tester, _button('Open'));
+      expect(_top(tester, 'Open'), lessThan(_top(tester, 'Stop')));
+      expect(find.text('Open window'), findsNothing);
+      await pickMenuItem(tester, 'Open');
       expect(openedHere.map((chain) => chain.name), ['Thunder']);
       expect(orchestrator.starts, isEmpty);
     });
@@ -668,8 +849,9 @@ void main() {
       await GetIt.I.get<SettingsProvider>().updateOpenSidechainsInWindow(true);
       setUpChain(_thunder());
       await pumpTable(tester);
-
-      await tapButton(tester, _button('Start'));
+      await tapRow(tester, 'Thunder');
+      await tester.tap(panelPrimary(9));
+      await tester.pumpAndSettle();
 
       expect(orchestrator.starts, [('thunder', false)]);
       expect(openedHere, isEmpty);
@@ -701,133 +883,8 @@ void main() {
     await balances.fetch();
     await pumpTable(tester);
 
-    expect(find.text(GetIt.I.get<FormatterProvider>().formatBTC(0.25)), findsOneWidget);
+    expect(find.text(phoneHistoryAmount(25000000, BitcoinUnit.btc)), findsOneWidget);
     expect(find.text('—'), findsOneWidget);
-  });
-
-  testWidgets('a chain that is not downloaded offers a primary Download', (tester) async {
-    setUpChain(_thunder(downloaded: false));
-    await pumpTable(tester);
-
-    expect(_buttonWidget(tester, 'Download').variant, ButtonVariant.primary);
-    expect(_button('Start'), findsNothing);
-  });
-
-  testWidgets('a download in progress shows its percent in place of the button', (tester) async {
-    setUpChain(_thunder(downloaded: false));
-    downloads.progress[BinaryType.BINARY_TYPE_THUNDER] = const DownloadProgress(
-      binary: BinaryType.BINARY_TYPE_THUNDER,
-      mbDownloaded: 62,
-      mbTotal: 100,
-    );
-    await pumpTable(tester);
-
-    expect(find.text('62%'), findsOneWidget);
-    expect(find.text('Updating'), findsNothing);
-    expect(_button('Download'), findsNothing);
-    // Nothing runs yet, so the bar keeps the place of the button.
-    expect(_button('Stop'), findsNothing);
-  });
-
-  testWidgets('an update puts a small icon before a primary Start', (tester) async {
-    final binaries = setUpChain(_thunder(updateAvailable: true));
-    await pumpTable(tester);
-
-    final update = tester.widget<SailButton>(_updateButton);
-    expect(update.variant, ButtonVariant.icon);
-    expect(update.label, isNull);
-    expect(tester.getSize(_updateButton).width, lessThanOrEqualTo(32));
-    expect(_buttonWidget(tester, 'Start').variant, ButtonVariant.primary);
-    expect(tester.getTopLeft(_updateButton).dx, lessThan(tester.getTopLeft(_button('Start')).dx));
-
-    await tester.tap(_updateButton);
-    await tester.pump(kDoubleTapTimeout);
-    await tester.pumpAndSettle();
-    expect(binaries.updated.single.type, BinaryType.BINARY_TYPE_THUNDER);
-  });
-
-  testWidgets('the update icon keeps a name a screen reader reads', (tester) async {
-    final semantics = tester.ensureSemantics();
-    setUpChain(_thunder(updateAvailable: true));
-    await pumpTable(tester);
-
-    expect(find.bySemanticsLabel('Update Thunder'), findsOneWidget);
-    semantics.dispose();
-  });
-
-  testWidgets('an update keeps every control of the row inside the table', (tester) async {
-    setUpChain(_thunder(updateAvailable: true));
-    GetIt.I.get<BitcoinConfProvider>().network = BitcoinNetwork.BITCOIN_NETWORK_ECASH;
-    GetIt.I.get<SidechainProvider>().sidechains[2] = SidechainOverview(
-      ListSidechainsResponse_Sidechain(title: 'BitNames', slot: 2, balanceSatoshi: Int64(142391000)),
-      [],
-      [],
-    );
-    await pumpTable(tester, narrow: true, ecash: true);
-    await _captureTable(tester, 'update');
-
-    final table = tester.getRect(find.byType(SailTable));
-    expect(tester.getRect(_updateButton).right, lessThanOrEqualTo(table.right));
-    for (final deposit in _button('Deposit').evaluate()) {
-      expect(tester.getRect(find.byWidget(deposit.widget)).right, lessThanOrEqualTo(table.right));
-    }
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('an update in progress shows Updating and a percent in place of the buttons', (tester) async {
-    setUpChain(_thunder(updateAvailable: true));
-    downloads.progress[BinaryType.BINARY_TYPE_THUNDER] = const DownloadProgress(
-      binary: BinaryType.BINARY_TYPE_THUNDER,
-      mbDownloaded: 45,
-      mbTotal: 100,
-    );
-    await pumpTable(tester);
-
-    expect(find.text('Updating'), findsOneWidget);
-    expect(find.text('45%'), findsOneWidget);
-    expect(_updateButton, findsNothing);
-    expect(_button('Start'), findsNothing);
-  });
-
-  testWidgets('a header tap changes neither the row order nor the headers', (tester) async {
-    setUpChain(_thunder());
-    GetIt.I.get<SidechainProvider>().sidechains[2] = SidechainOverview(
-      ListSidechainsResponse_Sidechain(title: 'BitNames', slot: 2, balanceSatoshi: Int64(99000000)),
-      [],
-      [],
-    );
-    await pumpTable(tester);
-
-    for (final header in ['Slot', 'Name', 'Sidechain Balance', 'Your balance']) {
-      await tester.tap(find.text(header));
-      await tester.pumpAndSettle();
-
-      expect(tester.getTopLeft(find.text('2')).dy, lessThan(tester.getTopLeft(find.text('9')).dy));
-      expect(
-        tester.widgetList<SailTableHeaderCell>(find.byType(SailTableHeaderCell)).any((cell) => cell.isSorted),
-        isFalse,
-      );
-    }
-  });
-
-  testWidgets('the slot shows its number with no colon', (tester) async {
-    setUpChain(_thunder());
-    await pumpTable(tester);
-
-    expect(find.text('9'), findsOneWidget);
-    expect(find.text('9:'), findsNothing);
-  });
-
-  testWidgets('Add / Remove sits in the card head, next to the toggle', (tester) async {
-    setUpChain(_thunder());
-    await pumpTable(tester);
-
-    final addRemove = _buttonWidget(tester, 'Add / Remove');
-    expect(addRemove.variant, ButtonVariant.outline);
-    final head = tester.getRect(find.text('Show only filled slots'));
-    final button = tester.getRect(_button('Add / Remove'));
-    expect(button.left, greaterThan(head.right));
-    expect(button.bottom, lessThan(tester.getTopLeft(find.text('Slot')).dy));
   });
 
   test('progressPercent never reads 100% before the goal', () {
@@ -859,21 +916,13 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text(label), findsOneWidget);
       expect(find.text('41.3%'), findsOneWidget);
-      // A sync must not take the place of Stop: the chain's own window may be
-      // closed, and then the table is the only way to stop the node.
-      expect(_button('Stop'), findsOneWidget);
-      expect(
-        tester.getRect(_button('Stop')).right,
-        lessThanOrEqualTo(tester.getRect(find.byType(MainchainSyncStatus)).left),
-      );
-      expect(
-        tester.getRect(find.byType(MainchainSyncStatus)).right,
-        lessThanOrEqualTo(tester.getRect(_button('Deposit')).left),
-      );
+      // A sync must not take Stop away: the chain's own window may be closed.
+      await openRowMenu(tester, 'Thunder');
+      expect(find.text('Stop'), findsOneWidget);
     });
   }
 
-  testWidgets('a running chain without a mainchain phase keeps the block count bar', (tester) async {
+  testWidgets('a running chain without a mainchain phase shows Syncing and the block percent', (tester) async {
     setUpChain(_thunder());
     thunderRPC.setConnected(true);
     sync.sidechains = {
@@ -881,343 +930,48 @@ void main() {
     };
     await pumpTable(tester);
 
-    expect(find.byType(MainchainSyncStatus), findsNothing);
+    expect(find.text('Syncing'), findsOneWidget);
     expect(find.text('34%'), findsOneWidget);
-    expect(_button('Stop'), findsOneWidget);
   });
 
-  // A slot number is three characters at most, so the gap to the name was the
-  // table's default minimum, not the content.
-  testWidgets('the widest slot keeps Slot narrow and Name right after it', (tester) async {
+  testWidgets('a synced chain shows its block height', (tester) async {
     setUpChain(_thunder());
-    GetIt.I.get<SidechainProvider>().sidechains[255] = SidechainOverview(
-      ListSidechainsResponse_Sidechain(title: 'CoinShift', slot: 255, balanceSatoshi: Int64(5000000)),
-      [],
-      [],
-    );
-    await pumpTable(tester);
-
-    final slot = tester.getRect(_cell('255'));
-    final name = tester.getRect(_cell('CoinShift'));
-    expect(slot.width, lessThanOrEqualTo(_headerWidth('Slot') + _pinWidth + 25));
-    expect(name.left - slot.right, lessThanOrEqualTo(8));
-  });
-
-  testWidgets('the widest name and balance stay on one line', (tester) async {
-    setUpChain(_thunder());
-    GetIt.I.get<SidechainProvider>().sidechains[9] = SidechainOverview(
-      ListSidechainsResponse_Sidechain(title: 'Truthcoin', slot: 9, balanceSatoshi: Int64(11502555423)),
-      [],
-      [],
-    );
-    thunderRPC.wallet = (115.02555423, 0.0);
     thunderRPC.setConnected(true);
-    await balances.fetch();
+    sync.sidechains = {
+      SidechainType.SIDECHAIN_TYPE_THUNDER: SyncInfo(progressCurrent: 294, progressGoal: 294, lastBlockAt: null),
+    };
     await pumpTable(tester);
 
-    final balance = GetIt.I.get<FormatterProvider>().formatBTC(115.02555423);
-    _expectOneUncutLine(tester, _cell('Truthcoin'), 'Truthcoin');
-    _expectOneUncutLine(tester, _cell(balance), balance);
+    expect(find.text('Running'), findsOneWidget);
+    expect(find.text('block 294'), findsOneWidget);
   });
 
-  for (final ecash in [false, true]) {
-    for (final large in [false, true]) {
-      testWidgets('the narrow table keeps full names, eCash: $ecash, large: $large', (tester) async {
-        tester.platformDispatcher.textScaleFactorTestValue = large ? 2 : 1;
-        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-        setUpChain(_thunder());
-        thunderRPC.setConnected(true);
-        final chains = GetIt.I.get<SidechainProvider>() as _Sidechains;
-        const name = 'A sidechain with a complete and unusually long public name for every user';
-        chains.addChain(128, name);
-        await pumpTable(tester, narrow: true, ecash: ecash);
-        tester.widget<SailToggle>(find.byType(SailToggle)).onChanged(false);
-        await tester.state<SailAppState>(find.byType(SailApp)).loadFontScale(large ? 2 : 1);
-        await tester.pumpAndSettle();
-        final table = find.byType(SailTable);
-        final state = tester.state(table);
-        final card = tester.getRect(find.byType(SailCard));
-        final toggle = tester.getRect(find.byType(SailToggle));
-        final button = tester.getRect(_button('Add / Remove'));
-        for (final bounds in [toggle, button]) {
-          expect(bounds.left, greaterThanOrEqualTo(card.left + SailStyleValues.padding16));
-          expect(bounds.right, lessThanOrEqualTo(card.right - SailStyleValues.padding16));
-          expect(bounds.bottom, lessThan(tester.getRect(table).top));
-        }
-        final buttonText = find.descendant(of: _button('Add / Remove'), matching: find.byType(Text)).last;
-        final paragraph = tester.renderObject<RenderParagraph>(buttonText);
-        expect(paragraph.textScaler.scale(12), large ? (ecash ? 48 : 24) : 12);
-        expect(paragraph.getTransformTo(null).entry(0, 0), closeTo(1, 0.001));
-        expect(tester.getSize(find.text('Sidechains')).width, greaterThan(0));
-        if (ecash && large) {
-          expect(button.top, greaterThan(toggle.bottom));
-        }
-        expect(tester.widget<SailTable>(table).rowCount, 256);
-        final vertical = find.descendant(
-          of: table,
-          matching: find.byWidgetPredicate(
-            (widget) => widget is Scrollable && widget.axisDirection == AxisDirection.down,
-          ),
-        );
-        tester.state<ScrollableState>(vertical).position.jumpTo(128 * tester.widget<SailTable>(table).cellHeight);
-        await tester.pumpAndSettle();
-        _expectFullName(tester, name);
-        final width = tester.getSize(_cell(name)).width;
-        final horizontal = find.descendant(
-          of: table,
-          matching: find.byWidgetPredicate(
-            (widget) => widget is Scrollable && widget.axisDirection == AxisDirection.right,
-          ),
-        );
-        expect(tester.state<ScrollableState>(horizontal).position.maxScrollExtent, greaterThan(0));
-        if (large) {
-          expect(width, greaterThan(tester.getSize(horizontal).width));
-        }
-
-        final handle = find
-            .descendant(
-              of: table,
-              matching: find.byWidgetPredicate(
-                (widget) => widget is MouseRegion && widget.cursor == SystemMouseCursors.resizeLeftRight,
-              ),
-            )
-            .at(1);
-        await tester.ensureVisible(handle);
-        await tester.pumpAndSettle();
-        await tester.drag(handle, const Offset(-2000, 0));
-        await tester.pumpAndSettle();
-        expect(tester.getSize(_cell(name)).width, closeTo(width, 0.01));
-        _expectFullName(tester, name);
-
-        const longer = '$name with more words after the table appears';
-        chains.addChain(129, longer);
-        await tester.pumpAndSettle();
-        expect(tester.widget<SailTable>(table).rowCount, 256);
-        expect(tester.state(table), same(state));
-        _expectFullName(tester, name);
-        _expectFullName(tester, longer);
-        expect(tester.getSize(_cell(longer)).width, greaterThan(width));
-        expect(tester.takeException(), isNull);
-        await _captureTable(tester, 'names-${ecash ? 'ecash' : 'default'}-${large ? '4x' : '1x'}');
-        if (!ecash && !large && const String.fromEnvironment('SIDECHAIN_TABLE_SCREEN_DIR').isNotEmpty) {
-          await tester.binding.setSurfaceSize(const Size(2600, 720));
-          await tester.pumpAndSettle();
-          tester.state<ScrollableState>(horizontal).position.jumpTo(0);
-          await tester.pumpAndSettle();
-          await _captureTable(tester, 'full-longest-name');
-          await tester.binding.setSurfaceSize(const Size(1200, 720));
-          await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull);
-        }
-      });
-    }
-  }
-
-  testWidgets('the narrow desktop table keeps each ECX amount on one line', (tester) async {
+  testWidgets('a header tap changes neither the row order nor the headers', (tester) async {
     setUpChain(_thunder());
-    GetIt.I.get<BitcoinConfProvider>().network = BitcoinNetwork.BITCOIN_NETWORK_ECASH;
-    GetIt.I.get<SidechainProvider>().sidechains[9] = SidechainOverview(
-      ListSidechainsResponse_Sidechain(title: 'Truthcoin', slot: 9, balanceSatoshi: Int64(11502555423)),
-      [],
-      [],
-    );
-    thunderRPC.wallet = (115.02555423, 1.0);
-    thunderRPC.setConnected(true);
-    await balances.fetch();
-    await pumpTable(tester, narrow: true, ecash: true);
-    await _captureTable(tester, 'active');
-
-    for (final header in ['Slot', 'Name']) {
-      final paragraph = tester.renderObject<RenderParagraph>(find.text(header));
-      expect(paragraph.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: header.length)), hasLength(1));
-      expect(paragraph.didExceedMaxLines, isFalse);
-      expect(tester.getSize(find.text(header)).width, greaterThan(0));
-    }
-    final amount = GetIt.I.get<FormatterProvider>().formatBTC(115.02555423);
-    expect(amount, contains('ECX'));
-    for (final match in find.text(amount).evaluate()) {
-      final paragraph = match.renderObject! as RenderParagraph;
-      expect(paragraph.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: amount.length)), hasLength(1));
-      expect(paragraph.didExceedMaxLines, isFalse);
-    }
-    expect(find.text(amount), findsNWidgets(2));
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('the narrow desktop table keeps actions close to the balances', (tester) async {
-    setUpChain(_thunder());
-    GetIt.I.get<BitcoinConfProvider>().network = BitcoinNetwork.BITCOIN_NETWORK_ECASH;
-    await pumpTable(tester, narrow: true, ecash: true);
-    await _captureTable(tester, 'stopped');
-
-    final balance = tester.getRect(_cell('—'));
-    final start = tester.getRect(_button('Start'));
-    expect(start.left - balance.right, lessThanOrEqualTo(40));
-    expect(tester.getRect(_button('Deposit')).right, lessThanOrEqualTo(tester.getRect(find.byType(SailTable)).right));
-    expect(tester.takeException(), isNull);
-  });
-
-  for (final ecash in [false, true]) {
-    for (final action in ['Start', 'Download', 'Stop']) {
-      testWidgets('the $action controls keep the 2x text size in the ${ecash ? 'eCash' : 'default'} theme', (
-        tester,
-      ) async {
-        setUpChain(_thunder(downloaded: action != 'Download'));
-        thunderRPC.setConnected(action == 'Stop');
-        if (ecash) {
-          GetIt.I.get<BitcoinConfProvider>().network = BitcoinNetwork.BITCOIN_NETWORK_ECASH;
-        }
-        await pumpTable(tester, ecash: ecash);
-        final tableHeight = tester.getSize(find.byType(SailTable)).height;
-        if (ecash) {
-          await _captureTable(tester, '${action.toLowerCase()}-1x');
-        }
-        await tester.state<SailAppState>(find.byType(SailApp)).loadFontScale(2);
-        await tester.pumpAndSettle();
-
-        expect(tester.getSize(find.byType(SailTable)).height, tableHeight + 60);
-        for (final label in [action, 'Deposit']) {
-          final text = find.descendant(of: _button(label), matching: find.byType(Text)).last;
-          final paragraph = tester.renderObject<RenderParagraph>(text);
-          expect(paragraph.textScaler.scale(12), 24);
-          expect(paragraph.getTransformTo(null).entry(0, 0), closeTo(1, 0.001), reason: label);
-          expect(
-            tester.getRect(_button(label)).bottom,
-            lessThanOrEqualTo(tester.getRect(find.byType(SailTable)).bottom),
-            reason: label,
-          );
-        }
-        if (ecash) {
-          await _captureTable(tester, '${action.toLowerCase()}-2x');
-        }
-        expect(tester.takeException(), isNull);
-      });
-    }
-  }
-
-  testWidgets('the empty table keeps its height at the 2x text size', (tester) async {
-    setUpChain(_thunder());
-    GetIt.I.get<SidechainProvider>().sidechains.fillRange(0, 256, null);
+    (GetIt.I.get<SidechainProvider>() as _Sidechains).addChain(2, 'BitNames');
     await pumpTable(tester);
-    final tableHeight = tester.getSize(find.byType(SailTable)).height;
-    await tester.state<SailAppState>(find.byType(SailApp)).loadFontScale(2);
-    await tester.pumpAndSettle();
 
-    expect(tester.getSize(find.byType(SailTable)).height, tableHeight);
-    expect(tester.takeException(), isNull);
-  });
-
-  for (final ecash in [false, true]) {
-    for (final appScale in [1.5, 2.0]) {
-      for (final action in ['Start', 'Download', 'Stop']) {
-        testWidgets('the $action controls use OS 2x and app $appScale in the ${ecash ? 'eCash' : 'default'} theme', (
-          tester,
-        ) async {
-          tester.platformDispatcher.textScaleFactorTestValue = 2;
-          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-          setUpChain(_thunder(downloaded: action != 'Download'));
-          thunderRPC.setConnected(action == 'Stop');
-          if (ecash) {
-            GetIt.I.get<BitcoinConfProvider>().network = BitcoinNetwork.BITCOIN_NETWORK_ECASH;
-          }
-          await pumpTable(tester, ecash: ecash);
-          final tableHeight = tester.getSize(find.byType(SailTable)).height;
-          await tester.state<SailAppState>(find.byType(SailApp)).loadFontScale(appScale);
-          await tester.pumpAndSettle();
-
-          final scale = ecash ? 2 * appScale : 2.0;
-          for (final label in [action, 'Deposit']) {
-            final text = find.descendant(of: _button(label), matching: find.byType(Text)).last;
-            final paragraph = tester.renderObject<RenderParagraph>(text);
-            expect(MediaQuery.textScalerOf(tester.element(text)).scale(12), 24 * appScale);
-            expect(paragraph.textScaler.scale(12), 12 * scale);
-            expect(paragraph.getTransformTo(null).entry(0, 0), closeTo(1, 0.001), reason: label);
-            expect(
-              tester.getRect(_button(label)).bottom,
-              lessThanOrEqualTo(tester.getRect(find.byType(SailTable)).bottom),
-              reason: label,
-            );
-          }
-          expect(tester.getSize(find.byType(SailTable)).height, tableHeight + 40 * (scale - 2));
-          expect(tester.takeException(), isNull);
-        });
-      }
-    }
-  }
-
-  for (final ecash in [false, true]) {
-    testWidgets('the full table keeps its visible row and fraction, eCash: $ecash', (tester) async {
-      tester.platformDispatcher.textScaleFactorTestValue = ecash ? 2 : 1;
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      setUpChain(_thunder());
-      await pumpTable(tester, ecash: ecash);
-      tester.widget<SailToggle>(find.byType(SailToggle)).onChanged(false);
+    for (final header in ['Slot', 'Sidechain', 'Sidechain balance', 'Your balance']) {
+      await tester.tap(find.text(header));
       await tester.pumpAndSettle();
-      expect(tester.widget<SailTable>(find.byType(SailTable)).rowCount, 256);
-      final tableState = tester.state(find.byType(SailTable));
-      final scroll = find.descendant(
-        of: find.byType(SailTable),
-        matching: find.byWidgetPredicate(
-          (widget) => widget is Scrollable && widget.axisDirection == AxisDirection.down,
-        ),
-      );
 
-      (int, double) visibleRow() {
-        final top = tester.getRect(scroll).top;
-        final cells = find.byWidgetPredicate((widget) => widget is SailTableCell && int.tryParse(widget.value) != null);
-        for (final element in cells.evaluate()) {
-          final cell = find.byWidget(element.widget);
-          final rect = tester.getRect(cell);
-          if (rect.top <= top && rect.bottom > top) {
-            return (int.parse((element.widget as SailTableCell).value), (top - rect.top) / rect.height);
-          }
-        }
-        throw StateError('The first visible slot is absent.');
-      }
-
-      await tester.drag(scroll, const Offset(0, -400));
-      await tester.pumpAndSettle();
-      final before = visibleRow();
-      expect(before.$1, greaterThan(0));
-      expect(before.$2, greaterThan(0));
-      final app = tester.state<SailAppState>(find.byType(SailApp));
-      for (final scale in [2.0, 1.0]) {
-        await app.loadFontScale(scale);
-        await tester.pumpAndSettle();
-        final after = visibleRow();
-        expect(after.$1, before.$1, reason: 'The visible row changed from $before to $after.');
-        expect(after.$2, closeTo(before.$2, 0.001));
-        expect(tester.state(find.byType(SailTable)), same(tableState));
-        expect(tester.takeException(), isNull);
-      }
-    });
-  }
-
-  testWidgets('the theme change keeps full terminal text and the table state', (tester) async {
-    tester.platformDispatcher.textScaleFactorTestValue = 2;
-    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    setUpChain(_thunder());
-    await pumpTable(tester);
-    final app = tester.state<SailAppState>(find.byType(SailApp));
-    await app.loadFontScale(2);
-    await tester.pumpAndSettle();
-    final tableState = tester.state(find.byType(SailTable));
-    await app.loadStyle(SailThemeStyle.ecash);
-    await tester.pumpAndSettle();
-
-    expect(tester.state(find.byType(SailTable)), same(tableState));
-    for (final label in ['Start', 'Deposit']) {
-      final text = find.descendant(of: _button(label), matching: find.byType(Text)).last;
-      final paragraph = tester.renderObject<RenderParagraph>(text);
-      expect(paragraph.textScaler.scale(12), 48);
-      expect(paragraph.getTransformTo(null).entry(0, 0), closeTo(1, 0.001), reason: label);
+      expect(tester.getTopLeft(find.text('2')).dy, lessThan(tester.getTopLeft(find.text('9')).dy));
       expect(
-        tester.getRect(_button(label)).bottom,
-        lessThanOrEqualTo(tester.getRect(find.byType(SailTable)).bottom),
-        reason: label,
+        tester.widgetList<SailTableHeaderCell>(find.byType(SailTableHeaderCell)).any((cell) => cell.isSorted),
+        isFalse,
       );
     }
-    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('search and Add or remove sit in the card head', (tester) async {
+    setUpChain(_thunder());
+    await pumpTable(tester);
+
+    expect(tester.widget<SailButton>(_button('Add or remove')).variant, ButtonVariant.ghost);
+    final search = tester.getRect(find.byKey(const ValueKey('sidechains_search')));
+    final button = tester.getRect(_button('Add or remove'));
+    expect(button.left, greaterThan(search.right));
+    expect(button.bottom, lessThan(tester.getTopLeft(find.text('Slot')).dy));
   });
 
   testWidgets('the balance header names the wallet the sidechain holds', (tester) async {
@@ -1269,7 +1023,6 @@ void main() {
     expect(find.text('Main wallet'), findsNothing);
   });
 
-  // A sidechain that holds no BitWindow wallet names none in the header.
   testWidgets('a running sidechain with a wallet of its own names no wallet in the header', (tester) async {
     setUpChain(_thunder());
     walletReader.wallets = [_wallet('a', 'Main wallet')];
@@ -1282,7 +1035,6 @@ void main() {
     expect(find.text('Main wallet'), findsNothing);
   });
 
-  // A stopped sidechain adds no balance, so its old wallet must not name the column.
   testWidgets('a stopped sidechain does not name the balance column', (tester) async {
     setUpChain(_thunder());
     walletReader.wallets = [_wallet('a', 'Main wallet'), _wallet('b', 'Savings')];
@@ -1322,8 +1074,8 @@ void main() {
     await pumpTable(tester);
 
     final formatter = GetIt.I.get<FormatterProvider>();
-    expect(find.text(formatter.formatBTC(2.01999)), findsOneWidget);
-    expect(find.text(formatter.formatBTC(3.01999)), findsNothing);
+    expect(find.text(phoneHistoryAmount(201999000, BitcoinUnit.btc)), findsOneWidget);
+    expect(find.text(phoneHistoryAmount(301999000, BitcoinUnit.btc)), findsNothing);
     expect(_tooltip('Pending ${formatter.formatBTC(1.0)}'), findsOneWidget);
   });
 
@@ -1335,7 +1087,7 @@ void main() {
     await pumpTable(tester);
 
     final formatter = GetIt.I.get<FormatterProvider>();
-    expect(find.text(formatter.formatBTC(2.01999)), findsOneWidget);
+    expect(find.text(phoneHistoryAmount(201999000, BitcoinUnit.btc)), findsOneWidget);
     expect(_tooltip('Pending ${formatter.formatBTC(0.0)}'), findsNothing);
   });
 
@@ -1349,7 +1101,7 @@ void main() {
 
     Future<void> pin(int slot) => GetIt.I.get<ClientSettings>().setValue(PinnedSidechainsSetting(newValue: [slot]));
 
-    testWidgets('a pinned chain and a chain with a balance go above All slots', (tester) async {
+    testWidgets('a pinned chain and a chain with a balance go above Other slots', (tester) async {
       setUpChain(_thunder());
       addChains();
       walletReader.wallets = [_wallet('a', 'Main wallet')];
@@ -1360,14 +1112,12 @@ void main() {
       await pin(13);
       await pumpTable(tester);
 
-      expect(find.text('Pinned, or a balance in Main wallet'), findsOneWidget);
       expect(_top(tester, 'Your sidechains'), lessThan(_top(tester, 'Thunder')));
       expect(_top(tester, 'Thunder'), lessThan(_top(tester, 'Truthcoin')));
-      expect(_top(tester, 'Truthcoin'), lessThan(_top(tester, 'All slots')));
-      expect(_top(tester, 'All slots'), lessThan(_top(tester, 'BitNames')));
+      expect(_top(tester, 'Truthcoin'), lessThan(_top(tester, 'Other slots')));
+      expect(_top(tester, 'Other slots'), lessThan(_top(tester, 'BitNames')));
       expect(_top(tester, 'BitNames'), lessThan(_top(tester, 'RISCy')));
-      expect(_pin(tester, 13).pinned, isTrue);
-      expect(_pin(tester, 9).pinned, isFalse);
+      expect(_top(tester, 'RISCy'), lessThan(_top(tester, '252 empty slots')));
       expect(tester.takeException(), isNull);
     });
 
@@ -1377,29 +1127,27 @@ void main() {
       await pumpTable(tester);
 
       expect(find.text('Your sidechains'), findsNothing);
-      expect(find.text('All slots'), findsNothing);
+      expect(find.text('Other slots'), findsNothing);
       expect(_top(tester, 'BitNames'), lessThan(_top(tester, 'Thunder')));
     });
 
-    testWidgets('a click on the pin moves the chain to the top and saves the pin', (tester) async {
+    testWidgets('Pin to top moves the chain to the top and saves the pin, Unpin moves it back', (tester) async {
       setUpChain(_thunder());
       addChains();
       await pumpTable(tester);
 
-      await tester.tap(find.byWidget(_pin(tester, 13)));
-      await tester.pump(kDoubleTapTimeout);
-      await tester.pumpAndSettle();
+      await openRowMenu(tester, 'Truthcoin');
+      expect(find.text('Unpin'), findsNothing);
+      await pickMenuItem(tester, 'Pin to top');
 
-      expect(_pin(tester, 13).pinned, isTrue);
-      expect(_top(tester, 'Truthcoin'), lessThan(_top(tester, 'All slots')));
-      expect(_top(tester, 'All slots'), lessThan(_top(tester, 'BitNames')));
+      expect(_top(tester, 'Truthcoin'), lessThan(_top(tester, 'Other slots')));
+      expect(_top(tester, 'Other slots'), lessThan(_top(tester, 'BitNames')));
       expect((await GetIt.I.get<ClientSettings>().getValue(PinnedSidechainsSetting())).value, [13]);
 
-      await tester.tap(find.byWidget(_pin(tester, 13)));
-      await tester.pump(kDoubleTapTimeout);
-      await tester.pumpAndSettle();
+      await openRowMenu(tester, 'Truthcoin');
+      expect(find.text('Pin to top'), findsNothing);
+      await pickMenuItem(tester, 'Unpin');
 
-      expect(_pin(tester, 13).pinned, isFalse);
       expect(find.text('Your sidechains'), findsNothing);
       expect((await GetIt.I.get<ClientSettings>().getValue(PinnedSidechainsSetting())).value, isEmpty);
     });
@@ -1408,54 +1156,18 @@ void main() {
       setUpChain(_thunder());
       addChains();
       await pumpTable(tester);
-      await tester.tap(find.byWidget(_pin(tester, 3)));
-      await tester.pump(kDoubleTapTimeout);
-      await tester.pumpAndSettle();
+      await openRowMenu(tester, 'RISCy');
+      await pickMenuItem(tester, 'Pin to top');
 
       await tester.pumpWidget(const SizedBox());
       await pumpTable(tester);
 
-      expect(_pin(tester, 3).pinned, isTrue);
-      expect(_top(tester, 'RISCy'), lessThan(_top(tester, 'All slots')));
-    });
-
-    testWidgets('the row menu says Pin to top, and Unpin for a pinned chain', (tester) async {
-      setUpChain(_thunder());
-      addChains();
-      await pumpTable(tester);
-
-      await _rightClick(tester, find.text('Thunder'));
-      expect(find.text('Pin to top'), findsOneWidget);
-      expect(find.text('Unpin'), findsNothing);
-
-      await tester.tap(find.text('Pin to top'));
-      await tester.pumpAndSettle();
-      expect(_pin(tester, 9).pinned, isTrue);
-
-      await _rightClick(tester, find.text('Thunder'));
-      expect(find.text('Unpin'), findsOneWidget);
-      expect(find.text('Pin to top'), findsNothing);
+      expect(_top(tester, 'RISCy'), lessThan(_top(tester, 'Other slots')));
     });
   });
 }
 
-const double _pinWidth = 28;
-
-double _top(WidgetTester tester, String text) => tester.getTopLeft(find.text(text)).dy;
-
-SidechainPinButton _pin(WidgetTester tester, int slot) => tester.widget<SidechainPinButton>(
-  find.byWidgetPredicate((widget) => widget is SidechainPinButton && widget.slot == slot),
-);
-
-Future<void> _rightClick(WidgetTester tester, Finder finder) async {
-  final gesture = await tester.startGesture(
-    tester.getCenter(finder),
-    kind: PointerDeviceKind.mouse,
-    buttons: kSecondaryMouseButton,
-  );
-  await gesture.up();
-  await tester.pumpAndSettle();
-}
+double _top(WidgetTester tester, String text) => tester.getTopLeft(find.text(text).first).dy;
 
 Future<void> _captureTable(WidgetTester tester, String name) async {
   const directory = String.fromEnvironment('SIDECHAIN_TABLE_SCREEN_DIR');
@@ -1477,56 +1189,3 @@ Future<void> _captureTable(WidgetTester tester, String name) async {
 
 Finder _tooltip(String message) =>
     find.byWidgetPredicate((widget) => widget is SailTooltip && widget.message == message);
-
-Finder _cell(String value) => find.byWidgetPredicate((widget) => widget is SailTableCell && widget.value == value);
-
-double _textWidth(String text, {bool bold = false}) {
-  final painter = TextPainter(
-    text: TextSpan(
-      text: text,
-      style: SailStyleValues.thirteen.copyWith(fontWeight: bold ? SailStyleValues.boldWeight : null),
-    ),
-    textDirection: TextDirection.ltr,
-  )..layout();
-  return painter.width;
-}
-
-double _headerWidth(String name) => _textWidth(name, bold: true);
-
-void _expectOneUncutLine(WidgetTester tester, Finder cell, String text) {
-  for (final match in find.descendant(of: cell, matching: find.text(text)).evaluate()) {
-    final paragraph = match.renderObject! as RenderParagraph;
-    expect(paragraph.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: text.length)), hasLength(1));
-    expect(paragraph.didExceedMaxLines, isFalse);
-  }
-}
-
-void _expectFullName(WidgetTester tester, String name) {
-  final cell = _cell(name);
-  final text = find.descendant(of: cell, matching: find.text(name));
-  final paragraph = tester.renderObject<RenderParagraph>(text);
-  final painter = TextPainter(
-    text: paragraph.text,
-    textDirection: paragraph.textDirection,
-    textScaler: paragraph.textScaler,
-    maxLines: 1,
-  )..layout();
-  final width = painter.width;
-  painter.dispose();
-  final boxes = paragraph.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: name.length));
-  expect(boxes, hasLength(1));
-  expect(paragraph.didExceedMaxLines, isFalse);
-  expect(boxes.single.right - boxes.single.left, closeTo(width, 1));
-  expect(paragraph.overflow, isNot(TextOverflow.ellipsis));
-  expect(paragraph.getTransformTo(null).entry(0, 0), closeTo(1, 0.001));
-  final widget = tester.widget<SailTableCell>(cell);
-  final row = widget.child! as Row;
-  final dot = tester.getSize(find.descendant(of: cell, matching: find.byWidget(row.children.first))).width;
-  final gap = tester.getSize(find.descendant(of: cell, matching: find.byWidget(row.children[1]))).width;
-  expect(dot, 8);
-  expect(gap, 8);
-  final bounds = tester.getRect(cell);
-  final textBounds = tester.getRect(text);
-  expect(textBounds.left, closeTo(bounds.left + widget.padding.left + dot + gap, 0.01));
-  expect(textBounds.left + boxes.single.right, lessThanOrEqualTo(bounds.right - widget.padding.right + 0.01));
-}

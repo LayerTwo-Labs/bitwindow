@@ -66,8 +66,8 @@ class _ConverterWindowState extends State<ConverterWindow> {
     return QtPage(
       child: SingleChildScrollView(
         child: SailColumn(
-          spacing: SailStyleValues.padding16,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: SailStyleValues.padding12,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SailCard(
               title: 'Input',
@@ -124,43 +124,38 @@ class _ConverterWindowState extends State<ConverterWindow> {
                 ],
               ),
             ),
-            _section('Encodings', _result.encodings),
-            _section('Hashes', _result.hashes),
-            _section('Keys & Addresses', _result.keys),
+            if (_groups.isNotEmpty)
+              SailCard(
+                child: SailColumn(
+                  spacing: SailStyleValues.padding12,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final (title, rows) in _groups) ...[
+                      SailDetailHeading(title),
+                      SailDetailGroup(fill: SailDetailFill.canvas, children: rows.map(_row).toList()),
+                    ],
+                  ],
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _section(String title, List<ConverterRow> rows) {
-    if (rows.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return SailCard(
-      title: title,
-      child: SailColumn(
-        spacing: SailStyleValues.padding08,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: rows.map(_row).toList(),
-      ),
-    );
-  }
+  List<(String, List<ConverterRow>)> get _groups => [
+    ('Encodings', _result.encodings),
+    ('Hashes', _result.hashes),
+    ('Keys & Addresses', _result.keys),
+  ].where((group) => group.$2.isNotEmpty).toList();
 
   Widget _row(ConverterRow row) {
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(width: 200, child: SailText.secondary13(row.label)),
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SailText.primary13(row.value, monospace: true),
-          ),
-        ),
-        CopyButton(text: row.value),
-      ],
+    return SailDetailLine(
+      wrap: true,
+      label: row.label,
+      value: row.value,
+      trailing: CopyButton(text: row.value),
     );
   }
 }

@@ -41,10 +41,10 @@ const Color _dTextHint = Color(0xff828282);
 const Color _dAccentSubtle = Color(0xff311D06);
 const Color _dDestructiveText = Color(0xffFD7979);
 
-/// Card surface: raised fill, hairline border, large radius.
+/// Card surface: raised fill, hairline border, 8 px radius.
 BoxDecoration bitwindowV2Panel(SailColor colors) => BoxDecoration(
   color: colors.backgroundSecondary,
-  borderRadius: const BorderRadius.all(Radius.circular(20)),
+  borderRadius: const BorderRadius.all(Radius.circular(8)),
   border: Border.all(color: colors.border, width: 1.0),
 );
 
@@ -152,9 +152,9 @@ SailColor bitwindowV2DarkTheme(Color accent) => SailColor(
 );
 
 const SailChrome bitwindowV2Chrome = SailChrome(
-  radius: BorderRadius.all(Radius.circular(12)),
-  radiusSmall: BorderRadius.all(Radius.circular(8)),
-  radiusLarge: BorderRadius.all(Radius.circular(20)),
+  radius: BorderRadius.all(Radius.circular(6)),
+  radiusSmall: BorderRadius.all(Radius.circular(4)),
+  radiusLarge: BorderRadius.all(Radius.circular(8)),
   bevel: null,
   fontFamily: null,
   buttonsRaised: false,

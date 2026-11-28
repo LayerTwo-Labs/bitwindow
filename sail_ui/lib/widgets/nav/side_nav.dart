@@ -22,10 +22,12 @@ class SideNav extends StatelessWidget {
     return Container(
       width: width,
       padding: const EdgeInsets.all(SailStyleValues.padding08),
-      decoration: BoxDecoration(
-        color: theme.colors.background,
-        borderRadius: context.sailTheme.chrome.radius,
-      ),
+      decoration: theme.isBitwindowV2
+          ? theme.chrome.panel(theme.colors)
+          : BoxDecoration(
+              color: theme.colors.background,
+              borderRadius: context.sailTheme.chrome.radius,
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -69,6 +71,8 @@ class _SideNavItemState extends State<_SideNavItem> {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    final v2 = theme.isBitwindowV2;
+    final highlight = v2 ? theme.colors.formField : theme.colors.backgroundSecondary;
 
     return MouseRegion(
       onEnter: (_) => setState(() => isHovered = true),
@@ -77,15 +81,17 @@ class _SideNavItemState extends State<_SideNavItem> {
         onTap: widget.onTap,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(
-            horizontal: SailStyleValues.padding16,
-            vertical: SailStyleValues.padding10,
+          padding: EdgeInsets.symmetric(
+            horizontal: v2 ? SailStyleValues.padding10 : SailStyleValues.padding16,
+            vertical: v2 ? SailStyleValues.padding08 : SailStyleValues.padding10,
           ),
           decoration: BoxDecoration(
-            color: widget.isSelected || isHovered ? theme.colors.backgroundSecondary : Colors.transparent,
+            color: widget.isSelected || isHovered ? highlight : Colors.transparent,
             borderRadius: context.sailTheme.chrome.radius,
           ),
-          child: SailText.primary13(widget.label, bold: true),
+          child: v2 && !widget.isSelected
+              ? SailText.primary13(widget.label, color: theme.colors.textSecondary)
+              : SailText.primary13(widget.label, bold: true),
         ),
       ),
     );

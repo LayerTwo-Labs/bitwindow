@@ -1,9 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:bitwindow/pages/welcome/multisig_config_step.dart';
-import 'package:bitwindow/routing/router.dart';
 import 'package:bitwindow/pages/welcome/wallet_creation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 @RoutePage()
@@ -128,24 +126,8 @@ class _CreateAnotherWalletPageState extends State<CreateAnotherWalletPage> {
         backgroundColor: theme.colors.background,
         appBar: SailAppBar.build(
           context,
-          // Always provide a leading so the material AppBar doesn't auto-imply its
-          // own oversized back button (which gets clipped by toolbarHeight).
-          leading: _restoringBackup
-              ? const SizedBox.shrink()
-              : SailButton(
-                  variant: ButtonVariant.icon,
-                  icon: SailSVGAsset.chevronLeft,
-                  onPressed: () async {
-                    if (_currentStep > 0) {
-                      _previousStep();
-                    } else {
-                      await GetIt.I.get<AppRouter>().maybePop();
-                    }
-                  },
-                  iconHeight: 14,
-                  iconWidth: 14,
-                  small: true,
-                ),
+          // "← Back" in the bottom bar goes back.
+          leading: const SizedBox.shrink(),
           automaticallyImplyLeading: false,
         ),
         body: SafeArea(

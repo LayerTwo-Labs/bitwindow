@@ -113,6 +113,9 @@ class ZSideModule extends SidechainModule {
   Map<String, HomepageWidgetInfo> get widgetCatalog => ZSideWidgetCatalog.getCatalogMap();
 
   @override
+  bool get homepageCardsRight => true;
+
+  @override
   String get homeTabLabel => 'Home';
 
   @override

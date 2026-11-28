@@ -25,7 +25,7 @@ class SailDropdownButton<T> extends StatefulWidget {
     required this.onChanged,
     required this.value,
     this.hint,
-    this.icon = const Icon(Icons.expand_more, size: 16),
+    this.icon,
     this.large = false,
     this.enabled = true,
     this.openOnHover = false,

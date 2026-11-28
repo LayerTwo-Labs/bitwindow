@@ -11,8 +11,6 @@ import 'package:get_it/get_it.dart';
 import 'package:intl/intl.dart';
 import 'package:sail_ui/sail_ui.dart';
 
-const double actionsColumnWidth = 96;
-
 class AddressBookViewModel extends BaseViewModel {
   final AddressBookProvider _provider = GetIt.I.get<AddressBookProvider>();
   final TextEditingController labelController = TextEditingController();
@@ -55,7 +53,11 @@ class AddressBookViewModel extends BaseViewModel {
       setErrorForObject('create', null);
       notifyListeners();
 
-      await _provider.createEntry(labelController.text, addressController.text, direction);
+      await _provider.createEntry(
+        labelController.text,
+        addressController.text,
+        direction,
+      );
       labelController.clear();
       addressController.clear();
     } catch (e) {
@@ -156,7 +158,10 @@ class AddressBookViewModel extends BaseViewModel {
 
       final imported = summary.importedAddresses + summary.importedTransactions + summary.importedOutputs;
       if (context.mounted) {
-        showSailToast(context, 'Imported $imported labels, skipped ${summary.skipped}');
+        showSailToast(
+          context,
+          'Imported $imported labels, skipped ${summary.skipped}',
+        );
       }
     } catch (e) {
       setErrorForObject('labels', 'Import failed: $e');
@@ -179,9 +184,7 @@ class AddressBookViewModel extends BaseViewModel {
 }
 
 class AddressBookTable extends StatefulWidget {
-  const AddressBookTable({
-    super.key,
-  });
+  const AddressBookTable({super.key});
 
   @override
   State<AddressBookTable> createState() => _AddressBookTableState();
@@ -193,28 +196,14 @@ class _AddressBookTableState extends State<AddressBookTable> {
     return ViewModelBuilder<AddressBookViewModel>.reactive(
       viewModelBuilder: () => AddressBookViewModel(),
       builder: (context, model, child) {
-        final content = AddressBookContent(
-          viewModel: model,
-        );
+        final content = AddressBookContent(viewModel: model);
 
         return SailPadding(
-          padding: EdgeInsets.only(
-            top: SailStyleValues.padding08,
-            left: SailStyleValues.padding08,
-            right: SailStyleValues.padding08,
-          ),
+          padding: const EdgeInsets.all(SailStyleValues.padding12),
           child: InlineTabBar(
             tabs: [
-              TabItem(
-                label: 'Send',
-                icon: SailSVGAsset.iconSend,
-                child: content,
-              ),
-              TabItem(
-                label: 'Receive',
-                icon: SailSVGAsset.iconReceive,
-                child: content,
-              ),
+              TabItem(label: 'Send', child: content),
+              TabItem(label: 'Receive', child: content),
             ],
             initialIndex: model.direction == Direction.DIRECTION_SEND ? 0 : 1,
             onTabChanged: (index) {
@@ -229,38 +218,27 @@ class _AddressBookTableState extends State<AddressBookTable> {
 }
 
 class SendTableView extends ViewModelWidget<AddressBookViewModel> {
-  const SendTableView({
-    super.key,
-  });
+  const SendTableView({super.key});
 
   @override
   Widget build(BuildContext context, AddressBookViewModel viewModel) {
-    return AddressBookContent(
-      viewModel: viewModel,
-    );
+    return AddressBookContent(viewModel: viewModel);
   }
 }
 
 class ReceiveTableView extends ViewModelWidget<AddressBookViewModel> {
-  const ReceiveTableView({
-    super.key,
-  });
+  const ReceiveTableView({super.key});
 
   @override
   Widget build(BuildContext context, AddressBookViewModel viewModel) {
-    return AddressBookContent(
-      viewModel: viewModel,
-    );
+    return AddressBookContent(viewModel: viewModel);
   }
 }
 
 class AddressBookContent extends StatefulWidget {
   final AddressBookViewModel viewModel;
 
-  const AddressBookContent({
-    super.key,
-    required this.viewModel,
-  });
+  const AddressBookContent({super.key, required this.viewModel});
 
   @override
   State<AddressBookContent> createState() => _AddressBookContentState();
@@ -291,7 +269,9 @@ class _AddressBookContentState extends State<AddressBookContent> {
   List<AddressBookEntry> get _sortedEntries {
     final entries = [...widget.viewModel.entries];
     String key(AddressBookEntry e) => sortColumn == 'address' ? e.address : e.label;
-    entries.sort((a, b) => sortAscending ? key(a).compareTo(key(b)) : key(b).compareTo(key(a)));
+    entries.sort(
+      (a, b) => sortAscending ? key(a).compareTo(key(b)) : key(b).compareTo(key(a)),
+    );
     return entries;
   }
 
@@ -308,15 +288,17 @@ class _AddressBookContentState extends State<AddressBookContent> {
             label: 'Add Address',
             onPressed: () async => unawaited(_showCreateDialog(context)),
           ),
-        SailButton(
-          label: 'Import',
-          variant: ButtonVariant.outline,
-          onPressed: () async => widget.viewModel.importLabels(context),
-        ),
-        SailButton(
-          label: 'Export',
-          variant: ButtonVariant.outline,
-          onPressed: () async => widget.viewModel.exportLabels(context),
+        SailRowMenuButton(
+          items: () => [
+            SailMenuItem(
+              onSelected: () => unawaited(widget.viewModel.importLabels(context)),
+              child: SailText.primary12('Import'),
+            ),
+            SailMenuItem(
+              onSelected: () => unawaited(widget.viewModel.exportLabels(context)),
+              child: SailText.primary12('Export'),
+            ),
+          ],
         ),
       ],
     );
@@ -338,8 +320,7 @@ class _AddressBookContentState extends State<AddressBookContent> {
                 Flexible(
                   child: _PhoneAddressList(
                     entries: entries,
-                    onEdit: (entry) => _showEditDialog(context, entry),
-                    onDelete: (entry) => _showDeleteConfirmation(context, entry),
+                    menuItems: (entry) => _rowMenu(context, entry),
                   ),
                 ),
               ],
@@ -349,11 +330,6 @@ class _AddressBookContentState extends State<AddressBookContent> {
               headerBuilder: (context) => [
                 const SailTableHeaderCell(name: 'Label'),
                 const SailTableHeaderCell(name: 'Address'),
-                const SailTableHeaderCell(
-                  name: 'Actions',
-                  alignment: Alignment.centerRight,
-                  sortable: false,
-                ),
               ],
               rowBuilder: (context, row, selected) {
                 final entry = entries[row];
@@ -361,7 +337,6 @@ class _AddressBookContentState extends State<AddressBookContent> {
                 return [
                   SailTableCell(
                     value: entry.label == '' ? '(no label)' : entry.label,
-                    monospace: true,
                     italic: entry.label == '',
                   ),
                   SailTableCell(
@@ -369,39 +344,14 @@ class _AddressBookContentState extends State<AddressBookContent> {
                     copyValue: entry.address,
                     monospace: true,
                   ),
-                  SailTableCell(
-                    value: 'Actions',
-                    width: actionsColumnWidth,
-                    alignment: Alignment.centerRight,
-                    child: SailRow(
-                      spacing: SailStyleValues.padding04,
-                      children: [
-                        SailTooltip(
-                          message: 'Edit label',
-                          child: SailButton(
-                            variant: ButtonVariant.icon,
-                            icon: SailSVGAsset.iconPen,
-                            onPressed: () async => unawaited(_showEditDialog(context, entry)),
-                            insideTable: true,
-                          ),
-                        ),
-                        SailTooltip(
-                          message: 'Delete address',
-                          child: SailButton(
-                            variant: ButtonVariant.icon,
-                            icon: SailSVGAsset.iconDelete,
-                            onPressed: () async => unawaited(_showDeleteConfirmation(context, entry)),
-                            insideTable: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ];
               },
               rowCount: entries.length,
               emptyPlaceholder: 'No addresses yet',
-              drawGrid: true,
+              contextMenuItems: (rowId) => _rowMenu(
+                context,
+                entries.firstWhere((e) => e.id.toString() == rowId),
+              ),
               sortColumnIndex: ['label', 'address'].indexOf(sortColumn),
               sortAscending: sortAscending,
               onSort: (columnIndex, ascending) => setState(() {
@@ -412,14 +362,28 @@ class _AddressBookContentState extends State<AddressBookContent> {
     );
   }
 
-  Future<void> _showEditDialog(BuildContext context, AddressBookEntry entry) async {
+  List<SailMenuEntity> _rowMenu(BuildContext context, AddressBookEntry entry) => [
+    SailMenuItem(
+      onSelected: () => unawaited(_showEditDialog(context, entry)),
+      child: SailText.primary12('Edit Label'),
+    ),
+    SailMenuItem(
+      onSelected: () => unawaited(_showDeleteConfirmation(context, entry)),
+      child: SailText.primary12(
+        'Delete',
+        color: context.sailTheme.colors.error,
+      ),
+    ),
+  ];
+
+  Future<void> _showEditDialog(
+    BuildContext context,
+    AddressBookEntry entry,
+  ) async {
     widget.viewModel.prepareEdit(entry);
     await showThemedDialog(
       context: context,
-      builder: (context) => _EditDialog(
-        viewModel: widget.viewModel,
-        entry: entry,
-      ),
+      builder: (context) => _EditDialog(viewModel: widget.viewModel, entry: entry),
     );
     if (mounted) {
       widget.viewModel.clearError('edit');
@@ -436,7 +400,10 @@ class _AddressBookContentState extends State<AddressBookContent> {
     }
   }
 
-  Future<void> _showDeleteConfirmation(BuildContext context, AddressBookEntry entry) async {
+  Future<void> _showDeleteConfirmation(
+    BuildContext context,
+    AddressBookEntry entry,
+  ) async {
     await showThemedDialog(
       context: context,
       builder: (context) => ListenableBuilder(
@@ -446,6 +413,7 @@ class _AddressBookContentState extends State<AddressBookContent> {
           child: SailCard(
             title: 'Delete Address',
             subtitle: '',
+            withCloseButton: true,
             error: widget.viewModel.error('delete'),
             child: SailColumn(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -455,27 +423,21 @@ class _AddressBookContentState extends State<AddressBookContent> {
                 SailText.secondary13(
                   'Are you sure you want to delete "${entry.label.isEmpty ? entry.address : entry.label}"?',
                 ),
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    SailButton(
-                      label: 'Delete',
-                      onPressed: () async {
-                        try {
-                          await widget.viewModel.deleteEntry(entry.id);
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                          }
-                        } catch (e) {
-                          // Error is handled by the model
+                SailDialogActionButton(
+                  action: SailDialogAction(
+                    label: 'Delete',
+                    variant: ButtonVariant.destructive,
+                    onPressed: () async {
+                      try {
+                        await widget.viewModel.deleteEntry(entry.id);
+                        if (context.mounted) {
+                          Navigator.pop(context);
                         }
-                      },
-                    ),
-                    SailButton(
-                      label: 'Cancel',
-                      onPressed: () async => Navigator.pop(context),
-                    ),
-                  ],
+                      } catch (e) {
+                        // Error is handled by the model
+                      }
+                    },
+                  ),
                 ),
               ],
             ),
@@ -491,17 +453,18 @@ class _AddressBookContentState extends State<AddressBookContent> {
 
 class _PhoneAddressList extends StatelessWidget {
   final List<AddressBookEntry> entries;
-  final Future<void> Function(AddressBookEntry entry) onEdit;
-  final Future<void> Function(AddressBookEntry entry) onDelete;
+  final List<SailMenuEntity> Function(AddressBookEntry entry) menuItems;
 
-  const _PhoneAddressList({required this.entries, required this.onEdit, required this.onDelete});
+  const _PhoneAddressList({required this.entries, required this.menuItems});
 
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
     if (entries.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding16),
+        padding: const EdgeInsets.symmetric(
+          vertical: SailStyleValues.padding16,
+        ),
         child: SailText.secondary13('No addresses yet'),
       );
     }
@@ -526,21 +489,16 @@ class _PhoneAddressList extends StatelessWidget {
                       italic: entry.label == '',
                     ),
                     const SizedBox(height: 2),
-                    SailText.secondary12(entry.address, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    SailText.secondary12(
+                      entry.address,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),
               const SizedBox(width: SailStyleValues.padding08),
-              SailButton(
-                variant: ButtonVariant.icon,
-                icon: SailSVGAsset.iconPen,
-                onPressed: () async => unawaited(onEdit(entry)),
-              ),
-              SailButton(
-                variant: ButtonVariant.icon,
-                icon: SailSVGAsset.iconDelete,
-                onPressed: () async => unawaited(onDelete(entry)),
-              ),
+              SailRowMenuButton(filled: false, items: () => menuItems(entry)),
             ],
           ),
         );
@@ -552,9 +510,7 @@ class _PhoneAddressList extends StatelessWidget {
 class _CreateDialog extends StatelessWidget {
   final AddressBookViewModel viewModel;
 
-  const _CreateDialog({
-    required this.viewModel,
-  });
+  const _CreateDialog({required this.viewModel});
 
   @override
   Widget build(BuildContext context) {
@@ -584,19 +540,22 @@ class _CreateDialog extends StatelessWidget {
                 hintText: 'Enter a label for this address',
                 size: TextFieldSize.small,
               ),
-              SailButton(
-                label: 'Create',
-                onPressed: () async {
-                  try {
-                    await viewModel.createEntry();
-                    if (context.mounted) {
-                      Navigator.pop(context);
+              SizedBox(
+                width: double.infinity,
+                child: SailButton(
+                  label: 'Create',
+                  onPressed: () async {
+                    try {
+                      await viewModel.createEntry();
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      // Error is handled by the model
                     }
-                  } catch (e) {
-                    // Error is handled by the model
-                  }
-                },
-                disabled: viewModel.labelController.text.isEmpty || viewModel.addressController.text.isEmpty,
+                  },
+                  disabled: viewModel.labelController.text.isEmpty || viewModel.addressController.text.isEmpty,
+                ),
               ),
             ],
           ),
@@ -610,10 +569,7 @@ class _EditDialog extends StatelessWidget {
   final AddressBookViewModel viewModel;
   final AddressBookEntry entry;
 
-  const _EditDialog({
-    required this.viewModel,
-    required this.entry,
-  });
+  const _EditDialog({required this.viewModel, required this.entry});
 
   @override
   Widget build(BuildContext context) {
@@ -637,19 +593,22 @@ class _EditDialog extends StatelessWidget {
                 hintText: 'Enter a new label',
                 size: TextFieldSize.small,
               ),
-              SailButton(
-                label: 'Update',
-                onPressed: () async {
-                  try {
-                    await viewModel.updateLabel(entry.id);
-                    if (context.mounted) {
-                      Navigator.pop(context);
+              SizedBox(
+                width: double.infinity,
+                child: SailButton(
+                  label: 'Update',
+                  onPressed: () async {
+                    try {
+                      await viewModel.updateLabel(entry.id);
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      // Error is handled by the model
                     }
-                  } catch (e) {
-                    // Error is handled by the model
-                  }
-                },
-                disabled: viewModel.editLabelController.text.isEmpty,
+                  },
+                  disabled: viewModel.editLabelController.text.isEmpty,
+                ),
               ),
             ],
           ),

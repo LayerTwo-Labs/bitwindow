@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -25,48 +26,14 @@ class CoinShiftWidgetCatalog {
         viewModelBuilder: () => OverviewTabViewModel(),
         builder: (context, model, child) {
           final formatter = GetIt.I<FormatterProvider>();
-
           return ListenableBuilder(
             listenable: formatter,
-            builder: (context, child) => SizedBox(
-              child: SailCard(
-                title: 'Balance',
-                child: SailStyleValues.phoneLayout(context)
-                    ? SidechainBalanceRows(
-                        total: formatter.formatBTC(model.totalBalance),
-                        available: formatter.formatBTC(model.balance),
-                        pending: formatter.formatBTC(model.pendingBalance),
-                        loading: LoadingDetails(
-                          enabled: !model.balanceInitialized,
-                          description: 'Waiting for coinshift to boot...',
-                        ),
-                      )
-                    : SailColumn(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SailSkeletonizer(
-                            enabled: !model.balanceInitialized,
-                            description: 'Waiting for coinshift to boot...',
-                            child: SailText.primary24(
-                              formatter.formatBTC(model.totalBalance),
-                              bold: true,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          BalanceRow(
-                            label: 'Available',
-                            amount: model.balance,
-                            loading: !model.balanceInitialized,
-                          ),
-                          BalanceRow(
-                            label: 'Pending',
-                            amount: model.pendingBalance,
-                            loading: !model.balanceInitialized,
-                          ),
-                        ],
-                      ),
-              ),
+            builder: (context, child) => SidechainBalanceCard(
+              total: formatter.formatBTC(model.totalBalance),
+              available: formatter.formatBTC(model.balance),
+              pending: formatter.formatBTC(model.pendingBalance),
+              loading: !model.balanceInitialized,
+              loadingDescription: 'Waiting for coinshift to boot...',
             ),
           );
         },
@@ -79,37 +46,7 @@ class CoinShiftWidgetCatalog {
       sizes: [WidgetSize.half],
       builder: (_) => ViewModelBuilder<OverviewTabViewModel>.reactive(
         viewModelBuilder: () => OverviewTabViewModel(),
-        builder: (context, model, child) {
-          return SizedBox(
-            height: 150,
-            child: SailCard(
-              title: 'Receive on Sidechain',
-              error: model.receiveError,
-              child: SailColumn(
-                spacing: SailStyleValues.padding04,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailColumn(
-                    mainAxisSize: MainAxisSize.max,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SailTextField(
-                        loading: LoadingDetails(
-                          enabled: model.receiveAddress == null,
-                          description: 'Waiting for coinshift to boot...',
-                        ),
-                        controller: TextEditingController(text: model.receiveAddress),
-                        hintText: 'Generating deposit address...',
-                        readOnly: true,
-                        suffixWidget: CopyButton(text: model.receiveAddress ?? ''),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+        builder: (context, model, child) => SidechainReceiveCard(model: model),
       ),
     ),
 
@@ -119,36 +56,7 @@ class CoinShiftWidgetCatalog {
       sizes: [WidgetSize.half],
       builder: (_) => ViewModelBuilder<OverviewTabViewModel>.reactive(
         viewModelBuilder: () => OverviewTabViewModel(),
-        builder: (context, model, child) {
-          return SizedBox(
-            height: 300,
-            child: SailCard(
-              title: 'Send on Sidechain',
-              error: model.sendError,
-              child: SailColumn(
-                spacing: SailStyleValues.padding16,
-                children: [
-                  SailText.secondary15('Pay to'),
-                  SailTextField(
-                    controller: model.bitcoinAddressController,
-                    hintText: sendAddressHint(model.sidechainName),
-                  ),
-                  NumericField(
-                    label: 'Amount',
-                    controller: model.bitcoinAmountController,
-                    hintText: '0.00',
-                  ),
-                  SailButton(
-                    label: 'Send',
-                    disabled: !model.canSend,
-                    onPressed: () async => await model.executeSendOnSidechain(context),
-                    loading: model.isSending,
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+        builder: (context, model, child) => SidechainSendCard(model: model),
       ),
     ),
 
@@ -175,7 +83,7 @@ class CoinShiftWidgetCatalog {
       sizes: [WidgetSize.full],
       builder: (_) => const SizedBox(
         height: 400,
-        child: UTXOsTab(),
+        child: UTXOsTab(showStatus: false),
       ),
     ),
 
@@ -234,39 +142,62 @@ class _ActiveSwapsWidget extends StatelessWidget {
                   listenable: formatter,
                   builder: (context, child) => ListView.builder(
                     itemCount: model.activeSwaps.length,
-                    itemBuilder: (context, index) {
-                      final swap = model.activeSwaps[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: SailRow(
-                          spacing: SailStyleValues.padding12,
-                          children: [
-                            SwapStatusBadge(state: swap.state),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SailText.primary13(
-                                    '${swap.direction == SwapDirection.l2ToL1 ? 'L2→L1' : 'L1→L2'} - ${formatter.formatSats(swap.l2Amount)}',
-                                  ),
-                                  SailText.secondary12('Chain: ${swap.parentChain.label}'),
-                                ],
-                              ),
-                            ),
-                            if (swap.state.isReadyToClaim)
-                              SailButton(
-                                label: 'Claim',
-                                small: true,
-                                onPressed: () async => await model.claimSwap(context, swap),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
+                    itemBuilder: (context, index) => _ActiveSwapRow(
+                      swap: model.activeSwaps[index],
+                      formatter: formatter,
+                      onClaim: () => model.claimSwap(context, model.activeSwaps[index]),
+                    ),
                   ),
                 ),
         );
       },
+    );
+  }
+}
+
+/// One active swap: direction and amount over the chain, its status, and a "…" with Claim.
+class _ActiveSwapRow extends StatelessWidget {
+  final CoinShiftSwap swap;
+  final FormatterProvider formatter;
+  final Future<void> Function() onClaim;
+
+  const _ActiveSwapRow({required this.swap, required this.formatter, required this.onClaim});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding08, vertical: SailStyleValues.padding08),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: theme.colors.divider)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SailText.primary13(
+                  '${swap.direction == SwapDirection.l2ToL1 ? 'L2→L1' : 'L1→L2'} - ${formatter.formatSats(swap.l2Amount)}',
+                ),
+                SailText.secondary12('Chain: ${swap.parentChain.label}'),
+              ],
+            ),
+          ),
+          SwapStatusBadge(state: swap.state),
+          const SizedBox(width: SailStyleValues.padding16),
+          SailRowMenuButton(
+            items: () => [
+              if (swap.state.isReadyToClaim)
+                SailMenuItem(onSelected: () => onClaim(), child: SailText.primary12('Claim')),
+              SailMenuItem(
+                onSelected: () => Clipboard.setData(ClipboardData(text: swap.idHex)),
+                child: SailText.primary12('Copy swap ID'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -293,228 +224,6 @@ class _ActiveSwapsViewModel extends BaseViewModel {
   @override
   void dispose() {
     _swapProvider.removeListener(notifyListeners);
-    super.dispose();
-  }
-}
-
-class BalanceRow extends StatelessWidget {
-  final String label;
-  final double amount;
-  final bool loading;
-
-  const BalanceRow({
-    super.key,
-    required this.label,
-    required this.amount,
-    this.loading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final formatter = GetIt.I<FormatterProvider>();
-
-    return ListenableBuilder(
-      listenable: formatter,
-      builder: (context, child) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SailText.secondary15(label),
-            SailSkeletonizer(
-              enabled: loading,
-              description: 'Waiting for coinshift to boot...',
-              child: SailText.secondary15(formatter.formatBTC(amount)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class UTXOsTab extends StatelessWidget {
-  const UTXOsTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        return ViewModelBuilder<LatestUTXOsViewModel>.reactive(
-          viewModelBuilder: () => LatestUTXOsViewModel(),
-          builder: (context, model, child) {
-            return UTXOTable(entries: model.entries, model: model);
-          },
-        );
-      },
-    );
-  }
-}
-
-class UTXOTable extends StatefulWidget {
-  final List<SidechainUTXO> entries;
-  final LatestUTXOsViewModel model;
-
-  const UTXOTable({super.key, required this.entries, required this.model});
-
-  @override
-  State<UTXOTable> createState() => _UTXOTableState();
-}
-
-class _UTXOTableState extends State<UTXOTable> {
-  String sortColumn = 'output';
-  bool sortAscending = true;
-
-  @override
-  void initState() {
-    super.initState();
-    sortEntries();
-  }
-
-  void onSort(String column) {
-    setState(() {
-      if (sortColumn == column) {
-        sortAscending = !sortAscending;
-      } else {
-        sortColumn = column;
-        sortAscending = true;
-      }
-      sortEntries();
-    });
-  }
-
-  void sortEntries() {
-    widget.entries.sort((a, b) {
-      dynamic aValue, bValue;
-      switch (sortColumn) {
-        case 'output':
-          aValue = a.outpoint;
-          bValue = b.outpoint;
-          break;
-        case 'address':
-          aValue = a.address;
-          bValue = b.address;
-          break;
-        case 'value':
-          aValue = a.valueSats;
-          bValue = b.valueSats;
-          break;
-        case 'type':
-          aValue = a.type;
-          bValue = b.type;
-          break;
-        default:
-          aValue = a.valueSats;
-          bValue = b.valueSats;
-      }
-      return sortAscending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final formatter = GetIt.I<FormatterProvider>();
-
-    return SailCard(
-      title: 'Your UTXOs',
-      bottomPadding: false,
-      child: Column(
-        children: [
-          Expanded(
-            child: SailSkeletonizer(
-              description: 'Waiting for enforcer to start and wallet to sync..',
-              enabled: widget.model.loading,
-              child: ListenableBuilder(
-                listenable: formatter,
-                builder: (context, child) => SailTable(
-                  shrinkWrap: true,
-                  getRowId: (index) => widget.entries[index].outpoint.split(':').first,
-                  headerBuilder: (context) => [
-                    SailTableHeaderCell(name: 'Type', onSort: () => onSort('type')),
-                    SailTableHeaderCell(name: 'Output', onSort: () => onSort('output')),
-                    SailTableHeaderCell(name: 'Address', onSort: () => onSort('address')),
-                    SailTableHeaderCell(name: 'Amount', onSort: () => onSort('value')),
-                  ],
-                  rowBuilder: (context, row, selected) {
-                    final utxo = widget.entries[row];
-                    final formattedAmount = formatter
-                        .formatSats(utxo.valueSats.toInt())
-                        .replaceAll(' ${formatter.currentUnit.symbol}', '');
-                    return [
-                      SailTableCell(value: utxo.type.name, monospace: true),
-                      SailTableCell(
-                        value: '${utxo.outpoint.substring(0, 6)}..:${utxo.outpoint.split(':').last}',
-                        copyValue: utxo.outpoint,
-                      ),
-                      SailTableCell(value: utxo.address, monospace: true),
-                      SailTableCell(value: formattedAmount, monospace: true),
-                    ];
-                  },
-                  rowCount: widget.entries.length,
-                  emptyPlaceholder: 'No UTXOs in wallet',
-                  drawGrid: true,
-                  sortColumnIndex: ['type', 'output', 'address', 'value'].indexOf(sortColumn),
-                  sortAscending: sortAscending,
-                  onSort: (columnIndex, ascending) {
-                    onSort(['type', 'output', 'address', 'value'][columnIndex]);
-                  },
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class LatestUTXOsViewModel extends BaseViewModel with ChangeTrackingMixin {
-  final SidechainTransactionsProvider _txProvider = GetIt.I<SidechainTransactionsProvider>();
-  final EnforcerRPC _enforcerRPC = GetIt.I<EnforcerRPC>();
-
-  List<SidechainUTXO> get entries {
-    if (loading) {
-      return [
-        SidechainUTXO(
-          outpoint: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2:0',
-          address: '4L1ZvhVLvRUFJkXEn1yen5Z663Nf',
-          valueSats: 1500000000,
-          type: OutpointType.regular,
-        ),
-        SidechainUTXO(
-          outpoint: 'b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3:1',
-          address: '5M2AwMwMsRVGKyFo2zfo6A774Oh',
-          valueSats: 2500000000,
-          type: OutpointType.regular,
-        ),
-        SidechainUTXO(
-          outpoint: 'c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4:2',
-          address: '6N3BxNxNtSWHLzGp3agp7B885Pi',
-          valueSats: 500000000,
-          type: OutpointType.regular,
-        ),
-      ];
-    }
-
-    return _txProvider.utxos.toList();
-  }
-
-  LatestUTXOsViewModel() {
-    initChangeTracker();
-    _txProvider.addListener(_onChange);
-  }
-
-  void _onChange() {
-    track('entries', entries);
-    track('loading', loading);
-    notifyIfChanged();
-  }
-
-  bool get loading => _enforcerRPC.initializingBinary;
-
-  @override
-  void dispose() {
-    _txProvider.removeListener(_onChange);
     super.dispose();
   }
 }

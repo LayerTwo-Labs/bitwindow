@@ -140,11 +140,11 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('on the desktop the stats stay cards', (tester) async {
+    testWidgets('on the desktop the stats share one strip', (tester) async {
       SailStyleValues.phoneLayoutOverride = false;
       await pump(tester, 1200);
 
-      expect(find.byType(SailCardStats), findsNWidgets(4));
+      expect(find.byKey(const Key('FireplaceStrip')), findsOneWidget);
       expect(find.byType(SailStatList), findsNothing);
     });
   });
@@ -194,6 +194,21 @@ void main() {
       expect(find.byType(StatItem), findsNWidgets(6));
       expect(tester.getRect(find.text('Block Height')).left, greaterThan(tester.getRect(find.text('Peers')).right));
     });
+
+    testWidgets('in v2 a hairline sits under each row of stats', (tester) async {
+      SailStyleValues.phoneLayoutOverride = false;
+      await pump(tester);
+
+      final hairlines = find.descendant(
+        of: find.byType(NetworkStatsContent),
+        matching: find.byWidgetPredicate(
+          (w) => w is DecoratedBox && w.decoration is BoxDecoration && (w.decoration as BoxDecoration).border != null,
+        ),
+      );
+      expect(hairlines, findsNWidgets(3));
+      final rows = tester.widgetList<DecoratedBox>(hairlines).map((w) => (w.decoration as BoxDecoration).border!);
+      expect(rows.every((border) => border.top == BorderSide.none && border.bottom.width == 1), isTrue);
+    });
   });
 
   group('Hacker Coin News', () {
@@ -218,7 +233,7 @@ void main() {
       expect(find.text('Topic'), findsNothing);
       const shortDate = 'Oct 31';
       expect(cellWidth(tester, shortDate), closeTo(72, 1));
-      expect(cellWidth(tester, '1 min'), closeTo(88, 1));
+      expect(cellWidth(tester, '1 min'), closeTo(89, 1));
       expect(cellWidth(tester, news.first.headline), closeTo(390 - 72 - 88, 2));
       expect(tester.getSize(find.text(shortDate).first).height, tester.getSize(find.text('1 min').first).height);
       expect(tester.takeException(), isNull);
@@ -306,37 +321,69 @@ void main() {
   });
 
   group('full-size coin news', () {
-    for (final id in ['coin_news', 'hacker_coin_news']) {
-      testWidgets('on a phone $id stacks its two cards', (tester) async {
-        SailStyleValues.phoneLayoutOverride = true;
-        await loadBundledFonts();
-        final info = HomepageWidgetCatalog.getCatalogMap()[id]!;
-        expect(info.fullOnPhones, isTrue);
-        await tester.pumpSailPage(
-          SizedBox(width: 390, child: SingleChildScrollView(child: info.builder(WidgetSize.full))),
-        );
-        await tester.pump();
+    testWidgets('on a phone coin_news stacks its two cards, each with its topic', (tester) async {
+      SailStyleValues.phoneLayoutOverride = true;
+      await loadBundledFonts();
+      final info = HomepageWidgetCatalog.getCatalogMap()['coin_news']!;
+      expect(info.fullOnPhones, isTrue);
+      await tester.pumpSailPage(
+        SizedBox(width: 390, child: SingleChildScrollView(child: info.builder(WidgetSize.full))),
+      );
+      await tester.pump();
 
-        final cards = find.byType(SailCard);
-        expect(cards, findsNWidgets(2));
-        final first = tester.getRect(cards.first);
-        final second = tester.getRect(cards.last);
-        expect(second.top, greaterThan(first.bottom));
-        expect(second.left, first.left);
-        expect(first.width, closeTo(390, 1));
-        expect(tester.takeException(), isNull);
-      });
+      final cards = find.byType(SailCard);
+      expect(cards, findsNWidgets(2));
+      final first = tester.getRect(cards.first);
+      final second = tester.getRect(cards.last);
+      expect(second.top, greaterThan(first.bottom));
+      expect(second.left, first.left);
+      expect(first.width, closeTo(390, 1));
+      for (final card in [cards.first, cards.last]) {
+        expect(find.descendant(of: card, matching: find.byType(SailDropdownButton<String>)), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    });
 
-      testWidgets('on the desktop $id keeps its two cards side by side', (tester) async {
-        SailStyleValues.phoneLayoutOverride = false;
-        final info = HomepageWidgetCatalog.getCatalogMap()[id]!;
-        await tester.pumpSailPage(SizedBox(width: 1100, child: info.builder(WidgetSize.full)));
-        await tester.pump();
+    testWidgets('on the desktop coin_news keeps its two cards side by side', (tester) async {
+      SailStyleValues.phoneLayoutOverride = false;
+      final info = HomepageWidgetCatalog.getCatalogMap()['coin_news']!;
+      await tester.pumpSailPage(SizedBox(width: 1100, child: info.builder(WidgetSize.full)));
+      await tester.pump();
 
-        final cards = find.byType(SailCard);
-        expect(tester.getRect(cards.last).left, greaterThan(tester.getRect(cards.first).right));
-      });
-    }
+      final cards = find.byType(SailCard);
+      expect(cards, findsNWidgets(2));
+      expect(tester.getRect(cards.last).left, greaterThan(tester.getRect(cards.first).right));
+    });
+
+    testWidgets('on a phone hacker_coin_news stacks its two cards', (tester) async {
+      SailStyleValues.phoneLayoutOverride = true;
+      await loadBundledFonts();
+      final info = HomepageWidgetCatalog.getCatalogMap()['hacker_coin_news']!;
+      expect(info.fullOnPhones, isTrue);
+      await tester.pumpSailPage(
+        SizedBox(width: 390, child: SingleChildScrollView(child: info.builder(WidgetSize.full))),
+      );
+      await tester.pump();
+
+      final cards = find.byType(SailCard);
+      expect(cards, findsNWidgets(2));
+      final first = tester.getRect(cards.first);
+      final second = tester.getRect(cards.last);
+      expect(second.top, greaterThan(first.bottom));
+      expect(second.left, first.left);
+      expect(first.width, closeTo(390, 1));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('on the desktop hacker_coin_news keeps its two cards side by side', (tester) async {
+      SailStyleValues.phoneLayoutOverride = false;
+      final info = HomepageWidgetCatalog.getCatalogMap()['hacker_coin_news']!;
+      await tester.pumpSailPage(SizedBox(width: 1100, child: info.builder(WidgetSize.full)));
+      await tester.pump();
+
+      final cards = find.byType(SailCard);
+      expect(tester.getRect(cards.last).left, greaterThan(tester.getRect(cards.first).right));
+    });
   });
 }
 

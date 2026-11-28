@@ -17,30 +17,10 @@ class SwapsTabPage extends StatelessWidget {
       builder: (context, model, child) {
         return QtPage(
           child: SailColumn(
-            spacing: SailStyleValues.padding16,
+            spacing: SailStyleValues.padding12,
             children: [
-              // Header with stats
               SwapStats(model: model),
-
-              // Main content
-              Expanded(
-                child: SailRow(
-                  spacing: SailStyleValues.padding16,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left side: Create swap form
-                    const SizedBox(
-                      width: 400,
-                      child: SwapCard(),
-                    ),
-
-                    // Right side: Swap list
-                    const Expanded(
-                      child: SwapList(),
-                    ),
-                  ],
-                ),
-              ),
+              const Expanded(child: SwapList()),
             ],
           ),
         );
@@ -57,38 +37,47 @@ class SwapStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
     final items = [
       _StatItem(
         label: 'Total Swaps',
         value: model.totalSwaps.toString(),
-        color: theme.colors.text,
       ),
       _StatItem(
         label: 'Active',
         value: model.activeSwaps.toString(),
-        color: theme.colors.info,
       ),
       _StatItem(
         label: 'Ready to Claim',
         value: model.claimableSwaps.toString(),
-        color: theme.colors.success,
       ),
       _StatItem(
         label: 'Completed',
         value: model.completedSwaps.toString(),
-        color: theme.colors.textSecondary,
       ),
     ];
 
+    final create = SailButton(label: 'Create Swap', onPressed: () => showCreateSwapDialog(context));
     if (SailStyleValues.phoneLayout(context)) {
       return SailCard(
-        child: Wrap(spacing: SailStyleValues.padding16, runSpacing: SailStyleValues.padding08, children: items),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(spacing: SailStyleValues.padding16, runSpacing: SailStyleValues.padding08, children: items),
+            const SizedBox(height: SailStyleValues.padding12),
+            create,
+          ],
+        ),
       );
     }
 
-    return SailCard(
-      child: SailRow(spacing: SailStyleValues.padding32, children: items),
+    return SailStrip(
+      stats: [
+        SailStat(label: 'Total Swaps', value: model.totalSwaps.toString()),
+        SailStat(label: 'Active', value: model.activeSwaps.toString()),
+        SailStat(label: 'Ready to Claim', value: model.claimableSwaps.toString()),
+        SailStat(label: 'Completed', value: model.completedSwaps.toString()),
+      ],
+      actions: [create],
     );
   }
 }
@@ -96,26 +85,15 @@ class SwapStats extends StatelessWidget {
 class _StatItem extends StatelessWidget {
   final String label;
   final String value;
-  final Color color;
 
-  const _StatItem({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+  const _StatItem({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return SailColumn(
       spacing: SailStyleValues.padding04,
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SailText.secondary12(label),
-        if (SailStyleValues.phoneLayout(context))
-          SailText.primary15(value, bold: true)
-        else
-          SailText.primary24(value, bold: true, color: color),
-      ],
+      children: [SailText.secondary12(label), SailText.primary15(value, bold: true)],
     );
   }
 }

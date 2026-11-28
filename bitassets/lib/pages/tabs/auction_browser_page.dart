@@ -5,13 +5,12 @@ import 'package:bitassets/providers/favorites_provider.dart';
 import 'package:bitassets/providers/price_alert_provider.dart';
 import 'package:bitassets/routing/router.dart';
 import 'package:bitassets/settings/price_alerts_settings.dart';
+import 'package:bitassets/widgets/auction_parts.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
-
-const _statusColumnWidth = 90.0;
-const _actionsColumnWidth = 140.0;
 
 @RoutePage()
 class AuctionBrowserTabPage extends StatelessWidget {
@@ -23,183 +22,15 @@ class AuctionBrowserTabPage extends StatelessWidget {
       child: ViewModelBuilder<AuctionBrowserViewModel>.reactive(
         viewModelBuilder: () => AuctionBrowserViewModel(),
         builder: (context, model, child) {
-          final theme = SailTheme.of(context);
-
-          return SailColumn(
-            spacing: SailStyleValues.padding16,
-            mainAxisSize: MainAxisSize.max,
+          final selected = model.selectedAuction;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header with search and filters
-              SailRow(
-                spacing: SailStyleValues.padding16,
-                children: [
-                  // Search
-                  Expanded(
-                    flex: 2,
-                    child: SailTextField(
-                      hintText: 'Search by auction ID or asset...',
-                      controller: model.searchController,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.only(left: 12, right: 8),
-                        child: SailSVG.icon(SailSVGAsset.iconSearch, width: 16),
-                      ),
-                    ),
-                  ),
-
-                  // Sort dropdown
-                  SizedBox(
-                    width: 180,
-                    child: SailDropdownButton<AuctionSort>(
-                      value: model.currentSort,
-                      items: [
-                        SailDropdownItem(value: AuctionSort.startBlockDesc, label: 'Newest First'),
-                        SailDropdownItem(value: AuctionSort.startBlockAsc, label: 'Oldest First'),
-                        SailDropdownItem(value: AuctionSort.priceDesc, label: 'Highest Price'),
-                        SailDropdownItem(value: AuctionSort.priceAsc, label: 'Lowest Price'),
-                        SailDropdownItem(value: AuctionSort.amountDesc, label: 'Largest Amount'),
-                        SailDropdownItem(value: AuctionSort.amountAsc, label: 'Smallest Amount'),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) model.setSort(value);
-                      },
-                    ),
-                  ),
-
-                  // Refresh button
-                  SailButton(
-                    label: 'Refresh',
-                    onPressed: () async => model.refresh(),
-                  ),
-                ],
-              ),
-
-              // Filter tabs
-              SailRow(
-                spacing: SailStyleValues.padding08,
-                children: [
-                  _FilterTab(
-                    label: 'All',
-                    count: model.allAuctions.length,
-                    isActive: model.currentFilter == AuctionFilter.all,
-                    onTap: () => model.setFilter(AuctionFilter.all),
-                  ),
-                  _FilterTab(
-                    label: 'Active',
-                    count: model.activeCount,
-                    isActive: model.currentFilter == AuctionFilter.active,
-                    onTap: () => model.setFilter(AuctionFilter.active),
-                    color: theme.colors.success,
-                  ),
-                  _FilterTab(
-                    label: 'Upcoming',
-                    count: model.upcomingCount,
-                    isActive: model.currentFilter == AuctionFilter.upcoming,
-                    onTap: () => model.setFilter(AuctionFilter.upcoming),
-                    color: theme.colors.info,
-                  ),
-                  _FilterTab(
-                    label: 'Ended',
-                    count: model.endedCount,
-                    isActive: model.currentFilter == AuctionFilter.ended,
-                    onTap: () => model.setFilter(AuctionFilter.ended),
-                    color: theme.colors.textSecondary,
-                  ),
-                  const Spacer(),
-                  SailText.secondary12('Current Block: ${model.currentBlock}'),
-                ],
-              ),
-
-              // Auction table
-              Expanded(
-                child: SailCard(
-                  title: 'Dutch Auctions',
-                  subtitle: 'Browse and bid on asset auctions',
-                  child: model.isLoading
-                      ? const Center(child: SailCircularProgressIndicator())
-                      : model.filteredAuctions.isEmpty
-                      ? Center(
-                          child: SailColumn(
-                            spacing: SailStyleValues.padding16,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SailSVG.icon(SailSVGAsset.iconCalendar, width: 48),
-                              const SizedBox(height: 8),
-                              SailText.secondary13(
-                                model.searchController.text.isNotEmpty
-                                    ? 'No auctions match your search'
-                                    : model.currentFilter == AuctionFilter.all
-                                    ? 'No auctions yet'
-                                    : 'No ${model.currentFilter.name} auctions',
-                              ),
-                              if (model.currentFilter == AuctionFilter.all && model.searchController.text.isEmpty)
-                                SailText.secondary12('Create a Dutch auction to sell your assets'),
-                              if (model.currentFilter == AuctionFilter.all && model.searchController.text.isEmpty)
-                                SailButton(
-                                  label: 'Create Auction',
-                                  onPressed: () async {
-                                    await AutoRouter.of(context).navigate(const DutchAuctionTabRoute());
-                                  },
-                                ),
-                            ],
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            // Table header
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: SailStyleValues.padding16,
-                                vertical: SailStyleValues.padding08,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colors.backgroundSecondary,
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const SizedBox(width: 28), // Star column
-                                  SizedBox(width: _statusColumnWidth, child: SailText.secondary12('Status')),
-                                  Expanded(flex: 2, child: SailText.secondary12('Auction ID')),
-                                  Expanded(child: SailText.secondary12('Base Asset')),
-                                  Expanded(child: SailText.secondary12('Quote Asset')),
-                                  Expanded(child: SailText.secondary12('Amount', textAlign: TextAlign.right)),
-                                  Expanded(child: SailText.secondary12('Price Range', textAlign: TextAlign.right)),
-                                  Expanded(child: SailText.secondary12('Current', textAlign: TextAlign.right)),
-                                  Expanded(child: SailText.secondary12('Duration')),
-                                  const SizedBox(width: _actionsColumnWidth),
-                                ],
-                              ),
-                            ),
-                            // Table rows
-                            Expanded(
-                              child: ListView.builder(
-                                itemCount: model.filteredAuctions.length,
-                                itemBuilder: (context, index) {
-                                  final auction = model.filteredAuctions[index];
-                                  final status = model.getAuctionStatus(auction);
-                                  return _AuctionRow(
-                                    auction: auction,
-                                    currentBlock: model.currentBlock,
-                                    status: status,
-                                    currentPrice: model.getCurrentPrice(auction),
-                                    baseAssetName: model.getAssetName(auction.baseAsset),
-                                    quoteAssetName: model.getAssetName(auction.quoteAsset),
-                                    isFavorite: model.isFavorite(auction.baseAsset),
-                                    hasAlert: model.hasAlertForAuction(auction.id),
-                                    onCopyId: () => model.copyToClipboard(auction.id, context),
-                                    onToggleFavorite: () => model.toggleFavorite(auction.baseAsset),
-                                    onSetAlert: status == 'Active'
-                                        ? () => model.showAlertDialog(context, auction)
-                                        : null,
-                                    onBid: status == 'Active' ? () => model.showBidDialog(context, auction) : null,
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
+              Expanded(child: _AuctionsCard(model: model)),
+              if (selected != null && !SailStyleValues.phoneLayout(context)) ...[
+                const SizedBox(width: SailStyleValues.padding12),
+                AuctionPanel(model: model, auction: selected),
+              ],
             ],
           );
         },
@@ -208,309 +39,309 @@ class AuctionBrowserTabPage extends StatelessWidget {
   }
 }
 
-class _FilterTab extends StatelessWidget {
-  final String label;
-  final int count;
-  final bool isActive;
-  final VoidCallback onTap;
-  final Color? color;
+class _AuctionsCard extends StatelessWidget {
+  final AuctionBrowserViewModel model;
 
-  const _FilterTab({
-    required this.label,
-    required this.count,
-    required this.isActive,
-    required this.onTap,
-    this.color,
-  });
+  const _AuctionsCard({required this.model});
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final tabColor = color ?? theme.colors.primary;
-
-    return SailTappable(
-      onTap: () async => onTap(),
-      borderRadius: SailStyleValues.borderRadius,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? tabColor.withValues(alpha: 0.1) : SailColorScheme.transparent,
-          borderRadius: SailStyleValues.borderRadius,
-          border: Border.all(
-            color: isActive ? tabColor : theme.colors.divider,
-          ),
-        ),
-        child: SailRow(
-          spacing: SailStyleValues.padding08,
-          children: [
-            SailText.primary13(
-              label,
-              color: isActive ? tabColor : null,
-              bold: isActive,
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: isActive ? tabColor : theme.colors.backgroundSecondary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: SailText.secondary12(
-                count.toString(),
-                color: isActive ? theme.colors.primaryButtonText : null,
-              ),
-            ),
-          ],
-        ),
+    final phone = SailStyleValues.phoneLayout(context);
+    final filters = [AuctionFilter.all, AuctionFilter.active, AuctionFilter.upcoming, AuctionFilter.ended];
+    final search = SailTextField(
+      hintText: 'Search by auction ID or asset...',
+      controller: model.searchController,
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: 12, right: 8),
+        child: SailSVG.icon(SailSVGAsset.iconSearch, width: 16),
       ),
     );
-  }
-}
-
-class _AuctionRow extends StatelessWidget {
-  final DutchAuctionEntry auction;
-  final int currentBlock;
-  final String status;
-  final int currentPrice;
-  final String baseAssetName;
-  final String quoteAssetName;
-  final bool isFavorite;
-  final bool hasAlert;
-  final VoidCallback onCopyId;
-  final VoidCallback onToggleFavorite;
-  final VoidCallback? onSetAlert;
-  final VoidCallback? onBid;
-
-  const _AuctionRow({
-    required this.auction,
-    required this.currentBlock,
-    required this.status,
-    required this.currentPrice,
-    required this.baseAssetName,
-    required this.quoteAssetName,
-    required this.isFavorite,
-    required this.hasAlert,
-    required this.onCopyId,
-    required this.onToggleFavorite,
-    this.onSetAlert,
-    this.onBid,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final statusColor = _getStatusColor(status, theme);
-    final progress = _calculateProgress();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: SailStyleValues.padding16,
-        vertical: SailStyleValues.padding12,
+    final sort = SizedBox(
+      width: 150,
+      child: SailDropdownButton<AuctionSort>(
+        value: model.currentSort,
+        items: [
+          SailDropdownItem(value: AuctionSort.startBlockDesc, label: 'Newest First'),
+          SailDropdownItem(value: AuctionSort.startBlockAsc, label: 'Oldest First'),
+          SailDropdownItem(value: AuctionSort.priceDesc, label: 'Highest Price'),
+          SailDropdownItem(value: AuctionSort.priceAsc, label: 'Lowest Price'),
+          SailDropdownItem(value: AuctionSort.amountDesc, label: 'Largest Amount'),
+          SailDropdownItem(value: AuctionSort.amountAsc, label: 'Smallest Amount'),
+        ],
+        onChanged: (value) {
+          if (value != null) model.setSort(value);
+        },
       ),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: theme.colors.divider, width: 1),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Favorite star
-          SailTooltip(
-            message: isFavorite ? 'Remove from favorites' : 'Add to favorites',
-            child: SailTappable(
-              onTap: () async => onToggleFavorite(),
-              borderRadius: SailStyleValues.borderRadiusSmall,
-              child: Padding(
-                padding: const EdgeInsets.all(5),
-                child: SailSVG.fromAsset(
-                  SailSVGAsset.star,
-                  color: isFavorite ? theme.colors.orange : theme.colors.textSecondary,
-                  width: 18,
-                ),
-              ),
+    );
+    final refresh = SailIconBoxButton(
+      icon: SailSVGAsset.refreshCw,
+      tooltip: 'Refresh',
+      size: sailV2FieldHeight,
+      onPressed: () async => model.refresh(),
+    );
+
+    return SailCard(
+      title: 'Dutch Auctions',
+      subtitle: 'Browse and bid on asset auctions',
+      widgetHeaderEnd: phone
+          ? null
+          : SailRow(
+              spacing: SailStyleValues.padding08,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: 260, child: search),
+                sort,
+                refresh,
+              ],
             ),
-          ),
-
-          // Status
-          SizedBox(
-            width: _statusColumnWidth,
-            child: _StatusBadge(status: status, color: statusColor),
-          ),
-
-          // Auction ID
-          Expanded(
-            flex: 2,
-            child: SailRow(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (phone) ...[
+            SailRow(
               spacing: SailStyleValues.padding08,
               children: [
-                Expanded(
-                  child: SailText.primary13(
-                    '${auction.id.substring(0, 16)}...',
-                    monospace: true,
+                Expanded(child: search),
+                refresh,
+              ],
+            ),
+            const SizedBox(height: SailStyleValues.padding08),
+            Align(alignment: Alignment.centerLeft, child: sort),
+            const SizedBox(height: SailStyleValues.padding08),
+          ],
+          Row(
+            children: [
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SailSegments(
+                    labels: [for (final filter in filters) '${_filterLabel(filter)} ${model.countFor(filter)}'],
+                    activeIndex: filters.indexOf(model.currentFilter),
+                    onSelect: (index) => model.setFilter(filters[index]),
                   ),
                 ),
-                SailTooltip(
-                  message: 'Copy ID',
-                  child: SailButton(
-                    variant: ButtonVariant.icon,
-                    icon: SailSVGAsset.iconCopy,
-                    iconWidth: 14,
-                    onPressed: () async => onCopyId(),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const Spacer(),
+              const SizedBox(width: SailStyleValues.padding12),
+              SailText.secondary12('Current Block: ${model.currentBlock}'),
+            ],
           ),
-
-          // Base asset
-          Expanded(
-            child: SailText.primary13(baseAssetName),
-          ),
-
-          // Quote asset
-          Expanded(
-            child: SailText.primary13(quoteAssetName),
-          ),
-
-          // Amount
-          Expanded(
-            child: SailText.primary13(
-              _formatAmount(auction.baseAmount),
-              textAlign: TextAlign.right,
-              monospace: true,
-            ),
-          ),
-
-          // Price range
-          Expanded(
-            child: SailText.secondary12(
-              '${_formatAmount(auction.finalPrice)} - ${_formatAmount(auction.initialPrice)}',
-              textAlign: TextAlign.right,
-              monospace: true,
-            ),
-          ),
-
-          // Current price
-          Expanded(
-            child: SailText.primary13(
-              status == 'Upcoming' ? '—' : _formatAmount(currentPrice),
-              textAlign: TextAlign.right,
-              monospace: true,
-              bold: true,
-            ),
-          ),
-
-          // Duration / Progress
-          Expanded(
-            child: SailColumn(
-              spacing: 4,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SailText.secondary12('${auction.duration} blocks'),
-                if (status == 'Active')
-                  ProgressBar(
-                    current: progress,
-                    goal: 1,
-                    small: true,
-                    hideProgressInside: true,
-                    color: statusColor,
-                  ),
-              ],
-            ),
-          ),
-
-          // Actions
-          SizedBox(
-            width: _actionsColumnWidth,
-            child: SailRow(
-              spacing: 4,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // Alert button
-                if (onSetAlert != null)
-                  SailTooltip(
-                    message: hasAlert ? 'Edit price alert' : 'Set price alert',
-                    child: SailTappable(
-                      onTap: () async => onSetAlert!(),
-                      borderRadius: SailStyleValues.borderRadiusSmall,
-                      child: Padding(
-                        padding: const EdgeInsets.all(5),
-                        child: SailSVG.fromAsset(
-                          hasAlert ? SailSVGAsset.bell : SailSVGAsset.bellOff,
-                          color: hasAlert ? theme.colors.orange : theme.colors.textSecondary,
-                          width: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                // Bid button
-                if (onBid != null)
-                  SailButton(
-                    label: 'Bid',
-                    small: true,
-                    onPressed: () async => onBid!(),
-                  )
-                else if (status == 'Ended')
-                  SailText.secondary12('Ended')
-                else
-                  SailText.secondary12('Not started'),
-              ],
-            ),
-          ),
+          const SizedBox(height: SailStyleValues.padding08),
+          Expanded(child: _AuctionsTable(model: model)),
         ],
       ),
     );
   }
-
-  Color _getStatusColor(String status, SailThemeData theme) {
-    switch (status) {
-      case 'Active':
-        return theme.colors.success;
-      case 'Upcoming':
-        return theme.colors.info;
-      case 'Ended':
-        return theme.colors.textSecondary;
-      default:
-        return theme.colors.textSecondary;
-    }
-  }
-
-  double _calculateProgress() {
-    if (status != 'Active') return 0;
-    final elapsed = currentBlock - auction.startBlock;
-    return (elapsed / auction.duration).clamp(0.0, 1.0);
-  }
-
-  String _formatAmount(int amount) {
-    if (amount >= 100000000) {
-      return '${(amount / 100000000).toStringAsFixed(4)} ${activeTicker.symbol}';
-    } else if (amount >= 1000000) {
-      return '${(amount / 1000000).toStringAsFixed(2)}M';
-    } else if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}k';
-    }
-    return amount.toString();
-  }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final String status;
-  final Color color;
+class _AuctionsTable extends StatelessWidget {
+  final AuctionBrowserViewModel model;
 
-  const _StatusBadge({required this.status, required this.color});
+  const _AuctionsTable({required this.model});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: SailText.secondary12(
-        status,
-        color: color,
-        bold: true,
+    final theme = SailTheme.of(context);
+    if (model.isLoading) {
+      return const Center(child: SailCircularProgressIndicator());
+    }
+    final auctions = model.filteredAuctions;
+    if (auctions.isEmpty) {
+      final searching = model.searchController.text.isNotEmpty;
+      final all = model.currentFilter == AuctionFilter.all;
+      return Center(
+        child: SailColumn(
+          spacing: SailStyleValues.padding08,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radiusSmall),
+              child: SailSVG.icon(SailSVGAsset.iconCalendar, width: 16),
+            ),
+            SailText.primary13(
+              searching
+                  ? 'No auctions match your search'
+                  : all
+                  ? 'No auctions yet'
+                  : 'No ${model.currentFilter.name} auctions',
+              bold: true,
+            ),
+            if (all && !searching) ...[
+              SailText.secondary12('Create a Dutch auction to sell your assets'),
+              SailButton(
+                label: 'Create Auction',
+                onPressed: () async {
+                  await AutoRouter.of(context).navigate(const DutchAuctionTabRoute());
+                },
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return SailTable(
+      getRowId: (index) => auctions[index].id,
+      selectedRowId: model.selectedId,
+      onSelectedRow: (rowId) {
+        final auction = auctions.firstWhereOrNull((a) => a.id == rowId);
+        if (auction == null) {
+          return;
+        }
+        if (SailStyleValues.phoneLayout(context)) {
+          if (model.getAuctionStatus(auction) == 'Active') {
+            model.showBidDialog(context, auction);
+          }
+          return;
+        }
+        model.select(auction.id);
+      },
+      headerBuilder: (context) => const [
+        SailTableHeaderCell(name: '', sortable: false),
+        SailTableHeaderCell(name: 'Status'),
+        SailTableHeaderCell(name: 'Auction ID'),
+        SailTableHeaderCell(name: 'Base Asset'),
+        SailTableHeaderCell(name: 'Quote Asset'),
+        SailTableHeaderCell(name: 'Amount', alignment: Alignment.centerRight),
+        SailTableHeaderCell(name: 'Price Range', alignment: Alignment.centerRight),
+        SailTableHeaderCell(name: 'Current', alignment: Alignment.centerRight),
+        SailTableHeaderCell(name: 'Duration'),
+      ],
+      rowBuilder: (context, row, selected) {
+        final auction = auctions[row];
+        final status = model.getAuctionStatus(auction);
+        final favorite = model.isFavorite(auction.baseAsset);
+        return [
+          SailTableCell(
+            value: '',
+            width: 40,
+            child: SailSVG.fromAsset(
+              SailSVGAsset.star,
+              color: favorite ? theme.colors.orange : theme.colors.textSecondary,
+              width: 14,
+            ),
+          ),
+          SailTableCell(
+            value: auctionStatusCellValue(status),
+            child: AuctionStatusLabel(status: status),
+          ),
+          SailTableCell(value: '${auction.id.substring(0, 16)}...', monospace: true),
+          SailTableCell(value: model.getAssetName(auction.baseAsset)),
+          SailTableCell(value: model.getAssetName(auction.quoteAsset)),
+          SailTableCell(value: formatAuctionAmount(auction.baseAmount), alignment: Alignment.centerRight),
+          SailTableCell(
+            value: '${formatAuctionAmount(auction.finalPrice)} - ${formatAuctionAmount(auction.initialPrice)}',
+            alignment: Alignment.centerRight,
+          ),
+          SailTableCell(
+            value: status == 'Upcoming' ? '—' : formatAuctionAmount(model.getCurrentPrice(auction)),
+            alignment: Alignment.centerRight,
+          ),
+          SailTableCell(
+            value: '${auction.duration} blocks',
+            secondaryValue: switch (status) {
+              'Upcoming' => 'Not started',
+              'Ended' => 'Ended',
+              _ => null,
+            },
+          ),
+        ];
+      },
+      contextMenuItems: (rowId) {
+        final auction = auctions.firstWhereOrNull((a) => a.id == rowId);
+        if (auction == null) return [];
+        return model.menuItems(context, auction);
+      },
+      rowCount: auctions.length,
+      drawGrid: true,
+    );
+  }
+}
+
+String _filterLabel(AuctionFilter filter) => switch (filter) {
+  AuctionFilter.all => 'All',
+  AuctionFilter.active => 'Active',
+  AuctionFilter.upcoming => 'Upcoming',
+  AuctionFilter.ended => 'Ended',
+};
+
+/// An amount as 50.0k, 1.20M, or in whole coins from one coin up.
+String formatAuctionAmount(int amount) {
+  if (amount >= 100000000) {
+    return '${(amount / 100000000).toStringAsFixed(4)} ${activeTicker.symbol}';
+  } else if (amount >= 1000000) {
+    return '${(amount / 1000000).toStringAsFixed(2)}M';
+  } else if (amount >= 1000) {
+    return '${(amount / 1000).toStringAsFixed(1)}k';
+  }
+  return amount.toString();
+}
+
+/// The 380 px panel of one auction: its price now, status, progress, Bid and its fields.
+class AuctionPanel extends StatelessWidget {
+  final AuctionBrowserViewModel model;
+  final DutchAuctionEntry auction;
+
+  const AuctionPanel({super.key, required this.model, required this.auction});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final status = model.getAuctionStatus(auction);
+    final current = status == 'Upcoming' ? '—' : formatAuctionAmount(model.getCurrentPrice(auction));
+    final range = '${formatAuctionAmount(auction.finalPrice)} - ${formatAuctionAmount(auction.initialPrice)}';
+
+    return SailSidePanel(
+      key: ValueKey('auction_panel_${auction.id}'),
+      title: '${auction.id.substring(0, 16)}...',
+      menuItems: () => model.menuItems(context, auction),
+      onClose: () async => model.select(null),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PanelKeyValue(value: current, caption: 'Current'),
+          const SizedBox(height: SailStyleValues.padding12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SailStatusPill(label: status, tone: auctionStatusTone(status)),
+          ),
+          const SizedBox(height: SailStyleValues.padding12),
+          Row(
+            children: [
+              Expanded(child: SailText.primary15('Duration')),
+              SailText.primary15('${auction.duration} blocks', color: theme.colors.textSecondary),
+            ],
+          ),
+          const SizedBox(height: SailStyleValues.padding08),
+          ProgressBar(
+            current: model.progressOf(auction),
+            goal: 1,
+            small: true,
+            hideProgressInside: true,
+            color: theme.colors.primary,
+          ),
+          const SizedBox(height: SailStyleValues.padding16),
+          SailButton(
+            label: 'Bid',
+            disabled: status != 'Active',
+            onPressed: () async => model.showBidDialog(context, auction),
+          ),
+          const SizedBox(height: SailStyleValues.padding20),
+          SailText.primary13('Details', bold: true),
+          const SizedBox(height: SailStyleValues.padding08),
+          SailDetailGroup(
+            children: [
+              SailDetailLine(label: 'Auction ID', value: '${auction.id.substring(0, 16)}...'),
+              SailDetailLine(label: 'Base Asset', value: model.getAssetName(auction.baseAsset)),
+              SailDetailLine(label: 'Quote Asset', value: model.getAssetName(auction.quoteAsset)),
+              SailDetailLine(label: 'Amount', value: formatAuctionAmount(auction.baseAmount)),
+              SailDetailLine(label: 'Price Range', value: range),
+              SailDetailLine(label: 'Current', value: current),
+              SailDetailLine(label: 'Duration', value: '${auction.duration} blocks'),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -567,6 +398,50 @@ class AuctionBrowserViewModel extends BaseViewModel {
   int get upcomingCount => allAuctions.where((a) => getAuctionStatus(a) == 'Upcoming').length;
   int get endedCount => allAuctions.where((a) => getAuctionStatus(a) == 'Ended').length;
 
+  int countFor(AuctionFilter filter) => switch (filter) {
+    AuctionFilter.all => allAuctions.length,
+    AuctionFilter.active => activeCount,
+    AuctionFilter.upcoming => upcomingCount,
+    AuctionFilter.ended => endedCount,
+  };
+
+  /// The auction the side panel shows. Null hides the panel.
+  String? selectedId;
+
+  DutchAuctionEntry? get selectedAuction => allAuctions.where((a) => a.id == selectedId).firstOrNull;
+
+  void select(String? id) {
+    selectedId = id;
+    notifyListeners();
+  }
+
+  /// The part of the duration that passed, from 0 to 1. Only an active auction moves.
+  double progressOf(DutchAuctionEntry auction) {
+    if (getAuctionStatus(auction) != 'Active') return 0;
+    final elapsed = currentBlock - auction.startBlock;
+    return (elapsed / auction.duration).clamp(0.0, 1.0);
+  }
+
+  /// The "…" actions of [auction]: the price alert for an active auction, the favorite and the id copy.
+  List<SailMenuEntity> menuItems(BuildContext context, DutchAuctionEntry auction) {
+    final favorite = isFavorite(auction.baseAsset);
+    return [
+      if (getAuctionStatus(auction) == 'Active')
+        SailMenuItem(
+          onSelected: () async => showAlertDialog(context, auction),
+          child: SailText.primary12(hasAlertForAuction(auction.id) ? 'Edit Price Alert' : 'Set Price Alert'),
+        ),
+      SailMenuItem(
+        onSelected: () async => toggleFavorite(auction.baseAsset),
+        child: SailText.primary12(favorite ? 'Remove from favorites' : 'Favorite'),
+      ),
+      SailMenuItem(
+        onSelected: () async => copyToClipboard(auction.id, context),
+        child: SailText.primary12('Copy auction ID'),
+      ),
+    ];
+  }
+
   void _onSearchChanged() {
     analyticsProvider.setAuctionSearchQuery(searchController.text);
   }
@@ -611,106 +486,71 @@ class AuctionBrowserViewModel extends BaseViewModel {
 
   void showBidDialog(BuildContext context, DutchAuctionEntry auction) {
     final bidController = TextEditingController();
+    final quote = getAssetName(auction.quoteAsset);
 
-    showThemedDialog(
+    widgetDialog<void>(
       context: context,
-      builder: (dialogContext) {
-        return SailDialog(
-          title: 'Bid on Auction',
-          actions: [
-            SailButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              onPressed: () async => Navigator.of(dialogContext).pop(),
-            ),
-            SailButton(
-              label: 'Place Bid',
-              onPressed: () async {
-                final bidAmount = int.tryParse(bidController.text);
-                if (bidAmount == null || bidAmount <= 0) {
-                  notificationProvider.add(
-                    title: 'Invalid Bid',
-                    content: 'Please enter a valid bid amount',
-                    dialogType: DialogType.error,
-                  );
-                  return;
-                }
+      title: 'Bid on Auction',
+      maxWidth: 440,
+      action: SailDialogAction(
+        label: 'Place Bid',
+        onPressed: () async {
+          final bidAmount = int.tryParse(bidController.text);
+          if (bidAmount == null || bidAmount <= 0) {
+            notificationProvider.add(
+              title: 'Invalid Bid',
+              content: 'Please enter a valid bid amount',
+              dialogType: DialogType.error,
+            );
+            return;
+          }
 
-                try {
-                  final received = await rpc.dutchAuctionBid(
-                    dutchAuctionId: auction.id,
-                    bidSize: bidAmount,
-                  );
+          try {
+            final received = await rpc.dutchAuctionBid(
+              dutchAuctionId: auction.id,
+              bidSize: bidAmount,
+            );
 
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop();
-                  }
+            if (context.mounted) {
+              Navigator.of(context, rootNavigator: true).pop();
+            }
 
-                  notificationProvider.add(
-                    title: 'Bid Successful',
-                    content: 'Received $received ${getAssetName(auction.baseAsset)}',
-                    dialogType: DialogType.success,
-                  );
+            notificationProvider.add(
+              title: 'Bid Successful',
+              content: 'Received $received ${getAssetName(auction.baseAsset)}',
+              dialogType: DialogType.success,
+            );
 
-                  await refresh();
-                } catch (e) {
-                  notificationProvider.add(
-                    title: 'Bid Failed',
-                    content: e.toString(),
-                    dialogType: DialogType.error,
-                  );
-                }
-              },
-            ),
-          ],
-          child: SizedBox(
-            width: 400,
-            child: SailColumn(
-              spacing: SailStyleValues.padding16,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    SailText.secondary13('Auction:'),
-                    Expanded(
-                      child: SailText.primary13(
-                        '${auction.id.substring(0, 20)}...',
-                        monospace: true,
-                      ),
-                    ),
-                  ],
-                ),
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    SailText.secondary13('Current Price:'),
-                    SailText.primary13(
-                      '${getCurrentPrice(auction)} sats per unit',
-                      bold: true,
-                    ),
-                  ],
-                ),
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    SailText.secondary13('Available:'),
-                    SailText.primary13(
-                      '${auction.baseAmount} ${getAssetName(auction.baseAsset)}',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                SailTextField(
-                  hintText: 'Bid amount in ${getAssetName(auction.quoteAsset)}',
-                  controller: bidController,
-                  suffix: getAssetName(auction.quoteAsset),
-                ),
-              ],
-            ),
+            await refresh();
+          } catch (e) {
+            notificationProvider.add(
+              title: 'Bid Failed',
+              content: e.toString(),
+              dialogType: DialogType.error,
+            );
+          }
+        },
+      ),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SailDetailGroup(
+            children: [
+              SailDetailLine(label: 'Auction:', value: '${auction.id.substring(0, 20)}...'),
+              SailDetailLine(label: 'Current Price:', value: '${getCurrentPrice(auction)} sats per unit'),
+              SailDetailLine(label: 'Available:', value: '${auction.baseAmount} ${getAssetName(auction.baseAsset)}'),
+            ],
           ),
-        );
-      },
+          SailTextField(
+            label: 'Bid amount in $quote',
+            hintText: '',
+            controller: bidController,
+            suffix: quote,
+          ),
+        ],
+      ),
     );
   }
 
@@ -723,128 +563,94 @@ class AuctionBrowserViewModel extends BaseViewModel {
       priceController.text = existingAlert.targetPrice.toString();
     }
 
-    showThemedDialog(
+    final save = SailDialogAction(
+      label: existingAlert != null ? 'Update Alert' : 'Set Alert',
+      onPressed: () async {
+        final targetPrice = int.tryParse(priceController.text);
+        if (targetPrice == null || targetPrice <= 0) {
+          notificationProvider.add(
+            title: 'Invalid Price',
+            content: 'Please enter a valid target price',
+            dialogType: DialogType.error,
+          );
+          return;
+        }
+
+        final alert = PriceAlert(
+          auctionId: auction.id,
+          assetId: auction.baseAsset,
+          targetPrice: targetPrice,
+          alertWhenBelow: alertWhenBelow,
+          enabled: true,
+          createdAt: DateTime.now(),
+        );
+
+        if (existingAlert != null) {
+          await priceAlertProvider.updateAlert(alert);
+        } else {
+          await priceAlertProvider.addAlert(alert);
+        }
+
+        if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+        notificationProvider.add(
+          title: 'Alert Set',
+          content:
+              'You will be notified when price ${alertWhenBelow ? "drops below" : "rises above"} $targetPrice ${activeTicker.subunit}',
+          dialogType: DialogType.success,
+        );
+      },
+    );
+
+    widgetDialog<void>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return SailDialog(
-              title: existingAlert != null ? 'Edit Price Alert' : 'Set Price Alert',
-              actions: [
-                if (existingAlert != null)
-                  SailButton(
-                    label: 'Remove Alert',
-                    variant: ButtonVariant.destructive,
-                    onPressed: () async {
-                      await priceAlertProvider.removeAlert(auction.id);
-                      if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-                      notificationProvider.add(
-                        title: 'Alert Removed',
-                        content: 'Price alert has been removed',
-                        dialogType: DialogType.success,
-                      );
-                    },
-                  ),
-                SailButton(
-                  label: 'Cancel',
-                  variant: ButtonVariant.ghost,
-                  onPressed: () async => Navigator.of(dialogContext).pop(),
+      title: existingAlert != null ? 'Edit Price Alert' : 'Set Price Alert',
+      maxWidth: 440,
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          return SailColumn(
+            spacing: SailStyleValues.padding12,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SailDetailGroup(
+                children: [
+                  SailDetailLine(label: 'Auction:', value: '${auction.id.substring(0, 20)}...'),
+                  SailDetailLine(label: 'Current Price:', value: '${getCurrentPrice(auction)} ${activeTicker.subunit}'),
+                ],
+              ),
+              SailTextField(
+                label: 'Target Price (sats)',
+                hintText: 'Alert when price reaches this value',
+                controller: priceController,
+              ),
+              SailText.primary13('Alert when price:', bold: true),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SailSegments(
+                  labels: const ['Drops below', 'Rises above'],
+                  activeIndex: alertWhenBelow ? 0 : 1,
+                  onSelect: (index) => setState(() => alertWhenBelow = index == 0),
                 ),
+              ),
+              SailDialogActionButton(action: save),
+              if (existingAlert != null)
                 SailButton(
-                  label: existingAlert != null ? 'Update Alert' : 'Set Alert',
+                  label: 'Remove Alert',
+                  variant: ButtonVariant.ghost,
                   onPressed: () async {
-                    final targetPrice = int.tryParse(priceController.text);
-                    if (targetPrice == null || targetPrice <= 0) {
-                      notificationProvider.add(
-                        title: 'Invalid Price',
-                        content: 'Please enter a valid target price',
-                        dialogType: DialogType.error,
-                      );
-                      return;
-                    }
-
-                    final alert = PriceAlert(
-                      auctionId: auction.id,
-                      assetId: auction.baseAsset,
-                      targetPrice: targetPrice,
-                      alertWhenBelow: alertWhenBelow,
-                      enabled: true,
-                      createdAt: DateTime.now(),
-                    );
-
-                    if (existingAlert != null) {
-                      await priceAlertProvider.updateAlert(alert);
-                    } else {
-                      await priceAlertProvider.addAlert(alert);
-                    }
-
-                    if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+                    await priceAlertProvider.removeAlert(auction.id);
+                    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
                     notificationProvider.add(
-                      title: 'Alert Set',
-                      content:
-                          'You will be notified when price ${alertWhenBelow ? "drops below" : "rises above"} $targetPrice ${activeTicker.subunit}',
+                      title: 'Alert Removed',
+                      content: 'Price alert has been removed',
                       dialogType: DialogType.success,
                     );
                   },
                 ),
-              ],
-              child: SizedBox(
-                width: 400,
-                child: SailColumn(
-                  spacing: SailStyleValues.padding16,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SailRow(
-                      spacing: SailStyleValues.padding08,
-                      children: [
-                        SailText.secondary13('Auction:'),
-                        Expanded(
-                          child: SailText.primary13(
-                            '${auction.id.substring(0, 20)}...',
-                            monospace: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SailRow(
-                      spacing: SailStyleValues.padding08,
-                      children: [
-                        SailText.secondary13('Current Price:'),
-                        SailText.primary13(
-                          '${getCurrentPrice(auction)} ${activeTicker.subunit}',
-                          bold: true,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SailTextField(
-                      label: 'Target Price (sats)',
-                      hintText: 'Alert when price reaches this value',
-                      controller: priceController,
-                    ),
-                    SailRow(
-                      spacing: SailStyleValues.padding08,
-                      children: [
-                        SailText.secondary13('Alert when price:'),
-                        _AlertTypeButton(
-                          label: 'Drops below',
-                          isSelected: alertWhenBelow,
-                          onTap: () => setState(() => alertWhenBelow = true),
-                        ),
-                        _AlertTypeButton(
-                          label: 'Rises above',
-                          isSelected: !alertWhenBelow,
-                          onTap: () => setState(() => alertWhenBelow = false),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -857,41 +663,5 @@ class AuctionBrowserViewModel extends BaseViewModel {
     favoritesProvider.removeListener(notifyListeners);
     priceAlertProvider.removeListener(notifyListeners);
     super.dispose();
-  }
-}
-
-class _AlertTypeButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _AlertTypeButton({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return SailTappable(
-      onTap: () async => onTap(),
-      borderRadius: SailStyleValues.borderRadius,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.colors.primary : theme.colors.backgroundSecondary,
-          borderRadius: SailStyleValues.borderRadius,
-          border: Border.all(
-            color: isSelected ? theme.colors.primary : theme.colors.divider,
-          ),
-        ),
-        child: SailText.primary12(
-          label,
-          color: isSelected ? theme.colors.primaryButtonText : null,
-        ),
-      ),
-    );
   }
 }

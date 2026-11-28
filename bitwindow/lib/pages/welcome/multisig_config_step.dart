@@ -964,32 +964,21 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
   }
 
   Widget _descriptorField(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: SailTextField(
-            controller: _descriptor,
-            focusNode: _descriptorFocus,
-            hintText: "wsh(sortedmulti(2,[fp/48'/1'/0'/2']tpub...,...))",
-            size: TextFieldSize.small,
-            monospace: true,
-            minLines: 2,
-            maxLines: 4,
-            onChanged: _onDescriptorChanged,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: SailButton(
-            label: 'Import file',
-            variant: ButtonVariant.secondary,
-            small: true,
-            onPressed: () async => _importConfigFile(context),
-          ),
-        ),
-      ],
+    return SailTextField(
+      controller: _descriptor,
+      focusNode: _descriptorFocus,
+      hintText: "wsh(sortedmulti(2,[fp/48'/1'/0'/2']tpub...,...))",
+      size: TextFieldSize.small,
+      monospace: true,
+      minLines: 2,
+      maxLines: 4,
+      onChanged: _onDescriptorChanged,
+      suffixWidget: SailButton(
+        label: 'Import file',
+        variant: ButtonVariant.ghost,
+        small: true,
+        onPressed: () async => _importConfigFile(context),
+      ),
     );
   }
 
@@ -1105,35 +1094,64 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
             ),
           ],
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Flexible(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: theme.colors.backgroundSecondary,
-                      borderRadius: theme.chrome.radius,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (int i = 0; i < _total; i++) _tabChip(context, i),
-                        SailButton(
-                          label: '',
-                          icon: SailSVGAsset.plus,
-                          variant: ButtonVariant.ghost,
-                          small: true,
-                          onPressed: () async => _addKey(),
-                        ),
-                      ],
+          if (theme.isBitwindowV2)
+            Row(
+              children: [
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [for (int i = 0; i < _total; i++) _tabChip(context, i)],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                SailIconBoxButton(
+                  icon: SailSVGAsset.plus,
+                  tooltip: 'Add a key',
+                  onPressed: _total >= _maxCosigners ? null : () async => _addKey(),
+                ),
+                if (!k.isFilled && _total > 1) ...[
+                  const SizedBox(width: 8),
+                  SailRowMenuButton(items: () => _keyMenu(context, _selectedTab, k)),
+                ],
+              ],
+            )
+          else
+            Row(
+              children: [
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colors.backgroundSecondary,
+                        borderRadius: theme.chrome.radius,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (int i = 0; i < _total; i++) _tabChip(context, i),
+                          SailButton(
+                            label: '',
+                            icon: SailSVGAsset.plus,
+                            variant: ButtonVariant.ghost,
+                            small: true,
+                            onPressed: () async => _addKey(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 24),
           if (k.isFilled)
             _keyDetails(context, _selectedTab, k)
@@ -1145,6 +1163,27 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
         ],
       ),
     );
+  }
+
+  /// "Rename key" for a filled key, and "Delete key" while more than one key is left.
+  List<SailMenuEntity> _keyMenu(BuildContext context, int index, CosignerKeystore k) => [
+    if (k.isFilled)
+      SailMenuItem(
+        onSelected: () => unawaited(_renameKey(context, k)),
+        child: SailText.primary13('Rename key'),
+      ),
+    if (_total > 1)
+      SailMenuItem(
+        onSelected: () => _removeKey(index),
+        child: SailText.primary13('Delete key', color: SailTheme.of(context).colors.error),
+      ),
+  ];
+
+  Future<void> _renameKey(BuildContext context, CosignerKeystore k) async {
+    final name = await showRenameKeyDialog(context, k.owner);
+    if (name != null) {
+      _update(() => k.owner = name);
+    }
   }
 
   void _addKey() {
@@ -1202,13 +1241,14 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
     final theme = SailTheme.of(context);
     final selected = i == _selectedTab;
     // Only the open tab offers deletion and renaming, and never the last key.
+    final v2 = theme.isBitwindowV2;
     return SailTabItem(
       label: k.owner,
       isSelected: selected,
       onTap: () => _selectTab(i),
-      onLabelChanged: k.isFilled ? (v) => _update(() => k.owner = v) : null,
+      onLabelChanged: k.isFilled && !v2 ? (v) => _update(() => k.owner = v) : null,
       leading: k.isFilled ? SailSVG.icon(SailSVGAsset.iconSuccess, width: 12, color: theme.colors.success) : null,
-      trailing: selected && _total > 1
+      trailing: selected && _total > 1 && !v2
           ? SailTappable(
               onTap: () async => _removeKey(i),
               child: Tooltip(
@@ -1222,40 +1262,67 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
 
   Widget _keyDetails(BuildContext context, int index, CosignerKeystore k) {
     final theme = SailTheme.of(context);
+    final v2 = theme.isBitwindowV2;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        if (v2)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      SailText.primary16('${k.owner} Details', bold: true),
-                      const SizedBox(width: 10),
-                      if (k.held) ...[
-                        SailSVG.icon(SailSVGAsset.iconSuccess, width: 14, color: theme.colors.success),
-                        const SizedBox(width: 6),
-                      ],
-                      SailText.secondary13(_badgeLabel(k), color: _badgeColor(theme, k)),
-                    ],
-                  ),
-                  SailText.secondary13('This key is added to your set. Below are the details.'),
+                  Flexible(child: SailText.primary15('${k.owner} Details', bold: true)),
+                  const SizedBox(width: 10),
+                  SailStatusPill(label: _badgeLabel(k), tone: _badgeTone(k)),
+                  const Spacer(),
+                  if (k.held) ...[
+                    SailButton(
+                      label: 'View seed',
+                      variant: ButtonVariant.secondary,
+                      onPressed: () async => _viewSeed(context, k),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  SailRowMenuButton(items: () => _keyMenu(context, index, k)),
                 ],
               ),
-            ),
-            if (k.held)
-              SailButton(
-                label: 'View seed',
-                variant: ButtonVariant.secondary,
-                small: true,
-                onPressed: () async => _viewSeed(context, k),
+              const SizedBox(height: 12),
+              SailText.secondary13('This key is added to your set. Below are the details.'),
+            ],
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        SailText.primary16('${k.owner} Details', bold: true),
+                        const SizedBox(width: 10),
+                        if (k.held) ...[
+                          SailSVG.icon(SailSVGAsset.iconSuccess, width: 14, color: theme.colors.success),
+                          const SizedBox(width: 6),
+                        ],
+                        SailText.secondary13(_badgeLabel(k), color: _badgeColor(theme, k)),
+                      ],
+                    ),
+                    SailText.secondary13('This key is added to your set. Below are the details.'),
+                  ],
+                ),
               ),
-          ],
-        ),
+              if (k.held)
+                SailButton(
+                  label: 'View seed',
+                  variant: ButtonVariant.secondary,
+                  small: true,
+                  onPressed: () async => _viewSeed(context, k),
+                ),
+            ],
+          ),
         const SizedBox(height: 16),
         _derivationRow(context, index),
         const SizedBox(height: 12),
@@ -1293,6 +1360,13 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
         ],
       ],
     );
+  }
+
+  SailStatusTone _badgeTone(CosignerKeystore k) {
+    if (k.held || k.isHardware) {
+      return SailStatusTone.success;
+    }
+    return SailStatusTone.warning;
   }
 
   Future<void> _viewSeed(BuildContext context, CosignerKeystore k) async {
@@ -1967,6 +2041,63 @@ class _PasteXpubDialogState extends State<_PasteXpubDialog> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Asks for a new key name. Returns null when the user closes the dialog.
+Future<String?> showRenameKeyDialog(BuildContext context, String current) => widgetDialog<String>(
+  context: context,
+  title: 'Rename key',
+  maxWidth: 440,
+  child: _RenameKeyBody(current: current),
+);
+
+class _RenameKeyBody extends StatefulWidget {
+  final String current;
+
+  const _RenameKeyBody({required this.current});
+
+  @override
+  State<_RenameKeyBody> createState() => _RenameKeyBodyState();
+}
+
+class _RenameKeyBodyState extends State<_RenameKeyBody> {
+  late final TextEditingController _name = TextEditingController(text: widget.current);
+
+  @override
+  void initState() {
+    super.initState();
+    _name.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final next = _name.text.trim();
+    if (next.isNotEmpty) {
+      Navigator.of(context).pop(next);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SailColumn(
+      spacing: SailStyleValues.padding16,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SailTextField(controller: _name, hintText: 'Key name', autofocus: true, onSubmitted: (_) => _submit()),
+        SailButton(
+          label: 'Rename',
+          disabled: _name.text.trim().isEmpty,
+          onPressed: () async => _submit(),
+        ),
+      ],
     );
   }
 }

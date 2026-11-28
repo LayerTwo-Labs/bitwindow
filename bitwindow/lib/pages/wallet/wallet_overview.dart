@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
 import 'package:bitwindow/pages/wallet/bump_fee_dialog.dart';
@@ -12,6 +11,9 @@ import 'package:collection/collection.dart';
 import 'package:bitwindow/utils/csv.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:bitwindow/pages/wallet/wallet_page.dart';
+import 'package:bitwindow/pages/wallet/widgets/wallet_v2_parts.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:intl/intl.dart';
@@ -54,82 +56,17 @@ class OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final formatter = GetIt.I<FormatterProvider>();
-
-        return ViewModelBuilder<OverviewViewModel>.reactive(
-          viewModelBuilder: () => OverviewViewModel(),
-          builder: (context, model, child) {
-            return ListenableBuilder(
-              listenable: formatter,
-              builder: (context, child) => SingleChildScrollView(
-                child: SailColumn(
-                  spacing: SailStyleValues.padding16,
-                  children: [
-                    _StatsGrid(
-                      phone: SailStyleValues.phoneLayout(context),
-                      stats: [
-                        WalletStats(
-                          title: 'Lifetime fees paid',
-                          value: formatter
-                              .formatSats(model.stats?.totalFeesSats.toInt() ?? 0)
-                              .replaceAll(' ${formatter.currentUnit.symbol}', ''),
-                          subtitle: feesSubtitle(model.stats?.transactionCountTotal.toInt() ?? 0),
-                          bitcoinAmount: true,
-                          icon: SailSVGAsset.bitcoin,
-                        ),
-                        WalletStats(
-                          title: 'Number of UTXOs',
-                          value: model.stats?.utxosCurrent.toString() ?? '0',
-                          subtitle:
-                              '${model.stats?.utxosUniqueAddresses.toString() ?? '0'} unique address${model.stats?.utxosUniqueAddresses.toInt() == 1 ? '' : 'es'}',
-                          icon: SailSVGAsset.coins,
-                        ),
-                        // Show sidechain deposit volume (greyed out on mainnet)
-                        SailTooltip(
-                          message: GetIt.I.get<BitcoinConfProvider>().networkSupportsSidechains
-                              ? ''
-                              : 'Sidechains require eCash or Signet network',
-                          child: Opacity(
-                            opacity: GetIt.I.get<BitcoinConfProvider>().networkSupportsSidechains ? 1.0 : 0.4,
-                            child: WalletStats(
-                              title: 'Sidechain Deposit Volume',
-                              phoneTitle: 'Sidechain deposits',
-                              value: GetIt.I.get<BitcoinConfProvider>().networkSupportsSidechains
-                                  ? formatter
-                                        .formatSats(model.stats?.sidechainDepositVolume.toInt() ?? 0)
-                                        .replaceAll(' ${formatter.currentUnit.symbol}', '')
-                                  : '-',
-                              subtitle: GetIt.I.get<BitcoinConfProvider>().networkSupportsSidechains
-                                  ? '${formatter.formatSats(model.stats?.sidechainDepositVolumeLast30Days.toInt() ?? 0)} last 30 days'
-                                  : 'Switch networks to unlock',
-                              bitcoinAmount: GetIt.I.get<BitcoinConfProvider>().networkSupportsSidechains,
-                              icon: SailSVGAsset.wallet,
-                            ),
-                          ),
-                        ),
-                        WalletStats(
-                          title: 'Last activity',
-                          value: model.stats?.hasLastTxAt() ?? false
-                              ? _formatTimeAgo(model.stats!.lastTxAt.toDateTime().toLocal())
-                              : 'No activity',
-                          subtitle: lastActivitySubtitle(model.stats),
-                          icon: SailSVGAsset.activity,
-                        ),
-                      ],
-                    ),
-                    TransactionTable(
-                      model: model,
-                      searchWidget: SailTextField(
-                        controller: model.searchController,
-                        hintText: 'Search with txid, address or amount',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+    final formatter = GetIt.I<FormatterProvider>();
+    return ViewModelBuilder<OverviewViewModel>.reactive(
+      viewModelBuilder: () => OverviewViewModel(),
+      builder: (context, model, child) {
+        return ListenableBuilder(
+          listenable: formatter,
+          builder: (context, child) {
+            if (SailStyleValues.phoneLayout(context)) {
+              return _PhoneOverview(model: model, formatter: formatter);
+            }
+            return WalletOverviewDesktop(model: model);
           },
         );
       },
@@ -137,9 +74,440 @@ class OverviewTab extends StatelessWidget {
   }
 }
 
+class _PhoneOverview extends StatelessWidget {
+  final OverviewViewModel model;
+  final FormatterProvider formatter;
+
+  const _PhoneOverview({required this.model, required this.formatter});
+
+  @override
+  Widget build(BuildContext context) {
+    final conf = GetIt.I.get<BitcoinConfProvider>();
+    return SingleChildScrollView(
+      child: SailColumn(
+        spacing: SailStyleValues.padding16,
+        children: [
+          _StatsGrid(
+            phone: true,
+            stats: [
+              WalletStats(
+                title: 'Lifetime fees paid',
+                value: formatter
+                    .formatSats(model.stats?.totalFeesSats.toInt() ?? 0)
+                    .replaceAll(' ${formatter.currentUnit.symbol}', ''),
+                subtitle: feesSubtitle(model.stats?.transactionCountTotal.toInt() ?? 0),
+                bitcoinAmount: true,
+                icon: SailSVGAsset.bitcoin,
+              ),
+              WalletStats(
+                title: 'Number of UTXOs',
+                value: model.stats?.utxosCurrent.toString() ?? '0',
+                subtitle:
+                    '${model.stats?.utxosUniqueAddresses.toString() ?? '0'} unique address${model.stats?.utxosUniqueAddresses.toInt() == 1 ? '' : 'es'}',
+                icon: SailSVGAsset.coins,
+              ),
+              SailTooltip(
+                message: conf.networkSupportsSidechains ? '' : 'Sidechains require eCash or Signet network',
+                child: Opacity(
+                  opacity: conf.networkSupportsSidechains ? 1.0 : 0.4,
+                  child: WalletStats(
+                    title: 'Sidechain Deposit Volume',
+                    phoneTitle: 'Sidechain deposits',
+                    value: conf.networkSupportsSidechains
+                        ? formatter
+                              .formatSats(model.stats?.sidechainDepositVolume.toInt() ?? 0)
+                              .replaceAll(' ${formatter.currentUnit.symbol}', '')
+                        : '-',
+                    subtitle: conf.networkSupportsSidechains
+                        ? '${formatter.formatSats(model.stats?.sidechainDepositVolumeLast30Days.toInt() ?? 0)} last 30 days'
+                        : 'Switch networks to unlock',
+                    bitcoinAmount: conf.networkSupportsSidechains,
+                    icon: SailSVGAsset.wallet,
+                  ),
+                ),
+              ),
+              WalletStats(
+                title: 'Last activity',
+                value: model.stats?.hasLastTxAt() ?? false
+                    ? _formatTimeAgo(model.stats!.lastTxAt.toDateTime().toLocal())
+                    : 'No activity',
+                subtitle: lastActivitySubtitle(model.stats),
+                icon: SailSVGAsset.activity,
+              ),
+            ],
+          ),
+          TransactionTable(
+            model: model,
+            searchWidget: SailTextField(
+              controller: model.searchController,
+              hintText: _searchHint,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+const String _searchHint = 'Search with txid, address or amount';
+
+/// The UTXO stat of the strip, such as "6 on 5 addresses".
+String utxoStatText(GetStatsResponse? stats) {
+  final addresses = stats?.utxosUniqueAddresses.toInt() ?? 0;
+  return '${stats?.utxosCurrent.toInt() ?? 0} on $addresses address${addresses == 1 ? '' : 'es'}';
+}
+
+/// The desktop Overview: the balance strip over the transactions, and the side panel of the selected one.
+class WalletOverviewDesktop extends StatefulWidget {
+  final OverviewViewModel model;
+
+  const WalletOverviewDesktop({super.key, required this.model});
+
+  @override
+  State<WalletOverviewDesktop> createState() => _WalletOverviewDesktopState();
+}
+
+class _WalletOverviewDesktopState extends State<WalletOverviewDesktop> {
+  String? _selectedTxid;
+
+  @override
+  Widget build(BuildContext context) {
+    final model = widget.model;
+    final selected = model.loading ? null : model.entries.firstWhereOrNull((tx) => tx.txid == _selectedTxid);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        WalletStripScroll(child: WalletBalanceStrip(model: model)),
+        const SizedBox(height: walletGap),
+        Expanded(
+          child: SailPageWithPanel(
+            narrowWidth: walletNarrowWidth,
+            panel: selected == null
+                ? null
+                : TransactionSidePanel(
+                    tx: selected,
+                    model: model,
+                    onClose: () async => setState(() => _selectedTxid = null),
+                  ),
+            child: TransactionTable(
+              model: model,
+              searchWidget: WalletSearchField(controller: model.searchController, hintText: _searchHint),
+              selectedTxid: selected?.txid,
+              onRowTap: (txid) => setState(() => _selectedTxid = txid == _selectedTxid ? null : txid),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The top strip of the Overview: the balance, the wallet stats, and Send and Receive.
+class WalletBalanceStrip extends StatelessWidget {
+  final OverviewViewModel model;
+
+  const WalletBalanceStrip({super.key, required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final balance = GetIt.I<BalanceProvider>();
+    final conf = GetIt.I<BitcoinConfProvider>();
+    final formatter = GetIt.I<FormatterProvider>();
+    final stats = model.stats;
+    // A failed read must not leave the last numbers up as if they were new.
+    final failed = model.statsError != null;
+    String value(String text) => failed ? '-' : text;
+    final balanceSats = btcToSatoshi(balance.balance);
+
+    return SailSkeletonizer(
+      description: _loadingDescription,
+      enabled: model.loading,
+      child: SailStrip(
+        lead: WalletAmountBlock(
+          label: 'Balance',
+          amount: formatter.formatSats(balanceSats),
+          sats: '${formatWithThousandSpacers(balanceSats)} sats',
+        ),
+        stats: [
+          SailStat(label: 'Unconfirmed', value: walletAmountText(btcToSatoshi(balance.pendingBalance))),
+          SailStat(label: 'Lifetime fees', value: value(walletAmountText(stats?.totalFeesSats.toInt() ?? 0))),
+          SailStat(label: 'UTXOs', value: value(utxoStatText(stats))),
+          SailTooltip(
+            message: conf.networkSupportsSidechains ? '' : 'Sidechains require eCash or Signet network',
+            child: Opacity(
+              opacity: conf.networkSupportsSidechains ? 1.0 : 0.4,
+              child: SailStat(
+                label: 'Sidechain deposits, 30 days',
+                value: conf.networkSupportsSidechains
+                    ? value(walletAmountText(stats?.sidechainDepositVolumeLast30Days.toInt() ?? 0))
+                    : '-',
+              ),
+            ),
+          ),
+          SailStat(
+            label: 'Last activity',
+            value: value(
+              stats?.hasLastTxAt() ?? false ? _formatTimeAgo(stats!.lastTxAt.toDateTime().toLocal()) : 'No activity',
+            ),
+          ),
+        ],
+        actions: [
+          SailButton(label: 'Send', onPressed: () async => WalletPage.openSubtab('Send')),
+          SailButton(
+            label: 'Receive',
+            variant: ButtonVariant.secondary,
+            onPressed: () async => WalletPage.openSubtab('Receive'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The title of a history row: its note, else Received or Sent.
+String transactionTitle(WalletTransaction tx) {
+  if (tx.note.isNotEmpty) {
+    return tx.note;
+  }
+  return walletNetSats(tx) > 0 ? 'Received' : 'Sent';
+}
+
+/// The second line of the status of a history row.
+String transactionStatusDetail(WalletTransaction tx) {
+  if (tx.abandoned) {
+    return '';
+  }
+  if (tx.immature) {
+    final left = coinbaseMaturity - tx.confirmations;
+    return '$left block${left == 1 ? '' : 's'} left';
+  }
+  return confirmationsText(tx.confirmations);
+}
+
+/// The dot color of a transaction status.
+SailStatusTone transactionTone(WalletTransaction tx) {
+  if (tx.abandoned || canCancelBid(tx)) {
+    return SailStatusTone.neutral;
+  }
+  if (tx.immature) {
+    return SailStatusTone.info;
+  }
+  return tx.confirmations == 0 ? SailStatusTone.warning : SailStatusTone.success;
+}
+
+/// The one main action of a transaction panel, or null.
+enum TransactionPrimary { cancelBid, bumpFee, accelerate }
+
+TransactionPrimary? transactionPrimary(WalletTransaction tx) {
+  if (canCancelBid(tx)) {
+    return TransactionPrimary.cancelBid;
+  }
+  if (canBumpFee(tx)) {
+    return TransactionPrimary.bumpFee;
+  }
+  if (canAccelerate(tx)) {
+    return TransactionPrimary.accelerate;
+  }
+  return null;
+}
+
+/// The row menu of a transaction, without [skip], the action the panel shows as its button.
+List<SailMenuEntity> transactionMenuItems(
+  BuildContext context,
+  OverviewViewModel model,
+  WalletTransaction entry, {
+  TransactionPrimary? skip,
+  bool copyTxid = false,
+}) {
+  return [
+    if (copyTxid)
+      SailMenuItem(
+        onSelected: () async {
+          await Clipboard.setData(ClipboardData(text: entry.txid));
+          if (context.mounted) {
+            showSailToast(context, 'TXID copied to clipboard');
+          }
+        },
+        child: SailText.primary12('Copy TXID'),
+      ),
+    SailMenuItem(
+      onSelected: () async {
+        await showTransactionDetails(context, entry.txid);
+      },
+      child: SailText.primary12('Show Details'),
+    ),
+    SailMenuItem(
+      onSelected: () async {
+        await Future.microtask(() async {
+          if (!context.mounted) {
+            return;
+          }
+          await showNoteDialog(context, model, entry);
+        });
+      },
+      child: SailText.primary12(entry.note.isEmpty ? 'Add Note' : 'Update Note'),
+    ),
+    if (canCancelBid(entry) && skip != TransactionPrimary.cancelBid)
+      SailMenuItem(
+        onSelected: () async {
+          await model.cancelBid(context, entry);
+        },
+        child: SailText.primary12('Cancel bid'),
+      ),
+    if (canBumpFee(entry) && skip != TransactionPrimary.bumpFee)
+      SailMenuItem(
+        onSelected: () async {
+          await model.openBumpFee(context, entry);
+        },
+        child: SailText.primary12('Bump fee'),
+      ),
+    // CPFP - accelerate an unconfirmed incoming tx whose
+    // output this wallet can spend (RBF can't bump it).
+    if (canAccelerate(entry) && skip != TransactionPrimary.accelerate)
+      SailMenuItem(
+        onSelected: () async {
+          await model.accelerateCpfp(context, entry);
+        },
+        child: SailText.primary12('Accelerate (CPFP)'),
+      ),
+    MempoolMenuItem(txid: entry.txid),
+  ];
+}
+
+Future<void> showNoteDialog(BuildContext context, OverviewViewModel model, WalletTransaction entry) {
+  return showThemedDialog(
+    context: context,
+    builder: (context) => SailModal(
+      constraints: const BoxConstraints(maxWidth: 400),
+      child: SailCardEditValues(
+        title: entry.note.isEmpty ? 'Add Note' : 'Edit Note',
+        subtitle: "${entry.note.isEmpty ? "Set a" : "Update the"} note and click Save when you're done",
+        fields: [
+          EditField(name: 'Note', currentValue: entry.note),
+        ],
+        onSave: (updatedFields) async {
+          final newNote = updatedFields.firstWhere((f) => f.name == 'Note').currentValue;
+          await model.saveNote(context, entry.txid, newNote);
+          return null;
+        },
+      ),
+    ),
+  );
+}
+
+/// The side panel of one transaction: amount, status, the one main action and the details.
+class TransactionSidePanel extends StatelessWidget {
+  final WalletTransaction tx;
+  final OverviewViewModel model;
+  final Future<void> Function() onClose;
+
+  const TransactionSidePanel({super.key, required this.tx, required this.model, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final formatter = GetIt.I<FormatterProvider>();
+    final net = walletNetSats(tx);
+    final primary = transactionPrimary(tx);
+    final time = tx.confirmationTime.timestamp.toDateTime().toLocal();
+    final detail = transactionStatusDetail(tx);
+    final addresses = transactionAddresses(tx);
+
+    return SailSidePanel(
+      title: transactionTitle(tx),
+      menuItems: () => transactionMenuItems(context, model, tx, skip: primary, copyTxid: true),
+      onClose: onClose,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          WalletAmountBlock(
+            amount: '${net > 0 ? '+' : '-'}${formatter.formatSats(net.abs())}',
+            sats: '${formatWithThousandSpacers(net.abs())} sats',
+            color: tx.abandoned ? theme.colors.textSecondary : null,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SailStatusPill(
+              label: detail.isEmpty ? transactionStatus(tx) : '${transactionStatus(tx)} \u00b7 $detail',
+              tone: transactionTone(tx),
+            ),
+          ),
+          if (tx.abandoned) ...[
+            const SizedBox(height: 8),
+            SailText.secondary13(abandonedHint),
+          ],
+          if (tx.warningMessage.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SailText.primary13(tx.warningMessage, color: theme.colors.orange, overflow: TextOverflow.visible),
+          ],
+          if (primary != null) ...[
+            const SizedBox(height: 16),
+            SailButton(
+              label: switch (primary) {
+                TransactionPrimary.cancelBid => 'Cancel bid',
+                TransactionPrimary.bumpFee => 'Bump fee',
+                TransactionPrimary.accelerate => 'Accelerate (CPFP)',
+              },
+              loadingLabel: 'Wait',
+              onPressed: () async => switch (primary) {
+                TransactionPrimary.cancelBid => model.cancelBid(context, tx),
+                TransactionPrimary.bumpFee => model.openBumpFee(context, tx),
+                TransactionPrimary.accelerate => model.accelerateCpfp(context, tx),
+              },
+            ),
+          ],
+          const SizedBox(height: 16),
+          SailDetailGroup(
+            title: 'Details',
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            children: [
+              SailDetailLine(label: 'Date', value: walletDetailDate(time), wrap: true, gap: 16),
+              if (addresses.isNotEmpty)
+                SailDetailLine(
+                  label: net > 0 ? 'Address' : 'To',
+                  value: addresses.map(middleEllipsisAddress).join('\n'),
+                  wrap: true,
+                  gap: 16,
+                ),
+              SailDetailLine(label: 'TXID', value: walletShortId(tx.txid), wrap: true, gap: 16),
+              if (tx.feeSats > 0)
+                SailDetailLine(label: 'Fee', value: formatter.formatSats(tx.feeSats.toInt()), wrap: true, gap: 16),
+              if (tx.confirmations > 0)
+                SailDetailLine(
+                  label: 'Block',
+                  value: formatWithThousandSpacers(tx.confirmationTime.height),
+                  wrap: true,
+                  gap: 16,
+                ),
+            ],
+          ),
+          if (tx.note.isNotEmpty || tx.addressLabel.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SailDetailGroup(
+              title: 'Note',
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              children: [
+                if (tx.note.isNotEmpty) SailDetailLine(label: 'Note', value: tx.note, wrap: true, gap: 16),
+                if (tx.addressLabel.isNotEmpty)
+                  SailDetailLine(label: 'Address label', value: tx.addressLabel, wrap: true, gap: 16),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String middleEllipsisAddress(String address) => middleEllipsis(address, keep: 10);
+
 /// Column keys of the transaction table, in the order the table draws them.
 /// The last column holds the row actions and does not sort.
 const List<String> transactionColumns = ['date', 'txid', 'address', 'note', 'status', 'amount', ''];
+
+/// Column keys of the desktop transaction table, in the order the table draws them.
+const List<String> desktopTransactionColumns = ['title', 'status', 'address', 'date', 'amount'];
 
 /// Width of the action column, so its button never widens the table.
 const double bumpFeeColumnWidth = 104;
@@ -316,10 +684,16 @@ class TransactionTable extends StatefulWidget {
   final Widget searchWidget;
   final OverviewViewModel model;
 
+  /// The row the side panel shows. Desktop only.
+  final String? selectedTxid;
+  final ValueChanged<String>? onRowTap;
+
   const TransactionTable({
     super.key,
     required this.model,
     required this.searchWidget,
+    this.selectedTxid,
+    this.onRowTap,
   });
 
   @override
@@ -348,6 +722,10 @@ class _TransactionTableState extends State<TransactionTable> {
         case 'note':
           aValue = a.note;
           bValue = b.note;
+          break;
+        case 'title':
+          aValue = transactionTitle(a);
+          bValue = transactionTitle(b);
           break;
         case 'status':
           aValue = a.confirmations;
@@ -381,6 +759,119 @@ class _TransactionTableState extends State<TransactionTable> {
 
   @override
   Widget build(BuildContext context) {
+    if (!SailStyleValues.phoneLayout(context)) {
+      final theme = SailTheme.of(context);
+      final model = widget.model;
+      final entries = sortedEntries;
+      return WalletTableCard(
+        title: 'Transactions',
+        error: model.historyError,
+        toolbar: [
+          widget.searchWidget,
+          WalletDateRangeButton(range: model.dateRange, onChanged: model.setDateRange),
+          SailButton(
+            label: 'Export CSV',
+            variant: ButtonVariant.ghost,
+            small: true,
+            onPressed: () async {
+              await model.exportTransactionsToCSV(context, entries);
+            },
+          ),
+        ],
+        child: SailSkeletonizer(
+          description: _loadingDescription,
+          enabled: model.loading,
+          child: SailTable(
+            getRowId: (index) => entries[index].txid,
+            selectedRowId: widget.selectedTxid,
+            onRowTap: widget.onRowTap,
+            cellHeight: 52,
+            headerBuilder: (context) => [
+              SailTableHeaderCell(name: 'Transaction', padding: _cellPadding, onSort: () => onSort('title')),
+              SailTableHeaderCell(name: 'Status', padding: _cellPadding, onSort: () => onSort('status')),
+              SailTableHeaderCell(name: 'Address', padding: _cellPadding, onSort: () => onSort('address')),
+              SailTableHeaderCell(name: 'Date', padding: _cellPadding, onSort: () => onSort('date')),
+              SailTableHeaderCell(
+                name: 'Amount',
+                padding: _cellPadding,
+                alignment: Alignment.centerRight,
+                onSort: () => onSort('amount'),
+              ),
+            ],
+            rowBuilder: (context, row, selected) {
+              final entry = entries[row];
+              final muted = entry.abandoned ? theme.colors.textSecondary : null;
+              final net = walletNetSats(entry);
+              final time = entry.confirmationTime.timestamp.toDateTime().toLocal();
+              final status = transactionStatus(entry);
+              final detail = transactionStatusDetail(entry);
+              final statusCell = WalletStatusCell(
+                tone: transactionTone(entry),
+                status: status,
+                detail: detail,
+                color: muted,
+                marks: [
+                  if (entry.warningMessage.trim().isNotEmpty)
+                    SailTooltip(
+                      message: entry.warningMessage,
+                      maxWidth: 320,
+                      child: Semantics(
+                        label: entry.warningMessage,
+                        child: SailSVG.icon(SailSVGAsset.triangleAlert, width: 14, color: theme.colors.orange),
+                      ),
+                    ),
+                  if (entry.immature) SailSVG.icon(SailSVGAsset.hourglass, width: 14, color: theme.colors.orange),
+                ],
+              );
+              return [
+                SailTableCell(
+                  value: transactionTitle(entry),
+                  secondaryValue: walletShortId(entry.txid),
+                  copyValue: entry.txid,
+                  textColor: muted,
+                  padding: _cellPadding,
+                ),
+                SailTableCell(
+                  value: '$status  ',
+                  padding: _cellPadding,
+                  child: entry.abandoned
+                      ? SailTooltip(message: abandonedHint, maxWidth: 320, child: statusCell)
+                      : statusCell,
+                ),
+                SailTableCell(
+                  value: historyAddressText(entry),
+                  padding: _cellPadding,
+                  copyValue: transactionAddresses(entry).join('\n'),
+                  textColor: muted,
+                ),
+                SailTableCell(
+                  value: walletRowDate(time),
+                  secondaryValue: walletRowTime(time),
+                  padding: _cellPadding,
+                  textColor: muted,
+                ),
+                SailTableCell(
+                  value: '${net > 0 ? '+' : '-'}${walletAmountText(net.abs())}',
+                  secondaryValue: walletUnitText(),
+                  alignment: Alignment.centerRight,
+                  textColor: muted ?? (net > 0 ? theme.colors.success : null),
+                  padding: _cellPadding,
+                ),
+              ];
+            },
+            contextMenuItems: (rowId) {
+              final entry = entries.firstWhere((e) => e.txid == rowId);
+              return transactionMenuItems(context, model, entry);
+            },
+            rowCount: entries.length,
+            emptyPlaceholder: historyEmptyText(filtered: model.filtered),
+            sortColumnIndex: desktopTransactionColumns.indexOf(sortColumn),
+            sortAscending: sortAscending,
+            onSort: (columnIndex, ascending) => onSort(desktopTransactionColumns[columnIndex]),
+          ),
+        ),
+      );
+    }
     final formatter = GetIt.I<FormatterProvider>();
     final entries = sortedEntries;
     final phone = SailStyleValues.phoneLayout(context);
@@ -601,70 +1092,7 @@ class _TransactionTableState extends State<TransactionTable> {
                             },
                             contextMenuItems: (rowId) {
                               final entry = entries.firstWhere((e) => e.txid == rowId);
-
-                              return [
-                                SailMenuItem(
-                                  onSelected: () async {
-                                    await showTransactionDetails(context, rowId);
-                                  },
-                                  child: SailText.primary12('Show Details'),
-                                ),
-                                SailMenuItem(
-                                  onSelected: () async {
-                                    await Future.microtask(() async {
-                                      if (!context.mounted) {
-                                        return;
-                                      }
-                                      await showThemedDialog(
-                                        context: context,
-                                        builder: (context) => SailModal(
-                                          constraints: const BoxConstraints(maxWidth: 400),
-                                          child: SailCardEditValues(
-                                            title: entry.note.isEmpty ? 'Add Note' : 'Edit Note',
-                                            subtitle:
-                                                "${entry.note.isEmpty ? "Set a" : "Update the"} note and click Save when you're done",
-                                            fields: [
-                                              EditField(name: 'Note', currentValue: entry.note),
-                                            ],
-                                            onSave: (updatedFields) async {
-                                              final newNote = updatedFields
-                                                  .firstWhere((f) => f.name == 'Note')
-                                                  .currentValue;
-                                              await widget.model.saveNote(context, entry.txid, newNote);
-                                              return null;
-                                            },
-                                          ),
-                                        ),
-                                      );
-                                    });
-                                  },
-                                  child: SailText.primary12(entry.note.isEmpty ? 'Add Note' : 'Update Note'),
-                                ),
-                                if (canCancelBid(entry))
-                                  SailMenuItem(
-                                    onSelected: () async {
-                                      await widget.model.cancelBid(context, entry);
-                                    },
-                                    child: SailText.primary12('Cancel bid'),
-                                  ),
-                                if (canBumpFee(entry))
-                                  SailMenuItem(
-                                    onSelected: () async {
-                                      await widget.model.openBumpFee(context, entry);
-                                    },
-                                    child: SailText.primary12('Bump fee'),
-                                  ),
-                                // CPFP - accelerate an unconfirmed incoming tx whose
-                                // output this wallet can spend (RBF can't bump it).
-                                if (canAccelerate(entry))
-                                  SailMenuItem(
-                                    onSelected: () async {
-                                      await widget.model.accelerateCpfp(context, entry);
-                                    },
-                                    child: SailText.primary12('Accelerate (CPFP)'),
-                                  ),
-                                MempoolMenuItem(txid: entry.txid),
-                              ];
+                              return transactionMenuItems(context, widget.model, entry);
                             },
                             rowCount: entries.length,
                             emptyPlaceholder: historyEmptyText(filtered: widget.model.filtered),

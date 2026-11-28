@@ -4,6 +4,7 @@ import 'package:bitwindow/pages/settings/network_swap_page.dart';
 import 'package:bitwindow/pages/settings/settings_network.dart';
 import 'package:bitwindow/widgets/ecash_migration_dialog.dart';
 import 'package:bitwindow/widgets/ecash_upgrade_banner.dart';
+import 'package:bitwindow/widgets/node_mode_chip.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -737,7 +738,8 @@ void main() {
     expect(find.byType(ECashMigrationDialog), findsNothing);
     expect(_button('Start migration'), findsNothing);
     expectNoLegacyCalls();
-    await tester.tap(_button('Close'));
+    expect(_button('Close'), findsNothing);
+    await tester.tap(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.tooltip == 'Close'));
     await _flush(tester);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -785,4 +787,24 @@ void main() {
       await _flush(tester);
     });
   }
+
+  testWidgets('the data directory row has a field, Browse, and Clear in its "…"', (tester) async {
+    rpc.pending = pb.GetPendingNetworkGenerationResponse(currentNetworkId: 'alphanet');
+    await tester.pumpSailPage(const SettingsNetwork());
+    await _flush(tester);
+
+    final field = find.byType(DataDirField);
+    expect(find.descendant(of: field, matching: find.text('/test/ecash')), findsOneWidget);
+    expect(tester.getSize(field).height, 40);
+    expect(_button('Browse'), findsOneWidget);
+    expect(_button('Clear'), findsNothing);
+    final menu = find.byWidgetPredicate((w) => w is SailRowMenuButton && w.size == 36);
+    expect(menu, findsOneWidget);
+    expect(tester.getCenter(menu).dy, closeTo(tester.getCenter(field).dy, 1));
+
+    await tester.tap(menu);
+    await _flush(tester);
+    expect(find.text('Clear'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

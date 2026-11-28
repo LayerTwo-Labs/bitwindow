@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:bitassets/providers/bitassets_provider.dart';
+import 'package:bitassets/widgets/auction_parts.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -11,220 +12,243 @@ class DutchAuctionTabPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ScrollController scrollController = ScrollController();
-    final createAuctionKey = GlobalKey();
-
     return QtPage(
       child: ViewModelBuilder<DutchAuctionViewModel>.reactive(
         viewModelBuilder: () => DutchAuctionViewModel(),
         builder: (context, model, child) {
-          return SingleChildScrollView(
-            controller: scrollController,
-            child: SailColumn(
-              spacing: SailStyleValues.padding16,
-              children: [
-                SailCard(
-                  title: 'Active Dutch Auctions',
-                  subtitle: 'View all ongoing dutch auctions',
-                  child: SailColumn(
-                    spacing: SailStyleValues.padding16,
-                    children: [
-                      SailRow(
-                        spacing: SailStyleValues.padding16,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        mainAxisSize: MainAxisSize.max,
-                        children: [
-                          Expanded(
-                            child: SailTextField(
-                              hintText: 'Search auctions...',
-                              controller: model.searchController,
-                            ),
-                          ),
-                          SailButton(
-                            label: 'Create New Auction',
-                            onPressed: () async {
-                              final ctx = createAuctionKey.currentContext;
-                              if (ctx == null) return;
-                              await Scrollable.ensureVisible(
-                                ctx,
-                                duration: const Duration(milliseconds: 400),
-                                curve: Curves.easeInOut,
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      SizedBox(
-                        height: 300,
-                        child: SailSkeletonizer(
-                          description: 'Loading auctions...',
-                          enabled: model.isLoading,
-                          child: SailTable(
-                            getRowId: (index) => model.filteredAuctions[index].id,
-                            headerBuilder: (context) => [
-                              SailTableHeaderCell(name: 'ID'),
-                              SailTableHeaderCell(name: 'Base Asset'),
-                              SailTableHeaderCell(name: 'Quote Asset'),
-                              SailTableHeaderCell(name: 'Base Amount'),
-                              SailTableHeaderCell(name: 'Current Price'),
-                              SailTableHeaderCell(name: 'Status'),
-                            ],
-                            rowBuilder: (context, row, selected) {
-                              final auction = model.filteredAuctions[row];
-                              final shortId = '${auction.id.substring(0, 10)}..';
-                              return [
-                                SailTableCell(
-                                  value: shortId,
-                                  copyValue: auction.id,
-                                ),
-                                SailTableCell(value: auction.baseAsset),
-                                SailTableCell(value: auction.quoteAsset),
-                                SailTableCell(value: auction.baseAmount.toString()),
-                                SailTableCell(value: auction.currentPrice?.toString() ?? 'N/A'),
-                                SailTableCell(value: auction.status),
-                              ];
-                            },
-                            contextMenuItems: (rowId) {
-                              final auction = model.filteredAuctions.firstWhereOrNull((a) => a.id == rowId);
-                              if (auction == null) return [];
-                              return [
-                                SailMenuItem(
-                                  onSelected: () async {
-                                    await showAuctionDetails(context, auction);
-                                  },
-                                  child: SailText.primary12('Show Details'),
-                                ),
-                                SailMenuItem(
-                                  onSelected: () async {
-                                    await showBidDialog(context, auction, model);
-                                  },
-                                  child: SailText.primary12('Place Bid'),
-                                ),
-                              ];
-                            },
-                            rowCount: model.filteredAuctions.length,
-                            drawGrid: true,
-                          ),
-                        ),
-                      ),
-                    ],
+          if (SailStyleValues.phoneLayout(context)) {
+            return SingleChildScrollView(
+              child: SailColumn(
+                spacing: SailStyleValues.padding12,
+                children: [
+                  SizedBox(height: 420, child: _AuctionsCard(model: model)),
+                  SailCard(
+                    title: 'Create Dutch Auction',
+                    subtitle: 'Create a new dutch auction',
+                    child: _CreateAuctionForm(model: model),
                   ),
-                ),
-                SailCard(
-                  key: createAuctionKey,
-                  title: 'Create Dutch Auction',
-                  subtitle: 'Create a new dutch auction',
-                  error: model.createError,
-                  child: SailColumn(
-                    spacing: SailStyleValues.padding16,
-                    children: [
-                      SailRow(
-                        spacing: SailStyleValues.padding16,
-                        children: [
-                          Expanded(
-                            child: SailTextField(
-                              label: 'Base Asset ID',
-                              hintText: 'Asset to auction',
-                              controller: model.baseAssetController,
-                            ),
-                          ),
-                          Expanded(
-                            child: SailTextField(
-                              label: 'Quote Asset ID',
-                              hintText: 'Quote asset',
-                              controller: model.quoteAssetController,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SailRow(
-                        spacing: SailStyleValues.padding16,
-                        children: [
-                          Expanded(
-                            child: SailTextField(
-                              label: 'Base Amount',
-                              hintText: 'Amount to auction',
-                              controller: model.baseAmountController,
-                            ),
-                          ),
-                          Expanded(
-                            child: SailTextField(
-                              label: 'Start Block',
-                              hintText: 'Block to start auction',
-                              controller: model.startBlockController,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SailRow(
-                        spacing: SailStyleValues.padding16,
-                        children: [
-                          Expanded(
-                            child: SailTextField(
-                              label: 'Duration (blocks)',
-                              hintText: 'Auction duration',
-                              controller: model.durationController,
-                            ),
-                          ),
-                          Expanded(
-                            child: SailTextField(
-                              label: 'Initial Price',
-                              hintText: 'Starting price',
-                              controller: model.initialPriceController,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SailRow(
-                        spacing: SailStyleValues.padding16,
-                        children: [
-                          Expanded(
-                            child: SailTextField(
-                              label: 'Final Price',
-                              hintText: 'Ending price',
-                              controller: model.finalPriceController,
-                            ),
-                          ),
-                          Expanded(child: Container()), // Spacer
-                        ],
-                      ),
-
-                      // Fee estimate
-                      Container(
-                        padding: const EdgeInsets.all(SailStyleValues.padding12),
-                        decoration: BoxDecoration(
-                          color: context.sailTheme.colors.backgroundSecondary,
-                          borderRadius: SailStyleValues.borderRadius,
-                        ),
-                        child: SailRow(
-                          spacing: SailStyleValues.padding08,
-                          children: [
-                            SailSVG.icon(SailSVGAsset.iconInfo, width: 16),
-                            Expanded(
-                              child: SailText.secondary12(
-                                'Estimated creation fee: ~1,000 sats (network fee)',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      SailButton(
-                        label: 'Create Auction',
-                        onPressed: model.createLoading ? null : () => model.createDutchAuction(context),
-                        loading: model.createLoading,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
+            );
+          }
+          final details = model.detailsAuction;
+          final panel = switch (model.panel) {
+            DutchAuctionPanel.create => SailSidePanel(
+              title: 'Create Dutch Auction',
+              onClose: () async => model.closePanel(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SailText.secondary12('Create a new dutch auction'),
+                  const SizedBox(height: SailStyleValues.padding12),
+                  _CreateAuctionForm(model: model),
+                ],
+              ),
             ),
+            DutchAuctionPanel.details when details != null => DutchAuctionDetailsPanel(
+              auction: details,
+              onBid: () => showBidDialog(context, details, model),
+              onClose: () async => model.closePanel(),
+            ),
+            _ => null,
+          };
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _AuctionsCard(model: model)),
+              if (panel != null) ...[const SizedBox(width: SailStyleValues.padding12), panel],
+            ],
           );
         },
       ),
     );
   }
 }
+
+class _AuctionsCard extends StatelessWidget {
+  final DutchAuctionViewModel model;
+
+  const _AuctionsCard({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final auctions = model.filteredAuctions;
+    return SailCard(
+      title: 'Active Dutch Auctions',
+      subtitle: 'View all ongoing dutch auctions',
+      widgetHeaderEnd: SailRow(
+        spacing: SailStyleValues.padding08,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 180,
+            child: SailTextField(hintText: 'Search auctions...', controller: model.searchController),
+          ),
+          if (!SailStyleValues.phoneLayout(context))
+            SailButton(
+              label: 'Create New Auction',
+              variant: ButtonVariant.outline,
+              onPressed: () async => model.openCreate(),
+            ),
+        ],
+      ),
+      child: SailSkeletonizer(
+        description: 'Loading auctions...',
+        enabled: model.isLoading,
+        child: SailTable(
+          getRowId: (index) => auctions[index].id,
+          selectedRowId: model.panel == DutchAuctionPanel.details ? model.detailsAuction?.id : null,
+          onSelectedRow: (rowId) {
+            final auction = auctions.firstWhereOrNull((a) => a.id == rowId);
+            if (auction != null) {
+              model.showDetails(context, auction);
+            }
+          },
+          headerBuilder: (context) => [
+            SailTableHeaderCell(name: 'ID'),
+            SailTableHeaderCell(name: 'Base Asset'),
+            SailTableHeaderCell(name: 'Quote Asset'),
+            SailTableHeaderCell(name: 'Base Amount', alignment: Alignment.centerRight),
+            SailTableHeaderCell(name: 'Current Price', alignment: Alignment.centerRight),
+            SailTableHeaderCell(name: 'Status'),
+          ],
+          rowBuilder: (context, row, selected) {
+            final auction = auctions[row];
+            return [
+              SailTableCell(value: '${auction.id.substring(0, 10)}..', copyValue: auction.id),
+              _assetCell(auction.baseAsset),
+              _assetCell(auction.quoteAsset),
+              SailTableCell(value: auction.baseAmount.toString(), alignment: Alignment.centerRight),
+              SailTableCell(value: auction.currentPrice?.toString() ?? 'N/A', alignment: Alignment.centerRight),
+              SailTableCell(
+                value: auctionStatusCellValue(auction.status),
+                child: AuctionStatusLabel(status: auction.status),
+              ),
+            ];
+          },
+          contextMenuItems: (rowId) {
+            final auction = auctions.firstWhereOrNull((a) => a.id == rowId);
+            if (auction == null) return [];
+            return [
+              SailMenuItem(
+                onSelected: () async => model.showDetails(context, auction),
+                child: SailText.primary12('Show Details'),
+              ),
+              SailMenuItem(
+                onSelected: () async => showBidDialog(context, auction, model),
+                child: SailText.primary12('Place Bid'),
+              ),
+            ];
+          },
+          rowCount: auctions.length,
+          drawGrid: true,
+        ),
+      ),
+    );
+  }
+}
+
+/// An asset id cut to its first 34 characters; a copy takes the full id.
+SailTableCell _assetCell(String asset) => SailTableCell(
+  value: asset.length <= 34 ? asset : '${asset.substring(0, 34)}...',
+  copyValue: asset,
+);
+
+class _CreateAuctionForm extends StatelessWidget {
+  final DutchAuctionViewModel model;
+
+  const _CreateAuctionForm({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget pair(Widget first, Widget second) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: first),
+        const SizedBox(width: SailStyleValues.padding08),
+        Expanded(child: second),
+      ],
+    );
+
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        pair(
+          SailTextField(label: 'Base Asset ID', hintText: 'Asset to auction', controller: model.baseAssetController),
+          SailTextField(label: 'Quote Asset ID', hintText: 'Quote asset', controller: model.quoteAssetController),
+        ),
+        SailTextField(label: 'Base Amount', hintText: 'Amount to auction', controller: model.baseAmountController),
+        pair(
+          SailTextField(
+            label: 'Start Block',
+            hintText: 'Block to start auction',
+            controller: model.startBlockController,
+          ),
+          SailTextField(label: 'Duration (blocks)', hintText: 'Auction duration', controller: model.durationController),
+        ),
+        pair(
+          SailTextField(label: 'Initial Price', hintText: 'Starting price', controller: model.initialPriceController),
+          SailTextField(label: 'Final Price', hintText: 'Ending price', controller: model.finalPriceController),
+        ),
+        SailText.secondary12('Estimated creation fee: ~1,000 sats (network fee)'),
+        if (model.createError != null)
+          SailText.primary13(model.createError!, color: SailTheme.of(context).colors.error),
+        SailButton(
+          label: 'Create Auction',
+          onPressed: model.createLoading ? null : () => model.createDutchAuction(context),
+          loading: model.createLoading,
+        ),
+      ],
+    );
+  }
+}
+
+/// The 380 px panel of one dutch auction: its price now, its status, Place Bid and every field.
+class DutchAuctionDetailsPanel extends StatelessWidget {
+  final DutchAuctionEntry auction;
+  final Future<void> Function() onBid;
+  final Future<void> Function() onClose;
+
+  const DutchAuctionDetailsPanel({super.key, required this.auction, required this.onBid, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailSidePanel(
+      key: ValueKey('dutch_auction_${auction.id}'),
+      title: 'Dutch Auction Details',
+      onClose: onClose,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PanelKeyValue(value: auction.currentPrice?.toString() ?? 'N/A', caption: 'Current Price'),
+          const SizedBox(height: SailStyleValues.padding12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SailStatusPill(label: auction.status, tone: auctionStatusTone(auction.status)),
+          ),
+          const SizedBox(height: SailStyleValues.padding16),
+          SailButton(label: 'Place Bid', onPressed: onBid),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailDetailGroup(children: _auctionLines(auction)),
+        ],
+      ),
+    );
+  }
+}
+
+List<Widget> _auctionLines(DutchAuctionEntry auction) => [
+  SailStackedDetail(label: 'ID', value: auction.id),
+  SailStackedDetail(label: 'Base Asset', value: auction.baseAsset),
+  SailStackedDetail(label: 'Quote Asset', value: auction.quoteAsset),
+  SailStackedDetail(label: 'Base Amount', value: auction.baseAmount.toString()),
+  SailStackedDetail(label: 'Initial Price', value: auction.initialPrice.toString()),
+  SailStackedDetail(label: 'Final Price', value: auction.finalPrice.toString()),
+  SailStackedDetail(label: 'Start Block', value: auction.startBlock.toString()),
+  SailStackedDetail(label: 'Duration', value: auction.duration.toString()),
+  SailStackedDetail(label: 'Status', value: auction.status),
+  if (auction.currentPrice != null) SailStackedDetail(label: 'Current Price', value: auction.currentPrice.toString()),
+];
 
 Future<void> showAuctionDetails(BuildContext context, DutchAuctionEntry auction) async {
   await Future.microtask(() async {
@@ -239,25 +263,8 @@ Future<void> showAuctionDetails(BuildContext context, DutchAuctionEntry auction)
             child: SailCard(
               title: 'Dutch Auction Details',
               subtitle: auction.id,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DetailRow(label: 'ID', value: auction.id),
-                    DetailRow(label: 'Base Asset', value: auction.baseAsset),
-                    DetailRow(label: 'Quote Asset', value: auction.quoteAsset),
-                    DetailRow(label: 'Base Amount', value: auction.baseAmount.toString()),
-                    DetailRow(label: 'Initial Price', value: auction.initialPrice.toString()),
-                    DetailRow(label: 'Final Price', value: auction.finalPrice.toString()),
-                    DetailRow(label: 'Start Block', value: auction.startBlock.toString()),
-                    DetailRow(label: 'Duration', value: auction.duration.toString()),
-                    DetailRow(label: 'Status', value: auction.status),
-                    if (auction.currentPrice != null)
-                      DetailRow(label: 'Current Price', value: auction.currentPrice.toString()),
-                  ],
-                ),
-              ),
+              withCloseButton: true,
+              child: SingleChildScrollView(child: SailDetailGroup(children: _auctionLines(auction))),
             ),
           ),
         );
@@ -269,88 +276,28 @@ Future<void> showAuctionDetails(BuildContext context, DutchAuctionEntry auction)
 Future<void> showBidDialog(BuildContext context, DutchAuctionEntry auction, DutchAuctionViewModel model) async {
   final bidController = TextEditingController();
 
-  await showThemedDialog<void>(
+  await widgetDialog<void>(
     context: context,
-    builder: (BuildContext dialogContext) {
-      return SailModal(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: SailCard(
-          title: 'Place Bid',
-          subtitle: 'Auction: ${auction.id.substring(0, 10)}...',
-          child: SailColumn(
-            mainAxisSize: MainAxisSize.min,
-            spacing: SailStyleValues.padding16,
-            children: [
-              SailTextField(
-                label: 'Bid Size',
-                hintText: 'Amount to bid',
-                controller: bidController,
-              ),
-              SailRow(
-                spacing: SailStyleValues.padding08,
-                children: [
-                  Expanded(
-                    child: SailButton(
-                      label: 'Cancel',
-                      onPressed: () async {
-                        Navigator.of(dialogContext).pop();
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: SailButton(
-                      label: 'Place Bid',
-                      onPressed: () async {
-                        final bidSize = int.tryParse(bidController.text);
-                        if (bidSize != null) {
-                          Navigator.of(dialogContext).pop();
-                          await model.placeBid(context, auction.id, bidSize);
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    },
+    title: 'Place Bid',
+    subtitle: 'Auction: ${auction.id.substring(0, 10)}...',
+    maxWidth: 400,
+    action: SailDialogAction(
+      label: 'Place Bid',
+      onPressed: () async {
+        final bidSize = int.tryParse(bidController.text);
+        if (bidSize == null) {
+          return;
+        }
+        Navigator.of(context, rootNavigator: true).pop();
+        await model.placeBid(context, auction.id, bidSize);
+      },
+    ),
+    child: SailTextField(label: 'Bid Size', hintText: 'Amount to bid', controller: bidController),
   );
 }
 
-class DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const DetailRow({super.key, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: SailText.primary13(
-              label,
-              monospace: true,
-              color: context.sailTheme.colors.textTertiary,
-            ),
-          ),
-          Expanded(
-            child: SailText.secondary13(
-              value,
-              monospace: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+/// What the side panel of the Dutch Auction tab shows.
+enum DutchAuctionPanel { create, details, closed }
 
 class DutchAuctionViewModel extends BaseViewModel {
   final SidechainBalanceProvider balanceProvider = GetIt.I.get<SidechainBalanceProvider>();
@@ -369,6 +316,9 @@ class DutchAuctionViewModel extends BaseViewModel {
 
   bool createLoading = false;
   String? createError;
+
+  DutchAuctionPanel panel = DutchAuctionPanel.create;
+  DutchAuctionEntry? detailsAuction;
 
   DutchAuctionViewModel() {
     searchController.addListener(notifyListeners);
@@ -391,6 +341,28 @@ class DutchAuctionViewModel extends BaseViewModel {
   }
 
   bool get isLoading => bitAssetsProvider.isLoadingAuctions;
+
+  void openCreate() {
+    panel = DutchAuctionPanel.create;
+    notifyListeners();
+  }
+
+  void closePanel() {
+    panel = DutchAuctionPanel.closed;
+    detailsAuction = null;
+    notifyListeners();
+  }
+
+  /// Shows [auction] in the side panel, or in a dialog on a phone.
+  Future<void> showDetails(BuildContext context, DutchAuctionEntry auction) async {
+    if (SailStyleValues.phoneLayout(context)) {
+      await showAuctionDetails(context, auction);
+      return;
+    }
+    panel = DutchAuctionPanel.details;
+    detailsAuction = auction;
+    notifyListeners();
+  }
 
   Future<void> createDutchAuction(BuildContext context) async {
     createError = null;

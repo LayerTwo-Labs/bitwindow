@@ -203,17 +203,28 @@ class _UnlockScreen extends StatelessWidget {
               const Spacer(),
               const Spacer(),
               // Unlock button
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SailButton(
+              if (theme.isBitwindowV2)
+                SizedBox(
+                  width: 400,
+                  child: SailButton(
                     label: 'Decrypt Wallet',
                     variant: ButtonVariant.primary,
                     loading: isUnlocking,
                     onPressed: () async => onUnlock(),
                   ),
-                ],
-              ),
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SailButton(
+                      label: 'Decrypt Wallet',
+                      variant: ButtonVariant.primary,
+                      loading: isUnlocking,
+                      onPressed: () async => onUnlock(),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 32),
             ],
           ),
@@ -230,6 +241,17 @@ class BootTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (SailTheme.of(context).isBitwindowV2) {
+      return Column(
+        children: [
+          const SizedBox(height: 40),
+          SailText.primary24(title, bold: true, textAlign: TextAlign.center),
+          const SizedBox(height: SailStyleValues.padding08),
+          SailText.secondary13(subtitle, textAlign: TextAlign.center),
+          const SizedBox(height: 40),
+        ],
+      );
+    }
     return Column(
       children: [
         const SizedBox(height: 30),

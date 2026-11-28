@@ -49,4 +49,19 @@ void main() {
 
     expect(find.byType(SailTable), findsOneWidget);
   });
+
+  testWidgets('on desktop the table sits in a bordered card and each name is an accent link', (tester) async {
+    await tester.pumpSailPage(const ChainMerchantsDialog());
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const Key('merchant-table-card'));
+    expect(find.descendant(of: card, matching: find.byType(SailTable)), findsOneWidget);
+    final theme = SailTheme.of(tester.element(card));
+    final border = (tester.widget<DecoratedBox>(card).decoration as BoxDecoration).border! as Border;
+    expect(border.top.color, theme.colors.border);
+    final name = tester.widget<Text>(find.text('BitRefill')).style!;
+    expect(name.color, theme.colors.primary);
+    expect(name.decoration, TextDecoration.underline);
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x), findsOneWidget);
+  });
 }

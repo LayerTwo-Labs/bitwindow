@@ -49,91 +49,96 @@ class _MessagingViewState extends State<MessagingView> {
 
   @override
   Widget build(BuildContext context) {
+    final encryptCard = SailCard(
+      title: 'Encrypt',
+      subtitle: 'Encrypt a message for a ${widget.noun} or pubkey',
+      error: encryptError,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SailTextField(
+            label: "Receiver's ${widget.noun} or Encryption Pubkey (Bech32m)",
+            hintText: 'Enter a ${widget.noun} or a pubkey',
+            controller: encryptPubkeyController,
+            suffixWidget: _hasEncryptMatch ? SailSVG.icon(SailSVGAsset.iconSuccess, height: 20) : null,
+          ),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailTextField(
+            label: 'Plaintext message:',
+            hintText: 'Enter a message to encrypt',
+            controller: encryptMessageController,
+            minLines: 1,
+            maxLines: 6,
+          ),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailButton(
+            label: 'Encrypt',
+            onPressed: handleEncrypt,
+            loading: encryptLoading,
+          ),
+          if (encryptResult != null) ...[
+            const SizedBox(height: SailStyleValues.padding12),
+            _ResultBox(text: encryptResult!),
+          ],
+        ],
+      ),
+    );
+    final decryptCard = SailCard(
+      title: 'Decrypt',
+      subtitle: 'Decrypt a message using your pubkey',
+      error: decryptError,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SailTextField(
+            label: "Receiver's ${widget.noun} or Encryption Pubkey (Bech32m)",
+            hintText: 'Enter a ${widget.noun} or a pubkey',
+            controller: decryptPubkeyController,
+            suffixWidget: _hasDecryptMatch ? SailSVG.icon(SailSVGAsset.iconSuccess, height: 20) : null,
+          ),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailTextField(
+            label: 'Ciphertext message (hex):',
+            hintText: 'Enter a ciphertext message',
+            controller: decryptMessageController,
+            minLines: 1,
+            maxLines: 6,
+          ),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailButton(
+            label: 'Decrypt',
+            onPressed: handleDecrypt,
+            loading: decryptLoading,
+          ),
+          if (decryptResult != null) ...[
+            const SizedBox(height: SailStyleValues.padding12),
+            _ResultBox(text: decryptResult!),
+          ],
+        ],
+      ),
+    );
+
+    if (SailStyleValues.phoneLayout(context)) {
+      return QtPage(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              encryptCard,
+              const SizedBox(height: SailStyleValues.padding12),
+              decryptCard,
+            ],
+          ),
+        ),
+      );
+    }
     return QtPage(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SailCard(
-              title: 'Encrypt',
-              subtitle: 'Encrypt a message for a ${widget.noun} or pubkey',
-              error: encryptError,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailTextField(
-                    label: "Receiver's ${widget.noun} or Encryption Pubkey (Bech32m)",
-                    hintText: 'Enter a ${widget.noun} or a pubkey',
-                    controller: encryptPubkeyController,
-                    suffixWidget: _hasEncryptMatch ? SailSVG.icon(SailSVGAsset.iconSuccess, height: 20) : null,
-                  ),
-                  const SizedBox(height: 16),
-                  SailTextField(
-                    label: 'Plaintext message:',
-                    hintText: 'Enter a message to encrypt',
-                    controller: encryptMessageController,
-                    minLines: 3,
-                    maxLines: 6,
-                  ),
-                  const SizedBox(height: 16),
-                  SailButton(
-                    label: 'Encrypt',
-                    onPressed: handleEncrypt,
-                    loading: encryptLoading,
-                  ),
-                  if (encryptResult != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: SailText.secondary13(
-                        encryptResult!,
-                        monospace: true,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 24),
-          Expanded(
-            child: SailCard(
-              title: 'Decrypt',
-              subtitle: 'Decrypt a message using your pubkey',
-              error: decryptError,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailTextField(
-                    label: "Receiver's ${widget.noun} or Encryption Pubkey (Bech32m)",
-                    hintText: 'Enter a ${widget.noun} or a pubkey',
-                    controller: decryptPubkeyController,
-                    suffixWidget: _hasDecryptMatch ? SailSVG.icon(SailSVGAsset.iconSuccess, height: 20) : null,
-                  ),
-                  const SizedBox(height: 16),
-                  SailTextField(
-                    label: 'Ciphertext message (hex):',
-                    hintText: 'Enter a ciphertext message',
-                    controller: decryptMessageController,
-                    minLines: 3,
-                    maxLines: 6,
-                  ),
-                  const SizedBox(height: 16),
-                  SailButton(
-                    label: 'Decrypt',
-                    onPressed: handleDecrypt,
-                    loading: decryptLoading,
-                  ),
-                  if (decryptResult != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: SailText.secondary13(
-                        decryptResult!,
-                        monospace: true,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
+          Expanded(child: encryptCard),
+          const SizedBox(width: SailStyleValues.padding12),
+          Expanded(child: decryptCard),
         ],
       ),
     );
@@ -204,5 +209,23 @@ class _MessagingViewState extends State<MessagingView> {
     encryptMessageController.dispose();
     decryptMessageController.dispose();
     super.dispose();
+  }
+}
+
+/// The result of an encrypt or a decrypt, in a grey box.
+class _ResultBox extends StatelessWidget {
+  final String text;
+
+  const _ResultBox({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(SailStyleValues.padding12),
+      decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+      child: SailText.primary12(text, monospace: true, overflow: TextOverflow.visible),
+    );
   }
 }

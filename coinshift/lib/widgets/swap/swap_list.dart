@@ -1,5 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
+import 'package:sail_ui/pages/sidechains/sidechain_overview_page.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:coinshift/providers/swap_provider.dart';
 import 'package:coinshift/widgets/swap/swap_status_badge.dart';
@@ -17,7 +21,7 @@ enum SwapStatusFilter {
   const SwapStatusFilter(this.label);
 }
 
-/// Table widget showing all swaps with claim buttons, filters, and search
+/// The swaps table with search and filter; a row opens the swap's side panel.
 class SwapList extends StatelessWidget {
   final bool showOnlyActive;
 
@@ -28,250 +32,169 @@ class SwapList extends StatelessWidget {
     return ViewModelBuilder<SwapListViewModel>.reactive(
       viewModelBuilder: () => SwapListViewModel(),
       builder: (context, model, child) {
-        return SailCard(
+        final phone = SailStyleValues.phoneLayout(context);
+        final selected = model.selectedSwap;
+        final table = SailCard(
           title: showOnlyActive ? 'Active Swaps' : 'My Swaps',
-          bottomPadding: SailStyleValues.phoneLayout(context),
+          bottomPadding: phone,
+          widgetHeaderEnd: phone ? null : _SwapListControls(model: model),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header with refresh button and checking status
-              Padding(
-                padding: const EdgeInsets.all(SailStyleValues.padding08),
-                child: SailRow(
-                  spacing: SailStyleValues.padding08,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    SailRow(
-                      spacing: SailStyleValues.padding08,
-                      children: [
-                        SailButton(
-                          label: 'Refresh',
-                          small: true,
-                          variant: ButtonVariant.secondary,
-                          loading: model.isLoading,
-                          onPressed: () async => await model.refresh(),
-                        ),
-                        if (model.isCheckingConfirmations)
-                          SailText.secondary12(
-                            '🔄 Checking confirmations...',
-                          ),
-                      ],
-                    ),
-                  ],
+              if (phone)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: SailStyleValues.padding08),
+                  child: _SwapListControls(
+                    model: model,
+                    onFound: (swapId) => unawaited(showSwapSheet(context, model, swapId)),
+                  ),
                 ),
-              ),
-
-              // Success message
               if (model.successMessage != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: SailStyleValues.padding08,
-                  ),
-                  child: _SuccessMessage(
+                  padding: const EdgeInsets.only(bottom: SailStyleValues.padding08),
+                  child: SidechainNotice(
                     message: model.successMessage!,
-                    onDismiss: model.clearSuccessMessage,
+                    tone: SidechainNoticeTone.success,
+                    trailing: SailIconBoxButton(
+                      icon: SailSVGAsset.x,
+                      tooltip: 'Dismiss',
+                      size: 22,
+                      onPressed: () async => model.clearSuccessMessage(),
+                    ),
                   ),
                 ),
-
-              // Search and filter row
-              Padding(
-                padding: const EdgeInsets.all(SailStyleValues.padding08),
-                child: SailRow(
-                  spacing: SailStyleValues.padding16,
-                  children: [
-                    // Search by swap ID
-                    Expanded(
-                      child: SailTextField(
-                        controller: model.searchController,
-                        hintText: 'Search by Swap ID...',
-                        label: '',
-                        onSubmitted: (_) => model.searchSwap(),
-                        suffixWidget: SailRow(
-                          spacing: SailStyleValues.padding04,
-                          children: [
-                            SailButton(
-                              label: 'Search',
-                              small: true,
-                              variant: ButtonVariant.secondary,
-                              onPressed: () async => model.searchSwap(),
-                            ),
-                            if (model.searchController.text.isNotEmpty)
-                              SailButton(
-                                label: 'Clear',
-                                small: true,
-                                variant: ButtonVariant.ghost,
-                                onPressed: () async => model.clearSearch(),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Status filter dropdown
-                    SailDropdownButton<SwapStatusFilter>(
-                      value: model.statusFilter,
-                      items: SwapStatusFilter.values
-                          .map(
-                            (filter) => SailDropdownItem<SwapStatusFilter>(
-                              value: filter,
-                              label: filter.label,
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (filter) {
-                        if (filter != null) {
-                          model.setStatusFilter(filter);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              // Search error
               if (model.searchError != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: SailStyleValues.padding08,
-                  ),
-                  child: _ErrorMessage(message: model.searchError!),
+                  padding: const EdgeInsets.only(bottom: SailStyleValues.padding08),
+                  child: SidechainNotice(message: model.searchError!, tone: SidechainNoticeTone.error),
                 ),
-
-              // Searched swap result
-              if (model.searchedSwap != null)
-                Padding(
-                  padding: const EdgeInsets.all(SailStyleValues.padding08),
-                  child: _SearchedSwapCard(
-                    swap: model.searchedSwap!,
-                    onClaim: (swap) => model.claimSwap(context, swap),
-                  ),
-                ),
-
-              const SailSeparator(),
-
-              // Table
               Expanded(
                 child: SailSkeletonizer(
                   description: 'Loading swaps...',
                   enabled: model.isLoading && model.filteredSwaps.isEmpty,
                   child: _SwapTable(
                     swaps: model.filteredSwaps,
+                    selectedSwapId: phone ? null : model.expandedSwapId,
                     onClaim: (swap) => model.claimSwap(context, swap),
-                    onExpand: model.toggleSwapExpanded,
-                    expandedSwapId: model.expandedSwapId,
+                    onSelect: (swapId) {
+                      if (phone) {
+                        unawaited(showSwapSheet(context, model, swapId));
+                        return;
+                      }
+                      model.toggleSwapExpanded(swapId);
+                    },
                   ),
                 ),
               ),
             ],
           ),
         );
+        if (phone || selected == null) {
+          return table;
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: table),
+            const SizedBox(width: SailStyleValues.padding12),
+            SwapSidePanel(
+              swap: selected,
+              onClose: () async => model.toggleSwapExpanded(selected.idHex),
+              onClaim: () => model.claimSwap(context, selected),
+            ),
+          ],
+        );
       },
     );
   }
 }
 
-class _SuccessMessage extends StatelessWidget {
-  final String message;
-  final VoidCallback onDismiss;
-
-  const _SuccessMessage({required this.message, required this.onDismiss});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(SailStyleValues.padding08),
-      margin: const EdgeInsets.only(bottom: SailStyleValues.padding08),
-      decoration: BoxDecoration(
-        color: theme.colors.success.withValues(alpha: 0.1),
-        borderRadius: SailStyleValues.borderRadius,
-        border: Border.all(color: theme.colors.success),
-      ),
-      child: SailRow(
-        spacing: SailStyleValues.padding08,
-        children: [
-          SailSVG.fromAsset(SailSVGAsset.circleCheck, width: 16, color: theme.colors.success),
-          Expanded(child: SailText.primary13(message, color: theme.colors.success)),
-          SailTappable(
-            onTap: () async => onDismiss(),
-            borderRadius: SailStyleValues.borderRadiusSmall,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: SailSVG.fromAsset(SailSVGAsset.x, width: 16, color: theme.colors.success),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+/// Opens the phone sheet of a swap. The sheet follows the provider, so a new state or a claim shows at once.
+Future<void> showSwapSheet(BuildContext context, SwapListViewModel model, String swapId) {
+  return showSailSidePanel(
+    context,
+    (context, close) => ListenableBuilder(
+      listenable: model,
+      builder: (context, _) {
+        final swap = model.swaps.where((swap) => swap.idHex == swapId).firstOrNull;
+        if (swap == null) {
+          return const SizedBox.shrink();
+        }
+        return SwapSidePanel(swap: swap, onClose: close, onClaim: () => model.claimSwap(context, swap));
+      },
+    ),
+  );
 }
 
-class _ErrorMessage extends StatelessWidget {
-  final String message;
+/// Search by swap ID, the status filter and Refresh.
+class _SwapListControls extends StatelessWidget {
+  final SwapListViewModel model;
 
-  const _ErrorMessage({required this.message});
+  /// Runs with the swap ID after a search finds exactly one swap.
+  final void Function(String swapId)? onFound;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(SailStyleValues.padding08),
-      margin: const EdgeInsets.only(bottom: SailStyleValues.padding08),
-      decoration: BoxDecoration(
-        color: theme.colors.error.withValues(alpha: 0.1),
-        borderRadius: SailStyleValues.borderRadius,
-        border: Border.all(color: theme.colors.error),
-      ),
-      child: SailRow(
-        spacing: SailStyleValues.padding08,
-        children: [
-          SailSVG.fromAsset(SailSVGAsset.circleAlert, width: 16, color: theme.colors.error),
-          Expanded(child: SailText.primary13(message, color: theme.colors.error)),
-        ],
-      ),
-    );
+  const _SwapListControls({required this.model, this.onFound});
+
+  void _search() {
+    model.searchSwap();
+    final found = model.searchedSwap;
+    if (found != null) {
+      onFound?.call(found.idHex);
+    }
   }
-}
-
-class _SearchedSwapCard extends StatelessWidget {
-  final CoinShiftSwap swap;
-  final Function(CoinShiftSwap) onClaim;
-
-  const _SearchedSwapCard({required this.swap, required this.onClaim});
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final formatter = GetIt.I<FormatterProvider>();
-
-    return Container(
-      padding: const EdgeInsets.all(SailStyleValues.padding12),
-      decoration: BoxDecoration(
-        color: theme.colors.info.withValues(alpha: 0.1),
-        borderRadius: SailStyleValues.borderRadius,
-        border: Border.all(color: theme.colors.info),
-      ),
-      child: SailColumn(
-        spacing: SailStyleValues.padding08,
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final search = SailTextField(
+      controller: model.searchController,
+      hintText: 'Search by Swap ID...',
+      onSubmitted: (_) => _search(),
+      suffixWidget: SailRow(
+        spacing: SailStyleValues.padding04,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SailText.primary13('Searched Swap:', bold: true, color: theme.colors.info),
-          SailRow(
-            spacing: SailStyleValues.padding16,
-            children: [
-              SailText.secondary12('ID: ${swap.idHex.substring(0, 16)}...'),
-              SailText.secondary12('Chain: ${swap.parentChain.label}'),
-              SailText.secondary12('Amount: ${formatter.formatSats(swap.l2Amount)}'),
-              SwapStatusBadge(state: swap.state),
-            ],
+          SailButton(
+            label: 'Search',
+            small: true,
+            variant: ButtonVariant.ghost,
+            onPressed: () async => _search(),
           ),
-          if (swap.state.isReadyToClaim)
+          if (model.searchController.text.isNotEmpty)
             SailButton(
-              label: 'Claim',
+              label: 'Clear',
               small: true,
-              onPressed: () async => onClaim(swap),
+              variant: ButtonVariant.ghost,
+              onPressed: () async => model.clearSearch(),
             ),
         ],
       ),
+    );
+    final filter = SailDropdownButton<SwapStatusFilter>(
+      value: model.statusFilter,
+      items: SwapStatusFilter.values
+          .map((filter) => SailDropdownItem<SwapStatusFilter>(value: filter, label: filter.label))
+          .toList(),
+      onChanged: (filter) {
+        if (filter != null) {
+          model.setStatusFilter(filter);
+        }
+      },
+    );
+    final refresh = SailIconBoxButton(
+      icon: SailSVGAsset.refreshCw,
+      tooltip: 'Refresh',
+      size: 32,
+      onPressed: model.isLoading ? null : () async => await model.refresh(),
+    );
+    return SailRow(
+      spacing: SailStyleValues.padding08,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (model.isCheckingConfirmations) SailText.secondary12('Checking confirmations...'),
+        if (SailStyleValues.phoneLayout(context)) Expanded(child: search) else SizedBox(width: 280, child: search),
+        filter,
+        refresh,
+      ],
     );
   }
 }
@@ -279,15 +202,10 @@ class _SearchedSwapCard extends StatelessWidget {
 class _SwapTable extends StatefulWidget {
   final List<CoinShiftSwap> swaps;
   final Function(CoinShiftSwap) onClaim;
-  final Function(String) onExpand;
-  final String? expandedSwapId;
+  final void Function(String swapId) onSelect;
+  final String? selectedSwapId;
 
-  const _SwapTable({
-    required this.swaps,
-    required this.onClaim,
-    required this.onExpand,
-    this.expandedSwapId,
-  });
+  const _SwapTable({required this.swaps, required this.onClaim, required this.onSelect, this.selectedSwapId});
 
   @override
   State<_SwapTable> createState() => _SwapTableState();
@@ -296,6 +214,8 @@ class _SwapTable extends StatefulWidget {
 class _SwapTableState extends State<_SwapTable> {
   String sortColumn = 'created';
   bool sortAscending = false;
+
+  static const _columns = ['id', 'direction', 'chain', 'amount', 'status'];
 
   void onSort(String column) {
     setState(() {
@@ -341,319 +261,198 @@ class _SwapTableState extends State<_SwapTable> {
   @override
   Widget build(BuildContext context) {
     final formatter = GetIt.I<FormatterProvider>();
+    final swaps = sortedSwaps;
+    final phone = SailStyleValues.phoneLayout(context);
 
-    if (widget.swaps.isEmpty) {
-      return Center(
-        child: SailColumn(
-          spacing: SailStyleValues.padding08,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (SailStyleValues.phoneLayout(context))
-              SailText.primary13('No swaps found', bold: true)
-            else
-              SailText.primary15('No swaps found'),
-            SailText.secondary12('Swaps will appear here once created'),
-          ],
-        ),
-      );
-    }
-
-    return ListenableBuilder(
+    final table = ListenableBuilder(
       listenable: formatter,
-      builder: (context, child) => ListView.builder(
-        itemCount: sortedSwaps.length,
-        itemBuilder: (context, index) {
-          final swap = sortedSwaps[index];
-          final isExpanded = widget.expandedSwapId == swap.idHex;
-
-          return _SwapRow(
-            swap: swap,
-            formatter: formatter,
-            isExpanded: isExpanded,
-            onTap: () => widget.onExpand(swap.idHex),
-            onClaim: () => widget.onClaim(swap),
-          );
+      builder: (context, child) => SailTable(
+        getRowId: (index) => swaps[index].idHex,
+        selectedRowId: widget.selectedSwapId,
+        headerBuilder: (context) => [
+          SailTableHeaderCell(name: 'Swap ID', onSort: () => onSort('id')),
+          SailTableHeaderCell(name: 'Direction', onSort: () => onSort('direction')),
+          SailTableHeaderCell(name: 'Chain', onSort: () => onSort('chain')),
+          SailTableHeaderCell(name: 'Amount', alignment: Alignment.centerRight, onSort: () => onSort('amount')),
+          SailTableHeaderCell(name: 'Status', onSort: () => onSort('status')),
+        ],
+        rowBuilder: (context, row, selected) {
+          final swap = swaps[row];
+          final waiting = swap.state.isWaitingConfirmations;
+          return [
+            SailTableCell(value: '${swap.idHex.substring(0, 8)}...', copyValue: swap.idHex, monospace: true),
+            SailTableCell(value: swap.direction == SwapDirection.l2ToL1 ? 'L2 → L1' : 'L1 → L2'),
+            SailTableCell(value: swap.parentChain.label),
+            SailTableCell(
+              value: formatter.formatSats(swap.l2Amount),
+              monospace: true,
+              alignment: Alignment.centerRight,
+            ),
+            SailTableCell(
+              value: swapStatusLabel(swap.state),
+              child: waiting
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SwapStatusBadge(state: swap.state),
+                        SailText.secondary12(
+                          '${swap.state.currentConfirmations ?? 0} / ${swap.state.requiredConfirmations ?? 1}',
+                        ),
+                      ],
+                    )
+                  : SwapStatusBadge(state: swap.state),
+            ),
+          ];
+        },
+        rowCount: swaps.length,
+        drawGrid: true,
+        phoneColumns: const [0, 3, 4],
+        sortColumnIndex: _columns.indexOf(sortColumn),
+        sortAscending: sortAscending,
+        onSort: (columnIndex, ascending) => onSort(_columns[columnIndex]),
+        onRowTap: widget.onSelect,
+        contextMenuItems: (rowId) {
+          final swap = swaps.firstWhere((swap) => swap.idHex == rowId);
+          return [
+            if (swap.state.isReadyToClaim)
+              SailMenuItem(onSelected: () => widget.onClaim(swap), child: SailText.primary12('Claim')),
+            SailMenuItem(
+              onSelected: () => Clipboard.setData(ClipboardData(text: swap.idHex)),
+              child: SailText.primary12('Copy swap ID'),
+            ),
+          ];
         },
       ),
     );
-  }
-}
 
-class _SwapRow extends StatelessWidget {
-  final CoinShiftSwap swap;
-  final FormatterProvider formatter;
-  final bool isExpanded;
-  final VoidCallback onTap;
-  final VoidCallback onClaim;
-
-  const _SwapRow({
-    required this.swap,
-    required this.formatter,
-    required this.isExpanded,
-    required this.onTap,
-    required this.onClaim,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return Column(
+    if (swaps.isNotEmpty) {
+      return table;
+    }
+    return Stack(
       children: [
-        // Main row
-        SailTappable(
-          onTap: () async => onTap(),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: SailStyleValues.padding12,
-              vertical: SailStyleValues.padding08,
-            ),
-            decoration: BoxDecoration(
-              color: isExpanded ? theme.colors.backgroundSecondary : null,
-            ),
-            child: SailRow(
-              spacing: SailStyleValues.padding16,
-              children: [
-                // Expand icon
-                SailSVG.fromAsset(
-                  isExpanded ? SailSVGAsset.chevronUp : SailSVGAsset.chevronDown,
-                  width: 20,
-                  color: theme.colors.textSecondary,
-                ),
-
-                // ID
-                SizedBox(
-                  width: 100,
-                  child: SailText.primary12(
-                    '${swap.idHex.substring(0, 8)}...',
-                    monospace: true,
-                  ),
-                ),
-
-                // Direction
-                SizedBox(
-                  width: 70,
-                  child: SailText.secondary12(
-                    swap.direction == SwapDirection.l2ToL1 ? 'L2 → L1' : 'L1 → L2',
-                  ),
-                ),
-
-                // Chain
-                SizedBox(
-                  width: 70,
-                  child: SailText.secondary12(swap.parentChain.label),
-                ),
-
-                // Amount
-                SizedBox(
-                  width: 120,
-                  child: SailText.primary12(
-                    formatter.formatSats(swap.l2Amount),
-                    monospace: true,
-                  ),
-                ),
-
-                // Status
-                SwapStatusBadge(state: swap.state),
-
-                // Progress bar for waiting confirmations
-                if (swap.state.isWaitingConfirmations) ...[
-                  SizedBox(
-                    width: 100,
-                    child: _ConfirmationProgress(
-                      current: swap.state.currentConfirmations ?? 0,
-                      required: swap.state.requiredConfirmations ?? 1,
-                    ),
-                  ),
-                ],
-
-                const Spacer(),
-
-                // Claim button
-                if (swap.state.isReadyToClaim)
-                  SailButton(
-                    label: 'Claim',
-                    small: true,
-                    onPressed: () async => onClaim(),
-                  ),
-              ],
-            ),
+        table,
+        Center(
+          child: SailColumn(
+            spacing: SailStyleValues.padding04,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (phone) SailText.primary13('No swaps found', bold: true) else SailText.primary15('No swaps found'),
+              SailText.secondary12('Swaps will appear here once created'),
+            ],
           ),
         ),
-
-        // Expanded details
-        if (isExpanded) _SwapDetails(swap: swap, formatter: formatter),
-
-        const SailSeparator(),
       ],
     );
   }
 }
 
-class _ConfirmationProgress extends StatelessWidget {
-  final int current;
-  final int required;
-
-  const _ConfirmationProgress({required this.current, required this.required});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final progress = required > 0 ? (current / required).clamp(0.0, 1.0) : 0.0;
-
-    return SailColumn(
-      spacing: SailStyleValues.padding04,
-      children: [
-        ProgressBar(
-          current: progress,
-          goal: 1,
-          small: true,
-          hideProgressInside: true,
-          color: theme.colors.info,
-        ),
-        SailText.secondary12('$current / $required'),
-      ],
-    );
-  }
-}
-
-class _SwapDetails extends StatelessWidget {
+/// The 380 px panel of one swap: amount, status, Claim when ready, and its details.
+class SwapSidePanel extends StatelessWidget {
   final CoinShiftSwap swap;
-  final FormatterProvider formatter;
+  final Future<void> Function() onClose;
+  final Future<void> Function() onClaim;
 
-  const _SwapDetails({required this.swap, required this.formatter});
+  const SwapSidePanel({super.key, required this.swap, required this.onClose, required this.onClaim});
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(SailStyleValues.padding16),
-      color: theme.colors.backgroundSecondary,
-      child: SailColumn(
-        spacing: SailStyleValues.padding12,
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final formatter = GetIt.I<FormatterProvider>();
+    final state = swap.state;
+    final current = state.currentConfirmations ?? 0;
+    final required = state.requiredConfirmations ?? 1;
+    return SailSidePanel(
+      title: '${swap.idHex.substring(0, 8)}...',
+      onClose: onClose,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Pending warning
-          if (swap.createdAtHeight == 0) ...[
-            Container(
-              padding: const EdgeInsets.all(SailStyleValues.padding08),
-              decoration: BoxDecoration(
-                color: theme.colors.error.withValues(alpha: 0.1),
-                borderRadius: SailStyleValues.borderRadius,
-              ),
-              child: SailRow(
-                spacing: SailStyleValues.padding08,
-                children: [
-                  SailSVG.fromAsset(SailSVGAsset.triangleAlert, width: 16, color: theme.colors.error),
-                  Expanded(
-                    child: SailText.secondary12(
-                      'PENDING (in mempool, not yet in block). '
-                      'Mine a block or wait for one to be mined to confirm your swap.',
-                      color: theme.colors.error,
-                    ),
-                  ),
-                ],
-              ),
+          SailText.primary24(formatter.formatSats(swap.l2Amount), bold: true),
+          SailText.secondary13(swap.direction == SwapDirection.l2ToL1 ? 'L2 → L1' : 'L1 → L2'),
+          const SizedBox(height: SailStyleValues.padding12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SailStatusPill(label: swapStatusLabel(state), tone: swapStatusTone(state)),
+          ),
+          if (state.isReadyToClaim) ...[
+            const SizedBox(height: SailStyleValues.padding12),
+            SailButton(label: 'Claim', onPressed: onClaim),
+          ],
+          if (state.isWaitingConfirmations) ...[
+            const SizedBox(height: SailStyleValues.padding16),
+            Row(
+              children: [
+                Expanded(child: SailText.primary15('Confirmations')),
+                SailText.secondary15('$current / $required'),
+              ],
+            ),
+            const SizedBox(height: SailStyleValues.padding08),
+            ProgressBar(
+              current: required > 0 ? (current / required).clamp(0.0, 1.0) : 0.0,
+              goal: 1,
+              small: true,
+              hideProgressInside: true,
             ),
           ],
-
-          // Details grid
-          Wrap(
-            spacing: SailStyleValues.padding20,
-            runSpacing: SailStyleValues.padding08,
+          if (swap.createdAtHeight == 0) ...[
+            const SizedBox(height: SailStyleValues.padding12),
+            const SidechainNotice(
+              message: 'PENDING (in mempool, not yet in block). Mine a block or wait for one to be mined to confirm your swap.',
+              tone: SidechainNoticeTone.error,
+            ),
+          ],
+          const SizedBox(height: SailStyleValues.padding16),
+          SailText.primary13('Details', bold: true),
+          const SizedBox(height: SailStyleValues.padding08),
+          SailDetailGroup(
             children: [
-              _DetailItem(label: 'Swap ID', value: swap.idHex),
-              _DetailItem(label: 'Chain', value: swap.parentChain.label),
-              _DetailItem(label: 'State', value: swap.state.toString()),
-              _DetailItem(label: 'L2 Amount', value: formatter.formatSats(swap.l2Amount)),
-              if (swap.l1Amount != null) _DetailItem(label: 'L1 Amount', value: formatter.formatSats(swap.l1Amount!)),
-              _DetailItem(
-                label: 'L2 Recipient',
-                value: swap.l2Recipient ?? 'Open Swap',
-              ),
-              if (swap.l1RecipientAddress != null) _DetailItem(label: 'L1 Recipient', value: swap.l1RecipientAddress!),
-              if (swap.l1Txid != null) _DetailItem(label: 'L1 TxID', value: swap.l1Txid!),
-              _DetailItem(
+              SailDetailLine(label: 'Chain', value: swap.parentChain.label),
+              SailDetailLine(label: 'State', value: state.toString()),
+              SailDetailLine(label: 'L2 Amount', value: formatter.formatSats(swap.l2Amount)),
+              if (swap.l1Amount != null)
+                SailDetailLine(label: 'L1 Amount', value: formatter.formatSats(swap.l1Amount!)),
+              SailDetailLine(label: 'L2 Recipient', value: swap.l2Recipient ?? 'Open Swap'),
+              SailDetailLine(
                 label: 'Created',
                 value: swap.createdAtHeight == 0 ? 'Pending' : 'Block ${swap.createdAtHeight}',
               ),
-              _DetailItem(
-                label: 'Required Confirmations',
-                value: swap.requiredConfirmations.toString(),
-              ),
+              SailDetailLine(label: 'Required Confirmations', value: swap.requiredConfirmations.toString()),
             ],
           ),
-
-          // Waiting confirmations info
-          if (swap.state.isWaitingConfirmations) ...[
-            const SailSeparator(),
-            Container(
-              padding: const EdgeInsets.all(SailStyleValues.padding08),
-              decoration: BoxDecoration(
-                color: theme.colors.info.withValues(alpha: 0.1),
-                borderRadius: SailStyleValues.borderRadius,
-              ),
-              child: SailColumn(
-                spacing: SailStyleValues.padding08,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailText.primary13('⏳ Waiting for Confirmations', bold: true),
-                  _ConfirmationProgress(
-                    current: swap.state.currentConfirmations ?? 0,
-                    required: swap.state.requiredConfirmations ?? 1,
-                  ),
-                  SailText.secondary12(
-                    'Confirmations are checked automatically every 10 seconds.',
-                  ),
-                ],
-              ),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailDetailGroup(
+            children: [
+              SailStackedDetail(label: 'Swap ID', value: swap.idHex, largeLabel: true, selectable: true),
+              if (swap.l1RecipientAddress != null)
+                SailStackedDetail(
+                  label: 'L1 Recipient',
+                  value: swap.l1RecipientAddress!,
+                  largeLabel: true,
+                  selectable: true,
+                ),
+              if (swap.l1Txid != null)
+                SailStackedDetail(label: 'L1 TxID', value: swap.l1Txid!, largeLabel: true, selectable: true),
+            ],
+          ),
+          if (state.isWaitingConfirmations) ...[
+            const SizedBox(height: SailStyleValues.padding12),
+            const SidechainNotice(
+              title: 'Waiting for Confirmations',
+              message: 'Confirmations are checked automatically every 10 seconds.',
             ),
           ],
-
-          // Pending swap info
-          if (swap.state.isPending) ...[
-            const SailSeparator(),
-            Container(
-              padding: const EdgeInsets.all(SailStyleValues.padding08),
-              decoration: BoxDecoration(
-                color: theme.colors.info.withValues(alpha: 0.1),
-                borderRadius: SailStyleValues.borderRadius,
-              ),
-              child: SailColumn(
-                spacing: SailStyleValues.padding08,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailText.primary13('⚠️ For users filling this swap', bold: true),
-                  SailText.secondary12(
-                    'Only send the L1 transaction to fill this swap after the swap has '
-                    '${swap.requiredConfirmations} confirmations from the L2 sidechain.',
-                  ),
-                ],
-              ),
+          if (state.isPending) ...[
+            const SizedBox(height: SailStyleValues.padding12),
+            SidechainNotice(
+              title: 'For users filling this swap',
+              message:
+                  'Only send the L1 transaction to fill this swap after the swap has '
+                  '${swap.requiredConfirmations} confirmations from the L2 sidechain.',
+              tone: SidechainNoticeTone.warning,
             ),
           ],
         ],
       ),
-    );
-  }
-}
-
-class _DetailItem extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _DetailItem({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return SailColumn(
-      spacing: SailStyleValues.padding04,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SailText.secondary12(label),
-        SailSelectableText(value, monospace: true),
-      ],
     );
   }
 }
@@ -673,6 +472,9 @@ class SwapListViewModel extends BaseViewModel {
   List<CoinShiftSwap> get swaps => _swapProvider.swaps;
   List<CoinShiftSwap> get activeSwaps => _swapProvider.activeSwaps;
   bool get isLoading => _swapProvider.isLoading;
+
+  /// The swap the side panel shows.
+  CoinShiftSwap? get selectedSwap => swaps.where((swap) => swap.idHex == expandedSwapId).firstOrNull;
 
   /// Filter swaps by status
   List<CoinShiftSwap> get filteredSwaps {
@@ -732,6 +534,7 @@ class SwapListViewModel extends BaseViewModel {
       searchedSwap = null;
     } else {
       searchedSwap = matches.first;
+      expandedSwapId = matches.first.idHex;
       searchError = null;
     }
     notifyListeners();

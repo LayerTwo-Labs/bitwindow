@@ -36,6 +36,13 @@ class _RejectingAddressBook extends ChangeNotifier implements AddressBookProvide
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+Future<void> openRowAction(WidgetTester tester, String action) async {
+  await tester.tap(find.byWidgetPredicate((w) => w is SailRowMenuButton && !w.filled).hitTestable().first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(action).hitTestable().last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUp(() async {
     await GetIt.I.reset();
@@ -67,8 +74,7 @@ void main() {
     await tester.pumpSailPage(const AddressBookTable());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(SailButton).hitTestable().at(3));
-    await tester.pumpAndSettle();
+    await openRowAction(tester, 'Edit Label');
     await tester.enterText(find.byType(EditableText).first, 'bravo');
     await tester.pump();
     await tester.tap(find.text('Update').hitTestable().first);
@@ -111,8 +117,7 @@ void main() {
     await tester.pumpSailPage(const AddressBookTable());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(SailButton).hitTestable().at(3));
-    await tester.pumpAndSettle();
+    await openRowAction(tester, 'Edit Label');
     await tester.enterText(find.byType(EditableText).first, 'bravo');
     await tester.pump();
     await tester.tap(find.text('Update').hitTestable().first);
@@ -121,8 +126,7 @@ void main() {
 
     expect(find.textContaining('already exists'), findsNothing);
 
-    await tester.tap(find.byType(SailButton).hitTestable().at(3));
-    await tester.pumpAndSettle();
+    await openRowAction(tester, 'Edit Label');
 
     expect(find.textContaining('already exists'), findsNothing);
   });
@@ -131,13 +135,14 @@ void main() {
     await tester.pumpSailPage(const AddressBookTable());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(SailButton).hitTestable().at(4));
-    await tester.pumpAndSettle();
+    await openRowAction(tester, 'Delete');
     await tester.tap(find.text('Delete').hitTestable().first);
     await tester.pumpAndSettle();
     expect(find.textContaining('is locked'), findsWidgets);
 
-    await tester.tap(find.text('Cancel').hitTestable().first);
+    await tester.tap(
+      find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x).hitTestable().first,
+    );
     await tester.pumpAndSettle();
 
     expect(find.textContaining('is locked'), findsNothing);

@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:bitwindow/signing/psbt_text.dart';
 import 'package:bitwindow/widgets/animated_ur_qr.dart';
+import 'package:bitwindow/widgets/send_panel_parts.dart';
 import 'package:bitwindow/widgets/ur_qr_scanner.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
@@ -93,7 +95,10 @@ class _AirgapSignStepState extends State<AirgapSignStep> {
           bytes[3] == 0x74 &&
           bytes[4] == 0xff;
       final text = isBinary ? base64.encode(bytes) : utf8.decode(bytes).trim();
-      setState(() => _signedController.text = text);
+      setState(() {
+        _signedController.text = text;
+        _scanning = false;
+      });
     } catch (e) {
       setState(() => _error = 'Could not read file: $e');
     }
@@ -124,105 +129,63 @@ class _AirgapSignStepState extends State<AirgapSignStep> {
 
   @override
   Widget build(BuildContext context) {
-    return SailCard(
+    final export = _stage == _Stage.export;
+    return SignDialog(
       title: 'External signer (airgap)',
-      subtitle: _stage == _Stage.export ? 'Show this unsigned PSBT to your signer' : 'Import the signed PSBT',
-      error: _error ?? (_stage == _Stage.import ? widget.error : null),
-      child: _stage == _Stage.export
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: SingleChildScrollView(child: AnimatedURQR(psbt: _unsignedBytes)),
-                ),
-                const SailSpacing(SailStyleValues.padding08),
-                _exportFileActions(),
-                const SailSpacing(SailStyleValues.padding08),
-                Divider(height: 1, color: context.sailTheme.colors.divider),
-                const SailSpacing(SailStyleValues.padding08),
-                _exportActions(),
-              ],
-            )
-          : SingleChildScrollView(child: _importBody()),
-    );
-  }
-
-  Widget _exportFileActions() {
-    return SailRow(
-      mainAxisAlignment: MainAxisAlignment.center,
-      spacing: SailStyleValues.padding08,
-      children: [
-        SailButton(label: 'Copy base64', variant: ButtonVariant.secondary, onPressed: _copyUnsigned),
-        SailButton(label: 'Save .psbt', variant: ButtonVariant.secondary, onPressed: _saveUnsigned),
-      ],
-    );
-  }
-
-  Widget _exportActions() {
-    return SailRow(
-      mainAxisAlignment: MainAxisAlignment.end,
-      spacing: SailStyleValues.padding08,
-      children: [
-        SailButton(
-          label: 'Cancel',
-          variant: ButtonVariant.ghost,
-          onPressed: () async => widget.onCancel(),
-        ),
-        SailButton(
-          label: 'Next: import signed',
-          onPressed: () async => setState(() => _stage = _Stage.import),
-        ),
-      ],
-    );
-  }
-
-  Widget _importBody() {
-    return SailColumn(
-      spacing: SailStyleValues.padding16,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_scanning)
-          Center(
-            child: URQrScanner(onComplete: _onScanned),
-          )
-        else ...[
-          if (urCameraScanSupported)
-            SailButton(
-              label: 'Scan signed QR',
-              onPressed: () async => setState(() => _scanning = true),
-            ),
-          SailButton(
-            label: 'Load from file',
-            variant: ButtonVariant.secondary,
-            onPressed: _loadSignedFile,
-          ),
-          SailTextField(
-            controller: _signedController,
-            label: 'Or paste signed PSBT (base64)',
-            hintText: 'cHNidP8B...',
-            minLines: 3,
-            maxLines: 6,
-            monospace: true,
-          ),
-          SailRow(
-            mainAxisAlignment: MainAxisAlignment.end,
-            spacing: SailStyleValues.padding08,
-            children: [
-              SailButton(
-                label: 'Back',
-                variant: ButtonVariant.ghost,
-                disabled: widget.busy,
-                onPressed: () async => setState(() => _stage = _Stage.export),
-              ),
-              SailButton(
-                label: 'Confirm signed',
-                loading: widget.busy,
-                onPressed: () async => _confirmSigned(),
-              ),
+      subtitle: export ? 'Show this unsigned PSBT to your signer' : 'Import the signed PSBT',
+      error: _error ?? (export ? null : widget.error),
+      maxWidth: 560,
+      onClose: () async => widget.onCancel(),
+      onBack: export
+          ? null
+          : () async => setState(() {
+              _stage = _Stage.export;
+              _scanning = false;
+            }),
+      busy: widget.busy,
+      menuItems: () => export
+          ? [
+              sendMenuItem(context, 'Copy base64', () => unawaited(_copyUnsigned())),
+              sendMenuItem(context, 'Save .psbt', () => unawaited(_saveUnsigned())),
+            ]
+          : [
+              if (urCameraScanSupported)
+                sendMenuItem(context, 'Scan signed QR', () => setState(() => _scanning = true)),
+              sendMenuItem(context, 'Load from file', () => unawaited(_loadSignedFile())),
             ],
-          ),
-        ],
-      ],
+      button: export
+          ? SailButton(
+              label: 'Next: import signed',
+              onPressed: () async => setState(() => _stage = _Stage.import),
+            )
+          : SailButton(
+              label: 'Confirm signed',
+              loading: widget.busy,
+              disabled: _scanning,
+              onPressed: () async => _confirmSigned(),
+            ),
+      child: export
+          ? Center(child: AnimatedURQR(psbt: _unsignedBytes))
+          : SailColumn(
+              spacing: SailStyleValues.padding16,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_scanning) Center(child: URQrScanner(onComplete: _onScanned)),
+                SailTextField(
+                  controller: _signedController,
+                  label: 'Or paste signed PSBT (base64)',
+                  hintText: 'cHNidP8B...',
+                  minLines: 3,
+                  maxLines: 6,
+                  monospace: true,
+                  onChanged: (_) {
+                    if (_scanning) {
+                      setState(() => _scanning = false);
+                    }
+                  },
+                ),
+              ],
+            ),
     );
   }
 }

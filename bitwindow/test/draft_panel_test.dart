@@ -252,21 +252,25 @@ void main() {
     });
   }
 
-  testWidgets('the flow diagram stays hidden until the user asks', (tester) async {
+  Future<void> openPanelMenu(WidgetTester tester) async {
+    await tester.tap(find.descendant(of: find.byType(SailSidePanel), matching: find.byType(SailRowMenuButton)));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('the flow diagram stays hidden until the user asks in "…"', (tester) async {
     final draftId = await setUpPanelDeps();
 
     await tester.pumpSailPage(DraftPanel(walletId: 'wallet-1', draftId: draftId));
     await tester.pumpAndSettle();
 
-    final toggle = find.byWidgetPredicate((w) => w is SailButton && w.label == 'Show diagram');
     expect(find.byType(TxFlowDiagram), findsNothing);
-    expect(toggle, findsOneWidget);
-
-    await tester.tap(toggle);
+    await openPanelMenu(tester);
+    await tester.tap(find.text('Show diagram'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TxFlowDiagram), findsOneWidget);
-    expect(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Hide diagram'), findsOneWidget);
+    await openPanelMenu(tester);
+    expect(find.text('Hide diagram'), findsOneWidget);
   });
 
   testWidgets('the keys table renders one row per cosigner', (tester) async {
@@ -301,7 +305,7 @@ void main() {
     expect(find.descendant(of: summary, matching: find.text('0.2000,0000 BTC')), findsOneWidget);
   });
 
-  testWidgets('only an eligible cosigner shows Sign', (tester) async {
+  testWidgets('only an eligible cosigner offers Sign in its row "…"', (tester) async {
     final draftId = await setUpPanelDeps();
 
     await tester.pumpSailPage(DraftPanel(walletId: 'wallet-1', draftId: draftId));
@@ -309,20 +313,28 @@ void main() {
 
     // Cosigner 1 signed, cosigner 2 is a device that has not signed, and
     // cosigner 3 is watch-only. Only cosigner 2 may sign.
-    expect(
-      find.byWidgetPredicate((w) => w is SailButton && w.label == 'Sign'),
-      findsOneWidget,
-    );
-    expect(find.text('Signed'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Sign'), findsNothing);
+    expect(find.text('Awaiting signature'), findsNWidgets(2));
+
+    for (final key in [0, 2]) {
+      await tester.tap(find.byKey(Key('key_menu_$key')));
+      await tester.pumpAndSettle();
+      expect(find.text('Sign'), findsNothing, reason: 'key $key');
+    }
+    await tester.tap(find.byKey(const Key('key_menu_1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign'), findsOneWidget);
   });
 
-  testWidgets('Broadcast stays disabled until finalizable', (tester) async {
+  testWidgets('the panel asks for a signature until finalizable, then broadcasts', (tester) async {
     final draftId = await setUpPanelDeps();
 
     await tester.pumpSailPage(DraftPanel(walletId: 'wallet-1', draftId: draftId));
     await tester.pumpAndSettle();
 
-    expect(broadcastButton(tester).disabled, isTrue);
+    final primary = find.descendant(of: find.byType(SailSidePanel), matching: find.byType(SailButton));
+    expect(primary, findsOneWidget);
+    expect(tester.widget<SailButton>(primary).label, 'Import a signature');
 
     orchestrator.wallet.status = wmpb.MultisigPsbtStatusResponse(
       threshold: 2,
@@ -333,7 +345,13 @@ void main() {
     await draftProvider.fetch();
     await tester.pumpAndSettle();
 
+    expect(primary, findsOneWidget);
     expect(broadcastButton(tester).disabled, isFalse);
+    expect(find.text('2 of 2 collected'), findsNWidgets(2));
+    await openPanelMenu(tester);
+    expect(find.text('Import a signature'), findsOneWidget);
+    expect(find.text('Copy PSBT'), findsOneWidget);
+    expect(find.text('Discard'), findsOneWidget);
   });
 
   final locktimes = {
@@ -407,9 +425,13 @@ void main() {
       expect(find.textContaining('· locked'), findsOneWidget);
       expect(find.text('Summary'), findsOneWidget);
       expect(find.byType(GroupedAddress), findsOneWidget);
+      expect(find.descendant(of: find.byType(SailSidePanel), matching: find.byType(SailButton)), findsOneWidget);
       expect(tester.widget<SailButton>(button('Broadcast')).disabled, isFalse);
-      expect(button('Copy PSBT'), findsOneWidget);
-      expect(button('Discard'), findsOneWidget);
+      await openPanelMenu(tester);
+      expect(find.text('Copy PSBT'), findsOneWidget);
+      expect(find.text('Show diagram'), findsOneWidget);
+      expect(find.text('Discard'), findsOneWidget);
+      expect(find.text('Import a signature'), findsNothing);
     });
 
     testWidgets('a broadcast puts the txid where the buttons were', (tester) async {
@@ -429,16 +451,15 @@ void main() {
       expect(find.textContaining('· locked'), findsNothing);
     });
 
-    testWidgets('Discard deletes the draft', (tester) async {
+    testWidgets('Discard in "…" deletes the draft', (tester) async {
       await pumpOneKeyPanel(tester);
 
-      await tester.ensureVisible(button('Discard'));
+      await openPanelMenu(tester);
+      await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();
-      await tester.tap(button('Discard'));
-      // The Discard button spins while its dialog is open, so the frames never settle.
-      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(SailButton).hitTestable(), findsOneWidget);
       await tester.tap(button('Delete transaction'));
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
 
       expect(draftProvider.drafts, isEmpty);
     });
@@ -446,37 +467,34 @@ void main() {
     testWidgets('a hardware wallet signs its draft on the device, then broadcasts', (tester) async {
       await pumpOneKeyPanel(tester, hardwareDeviceType: 'trezor');
 
-      expect(tester.widget<SailButton>(button('Broadcast')).disabled, isTrue);
-      expect(button('Import a signature'), findsOneWidget);
-
-      await tester.ensureVisible(button('Sign with trezor'));
+      expect(button('Broadcast'), findsNothing);
+      await openPanelMenu(tester);
+      expect(find.text('Import a signature'), findsOneWidget);
+      await tester.tapAt(Offset.zero);
       await tester.pumpAndSettle();
+
       await tester.tap(button('Sign with trezor'));
       await tester.pumpAndSettle();
 
       expect(draftProvider.drafts.single.psbtBase64, endsWith('+signed'));
       expect(tester.widget<SailButton>(button('Broadcast')).disabled, isFalse);
       expect(button('Sign with trezor'), findsNothing);
-      expect(button('Import a signature'), findsNothing);
+      await openPanelMenu(tester);
+      expect(find.text('Import a signature'), findsNothing);
     });
 
-    testWidgets('on a phone a broadcast shows green text, the link at the right and the txid below', (tester) async {
+    testWidgets('on a phone the panel sits under the flow card at full width', (tester) async {
       SailStyleValues.phoneLayoutOverride = true;
       addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
       await pumpOneKeyPanel(tester);
-
-      await tester.ensureVisible(button('Broadcast'));
-      await tester.pumpAndSettle();
-      await tester.tap(button('Broadcast'));
+      await tester.usePhoneSize();
       await tester.pumpAndSettle();
 
-      expect(find.byType(FlowChip), findsNothing);
-      final status = tester.getRect(find.text('Broadcast'));
-      final link = tester.getRect(button('View transaction'));
-      final txid = tester.getRect(find.text('cc' * 32));
-      expect(link.left, greaterThanOrEqualTo(status.right));
-      expect(link.center.dy, closeTo(status.center.dy, 2));
-      expect(txid.top, greaterThan(link.bottom - 1));
+      final flow = tester.getRect(find.ancestor(of: find.text('Flow'), matching: find.byType(SailCard)).first);
+      final panel = tester.getRect(find.byType(SailSidePanel));
+      expect(panel.top, greaterThan(flow.bottom - 1));
+      expect(panel.width, closeTo(flow.width, 1));
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -515,10 +533,10 @@ void main() {
       expect(tester.widget<Text>(find.text('Signed')).style?.color, theme.colors.success);
       expect(find.text('Awaiting signature'), findsNWidgets(2));
       expect(find.text('payment'), findsOneWidget);
-      expect(find.text('1 of 2 collected'), findsOneWidget);
+      expect(find.text('1 of 2 collected'), findsNWidgets(2));
     });
 
-    testWidgets('the actions stack under the keys card like a one-key send', (tester) async {
+    testWidgets('the panel stacks under the keys card with one button', (tester) async {
       final draftId = await setUpPanelDeps();
 
       await tester.pumpSailPage(DraftPanel(walletId: 'wallet-1', draftId: draftId));
@@ -526,20 +544,14 @@ void main() {
       await tester.pumpAndSettle();
 
       final keys = tester.getRect(find.text('Key 3'));
-      final rects = [
-        for (final l in ['Broadcast', 'Import a signature', 'Copy PSBT', 'Discard']) tester.getRect(button(l)),
-      ];
-      expect(rects.first.top, greaterThan(keys.bottom));
-      for (var i = 1; i < rects.length; i++) {
-        expect(rects[i].top, greaterThan(rects[i - 1].bottom - 1));
-      }
-      expect(rects[1].width, closeTo(rects[0].width, 1));
-      expect(rects[3].width, closeTo(rects[0].width, 1));
-      expect(rects[2].width, lessThan(rects[0].width));
+      final primary = find.descendant(of: find.byType(SailSidePanel), matching: find.byType(SailButton));
+      expect(primary, findsOneWidget);
+      expect(tester.widget<SailButton>(primary).label, 'Import a signature');
+      expect(tester.getRect(primary).top, greaterThan(keys.bottom));
     });
   });
 
-  testWidgets('the desktop keys table keeps the ACTION column and the chips', (tester) async {
+  testWidgets('the desktop keys table has a dot status, held by under the key, and no ACTION column', (tester) async {
     SailStyleValues.phoneLayoutOverride = false;
     addTearDown(() => SailStyleValues.phoneLayoutOverride = null);
     final draftId = await setUpPanelDeps();
@@ -547,8 +559,17 @@ void main() {
     await tester.pumpSailPage(DraftPanel(walletId: 'wallet-1', draftId: draftId));
     await tester.pumpAndSettle();
 
-    expect(find.text('ACTION'), findsOneWidget);
-    expect(find.text('HELD BY'), findsOneWidget);
+    expect(find.text('ACTION'), findsNothing);
+    expect(find.text('HELD BY'), findsNothing);
+    for (final head in ['Key', 'Type', 'Fingerprint', 'Status']) {
+      expect(find.text(head), findsOneWidget, reason: head);
+    }
+    expect(find.text('Signed'), findsNWidgets(2));
+    expect(find.byType(SailStatusDot), findsNWidgets(4));
+    expect(
+      tester.getTopLeft(find.text('This computer')).dy,
+      greaterThan(tester.getBottomLeft(find.text('Key 1')).dy - 1),
+    );
     expect(find.byType(FlowChip), findsWidgets);
   });
 }

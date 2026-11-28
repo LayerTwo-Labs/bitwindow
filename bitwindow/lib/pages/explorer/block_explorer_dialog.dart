@@ -5,6 +5,7 @@ import 'package:bitwindow/pages/explorer/widgets/transaction_flow_diagram.dart';
 import 'package:bitwindow/pages/wallet/wallet_overview.dart';
 import 'package:bitwindow/providers/blockchain_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -63,6 +64,9 @@ class BlockExplorerDialog extends StatelessWidget {
     super.key,
   });
 
+  /// Narrower panes show the block details in a dialog, not in the side panel.
+  static const double panelMinWidth = 900;
+
   @override
   Widget build(BuildContext context) {
     return ViewModelBuilder<BlockExplorerViewModel>.reactive(
@@ -74,6 +78,15 @@ class BlockExplorerDialog extends StatelessWidget {
       onViewModelReady: (model) => model.init(),
       builder: (context, model, child) {
         final phone = SailStyleValues.phoneLayout(context);
+        if (!phone) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              model.usePanel = constraints.maxWidth >= panelMinWidth;
+              return _DesktopExplorer(model: model, onShowDialog: (block) => _showBlockDetails(context, block));
+            },
+          );
+        }
+        model.usePanel = false;
         return SailCard(
           title: '# Blocks: ${model.blockchainProvider.syncProvider.mainchainSyncInfo?.progressCurrent.toInt()}',
           subtitle:
@@ -81,52 +94,28 @@ class BlockExplorerDialog extends StatelessWidget {
           bottomPadding: false,
           child: Column(
             children: [
-              if (phone) ...[
-                SailTextField(
-                  controller: model.searchController,
-                  hintText: 'Enter a block height or hash',
-                  onSubmitted: model.searchBlock,
-                ),
-                const SailSpacing(SailStyleValues.padding08),
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    SailButton(
-                      onPressed: () => model.searchBlock(model.searchController.text),
-                      label: 'Search',
-                      variant: ButtonVariant.primary,
-                    ),
-                    SailButton(
-                      onPressed: () => showLoadTransactionDialog(context),
-                      label: 'Load transaction',
-                    ),
-                  ],
-                ),
-              ] else
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    Expanded(
-                      child: SailTextField(
-                        controller: model.searchController,
-                        hintText: 'Enter a block height or hash',
-                        onSubmitted: model.searchBlock,
-                      ),
-                    ),
-                    SailButton(
-                      onPressed: () => model.searchBlock(model.searchController.text),
-                      label: 'Search',
-                      variant: ButtonVariant.primary,
-                    ),
-                    SailButton(
-                      onPressed: () => showLoadTransactionDialog(context),
-                      label: 'Load transaction',
-                    ),
-                  ],
-                ),
+              SailTextField(
+                controller: model.searchController,
+                hintText: 'Enter a block height or hash',
+                onSubmitted: model.searchBlock,
+              ),
+              const SailSpacing(SailStyleValues.padding08),
+              SailRow(
+                spacing: SailStyleValues.padding08,
+                mainAxisSize: MainAxisSize.max,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  SailButton(
+                    onPressed: () => model.searchBlock(model.searchController.text),
+                    label: 'Search',
+                    variant: ButtonVariant.primary,
+                  ),
+                  SailButton(
+                    onPressed: () => showLoadTransactionDialog(context),
+                    label: 'Load transaction',
+                  ),
+                ],
+              ),
               if (model.searchError != null) ...[
                 SailSpacing(SailStyleValues.padding08),
                 Align(
@@ -142,63 +131,26 @@ class BlockExplorerDialog extends StatelessWidget {
                 ),
               ],
               SailSpacing(SailStyleValues.padding16),
-              if (phone)
-                Expanded(
-                  child: ListView.builder(
-                    controller: model.scrollController,
-                    key: PageStorageKey('block_list'),
-                    itemCount: model.blocks.length + (model.isLoadingMoreBlocks ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == model.blocks.length) {
-                        return const Padding(padding: EdgeInsets.all(16), child: LoadingIndicator());
-                      }
-                      final block = model.blocks[index];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (index > 0) const _BlockConnector(),
-                          _BlockColumn(block: block, onDoubleTap: () => _showBlockDetails(context, block)),
-                        ],
-                      );
-                    },
-                  ),
-                )
-              else
-                Expanded(
-                  child: SizedBox(
-                    width: 1200, // Match dialog max width
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      controller: model.scrollController,
-                      key: PageStorageKey('block_list'),
-                      reverse: true,
-                      itemCount: model.blocks.length + (model.isLoadingMoreBlocks ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (model.isLoadingMoreBlocks && index == 0) {
-                          return const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: LoadingIndicator(),
-                          );
-                        }
-                        final adjustedIndex = model.isLoadingMoreBlocks ? index - 1 : index;
-                        final block = model.blocks[adjustedIndex];
-                        return Align(
-                          alignment: Alignment.topCenter,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _BlockColumn(
-                                block: block,
-                                onDoubleTap: () => _showBlockDetails(context, block),
-                              ),
-                              if (adjustedIndex > 0) const _BlockConnector(),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+              Expanded(
+                child: ListView.builder(
+                  controller: model.scrollController,
+                  key: PageStorageKey('block_list'),
+                  itemCount: model.blocks.length + (model.isLoadingMoreBlocks ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == model.blocks.length) {
+                      return const Padding(padding: EdgeInsets.all(16), child: LoadingIndicator());
+                    }
+                    final block = model.blocks[index];
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (index > 0) const _BlockConnector(),
+                        _BlockColumn(block: block, onDoubleTap: () => _showBlockDetails(context, block)),
+                      ],
+                    );
+                  },
                 ),
+              ),
               SailSpacing(SailStyleValues.padding16),
             ],
           ),
@@ -333,6 +285,26 @@ class BlockExplorerViewModel extends BaseViewModel {
 
   String? searchError;
 
+  /// True when the page shows the block details in the side panel.
+  bool usePanel = false;
+
+  /// The block in the side panel.
+  Block? selectedBlock;
+
+  void selectBlock(Block? block) {
+    selectedBlock = block;
+    notifyListeners();
+  }
+
+  /// Shows [block] in the side panel, or in a dialog when the page has no panel.
+  Future<void> openBlock(Block block) async {
+    if (usePanel) {
+      selectBlock(block);
+      return;
+    }
+    await blockViewBuilder(block);
+  }
+
   BlockExplorerViewModel({required this.blockViewBuilder}) {
     blockchainProvider.addListener(notifyListeners);
     scrollController = ScrollController();
@@ -371,7 +343,7 @@ class BlockExplorerViewModel extends BaseViewModel {
     notifyListeners();
     // the bitcoind rpc `getblock` returns a slightly
     // different data model than the bitwindowd rpc `listblocks`
-    await blockViewBuilder(
+    await openBlock(
       Block(
         hash: block.hash,
         height: block.height,
@@ -579,12 +551,14 @@ class _TransactionDetailsDialogState extends State<TransactionDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final v2 = SailTheme.of(context).isBitwindowV2;
     return SailModal(
       constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
       child: SailCard(
         title: 'Transaction Details',
         subtitle: widget.txid,
         error: error,
+        withCloseButton: v2,
         child: _isLoading
             ? const Center(
                 child: Padding(
@@ -625,12 +599,14 @@ class _TransactionDetailsDialogState extends State<TransactionDetailsDialog> {
                           label: 'Overview',
                           child: ListenableBuilder(
                             listenable: _transactions,
-                            builder: (context, _) => _OverviewTab(
-                              details: _details!,
-                              walletTx: _transactions.walletTransactions.firstWhereOrNull(
+                            builder: (context, _) {
+                              final walletTx = _transactions.walletTransactions.firstWhereOrNull(
                                 (tx) => tx.txid == widget.txid,
-                              ),
-                            ),
+                              );
+                              return v2
+                                  ? TxOverviewGroups(details: _details!, walletTx: walletTx)
+                                  : _OverviewTab(details: _details!, walletTx: walletTx);
+                            },
                           ),
                         ),
                         TabItem(
@@ -644,8 +620,17 @@ class _TransactionDetailsDialogState extends State<TransactionDetailsDialog> {
                         TabItem(
                           label: 'Diagram',
                           child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(SailStyleValues.padding16),
-                            child: TransactionDiagram(details: _details!),
+                            padding: v2 ? EdgeInsets.zero : const EdgeInsets.all(SailStyleValues.padding16),
+                            child: v2
+                                ? Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      TransactionDiagram(details: _details!),
+                                      const SailSpacing(SailStyleValues.padding16),
+                                      TransactionFlowDiagram(details: _details!),
+                                    ],
+                                  )
+                                : TransactionDiagram(details: _details!),
                           ),
                         ),
                         TabItem(
@@ -725,6 +710,102 @@ class _OverviewTab extends StatelessWidget {
           DetailRow(label: 'Total Input', value: formatter.formatSats(details.totalInputSats.toInt())),
           DetailRow(label: 'Total Output', value: formatter.formatSats(details.totalOutputSats.toInt())),
         ],
+      ),
+    );
+  }
+}
+
+/// The overview of a transaction as four grey detail groups in two columns.
+class TxOverviewGroups extends StatelessWidget {
+  final GetTransactionDetailsResponse details;
+
+  /// The history row of this transaction in the active wallet, or null.
+  final WalletTransaction? walletTx;
+
+  const TxOverviewGroups({super.key, required this.details, this.walletTx});
+
+  static const double _twoColumnWidth = 600;
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = GetIt.I<FormatterProvider>();
+    List<Widget> group(String title, List<SailDetailLine> rows) => [
+      SailDetailHeading(title),
+      const SizedBox(height: 8),
+      SailDetailGroup(fill: SailDetailFill.canvas, children: rows),
+    ];
+
+    final info = group('Transaction Info', [
+      SailDetailLine(wrap: true, label: 'TXID', value: details.txid),
+      SailDetailLine(
+        wrap: true,
+        label: 'Block Hash',
+        value: details.blockhash.isEmpty ? 'Unconfirmed' : details.blockhash,
+      ),
+      SailDetailLine(wrap: true, label: 'Confirmations', value: '${details.confirmations}'),
+      SailDetailLine(wrap: true, label: 'Version', value: '${details.version}'),
+      SailDetailLine(wrap: true, label: 'Lock Time', value: '${details.locktime}'),
+    ]);
+    final fee = group('Fee', [
+      SailDetailLine(wrap: true, label: 'Fee', value: formatter.formatSats(details.feeSats.toInt())),
+      SailDetailLine(
+        wrap: true,
+        label: 'Fee Rate',
+        value: '${details.feeRateSatVb.toStringAsFixed(2)} ${activeTicker.feeRate}',
+      ),
+    ]);
+    final size = group('Size', [
+      SailDetailLine(wrap: true, label: 'Size', value: '${details.sizeBytes} bytes'),
+      SailDetailLine(wrap: true, label: 'Virtual Size', value: '${details.vsizeVbytes} vbytes'),
+      SailDetailLine(wrap: true, label: 'Weight', value: '${details.weightWu} WU'),
+    ]);
+    final totals = group('Totals', [
+      SailDetailLine(wrap: true, label: 'Total Input', value: formatter.formatSats(details.totalInputSats.toInt())),
+      SailDetailLine(wrap: true, label: 'Total Output', value: formatter.formatSats(details.totalOutputSats.toInt())),
+    ]);
+
+    Widget column(List<Widget> first, List<Widget> second) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [...first, const SizedBox(height: 8), ...second],
+    );
+
+    final wallet = switch (walletTx) {
+      final tx? => [
+        ...group('In this wallet', [
+          for (final (label, value) in walletTransactionRows(tx, formatter))
+            SailDetailLine(wrap: true, label: label, value: value),
+        ]),
+        const SizedBox(height: 8),
+      ],
+      null => const <Widget>[],
+    };
+
+    return SingleChildScrollView(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < _twoColumnWidth) {
+            return column(
+              [...wallet, ...info, const SizedBox(height: 8), ...fee],
+              [...size, const SizedBox(height: 8), ...totals],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ...wallet,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: column(info, fee)),
+                  const SizedBox(width: 16),
+                  Expanded(child: column(size, totals)),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -928,11 +1009,9 @@ class _BlockColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final phone = SailStyleValues.phoneLayout(context);
     return GestureDetector(
       onDoubleTap: onDoubleTap,
       child: Container(
-        width: phone ? null : 400,
         padding: const EdgeInsets.all(SailStyleValues.padding16),
         decoration: BoxDecoration(
           color: context.sailTheme.colors.backgroundSecondary,
@@ -959,30 +1038,13 @@ class _BlockColumn extends StatelessWidget {
                     ),
                   ),
                 ),
-                child: phone
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SailText.primary13('${block.height}', monospace: true, color: context.sailTheme.colors.info),
-                          SailText.secondary13(block.blockTime.toDateTime().toLocal().format(), monospace: true),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          SailText.primary13(
-                            '${block.height}',
-                            monospace: true,
-                            color: context.sailTheme.colors.info,
-                          ),
-                          Flexible(
-                            child: SailText.secondary13(
-                              block.blockTime.toDateTime().toLocal().format(),
-                              monospace: true,
-                            ),
-                          ),
-                        ],
-                      ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SailText.primary13('${block.height}', monospace: true, color: context.sailTheme.colors.info),
+                    SailText.secondary13(block.blockTime.toDateTime().toLocal().format(), monospace: true),
+                  ],
+                ),
               ),
               _BlockValueLine(label: 'Hash', value: block.hash),
               _BlockValueLine(label: 'Prev Hash', value: block.previousBlockHash),
@@ -1010,10 +1072,7 @@ class _BlockValueLine extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SailText.primary13(label, monospace: true, color: context.sailTheme.colors.textTertiary),
-          SailText.secondary13(
-            SailStyleValues.phoneLayout(context) ? value : middleEllipsis(value),
-            monospace: true,
-          ),
+          SailText.secondary13(value, monospace: true),
         ],
       ),
     );
@@ -1025,17 +1084,191 @@ class _BlockConnector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (SailStyleValues.phoneLayout(context)) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding08),
-        child: Center(
-          child: SailSVG.fromAsset(SailSVGAsset.chevronDown, width: 16, color: context.sailTheme.colors.textTertiary),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding08),
+      child: Center(
+        child: SailSVG.fromAsset(SailSVGAsset.chevronDown, width: 16, color: context.sailTheme.colors.textTertiary),
+      ),
+    );
+  }
+}
+
+/// The desktop page: a top strip with the search, the blocks table, and the block details at the right.
+class _DesktopExplorer extends StatelessWidget {
+  final BlockExplorerViewModel model;
+  final Future<void> Function(Block block) onShowDialog;
+
+  const _DesktopExplorer({required this.model, required this.onShowDialog});
+
+  @override
+  Widget build(BuildContext context) {
+    final sync = model.blockchainProvider.syncProvider.mainchainSyncInfo;
+    final blocks = model.blocks;
+    final selected = model.usePanel ? model.selectedBlock : null;
+    final errors = [
+      if (model.searchError != null) model.searchError!,
+      if (model.blockchainProvider.blocksError case final error?) 'Could not read the blocks: $error',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SailStrip(
+          lead: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SailText.primary13('# Blocks: ${sync?.progressCurrent.toInt()}', bold: true),
+              SailText.secondary12('Last block time: ${sync?.lastBlockAt?.toDateTime().toLocal().format()}'),
+            ],
+          ),
+          stats: [
+            SailTextField(
+              controller: model.searchController,
+              hintText: 'Enter a block height or hash',
+              onSubmitted: model.searchBlock,
+            ),
+          ],
+          actions: [
+            SailButton(
+              onPressed: () => model.searchBlock(model.searchController.text),
+              label: 'Search',
+              variant: ButtonVariant.primary,
+            ),
+            SailRowMenuButton(
+              items: () => [
+                SailMenuItem(
+                  onSelected: () => showLoadTransactionDialog(context),
+                  child: SailText.primary12('Load transaction'),
+                ),
+              ],
+            ),
+          ],
         ),
-      );
-    }
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding04),
-      child: SailSVG.fromAsset(SailSVGAsset.chevronLeft, width: 20, color: context.sailTheme.colors.textTertiary),
+        for (final error in errors) ...[
+          const SizedBox(height: SailStyleValues.padding08),
+          SailText.primary13(error, color: context.sailTheme.colors.error),
+        ],
+        const SizedBox(height: SailStyleValues.padding12),
+        Expanded(
+          child: SailPageWithPanel(
+            panel: selected == null
+                ? null
+                : _BlockDetailsPanel(block: selected, onClose: () async => model.selectBlock(null)),
+            child: SailCard(
+              bottomPadding: false,
+              child: SailTable(
+                getRowId: (index) => blocks[index].hash,
+                selectedRowId: selected?.hash,
+                onSelectedRow: (rowId) => model.selectBlock(rowId == null ? null : _byHash(rowId)),
+                onDoubleTap: (rowId) => model.openBlock(_byHash(rowId)),
+                onScrollApproachingEnd: model.loadMoreBlocks,
+                cellHeight: 48,
+                headerBuilder: (context) => const [
+                  SailTableHeaderCell(name: 'Height'),
+                  SailTableHeaderCell(name: 'Hash'),
+                  SailTableHeaderCell(name: 'Prev Hash'),
+                  SailTableHeaderCell(name: 'Merkle Root'),
+                  SailTableHeaderCell(name: 'Bits', alignment: Alignment.centerRight),
+                ],
+                rowBuilder: (context, row, selected) {
+                  final block = blocks[row];
+                  return [
+                    SailTableCell(
+                      value: '${block.height}',
+                      secondaryValue: block.blockTime.toDateTime().toLocal().format(),
+                    ),
+                    SailTableCell(value: middleEllipsis(block.hash, keep: 12), copyValue: block.hash),
+                    SailTableCell(
+                      value: middleEllipsis(block.previousBlockHash, keep: 12),
+                      copyValue: block.previousBlockHash,
+                    ),
+                    SailTableCell(value: middleEllipsis(block.merkleRoot, keep: 10), copyValue: block.merkleRoot),
+                    SailTableCell(value: '0x${block.bits}', alignment: Alignment.centerRight),
+                  ];
+                },
+                contextMenuItems: (rowId) {
+                  final block = _byHash(rowId);
+                  return [
+                    SailMenuItem(onSelected: () => model.openBlock(block), child: SailText.primary12('Show Details')),
+                    SailMenuItem(
+                      onSelected: () => showMerkleTree(context, block),
+                      child: SailText.primary12('View Merkle Tree'),
+                    ),
+                  ];
+                },
+                rowCount: blocks.length,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Block _byHash(String hash) => model.blocks.firstWhere((b) => b.hash == hash);
+}
+
+Future<void> showMerkleTree(BuildContext context, Block block) => showThemedDialog(
+  context: context,
+  builder: (context) => MerkleTreeDialog(initialTxids: block.txids, expectedRoot: block.merkleRoot),
+);
+
+/// The side panel of one block.
+class _BlockDetailsPanel extends StatelessWidget {
+  final Block block;
+  final Future<void> Function() onClose;
+
+  const _BlockDetailsPanel({required this.block, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailSidePanel(
+      title: 'Block Details',
+      onClose: onClose,
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PanelHeadline(value: '${block.height}', caption: block.blockTime.toDateTime().toLocal().format()),
+          SailButton(label: 'View Merkle Tree', onPressed: () => showMerkleTree(context, block)),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(wrap: true, label: 'Height', value: block.height.toString()),
+              SailStackedDetail(monospace: false, label: 'Hash', value: block.hash),
+              SailDetailLine(wrap: true, label: 'Confirmations', value: block.confirmations.toString()),
+              SailDetailLine(wrap: true, label: 'Block Version', value: block.version.toString()),
+            ],
+          ),
+          const SailDetailHeading('Block Header'),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(wrap: true, label: 'Version', value: block.version.toString()),
+              SailStackedDetail(monospace: false, label: 'Previous Block Hash', value: block.previousBlockHash),
+              SailStackedDetail(monospace: false, label: 'Merkle Root', value: block.merkleRoot),
+              SailDetailLine(wrap: true, label: 'Time', value: block.blockTime.seconds.toString()),
+              SailDetailLine(wrap: true, label: 'Bits', value: '0x${block.bits}'),
+              SailDetailLine(wrap: true, label: 'Nonce', value: block.nonce.toString()),
+            ],
+          ),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailStackedDetail(monospace: false, label: 'Next Block Hash', value: nextBlockHashText(block)),
+              SailDetailLine(wrap: true, label: 'Difficulty', value: '${block.difficulty}'),
+            ],
+          ),
+          SizedBox(
+            height: 300,
+            child: TXIDTransactionTable(
+              transactions: block.txids,
+              onTransactionSelected: (txid) => showLoadTransactionDialog(context, txid: txid, blockHash: block.hash),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
