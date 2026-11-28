@@ -60,10 +60,8 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
   void _startUnfundedPolling() {
     _unfundedPollTimer?.cancel();
     _unfundedPollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (_checks.isEmpty) {
-        if (modelError != null) {
-          await fetch();
-        }
+      if (modelError != null) {
+        await fetch();
         return;
       }
       final unfunded = _checks.where((c) => !c.funded && c.sweptTxid.isEmpty).toList();
@@ -82,7 +80,7 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
     );
     for (var i = 0; i < checks.length; i++) {
       if (fundingChanged(checks[i], chain[i])) {
-        _checks = await _bitwindowRPC.wallet.listCheques(walletId);
+        _checks = (await _bitwindowRPC.wallet.listCheques(walletId)).cheques;
         return;
       }
     }
@@ -139,9 +137,13 @@ class CheckProvider extends ChangeNotifier implements NetworkScoped {
   }
 
   Future<void> fetch() => _read((walletId) async {
-    _checks = await _bitwindowRPC.wallet.listCheques(walletId);
+    final list = await _bitwindowRPC.wallet.listCheques(walletId);
+    _checks = list.cheques;
     _show();
     await _readFunding(walletId, _checks);
+    if (list.scanError.isNotEmpty) {
+      throw WalletException(list.scanError);
+    }
   });
 
   Future<Cheque> createCheck(int expectedAmountSats) async {

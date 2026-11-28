@@ -33,7 +33,7 @@ class _WalletAPI extends MockWalletAPI {
   final chainReads = <int>[];
 
   @override
-  Future<List<Cheque>> listCheques(String walletId) async => [...cheques];
+  Future<ListChequesResponse> listCheques(String walletId) async => ListChequesResponse(cheques: cheques);
 
   @override
   Future<CheckChequeFundingResponse> checkChequeFunding(String walletId, int id) async {

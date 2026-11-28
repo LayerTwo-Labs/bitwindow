@@ -626,3 +626,20 @@ func TestGetCheque_PartlyFundedChequeHoldsItsKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, created.Address, address.EncodeAddress())
 }
+
+func TestListCheques_ReportsAFailedScanWithTheStoredCheques(t *testing.T) {
+	t.Parallel()
+	db := database.Test(t)
+
+	orch := &downOrchestrator{&fakeOrchestrator{seedHex: strings.Repeat("ab", 64)}}
+	cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, db, apitests.WithOrchestrator(orch)))
+
+	chequeID, err := cheques.Create(t.Context(), db, testWalletID, 0, 100_000, "tb1qstoredcheque0000000000000000000000000")
+	require.NoError(t, err)
+
+	resp, err := cli.ListCheques(t.Context(), &walletv1.ListChequesRequest{WalletId: testWalletID})
+	require.NoError(t, err)
+	require.Len(t, resp.Cheques, 1)
+	require.Equal(t, chequeID, resp.Cheques[0].Id)
+	require.Contains(t, resp.ScanError, "esplora down")
+}

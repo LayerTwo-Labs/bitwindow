@@ -430,3 +430,47 @@ func TestChequeEngineSweep(t *testing.T) {
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	})
 }
+
+// A wallet added after the start scan gets its scan on the first read.
+func TestRecoverWalletScansEachWalletOneTime(t *testing.T) {
+	chain := &fakeChain{funded: map[string][]ChequeUTXO{}}
+	engine := testChequeEngine(t, chain)
+	ctx := t.Context()
+
+	address, err := engine.DeriveChequeAddress(ctx, chequeWalletID, 0)
+	require.NoError(t, err)
+	chain.funded[address] = testUTXOs()
+
+	count, err := engine.RecoverWallet(ctx, chequeWalletID)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	queried := len(chain.queried)
+
+	count, err = engine.RecoverWallet(ctx, chequeWalletID)
+	require.NoError(t, err)
+	require.Zero(t, count)
+	require.Len(t, chain.queried, queried)
+
+	list, err := cheques.List(ctx, engine.db, chequeWalletID)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	require.Equal(t, address, list[0].Address)
+}
+
+// A failed scan runs again on the next read.
+func TestRecoverWalletScansAgainAfterAFailure(t *testing.T) {
+	chain := &fakeChain{funded: map[string][]ChequeUTXO{}, failures: 1}
+	engine := testChequeEngine(t, chain)
+	ctx := t.Context()
+
+	address, err := engine.DeriveChequeAddress(ctx, chequeWalletID, 0)
+	require.NoError(t, err)
+	chain.funded[address] = testUTXOs()
+
+	_, err = engine.RecoverWallet(ctx, chequeWalletID)
+	require.ErrorContains(t, err, "connection refused")
+
+	count, err := engine.RecoverWallet(ctx, chequeWalletID)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}

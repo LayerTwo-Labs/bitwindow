@@ -45,6 +45,8 @@ type ChequeEngine struct {
 	scanRetry    time.Duration
 	network      string
 	issueMu      sync.Mutex
+	recoverMu    sync.Mutex
+	recovered    map[string]bool
 }
 
 func NewChequeEngine(db *sql.DB, walletEngine *WalletEngine, chainParams *chaincfg.Params, chain ChequeChain, network string) *ChequeEngine {
@@ -55,6 +57,7 @@ func NewChequeEngine(db *sql.DB, walletEngine *WalletEngine, chainParams *chainc
 		chain:        chain,
 		scanRetry:    10 * time.Second,
 		network:      network,
+		recovered:    map[string]bool{},
 	}
 }
 
@@ -423,6 +426,45 @@ func (e *ChequeEngine) Start(ctx context.Context) <-chan struct{} {
 	return done
 }
 
+// RecoverWallet stores each funded cheque of the wallet seed that the chain
+// holds, one time per run. It returns the number of funded cheques found.
+func (e *ChequeEngine) RecoverWallet(ctx context.Context, walletID string) (int, error) {
+	log := zerolog.Ctx(ctx)
+
+	e.recoverMu.Lock()
+	defer e.recoverMu.Unlock()
+	if e.recovered[walletID] {
+		return 0, nil
+	}
+
+	recoveries, err := e.ScanForFunds(ctx, walletID, chequeGapLimit)
+	if connect.CodeOf(err) == connect.CodeFailedPrecondition {
+		log.Debug().Str("wallet_id", walletID).Msg("cheque recovery: skip wallet with no seed")
+		e.recovered[walletID] = true
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	for _, recovery := range recoveries {
+		if err := cheques.CreateOrUpdateFromRecoveryVersioned(
+			ctx, e.db, walletID, recovery.Index, recovery.Address, recovery.Outputs, recovery.Amount, recovery.KeyVersion, recovery.KeyDomain, recovery.KeyScope,
+		); err != nil {
+			return 0, fmt.Errorf("save recovered cheque %d: %w", recovery.Index, err)
+		}
+	}
+
+	if len(recoveries) > 0 {
+		log.Info().
+			Str("wallet_id", walletID).
+			Int("count", len(recoveries)).
+			Msg("found funded cheques during recovery scan")
+	}
+	e.recovered[walletID] = true
+	return len(recoveries), nil
+}
+
 // recoverChequesOnUnlock waits for wallet unlock, then recovers cheques for all wallets
 func (e *ChequeEngine) recoverChequesOnUnlock(ctx context.Context) {
 	log := zerolog.Ctx(ctx)
@@ -458,12 +500,8 @@ func (e *ChequeEngine) recoverChequesOnUnlock(ctx context.Context) {
 	for {
 		var failed []WalletInfo
 		for _, wallet := range pending {
-			recoveries, err := e.ScanForFunds(ctx, wallet.ID, chequeGapLimit)
+			count, err := e.RecoverWallet(ctx, wallet.ID)
 			if err != nil {
-				if connect.CodeOf(err) == connect.CodeFailedPrecondition {
-					log.Debug().Str("wallet_id", wallet.ID).Msg("cheque recovery: skip wallet with no seed")
-					continue
-				}
 				// The chain source refuses reads while it boots, so scan again
 				// later. A failure that stays is reported one time.
 				level := zerolog.WarnLevel
@@ -475,26 +513,7 @@ func (e *ChequeEngine) recoverChequesOnUnlock(ctx context.Context) {
 				failed = append(failed, wallet)
 				continue
 			}
-
-			for _, recovery := range recoveries {
-				if err := cheques.CreateOrUpdateFromRecoveryVersioned(
-					ctx, e.db, wallet.ID, recovery.Index, recovery.Address, recovery.Outputs, recovery.Amount, recovery.KeyVersion, recovery.KeyDomain, recovery.KeyScope,
-				); err != nil {
-					log.Error().Err(err).
-						Str("wallet_id", wallet.ID).
-						Uint32("index", recovery.Index).
-						Msg("save recovered cheque")
-					return
-				}
-			}
-
-			if len(recoveries) > 0 {
-				log.Info().
-					Str("wallet_id", wallet.ID).
-					Int("count", len(recoveries)).
-					Msg("found funded cheques during recovery scan")
-				totalRecoveries += len(recoveries)
-			}
+			totalRecoveries += count
 		}
 
 		if len(failed) == 0 {
