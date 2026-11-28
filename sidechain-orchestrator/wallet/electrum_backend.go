@@ -3590,10 +3590,8 @@ func confsFor(status EsploraStatus, tip int) int {
 	if !status.Confirmed || status.BlockHeight == 0 {
 		return 0
 	}
-	if c := tip - status.BlockHeight + 1; c > 0 {
-		return c
-	}
-	return 0
+	// The tip is cached, so a fresh status can name a block past it.
+	return max(tip, status.BlockHeight) - status.BlockHeight + 1
 }
 
 // estimateFeeSats approximates the fee for a P2WPKH tx with nIn inputs and

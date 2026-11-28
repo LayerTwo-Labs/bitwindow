@@ -1545,6 +1545,27 @@ func TestConfsFor(t *testing.T) {
 	assert.Equal(t, 1, confsFor(EsploraStatus{Confirmed: true, BlockHeight: 110}, 110))
 }
 
+func TestConfsForBlockPastCachedTip(t *testing.T) {
+	assert.Equal(t, 1, confsFor(EsploraStatus{Confirmed: true, BlockHeight: 111}, 110))
+	assert.Equal(t, 1, confsFor(EsploraStatus{Confirmed: true, BlockHeight: 115}, 110))
+}
+
+func TestWalletRowsForTxInBlockPastCachedTip(t *testing.T) {
+	scan := &electrumScan{byAddr: map[string]scannedAddr{"bcrt1qown": {address: "bcrt1qown"}}}
+	tx := EsploraTx{
+		TxID:   "aa",
+		Vin:    []EsploraVin{{TxID: "bb", Vout: 0}},
+		Vout:   []EsploraVout{{ScriptPubKeyAddress: "bcrt1qown", Value: 50_000_000}},
+		Status: EsploraStatus{Confirmed: true, BlockHeight: 102, BlockTime: 1_700_000_000},
+	}
+
+	rows := walletRowsForTx(tx, scan, 101, 1_700_000_000)
+
+	require.Len(t, rows, 1)
+	assert.Equal(t, 1, rows[0].Confirmations)
+	assert.Equal(t, uint32(102), rows[0].BlockHeight)
+}
+
 // TestElectrumPSBTRoundTrip exercises the exposed PSBT surface end to end:
 // create an unsigned PSBT, sign it with the wallet, finalize to a raw tx.
 func TestElectrumPSBTRoundTrip(t *testing.T) {
