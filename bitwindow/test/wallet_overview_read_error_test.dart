@@ -6,6 +6,7 @@ import 'package:fixnum/fixnum.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
@@ -262,6 +263,39 @@ void main() {
     expect(find.text('-'), findsOneWidget);
     expect(find.text('6'), findsNothing);
     expect(find.text('5 unique addresses'), findsNothing);
+    model.dispose();
+  });
+
+  testWidgets('the last activity age moves on while the stats stay the same', (tester) async {
+    var now = DateTime.utc(2026, 11, 28, 12);
+    final model = OverviewViewModel();
+    bitwindow.wallet.read = (_) async => GetStatsResponse(
+      lastTxAt: Timestamp.fromDateTime(now.subtract(const Duration(seconds: 59))),
+      lastTxBlockHeight: 103,
+    );
+    await tester.runAsync(model.getStats);
+    await tester.pumpSailPage(
+      ViewModelBuilder<OverviewViewModel>.reactive(
+        viewModelBuilder: () => model,
+        disposeViewModel: false,
+        builder: (context, model, child) => Row(
+          children: [
+            Expanded(
+              child: LastActivityStats(stats: model.stats, now: () => now),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('59 seconds ago'), findsOneWidget);
+
+    now = now.add(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('1 minute ago'), findsOneWidget);
+    expect(find.text('at block 103'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
     model.dispose();
   });
 }

@@ -1311,10 +1311,16 @@ func TestElectrumListTransactionsSelfSend(t *testing.T) {
 
 	rows, err := p.ListTransactions(context.Background(), w.ID, 0)
 	require.NoError(t, err)
-	require.Len(t, rows, 1, "self-send must still appear in history")
-	assert.Equal(t, "cc", rows[0].TxID)
-	assert.Equal(t, "send", rows[0].Category)
-	assert.InDelta(t, -0.00001, rows[0].Fee, 1e-9) // -1000 sats
+	require.Len(t, rows, 2, "self-send lists a send and a receive row, as Core does")
+	for _, row := range rows {
+		assert.Equal(t, "cc", row.TxID)
+		assert.Equal(t, addr, row.Address)
+	}
+	categories := map[string]WalletTransaction{rows[0].Category: rows[0], rows[1].Category: rows[1]}
+	assert.InDelta(t, -0.00099, categories["send"].Amount, 1e-9)
+	assert.InDelta(t, -0.00001, categories["send"].Fee, 1e-9) // -1000 sats
+	assert.InDelta(t, 0.00099, categories["receive"].Amount, 1e-9)
+	assert.Zero(t, categories["receive"].Fee)
 }
 
 func TestElectrumListTransactionsUnconfirmedTime(t *testing.T) {
@@ -1543,6 +1549,27 @@ func TestConfsFor(t *testing.T) {
 	assert.Equal(t, 0, confsFor(EsploraStatus{Confirmed: false}, 110))
 	assert.Equal(t, 11, confsFor(EsploraStatus{Confirmed: true, BlockHeight: 100}, 110))
 	assert.Equal(t, 1, confsFor(EsploraStatus{Confirmed: true, BlockHeight: 110}, 110))
+}
+
+func TestConfsForBlockPastCachedTip(t *testing.T) {
+	assert.Equal(t, 1, confsFor(EsploraStatus{Confirmed: true, BlockHeight: 111}, 110))
+	assert.Equal(t, 1, confsFor(EsploraStatus{Confirmed: true, BlockHeight: 115}, 110))
+}
+
+func TestWalletRowsForTxInBlockPastCachedTip(t *testing.T) {
+	scan := &electrumScan{byAddr: map[string]scannedAddr{"bcrt1qown": {address: "bcrt1qown"}}}
+	tx := EsploraTx{
+		TxID:   "aa",
+		Vin:    []EsploraVin{{TxID: "bb", Vout: 0}},
+		Vout:   []EsploraVout{{ScriptPubKeyAddress: "bcrt1qown", Value: 50_000_000}},
+		Status: EsploraStatus{Confirmed: true, BlockHeight: 102, BlockTime: 1_700_000_000},
+	}
+
+	rows := walletRowsForTx(tx, scan, 101, 1_700_000_000)
+
+	require.Len(t, rows, 1)
+	assert.Equal(t, 1, rows[0].Confirmations)
+	assert.Equal(t, uint32(102), rows[0].BlockHeight)
 }
 
 // TestElectrumPSBTRoundTrip exercises the exposed PSBT surface end to end:
@@ -4507,4 +4534,53 @@ func TestElectrumAddressHDPathIsEmptyForAStranger(t *testing.T) {
 	path, err = p.AddressHDPath(ctx, w.ID, "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx")
 	require.NoError(t, err)
 	assert.Empty(t, path)
+}
+
+func selfSendScan() *electrumScan {
+	return &electrumScan{byAddr: map[string]scannedAddr{
+		"bcrt1qcoin":    {address: "bcrt1qcoin"},
+		"bcrt1qreceive": {address: "bcrt1qreceive"},
+		"bcrt1qchange":  {address: "bcrt1qchange", change: true},
+	}}
+}
+
+func selfSendTx(vout ...EsploraVout) EsploraTx {
+	return EsploraTx{
+		TxID: "cc",
+		Vin:  []EsploraVin{{TxID: "dd", Prevout: &EsploraVout{ScriptPubKeyAddress: "bcrt1qcoin", Value: 70_000_000}}},
+		Vout: vout,
+		Fee:  282,
+	}
+}
+
+func TestWalletRowsForTxSelfPaymentNamesTheAmount(t *testing.T) {
+	tx := selfSendTx(
+		EsploraVout{ScriptPubKeyAddress: "bcrt1qreceive", Value: 10_000_000},
+		EsploraVout{ScriptPubKeyAddress: "bcrt1qchange", Value: 59_999_718},
+	)
+
+	rows := walletRowsForTx(tx, selfSendScan(), 0, 1)
+
+	require.Len(t, rows, 2)
+	assert.Equal(t, "send", rows[0].Category)
+	assert.Equal(t, "bcrt1qreceive", rows[0].Address)
+	assert.Equal(t, 0, rows[0].Vout)
+	assert.InDelta(t, -0.1, rows[0].Amount, 1e-9)
+	assert.InDelta(t, -0.00000282, rows[0].Fee, 1e-12)
+	assert.Equal(t, "receive", rows[1].Category)
+	assert.Equal(t, "bcrt1qreceive", rows[1].Address)
+	assert.Equal(t, 0, rows[1].Vout)
+	assert.InDelta(t, 0.1, rows[1].Amount, 1e-9)
+	assert.Zero(t, rows[1].Fee)
+}
+
+func TestWalletRowsForTxAllChangeKeepsOneFeeRow(t *testing.T) {
+	tx := selfSendTx(EsploraVout{ScriptPubKeyAddress: "bcrt1qchange", Value: 69_999_718})
+
+	rows := walletRowsForTx(tx, selfSendScan(), 0, 1)
+
+	require.Len(t, rows, 1)
+	assert.Equal(t, "send", rows[0].Category)
+	assert.Zero(t, rows[0].Amount)
+	assert.InDelta(t, -0.00000282, rows[0].Fee, 1e-12)
 }
