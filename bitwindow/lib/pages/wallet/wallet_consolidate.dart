@@ -256,7 +256,7 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
     final phone = SailStyleValues.phoneLayout(context);
 
     final table = SailTable(
-      phoneColumns: const [0, 1, 5],
+      phoneColumns: const [0, 1, 2],
       shrinkWrap: phone,
       getRowId: (index) => coins[index].output,
       rowCount: coins.length,
@@ -264,10 +264,10 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
       headerBuilder: (context) => const [
         SailTableHeaderCell(name: ''),
         SailTableHeaderCell(name: 'Date'),
+        SailTableHeaderCell(name: 'Amount', alignment: Alignment.centerRight),
+        SailTableHeaderCell(name: 'Label'),
         SailTableHeaderCell(name: 'Coin'),
         SailTableHeaderCell(name: 'Address'),
-        SailTableHeaderCell(name: 'Label'),
-        SailTableHeaderCell(name: 'Value'),
       ],
       rowBuilder: (context, row, selected) {
         final coin = coins[row];
@@ -286,10 +286,10 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
             value: coin.hasReceivedAt() ? formatDate(coin.receivedAt.toDateTime().toLocal()) : '—',
           ),
           SailTableCell(
-            value: '${coin.output.substring(0, 6)}..:${coin.output.split(':').last}',
-            copyValue: coin.output,
+            value: _formatter.formatSats(coin.valueSats.toInt()),
+            alignment: Alignment.centerRight,
+            monospace: true,
           ),
-          SailTableCell(value: shortenId(coin.address), copyValue: coin.address, monospace: true),
           coinLabelCell(
             _isLocked(coin.output)
                 ? 'Locked'
@@ -298,7 +298,11 @@ class _ConsolidateTabState extends State<ConsolidateTab> {
                 : coinLabel(coin),
             columnChars: 12,
           ),
-          SailTableCell(value: _formatter.formatSats(coin.valueSats.toInt()), monospace: true),
+          SailTableCell(
+            value: '${coin.output.substring(0, 6)}..:${coin.output.split(':').last}',
+            copyValue: coin.output,
+          ),
+          SailTableCell(value: shortenId(coin.address), copyValue: coin.address, monospace: true),
         ];
       },
     );

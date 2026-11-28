@@ -7,6 +7,7 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/wallet/v1/wallet.pb.dart';
 
@@ -106,11 +107,12 @@ class _FakeDrafts extends ChangeNotifier implements PsbtDraftProvider {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Future<void> _pump(WidgetTester tester, {required bool phone}) async {
+Future<void> _pump(WidgetTester tester, {required bool phone, Size? size}) async {
   SailStyleValues.phoneLayoutOverride = phone;
   await tester.pumpSailPage(const ConsolidateTab());
-  if (phone) {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
+  final surface = phone ? const Size(390, 844) : size;
+  if (surface != null) {
+    await tester.binding.setSurfaceSize(surface);
   }
   await tester.pump();
   await tester.pump();
@@ -185,9 +187,8 @@ void main() {
   });
 
   testWidgets('the desktop Coins card shows the value column, a short address and a failed read', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1024, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await _pump(tester, phone: false);
+    await _pump(tester, phone: false, size: const Size(1024, 700));
 
     final card = tester.getRect(find.ancestor(of: find.text('Coins').first, matching: find.byType(SailCard)).first);
     final value = tester.getRect(find.text(GetIt.I<FormatterProvider>().formatSats(4000)).last);
@@ -203,11 +204,10 @@ void main() {
   });
 
   testWidgets('a long label ends in its column and the value column stays in the card', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1024, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final label = 'Salary ${'x' * 80}';
     (GetIt.I<CoinSelectionProvider>() as _FakeCoinSelection).labels['${'0' * 64}:0'] = label;
-    await _pump(tester, phone: false);
+    await _pump(tester, phone: false, size: const Size(1024, 700));
 
     final card = tester.getRect(find.ancestor(of: find.text('Coins').first, matching: find.byType(SailCard)).first);
     final value = tester.getRect(find.text(GetIt.I<FormatterProvider>().formatSats(4000)).last);
@@ -215,14 +215,30 @@ void main() {
     expect(tester.getSize(find.text(label)).width, lessThan(260));
   });
 
+  testWidgets('a dated coin of many bitcoin keeps its amount in the card, after the date', (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final transactions = GetIt.I<TransactionProvider>() as _FakeTransactions;
+    for (final coin in transactions.utxos) {
+      coin.receivedAt = Timestamp.fromDateTime(DateTime(2026, 11, 28, 6, 17));
+    }
+    transactions.utxos.first.valueSats = Int64(4999639164);
+    await _pump(tester, phone: false, size: const Size(1024, 700));
+
+    final formatter = GetIt.I<FormatterProvider>();
+    final card = tester.getRect(find.ancestor(of: find.text('Coins').first, matching: find.byType(SailCard)).first);
+    final amount = tester.getRect(find.text(formatter.formatSats(4999639164)).last);
+    expect(amount.right, lessThanOrEqualTo(card.right), reason: 'the amount of each coin shows in the card');
+    expect(tester.getRect(find.text('Amount')).left, lessThan(tester.getRect(find.text('Coin')).left));
+    expect(find.text('Value'), findsNothing, reason: 'both coin tables call the column Amount');
+  });
+
   testWidgets('a coin with no own label shows the label of its address', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final transactions = GetIt.I<TransactionProvider>() as _FakeTransactions;
     transactions.utxos.first.label = 'Address label';
     transactions.utxos[1].label = 'Hidden address label';
     (GetIt.I<CoinSelectionProvider>() as _FakeCoinSelection).labels['${'1' * 64}:0'] = 'Own label';
-    await _pump(tester, phone: false);
+    await _pump(tester, phone: false, size: const Size(1280, 800));
 
     expect(find.text('Address label'), findsOneWidget);
     expect(find.text('Own label'), findsOneWidget);
