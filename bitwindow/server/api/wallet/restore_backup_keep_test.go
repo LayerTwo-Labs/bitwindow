@@ -13,14 +13,24 @@ import (
 	walletv1connect "github.com/LayerTwo-Labs/sidesail/bitwindow/server/gen/wallet/v1/walletv1connect"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/tests/apitests"
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/tests/mocks"
+	orchctlpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/orchestrator/v1"
+	orchctlrpc "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/orchestrator/v1/orchestratorv1connect"
 	orchpb "github.com/LayerTwo-Labs/sidesail/sidechain-orchestrator/gen/walletmanager/v1"
 )
 
 const backupWalletFile = `{"version":1,"wallets":[{"id":"backup","master":{},"l1":{}}]}`
 
-// The test server has no L1 stack to restart, so a restore that replaces the
-// wallets fails here. A restore that keeps them must not restart it.
-func TestRestoreBackupThatKeepsWalletsHandsTheWalletFileToTheOrchestrator(t *testing.T) {
+type l1Restarts struct {
+	orchctlrpc.UnimplementedOrchestratorServiceHandler
+	count int
+}
+
+func (r *l1Restarts) RestartL1(context.Context, *orchctlpb.RestartL1Request) (*orchctlpb.RestartL1Response, error) {
+	r.count++
+	return &orchctlpb.RestartL1Response{}, nil
+}
+
+func TestRestoreBackupIntoAnInstallWithAWalletAddsTheWalletsOfTheBackup(t *testing.T) {
 	orch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
 	apitests.ExpectOrchestratorReads(orch)
 	var got *orchpb.ImportWalletBackupRequest
@@ -30,21 +40,64 @@ func TestRestoreBackupThatKeepsWalletsHandsTheWalletFileToTheOrchestrator(t *tes
 			return &orchpb.ImportWalletBackupResponse{WalletIds: []string{"backup"}}, nil
 		},
 	).Times(1)
-	cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(orch)))
+	restarts := &l1Restarts{}
+	cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t),
+		apitests.WithOrchestrator(orch), apitests.WithOrchestratorControl(restarts)))
 
 	_, err := cli.RestoreBackup(t.Context(), &walletv1.RestoreBackupRequest{
-		BackupData:  []byte(backupWalletFile),
-		Filename:    "wallet.json",
-		KeepWallets: true,
-		Password:    "backup horse",
+		BackupData: []byte(backupWalletFile),
+		Filename:   "wallet.json",
+		Password:   "backup horse",
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, backupWalletFile, string(got.WalletJson))
 	require.Equal(t, "backup horse", got.Password)
+	require.Zero(t, restarts.count)
 }
 
-func TestRestoreBackupThatKeepsWalletsReturnsTheOrchestratorError(t *testing.T) {
+func TestRestoreBackupIntoAnEmptyInstallWritesTheWalletsAndRestartsL1(t *testing.T) {
+	orch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
+	orch.EXPECT().GetWalletStatus(gomock.Any(), gomock.Any()).
+		Return(&orchpb.GetWalletStatusResponse{State: orchpb.WalletState_WALLET_STATE_NO_WALLET}, nil).AnyTimes()
+	apitests.ExpectOrchestratorReads(orch)
+	orch.EXPECT().ImportWalletBackup(gomock.Any(), gomock.Any()).Times(0)
+	restarts := &l1Restarts{}
+	cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t),
+		apitests.WithOrchestrator(orch), apitests.WithOrchestratorControl(restarts)))
+
+	_, err := cli.RestoreBackup(t.Context(), &walletv1.RestoreBackupRequest{
+		BackupData: []byte(backupWalletFile),
+		Filename:   "wallet.json",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, restarts.count)
+}
+
+func TestRestoreBackupIntoALockedInstallNeverReplacesTheWallets(t *testing.T) {
+	orch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
+	orch.EXPECT().GetWalletStatus(gomock.Any(), gomock.Any()).
+		Return(&orchpb.GetWalletStatusResponse{State: orchpb.WalletState_WALLET_STATE_LOCKED, Encrypted: true}, nil).AnyTimes()
+	orch.EXPECT().ListWallets(gomock.Any(), gomock.Any()).Return(&orchpb.ListWalletsResponse{}, nil).AnyTimes()
+	apitests.ExpectOrchestratorReads(orch)
+	orch.EXPECT().ImportWalletBackup(gomock.Any(), gomock.Any()).Return(
+		nil, connect.NewError(connect.CodeFailedPrecondition, "wallet is locked, unlock before restoring a backup"),
+	).Times(1)
+	restarts := &l1Restarts{}
+	cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t),
+		apitests.WithOrchestrator(orch), apitests.WithOrchestratorControl(restarts)))
+
+	_, err := cli.RestoreBackup(t.Context(), &walletv1.RestoreBackupRequest{
+		BackupData: []byte(backupWalletFile),
+		Filename:   "wallet.json",
+	})
+
+	require.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
+	require.Zero(t, restarts.count)
+}
+
+func TestRestoreBackupIntoAnInstallWithAWalletReturnsTheOrchestratorError(t *testing.T) {
 	orch := mocks.NewMockWalletManagerServiceClient(gomock.NewController(t))
 	apitests.ExpectOrchestratorReads(orch)
 	orch.EXPECT().ImportWalletBackup(gomock.Any(), gomock.Any()).Return(
@@ -53,10 +106,9 @@ func TestRestoreBackupThatKeepsWalletsReturnsTheOrchestratorError(t *testing.T) 
 	cli := walletv1connect.NewWalletServiceClient(apitests.RPC(t, database.Test(t), apitests.WithOrchestrator(orch)))
 
 	_, err := cli.RestoreBackup(t.Context(), &walletv1.RestoreBackupRequest{
-		BackupData:  []byte(backupWalletFile),
-		Filename:    "wallet.json",
-		KeepWallets: true,
-		Password:    "wrong horse",
+		BackupData: []byte(backupWalletFile),
+		Filename:   "wallet.json",
+		Password:   "wrong horse",
 	})
 
 	require.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))

@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:bitwindow/main.dart' show restoreBitwindowWalletFromFile;
 import 'package:bitwindow/pages/welcome/create_another_wallet_page.dart';
 import 'package:bitwindow/pages/welcome/multisig_config_step.dart';
 import 'package:file_picker/file_picker.dart';
@@ -40,7 +39,7 @@ class _FakeOrchestrator implements OrchestratorRPC {
 
 class _WalletApi extends MockWalletAPI {
   bool encrypted = false;
-  final List<({bool keepWallets, String password})> restores = [];
+  final List<String> restores = [];
   String? refusal;
 
   @override
@@ -51,10 +50,9 @@ class _WalletApi extends MockWalletAPI {
   Future<void> restoreBackup(
     List<int> backupData,
     String filename, {
-    bool keepWallets = false,
     String password = '',
   }) async {
-    restores.add((keepWallets: keepWallets, password: password));
+    restores.add(password);
     if (refusal != null) {
       throw WalletException(refusal!);
     }
@@ -150,70 +148,6 @@ File _backupFile() {
 }
 
 void main() {
-  group('restoreBitwindowWalletFromFile', () {
-    late _Api api;
-
-    setUp(() async {
-      await GetIt.I.reset();
-      api = _Api();
-      GetIt.I.registerSingleton<BitwindowRPC>(api);
-    });
-
-    test('replaces the wallets when the install has no wallet', () async {
-      GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader([]));
-
-      expect(await restoreBitwindowWalletFromFile(_backupFile()), isTrue);
-
-      expect(api.wallet.restores, [(keepWallets: false, password: '')]);
-    });
-
-    test('keeps the wallets when the install has a wallet', () async {
-      final reader = _WalletReader([_wallet('wallet1')]);
-      GetIt.I.registerSingleton<WalletReaderProvider>(reader);
-
-      expect(await restoreBitwindowWalletFromFile(_backupFile()), isTrue);
-
-      expect(api.wallet.restores, [(keepWallets: true, password: '')]);
-      expect(reader.reloads, 1);
-    });
-
-    test('keeps the wallets when the wallet file is locked', () async {
-      GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader([], hasNoWallet: false));
-
-      expect(await restoreBitwindowWalletFromFile(_backupFile()), isTrue);
-
-      expect(api.wallet.restores, [(keepWallets: true, password: '')]);
-    });
-
-    test('sends the password of an encrypted backup', () async {
-      GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader([_wallet('wallet1')]));
-      api.wallet.encrypted = true;
-      String? asked;
-
-      final done = await restoreBitwindowWalletFromFile(
-        _backupFile(),
-        askPassword: (filename) async {
-          asked = filename;
-          return 'backup horse';
-        },
-      );
-
-      expect(done, isTrue);
-      expect(asked, 'backup.zip');
-      expect(api.wallet.restores, [(keepWallets: true, password: 'backup horse')]);
-    });
-
-    test('restores nothing when the user gives no password', () async {
-      GetIt.I.registerSingleton<WalletReaderProvider>(_WalletReader([_wallet('wallet1')]));
-      api.wallet.encrypted = true;
-
-      final done = await restoreBitwindowWalletFromFile(_backupFile(), askPassword: (_) async => null);
-
-      expect(done, isFalse);
-      expect(api.wallet.restores, isEmpty);
-    });
-  });
-
   setUp(() async {
     await GetIt.I.reset();
     GetIt.I.registerSingleton<Logger>(Logger(level: Level.off));
@@ -301,7 +235,7 @@ void main() {
     await tester.tap(find.widgetWithText(SailButton, 'Restore').first);
     await settle();
 
-    expect(api.wallet.restores, [(keepWallets: true, password: 'wrong horse')]);
+    expect(api.wallet.restores, ['wrong horse']);
     expect(find.text('Failed to restore from backup file: incorrect password'), findsOneWidget);
   });
 }

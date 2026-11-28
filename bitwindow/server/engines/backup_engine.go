@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect/v2"
 	"github.com/rs/zerolog"
 
 	"github.com/LayerTwo-Labs/sidesail/bitwindow/server/database"
@@ -283,6 +284,7 @@ func (e *BackupEngine) RestoreBackup(ctx context.Context, data []byte, filename 
 // AddBackup adds the content of a backup file to this install. addWallets gets
 // the wallet file of the backup and its encryption metadata (nil with no
 // password), and adds the wallets. The wallet files on disk stay as they are.
+// When addWallets returns AlreadyExists, the records of the backup still go in.
 func (e *BackupEngine) AddBackup(
 	ctx context.Context, data []byte, filename string,
 	addWallets func(walletJSON, encryptionJSON []byte) error,
@@ -307,8 +309,14 @@ func (e *BackupEngine) AddBackup(
 	if err := snapshotCurrentWallet(e.walletDir); err != nil {
 		return fmt.Errorf("back up the current wallet: %w", err)
 	}
+	hasRecords := multisigJSON != nil || txJSON != nil || chequeJSON != nil
 	return e.importBackupDataThen(ctx, multisig.ImportNewBackupTx, multisigJSON, txJSON, chequeJSON, func() error {
-		return addWallets(walletJSON, encryptionJSON)
+		err := addWallets(walletJSON, encryptionJSON)
+		// A backup of wallets that are here still brings back its lost records.
+		if hasRecords && connect.CodeOf(err) == connect.CodeAlreadyExists {
+			return nil
+		}
+		return err
 	})
 }
 

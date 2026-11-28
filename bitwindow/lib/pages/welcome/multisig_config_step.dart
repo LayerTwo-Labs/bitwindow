@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bitwindow/main.dart' show restoreBitwindowWalletFromFile;
 import 'package:bitwindow/pages/welcome/wallet_backup_page.dart';
 import 'package:bitwindow/utils/ur_key.dart';
 import 'package:bitwindow/routing/router.dart';
@@ -1625,11 +1624,11 @@ class _MultisigConfigStepState extends State<MultisigConfigStep> with AutomaticK
     setState(() => _restoringBackup = true);
     widget.onRestoringChanged?.call(true);
     try {
-      final done = await restoreBitwindowWalletFromFile(
+      final result = await restoreWalletBackupFile(
         File(path),
         askPassword: (filename) => showBackupPasswordDialog(context, backupName: filename),
       );
-      if (!done) {
+      if (result == BackupFileRestore.cancelled) {
         if (mounted) {
           setState(() => _restoringBackup = false);
           widget.onRestoringChanged?.call(false);

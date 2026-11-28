@@ -260,6 +260,16 @@ func (e *WalletEngine) IsUnlocked(ctx context.Context) (bool, error) {
 	return resp.State == orchpb.WalletState_WALLET_STATE_UNLOCKED, nil
 }
 
+// HasNoWallet reports whether the orchestrator has no wallet file. A locked
+// wallet file counts as a wallet.
+func (e *WalletEngine) HasNoWallet(ctx context.Context) (bool, error) {
+	resp, err := e.orchClient.GetWalletStatus(ctx, &orchpb.GetWalletStatusRequest{})
+	if err != nil {
+		return false, fmt.Errorf("get wallet status: %w", err)
+	}
+	return resp.State == orchpb.WalletState_WALLET_STATE_NO_WALLET, nil
+}
+
 // ImportWalletBackup adds the wallets of a backup wallet file to the wallets
 // the orchestrator holds.
 func (e *WalletEngine) ImportWalletBackup(ctx context.Context, walletJSON, encryptionJSON []byte, password string) error {
