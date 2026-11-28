@@ -525,6 +525,7 @@ class BroadcastNewsView extends StatelessWidget {
                   SailTextField(
                     controller: viewModel.feeController,
                     hintText: 'Fee (optional)',
+                    textFieldType: viewModel.feeUnit == BitcoinUnit.btc ? TextFieldType.bitcoin : TextFieldType.number,
                     suffixWidget: Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: SailText.secondary12(viewModel.feeUnit.symbol),

@@ -164,6 +164,33 @@ void main() {
     expect(api.misc.fees, [2001, null]);
   });
 
+  testWidgets('a typed comma in the fee is the decimal point', (tester) async {
+    await loadBundledFonts();
+    final provider = GetIt.I.get<NewsProvider>();
+    await tester.runAsync(provider.fetch);
+    provider.topics = [Topic(topic: 'a1a1a1a1', name: 'QA Topic', confirmed: true)];
+    await tester.runAsync(() => GetIt.I.get<ClientSettings>().setValue(LastUsedTopicSetting(newValue: 'a1a1a1a1')));
+
+    await tester.pumpSailPage(const SizedBox(width: 700, height: 700, child: BroadcastNewsView()));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
+
+    final fee = find.byType(EditableText).last;
+    tester.state<EditableTextState>(find.byType(EditableText).first).widget.controller.text = 'QA headline';
+    for (final key in '0,001'.split('')) {
+      await tester.enterText(fee, tester.state<EditableTextState>(fee).widget.controller.text + key);
+      await tester.pump();
+    }
+    expect(tester.state<EditableTextState>(fee).widget.controller.text, '0.001');
+
+    final broadcast = find.widgetWithText(SailButton, 'Broadcast');
+    await tester.ensureVisible(broadcast);
+    await tester.pump();
+    await tester.widget<SailButton>(broadcast).onPressed!();
+    await tester.pump();
+    expect(api.misc.fees, [100000]);
+  });
+
   testWidgets('a link that is not a web link stops the broadcast', (tester) async {
     await loadBundledFonts();
     final provider = GetIt.I.get<NewsProvider>();
