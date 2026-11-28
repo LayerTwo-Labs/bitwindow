@@ -47,6 +47,7 @@ type ChequeEngine struct {
 	issueMu      sync.Mutex
 	recoverMu    sync.Mutex
 	recovered    map[string]bool
+	scanLocks    map[string]*sync.Mutex
 }
 
 func NewChequeEngine(db *sql.DB, walletEngine *WalletEngine, chainParams *chaincfg.Params, chain ChequeChain, network string) *ChequeEngine {
@@ -58,6 +59,7 @@ func NewChequeEngine(db *sql.DB, walletEngine *WalletEngine, chainParams *chainc
 		scanRetry:    10 * time.Second,
 		network:      network,
 		recovered:    map[string]bool{},
+		scanLocks:    map[string]*sync.Mutex{},
 	}
 }
 
@@ -432,16 +434,20 @@ func (e *ChequeEngine) Start(ctx context.Context) <-chan struct{} {
 func (e *ChequeEngine) RecoverWallet(ctx context.Context, walletID string) (int, error) {
 	log := zerolog.Ctx(ctx)
 
-	e.recoverMu.Lock()
-	defer e.recoverMu.Unlock()
-	if e.recovered[walletID] {
+	scanLock, done := e.walletScanLock(walletID)
+	if done {
+		return 0, nil
+	}
+	scanLock.Lock()
+	defer scanLock.Unlock()
+	if e.isRecovered(walletID) {
 		return 0, nil
 	}
 
 	recoveries, err := e.ScanForFunds(ctx, walletID, chequeGapLimit)
 	if connect.CodeOf(err) == connect.CodeFailedPrecondition {
 		log.Debug().Str("wallet_id", walletID).Msg("cheque recovery: skip wallet with no seed")
-		e.recovered[walletID] = true
+		e.markRecovered(walletID)
 		return 0, nil
 	}
 	if err != nil {
@@ -465,8 +471,34 @@ func (e *ChequeEngine) RecoverWallet(ctx context.Context, walletID string) (int,
 			Int("count", len(recoveries)).
 			Msg("found funded cheques during recovery scan")
 	}
-	e.recovered[walletID] = true
+	e.markRecovered(walletID)
 	return len(recoveries), nil
+}
+
+func (e *ChequeEngine) walletScanLock(walletID string) (*sync.Mutex, bool) {
+	e.recoverMu.Lock()
+	defer e.recoverMu.Unlock()
+	if e.recovered[walletID] {
+		return nil, true
+	}
+	lock, ok := e.scanLocks[walletID]
+	if !ok {
+		lock = &sync.Mutex{}
+		e.scanLocks[walletID] = lock
+	}
+	return lock, false
+}
+
+func (e *ChequeEngine) isRecovered(walletID string) bool {
+	e.recoverMu.Lock()
+	defer e.recoverMu.Unlock()
+	return e.recovered[walletID]
+}
+
+func (e *ChequeEngine) markRecovered(walletID string) {
+	e.recoverMu.Lock()
+	defer e.recoverMu.Unlock()
+	e.recovered[walletID] = true
 }
 
 func (e *ChequeEngine) adoptChequesOfRemovedWallets(ctx context.Context, walletID string, recoveries []ChequeRecovery) error {
