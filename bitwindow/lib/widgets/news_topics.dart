@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:bitwindow/widgets/news_cost.dart';
+import 'package:bitwindow/utils/error_text.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -69,7 +69,7 @@ Future<List<NewTopic>> priceNewTopics(List<TopicLine> lines) => Future.wait([
   for (final line in lines)
     estimateTopicFee(line).then(
       (estimate) => (line: line, estimate: estimate, error: null),
-      onError: (Object e) => (line: line, estimate: null, error: feeErrorText(e)),
+      onError: (Object e) => (line: line, estimate: null, error: errorText(e)),
     ),
 ]);
 

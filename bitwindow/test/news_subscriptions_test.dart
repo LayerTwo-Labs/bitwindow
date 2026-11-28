@@ -298,6 +298,28 @@ void main() {
     expect(api.sent, isEmpty);
   });
 
+  for (final (id, line) in [
+    ('A1A1A1A1', 'Saved Topic (a1a1a1a1) is already in Your Topics. It costs nothing.'),
+    ('c3c3c3c3', 'Other Topic (c3c3c3c3) is on the chain. Subscribe to it on the Subscribe tab at no cost.'),
+  ]) {
+    testWidgets('Create Topic with the identifier $id of a known topic shows no fee and sends nothing', (tester) async {
+      final api = await open(tester);
+      await tester.tap(find.text('Create Topic'));
+      await tester.pumpAndSettle();
+      final fields = find.byType(EditableText).hitTestable();
+      await tester.enterText(fields.at(0), 'Copy Topic');
+      await tester.enterText(fields.at(1), id);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(find.text(line), findsOneWidget);
+      expect(find.textContaining('Network fee'), findsNothing);
+      expect(api.priced, isEmpty);
+      expect(tester.widget<SailButton>(find.widgetWithText(SailButton, 'Create Topic')).onPressed, isNull);
+      expect(api.sent, isEmpty);
+    });
+  }
+
   testWidgets('Import lists the new topics with their fees and sends nothing on Cancel', (tester) async {
     final api = await open(tester);
     final messenger = tester.binding.defaultBinaryMessenger;
@@ -382,7 +404,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Could not leave Saved Topic. could not leave topic a1a1a1a1: database is locked'),
+      find.text('Could not leave topic a1a1a1a1: database is locked'),
       findsOneWidget,
     );
     expect(find.text('Saved Topic'), findsOneWidget);

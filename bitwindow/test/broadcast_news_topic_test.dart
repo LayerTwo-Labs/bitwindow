@@ -23,6 +23,7 @@ class _BroadcastAPI extends MockMiscAPI {
   final links = <String?>[];
   final estimated = <({String headline, String body, String url, int subtype, bool nsfw})>[];
   String? estimateError;
+  String? broadcastError;
 
   @override
   Future<NewsFeeEstimate> estimateNewsFee(
@@ -57,6 +58,9 @@ class _BroadcastAPI extends MockMiscAPI {
   }) async {
     fees.add(feeSats);
     links.add(url);
+    if (broadcastError case final error?) {
+      throw BitwindowException(error);
+    }
     throw StateError('Test broadcast stopped');
   }
 }
@@ -269,6 +273,18 @@ void main() {
     await type(tester, find.byType(EditableText).first, 'QA headline 2');
     expect(find.textContaining('Could not estimate'), findsNothing);
     expect(find.textContaining('Network fee'), findsOneWidget);
+  });
+
+  testWidgets('a failed broadcast gives the reason of the server one time', (tester) async {
+    await pumpDialog(tester);
+    await type(tester, find.byType(EditableText).first, 'QA too expensive story');
+    api.misc.broadcastError = 'could not broadcast news: insufficient funds: need 100000000000 sats';
+
+    await tester.widget<SailButton>(find.widgetWithText(SailButton, 'Broadcast')).onPressed!();
+    await tester.pump();
+
+    expect(find.text('Could not broadcast news: insufficient funds: need 100000000000 sats'), findsOneWidget);
+    expect(find.textContaining('BitwindowException'), findsNothing);
   });
 
   testWidgets('only the last input sets the fee line', (tester) async {

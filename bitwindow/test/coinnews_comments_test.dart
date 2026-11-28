@@ -40,7 +40,7 @@ class _MiscAPI extends MockMiscAPI {
     int? feeSats,
   }) async {
     if (failPost) {
-      throw Exception('the node does not answer');
+      throw BitwindowException('could not comment on news: the node does not answer');
     }
     comments = [
       ...comments,
@@ -69,7 +69,7 @@ class _MiscAPI extends MockMiscAPI {
   }) async {
     estimated.add(body);
     if (failEstimate) {
-      throw Exception('no estimate');
+      throw BitwindowException('could not estimate news fee: wallet is locked');
     }
     return NewsFeeEstimate(vsize: 100 + body.length, feeSatPerVbyte: 1, feeSats: 100 + body.length);
   }
@@ -192,7 +192,8 @@ void main() {
     await post(tester, 'Does not go out');
 
     expect(find.text('First'), findsOneWidget);
-    expect(find.textContaining('the node does not answer'), findsOneWidget);
+    expect(find.text('Could not comment on news: the node does not answer'), findsOneWidget);
+    expect(find.textContaining('BitwindowException'), findsNothing);
     expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'Does not go out');
 
     rpc.misc.failPost = false;
@@ -238,6 +239,21 @@ void main() {
 
     expect(rpc.misc.estimated, ['hello']);
     expect(find.text('Checking the fee…'), findsNothing);
+    expect(find.text('Could not estimate news fee: wallet is locked'), findsOneWidget);
+  });
+
+  testWidgets('the first comment warning shows why the fee estimate failed', (tester) async {
+    await GetIt.I.get<ClientSettings>().setValue(CommentWarningSeenSetting(newValue: false));
+    rpc.misc.failEstimate = true;
+    await pumpPanel(tester);
+
+    await tester.enterText(find.byType(TextField), 'A comment');
+    await tester.tap(commentButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Commenting costs a fee'), findsOneWidget);
+    expect(find.text('Could not estimate news fee: wallet is locked'), findsOneWidget);
   });
 
   testWidgets('the first comment warning prices the comment text', (tester) async {

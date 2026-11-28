@@ -9,6 +9,7 @@ import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
 import 'package:bitwindow/providers/blockchain_provider.dart';
 import 'package:bitwindow/providers/news_provider.dart';
 import 'package:bitwindow/routing/router.dart';
+import 'package:bitwindow/utils/error_text.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/utils/web_link.dart';
 import 'package:bitwindow/widgets/coinnews.dart';
@@ -744,7 +745,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
       }
       Navigator.of(context).pop();
     } catch (e) {
-      broadcastError = 'Could not broadcast news: $e';
+      broadcastError = errorText(e);
       notifyListeners();
     }
   }
@@ -1024,6 +1025,8 @@ class _CreateTopicTab extends StatelessWidget {
           ),
           if (viewModel.createTopicError != null)
             SailInlineError(viewModel.createTopicError!)
+          else if (viewModel.existingTopicText case final text?)
+            SailText.secondary12(text)
           else
             FeeQuoteText(quote: viewModel.createFee),
           if (pendingTopics.isNotEmpty) ...[
@@ -1082,7 +1085,24 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   final TextEditingController retentionDaysController = TextEditingController(text: '7');
 
   bool get canCreate =>
-      identifierController.text.isNotEmpty && nameController.text.isNotEmpty && identifierController.text.length == 8;
+      identifierController.text.isNotEmpty &&
+      nameController.text.isNotEmpty &&
+      identifierController.text.length == 8 &&
+      existingTopic == null;
+
+  /// The topic of the Create Topic identifier when Your Topics or the chain has it.
+  Topic? get existingTopic {
+    final id = identifierController.text.trim().toLowerCase();
+    return _listed(id) ?? _onChain(id);
+  }
+
+  /// Why Create Topic cannot create the topic of the identifier, or null when it can.
+  String? get existingTopicText => switch (existingTopic) {
+    null => null,
+    final topic when _listed(topic.topic.toLowerCase()) != null =>
+      '${topic.name} (${topic.topic}) is already in Your Topics. It costs nothing.',
+    final topic => '${topic.name} (${topic.topic}) is on the chain. Subscribe to it on the Subscribe tab at no cost.',
+  };
 
   String? createTopicError;
   String? subscribeError;
@@ -1129,7 +1149,8 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     createTopicError = null;
     final name = nameController.text;
     final days = _retentionDays;
-    final valid = topicError(topic: identifierController.text, name: name, retentionDays: days) == null;
+    final valid =
+        topicError(topic: identifierController.text, name: name, retentionDays: days) == null && existingTopic == null;
     createFee.update(
       valid ? () => estimateTopicFee(TopicLine(retentionDays: days!, topic: '', name: name)) : null,
     );
@@ -1139,6 +1160,9 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   void _onTopicsChanged() {
     if (listedTopic != null || chainTopic != null) {
       subscribeFee.update(null);
+    }
+    if (existingTopic != null) {
+      createFee.update(null);
     }
     notifyListeners();
   }
@@ -1158,7 +1182,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   }
 
   Future<void> createTopic(BuildContext context) async {
-    if (identifierController.text.isEmpty || nameController.text.isEmpty) {
+    if (identifierController.text.isEmpty || nameController.text.isEmpty || existingTopic != null) {
       return;
     }
     final retentionDays = _retentionDays;
@@ -1189,7 +1213,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       nameController.clear();
       retentionDaysController.text = '7';
     } catch (e) {
-      _setCreateTopicError('Could not create topic: $e');
+      _setCreateTopicError(errorText(e));
     }
   }
 
@@ -1231,7 +1255,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
       showSailToast(context, 'Subscribed to "${line.name}"! txid: ${response.txid.substring(0, 8)}...');
       urlController.clear();
     } catch (e) {
-      subscribeError = 'Could not subscribe: $e';
+      subscribeError = errorText(e);
       notifyListeners();
     }
   }
@@ -1243,7 +1267,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     try {
       await _api.misc.setTopicSubscribed(topic.topic, true);
     } catch (e) {
-      subscribeError = 'Could not subscribe to ${topic.name}. ${_reason(e)}';
+      subscribeError = errorText(e);
       notifyListeners();
       return;
     }
@@ -1264,14 +1288,12 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     try {
       await _api.misc.setTopicSubscribed(topic.topic, false);
     } catch (e) {
-      topicActionError = 'Could not leave ${topic.name}. ${_reason(e)}';
+      topicActionError = errorText(e);
       notifyListeners();
       return;
     }
     await _newsProvider.fetch();
   }
-
-  String _reason(Object e) => e is BitwindowException ? e.message : '$e';
 
   Future<void> exportTopics(BuildContext context) async {
     final urls = topics.map((t) => '${t.retentionDays}{${t.topic}}${t.name}').join('\n');
@@ -1376,7 +1398,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
         await _api.misc.setTopicSubscribed(line.topic, true);
         added++;
       } catch (e) {
-        failures.add('${line.name}: ${_reason(e)}');
+        failures.add('${line.name}: ${errorText(e)}');
       }
     }
     for (final line in toCreate) {
@@ -1384,7 +1406,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
         await _api.misc.createTopic(line.topic, line.name, retentionDays: line.retentionDays);
         added++;
       } catch (e) {
-        failures.add('${line.name}: ${_reason(e)}');
+        failures.add('${line.name}: ${errorText(e)}');
       }
     }
     await _newsProvider.fetch();
