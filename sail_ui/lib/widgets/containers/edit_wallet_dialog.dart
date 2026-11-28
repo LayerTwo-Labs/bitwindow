@@ -27,13 +27,15 @@ class EditWalletResult {
 }
 
 /// Edits a wallet's name and picture, and offers to delete it. Returns null
-/// when the user backs out.
+/// when the user backs out. A [deleteBlockedReason] turns Delete off and shows
+/// the reason under it.
 Future<EditWalletResult?> showEditWalletDialog(
   BuildContext context, {
   required String currentName,
   required WalletGradient gradient,
   required Future<Uint8List?> Function() onChangePicture,
   required Future<bool> Function() onConfirmDelete,
+  String? deleteBlockedReason,
 }) {
   return showThemedDialog<EditWalletResult>(
     context: context,
@@ -42,6 +44,7 @@ Future<EditWalletResult?> showEditWalletDialog(
       gradient: gradient,
       onChangePicture: onChangePicture,
       onConfirmDelete: onConfirmDelete,
+      deleteBlockedReason: deleteBlockedReason,
     ),
   );
 }
@@ -51,12 +54,14 @@ class _EditWalletDialog extends StatefulWidget {
   final WalletGradient gradient;
   final Future<Uint8List?> Function() onChangePicture;
   final Future<bool> Function() onConfirmDelete;
+  final String? deleteBlockedReason;
 
   const _EditWalletDialog({
     required this.currentName,
     required this.gradient,
     required this.onChangePicture,
     required this.onConfirmDelete,
+    required this.deleteBlockedReason,
   });
 
   @override
@@ -167,6 +172,7 @@ class _EditWalletDialogState extends State<_EditWalletDialog> {
                   SailButton(
                     label: 'Delete wallet',
                     variant: ButtonVariant.destructive,
+                    disabled: widget.deleteBlockedReason != null,
                     onPressed: _delete,
                   ),
                   SailRow(
@@ -196,6 +202,7 @@ class _EditWalletDialogState extends State<_EditWalletDialog> {
                     variant: ButtonVariant.ghost,
                     textColor: theme.colors.error,
                     small: true,
+                    disabled: widget.deleteBlockedReason != null,
                     onPressed: _delete,
                   ),
                   SailRow(
@@ -217,6 +224,7 @@ class _EditWalletDialogState extends State<_EditWalletDialog> {
                   ),
                 ],
               ),
+            if (widget.deleteBlockedReason case final reason?) SailText.secondary12(reason),
           ],
         ),
       ),

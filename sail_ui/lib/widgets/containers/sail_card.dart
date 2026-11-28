@@ -363,6 +363,7 @@ class SailAlertCard extends StatelessWidget {
   final String? loadingLabel;
   final String confirmText;
   final String cancelText;
+  final bool confirmDisabled;
 
   const SailAlertCard({
     super.key,
@@ -374,6 +375,7 @@ class SailAlertCard extends StatelessWidget {
     this.loadingLabel,
     this.confirmText = 'Confirm',
     this.cancelText = 'Cancel',
+    this.confirmDisabled = false,
   });
 
   Future<void> _cancel(BuildContext context) async {
@@ -408,6 +410,7 @@ class SailAlertCard extends StatelessWidget {
                   variant: confirmButtonVariant ?? ButtonVariant.primary,
                   loadingLabel: loadingLabel,
                   loading: loadingLabel != null,
+                  disabled: confirmDisabled,
                   onPressed: onConfirm,
                 ),
               ),
@@ -438,6 +441,7 @@ class SailAlertCard extends StatelessWidget {
                 variant: confirmButtonVariant ?? ButtonVariant.secondary,
                 loadingLabel: loadingLabel,
                 loading: loadingLabel != null,
+                disabled: confirmDisabled,
                 onPressed: () async {
                   await onConfirm();
                 },
