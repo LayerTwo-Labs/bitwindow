@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:auto_route/auto_route.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
+import 'package:sail_ui/pages/sidechains/sidechain_overview_page.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 @RoutePage()
@@ -18,40 +20,10 @@ class MempoolExplorerPage extends StatelessWidget {
           final theme = SailTheme.of(context);
           final formatter = GetIt.I<FormatterProvider>();
           final phone = SailStyleValues.phoneLayout(context);
-          final valueAlignment = phone ? Alignment.centerRight : Alignment.centerLeft;
 
           return SailColumn(
-            spacing: SailStyleValues.padding16,
+            spacing: SailStyleValues.padding12,
             children: [
-              // Info banner about limitations
-              Container(
-                padding: const EdgeInsets.all(SailStyleValues.padding12),
-                decoration: BoxDecoration(
-                  color: theme.colors.info.withValues(alpha: 0.1),
-                  borderRadius: SailStyleValues.borderRadiusSmall,
-                  border: Border.all(color: theme.colors.info.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    SailSVG.fromAsset(SailSVGAsset.info, width: 20, color: theme.colors.info),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SailText.primary13(
-                        'Showing all UTXOs on the sidechain. Full mempool transaction list requires additional RPC support.',
-                        color: theme.colors.info,
-                      ),
-                    ),
-                    SailButton(
-                      label: 'Refresh',
-                      variant: ButtonVariant.secondary,
-                      small: true,
-                      onPressed: model.refresh,
-                      loading: model.isRefreshing,
-                    ),
-                  ],
-                ),
-              ),
-
               if (phone)
                 SailStatList(
                   children: [
@@ -70,23 +42,17 @@ class MempoolExplorerPage extends StatelessWidget {
                   ],
                 )
               else
-                SailRow(
-                  spacing: SailStyleValues.padding16,
-                  children: [
-                    _StatCard(
-                      label: 'Total UTXOs',
-                      value: model.utxos.length.toString(),
-                      loading: model.isLoading,
-                    ),
-                    _StatCard(
-                      label: 'Total Value',
-                      value: formatter.formatSats(model.totalValue),
-                      loading: model.isLoading,
-                    ),
+                SailStrip(
+                  stats: [
+                    SailStat(label: 'Total UTXOs', value: model.utxos.length.toString()),
+                    SailStat(label: 'Total Value', value: formatter.formatSats(model.totalValue)),
                   ],
+                  actions: [_RefreshButton(model: model)],
                 ),
-
-              // UTXO list
+              SidechainNotice(
+                message: 'Showing all UTXOs on the sidechain. Full mempool transaction list requires additional RPC support.',
+                trailing: phone ? _RefreshButton(model: model) : null,
+              ),
               Expanded(
                 child: SailCard(
                   title: 'All UTXOs',
@@ -98,20 +64,20 @@ class MempoolExplorerPage extends StatelessWidget {
                           builder: (context, child) => SailTable(
                             getRowId: (index) => model.utxos[index].outpoint,
                             headerBuilder: (context) => [
-                              SailTableHeaderCell(name: 'Type'),
                               SailTableHeaderCell(name: 'Outpoint'),
+                              SailTableHeaderCell(name: 'Type'),
                               SailTableHeaderCell(name: 'Address'),
-                              SailTableHeaderCell(name: 'Value', alignment: valueAlignment),
+                              SailTableHeaderCell(name: 'Value', alignment: Alignment.centerRight),
                             ],
                             rowBuilder: (context, row, selected) {
                               final utxo = model.utxos[row];
                               return [
-                                SailTableCell(value: utxo.type.name, monospace: true),
                                 SailTableCell(
                                   value: _truncateOutpoint(utxo.outpoint),
                                   copyValue: utxo.outpoint,
                                   monospace: true,
                                 ),
+                                SailTableCell(value: utxo.type.name),
                                 SailTableCell(
                                   value: _truncateAddress(utxo.address),
                                   copyValue: utxo.address,
@@ -120,14 +86,27 @@ class MempoolExplorerPage extends StatelessWidget {
                                 SailTableCell(
                                   value: formatter.formatSats(utxo.valueSats.toInt()),
                                   monospace: true,
-                                  alignment: valueAlignment,
+                                  alignment: Alignment.centerRight,
                                 ),
                               ];
                             },
                             rowCount: model.utxos.length,
                             drawGrid: true,
-                            phoneColumns: const [0, 2, 3],
+                            phoneColumns: const [1, 2, 3],
                             emptyPlaceholder: model.isLoading ? 'Loading UTXOs...' : 'No UTXOs found',
+                            contextMenuItems: (rowId) {
+                              final utxo = model.utxos.firstWhere((u) => u.outpoint == rowId);
+                              return [
+                                SailMenuItem(
+                                  onSelected: () => Clipboard.setData(ClipboardData(text: utxo.outpoint)),
+                                  child: SailText.primary12('Copy outpoint'),
+                                ),
+                                SailMenuItem(
+                                  onSelected: () => Clipboard.setData(ClipboardData(text: utxo.address)),
+                                  child: SailText.primary12('Copy address'),
+                                ),
+                              ];
+                            },
                           ),
                         ),
                 ),
@@ -158,34 +137,19 @@ class MempoolExplorerPage extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool loading;
+class _RefreshButton extends StatelessWidget {
+  final MempoolExplorerViewModel model;
 
-  const _StatCard({
-    required this.label,
-    required this.value,
-    this.loading = false,
-  });
+  const _RefreshButton({required this.model});
 
   @override
-  Widget build(BuildContext context) {
-    return SailCard(
-      child: SailColumn(
-        spacing: SailStyleValues.padding04,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SailText.secondary13(label),
-          SailSkeletonizer(
-            enabled: loading,
-            description: 'Loading...',
-            child: SailText.primary20(value, bold: true),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SailButton(
+    label: 'Refresh',
+    variant: ButtonVariant.secondary,
+    small: true,
+    onPressed: model.refresh,
+    loading: model.isRefreshing,
+  );
 }
 
 class MempoolExplorerViewModel extends BaseViewModel {

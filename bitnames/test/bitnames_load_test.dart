@@ -121,6 +121,8 @@ void main() {
     );
     rpc.reply.complete([entry]);
     await tester.pump();
+    await tester.tap(find.text('Reserve').first);
+    await tester.pump();
 
     final nameField = find.byWidgetPredicate(
       (widget) => widget is SailTextField && widget.hintText == 'Enter name to reserve',
@@ -141,8 +143,7 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    final reserveCard = find.byWidgetPredicate((widget) => widget is SailCard && widget.title == 'Reserve');
-    expect(tester.widget<SailCard>(reserveCard).error, isNull);
+    expect(tester.widget<SailTextField>(nameField).errorText, isNull);
     expect(rpc.reserved, ['alice']);
     expect(rpc.calls, callsBeforeReserve + 2);
     expect(provider.entries, [entry]);

@@ -13,6 +13,7 @@ import 'package:truthcoin/providers/price_history_provider.dart';
 import 'package:truthcoin/routing/router.dart';
 import 'package:truthcoin/widgets/market_card.dart';
 import 'package:truthcoin/widgets/price_chart.dart';
+import 'package:truthcoin/widgets/v2_parts.dart';
 
 const double _panelWidth = 348;
 
@@ -96,7 +97,6 @@ class MarketDetailPage extends StatelessWidget {
         ];
         final panel = [
           _TradePanel(model: model, market: market),
-          if (model.canAddLiquidity) _AddLiquidityCard(model: model, market: market),
           _MarketFactsCard(market: market),
         ];
 
@@ -149,25 +149,34 @@ class _BackRow extends StatelessWidget {
       spacing: SailStyleValues.padding04,
       mainAxisSize: MainAxisSize.max,
       children: [
-        SailButton(
-          plainLabel: true,
-          label: '←  Markets',
-          variant: ButtonVariant.link,
-          small: true,
-          onPressed: () async => AutoRouter.of(context).replaceAll([const MarketExplorerRoute()]),
+        BackLink(
+          label: 'Markets',
+          onTap: () => AutoRouter.of(context).replaceAll([const MarketExplorerRoute()]),
         ),
         const Spacer(),
-        SailButton(
-          plainLabel: true,
-          label: 'Refresh',
-          variant: ButtonVariant.secondary,
-          small: true,
-          loading: model.isLoading,
-          onPressed: () async => model.load(),
+        SailRowMenuButton(
+          items: () => [
+            menuItem('Refresh', () => unawaited(model.load())),
+            if (model.canAddLiquidity && model.market != null)
+              menuItem('Add liquidity', () => unawaited(showAddLiquidity(context, model, model.market!))),
+          ],
         ),
       ],
     );
   }
+}
+
+/// Shows the Add liquidity form in a dialog. A successful add closes it.
+Future<void> showAddLiquidity(BuildContext context, MarketDetailViewModel model, MarketData market) async {
+  await widgetDialog(
+    context: context,
+    title: 'Add liquidity',
+    maxWidth: 480,
+    child: ListenableBuilder(
+      listenable: model,
+      builder: (dialogContext, _) => _AddLiquidityForm(model: model, market: market),
+    ),
+  );
 }
 
 class _MarketHeaderCard extends StatelessWidget {
@@ -197,9 +206,9 @@ class _MarketHeaderCard extends StatelessWidget {
                     runSpacing: SailStyleValues.padding04,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      SailBadge(
-                        market.marketState.displayName,
-                        tone: market.isTrading ? SailBadgeTone.success : SailBadgeTone.neutral,
+                      SailStatusPill(
+                        label: market.marketState.displayName,
+                        tone: market.isTrading ? SailStatusTone.success : SailStatusTone.neutral,
                       ),
                       SailText.secondary12('${formatter.formatSats(market.totalVolumeSats)} volume'),
                       SailText.secondary12('·'),
@@ -271,17 +280,37 @@ class _OutcomePricesCard extends StatelessWidget {
                       width: 110,
                       child: SailText.secondary12(formatter.formatSats(outcome.volumeSats)),
                     ),
-                    OutcomeTradeButton(
-                      label: model.selectedOutcome?.index == outcome.index ? 'Selected' : 'Trade',
-                      price: formatChance(outcome.currentPrice),
-                      tone: OutcomeTone.yes,
-                      onTap: () => model.selectOutcome(outcome),
-                    ),
+                    _OutcomeAction(model: model, outcome: outcome),
                   ],
                 ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// "Selected" for the outcome of the trade panel, else a "…" with Trade.
+class _OutcomeAction extends StatelessWidget {
+  final MarketDetailViewModel model;
+  final MarketOutcome outcome;
+
+  const _OutcomeAction({required this.model, required this.outcome});
+
+  @override
+  Widget build(BuildContext context) {
+    if (model.selectedOutcome?.index == outcome.index) {
+      return const SizedBox(
+        width: 96,
+        child: StatusDotCell(label: 'Selected', tone: SailStatusTone.success),
+      );
+    }
+    return SizedBox(
+      width: 96,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: SailRowMenuButton(items: () => [menuItem('Trade', () => model.selectOutcome(outcome))]),
       ),
     );
   }
@@ -424,11 +453,7 @@ class _QuestionPricesCard extends StatelessWidget {
                           child: Align(
                             alignment: Alignment.centerLeft,
                             widthFactor: 1,
-                            child: OutcomeTradeButton(
-                              label: model.selectedOutcome?.index == outcome.index ? 'Selected' : 'Trade',
-                              tone: OutcomeTone.yes,
-                              onTap: () => model.selectOutcome(outcome),
-                            ),
+                            child: _OutcomeAction(model: model, outcome: outcome),
                           ),
                         ),
                       ],
@@ -671,25 +696,11 @@ class _TradePanel extends StatelessWidget {
         builder: (context, _) => SailColumn(
           spacing: SailStyleValues.padding12,
           children: [
-            SailRow(
-              spacing: SailStyleValues.padding08,
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                Expanded(
-                  child: SailTabItem(
-                    label: 'Buy',
-                    isSelected: model.tradeMode == TradeMode.buy,
-                    onTap: () => model.setTradeMode(TradeMode.buy),
-                  ),
-                ),
-                Expanded(
-                  child: SailTabItem(
-                    label: 'Sell',
-                    isSelected: model.tradeMode == TradeMode.sell,
-                    onTap: () => model.setTradeMode(TradeMode.sell),
-                  ),
-                ),
-              ],
+            Segments<TradeMode>(
+              expand: true,
+              items: const [(TradeMode.buy, 'Buy'), (TradeMode.sell, 'Sell')],
+              value: model.tradeMode,
+              onChanged: model.setTradeMode,
             ),
             if (model.hasQuestions) _PickedOutcome(model: model) else _OutcomeSelector(model: model),
             if (model.tradeMode == TradeMode.buy)
@@ -830,42 +841,53 @@ class _TradePanel extends StatelessWidget {
   }
 }
 
-class _AddLiquidityCard extends StatelessWidget {
+class _AddLiquidityForm extends StatelessWidget {
   final MarketDetailViewModel model;
   final MarketData market;
 
-  const _AddLiquidityCard({required this.model, required this.market});
+  const _AddLiquidityForm({required this.model, required this.market});
 
   @override
   Widget build(BuildContext context) {
     final formatter = GetIt.I.get<FormatterProvider>();
 
-    return SailCard(
-      title: 'Add liquidity',
-      subtitle: 'More liquidity moves the price less per trade. The subsidy goes to the market treasury.',
-      child: ListenableBuilder(
-        listenable: formatter,
-        builder: (context, _) => SailColumn(
-          spacing: SailStyleValues.padding12,
-          children: [
-            _FactRow(label: 'Liquidity now', value: formatter.formatBTC(market.liquidity)),
-            SailTextField(
-              controller: model.liquidityController,
-              label: 'Amount (${activeTicker.subunit})',
-              hintText: '50000',
-              textFieldType: TextFieldType.number,
-              onChanged: (_) => model.onLiquidityChanged(),
-            ),
-            _FactRow(label: 'Network fee', value: formatter.formatSats(_tradeMinerFeeSats)),
-            SailButton(
-              plainLabel: true,
-              label: 'Add liquidity',
-              loading: model.isAddingLiquidity,
-              disabled: model.liquidityAmountSats <= 0,
-              onPressed: () async => model.addLiquidity(context),
-            ),
-          ],
-        ),
+    return ListenableBuilder(
+      listenable: formatter,
+      builder: (context, _) => SailColumn(
+        spacing: SailStyleValues.padding12,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SailText.secondary13(
+            'More liquidity moves the price less per trade. The subsidy goes to the market treasury.',
+          ),
+          SailTextField(
+            controller: model.liquidityController,
+            label: 'Amount (${activeTicker.subunit})',
+            hintText: '50000',
+            textFieldType: TextFieldType.number,
+            onChanged: (_) => model.onLiquidityChanged(),
+          ),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(wrap: true, label: 'Liquidity now', value: formatter.formatBTC(market.liquidity)),
+              SailDetailLine(wrap: true, label: 'Network fee', value: formatter.formatSats(_tradeMinerFeeSats)),
+            ],
+          ),
+          SailButton(
+            plainLabel: true,
+            label: 'Add liquidity',
+            loading: model.isAddingLiquidity,
+            disabled: model.liquidityAmountSats <= 0,
+            onPressed: () async {
+              final added = await model.addLiquidity(context);
+              if (added && context.mounted) {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -881,20 +903,13 @@ class _OutcomeSelector extends StatelessWidget {
     final outcomes = model.orderedOutcomes;
 
     if (outcomes.length == 2) {
-      return SailRow(
-        spacing: SailStyleValues.padding10,
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          for (final outcome in outcomes)
-            Expanded(
-              child: _OutcomeChoice(
-                outcome: outcome,
-                selected: model.selectedOutcome?.index == outcome.index,
-                tone: outcome.label.toLowerCase() == 'no' ? OutcomeTone.no : OutcomeTone.yes,
-                onTap: () => model.selectOutcome(outcome),
-              ),
-            ),
+      return Segments<int>(
+        expand: true,
+        items: [
+          for (final outcome in outcomes) (outcome.index, '${outcome.label} ${formatChance(outcome.currentPrice)}'),
         ],
+        value: model.selectedOutcome?.index,
+        onChanged: (index) => model.selectOutcome(outcomes.firstWhere((o) => o.index == index)),
       );
     }
 
@@ -969,50 +984,6 @@ class _PickedOutcome extends StatelessWidget {
   }
 }
 
-class _OutcomeChoice extends StatelessWidget {
-  final MarketOutcome outcome;
-  final bool selected;
-  final OutcomeTone tone;
-  final VoidCallback onTap;
-
-  const _OutcomeChoice({
-    required this.outcome,
-    required this.selected,
-    required this.tone,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final color = tone == OutcomeTone.yes ? theme.colors.success : theme.colors.error;
-
-    return SailTappable(
-      onTap: () async => onTap(),
-      borderRadius: SailStyleValues.borderRadius,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding10),
-        decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.10) : theme.colors.background,
-          borderRadius: SailStyleValues.borderRadius,
-          border: Border.all(
-            color: selected ? color : theme.colors.border,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: SailColumn(
-          spacing: 0,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SailText.primary15(outcome.label, color: selected ? color : theme.colors.text),
-            SailText.secondary12(formatChance(outcome.currentPrice)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SummaryBox extends StatelessWidget {
   final List<(String, String)> rows;
 
@@ -1020,28 +991,9 @@ class _SummaryBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(SailStyleValues.padding12),
-      decoration: BoxDecoration(
-        color: theme.colors.backgroundSecondary,
-        borderRadius: SailStyleValues.borderRadius,
-      ),
-      child: SailColumn(
-        spacing: SailStyleValues.padding08,
-        children: [
-          for (final row in rows)
-            SailRow(
-              spacing: SailStyleValues.padding08,
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                Expanded(child: SailText.secondary12(row.$1)),
-                SailText.primary13(row.$2),
-              ],
-            ),
-        ],
-      ),
+    return SailDetailGroup(
+      fill: SailDetailFill.canvas,
+      children: [for (final (label, value) in rows) SailDetailLine(wrap: true, label: label, value: value)],
     );
   }
 }
@@ -1059,37 +1011,18 @@ class _MarketFactsCard extends StatelessWidget {
       title: 'Market',
       child: ListenableBuilder(
         listenable: formatter,
-        builder: (context, _) => SailColumn(
-          spacing: SailStyleValues.padding08,
+        builder: (context, _) => SailDetailGroup(
+          fill: SailDetailFill.canvas,
           children: [
-            _FactRow(label: 'State', value: market.marketState.displayName),
-            _FactRow(label: 'Outcomes', value: '${market.outcomes.length}'),
-            _FactRow(label: 'Liquidity', value: formatter.formatBTC(market.liquidity)),
-            _FactRow(label: 'Volume', value: formatter.formatSats(market.totalVolumeSats)),
-            _FactRow(label: 'Created at block', value: '${market.createdAtHeight}'),
-            _FactRow(label: 'Market id', value: market.shortId),
+            SailDetailLine(wrap: true, label: 'State', value: market.marketState.displayName),
+            SailDetailLine(wrap: true, label: 'Outcomes', value: '${market.outcomes.length}'),
+            SailDetailLine(wrap: true, label: 'Liquidity', value: formatter.formatBTC(market.liquidity)),
+            SailDetailLine(wrap: true, label: 'Volume', value: formatter.formatSats(market.totalVolumeSats)),
+            SailDetailLine(wrap: true, label: 'Created at block', value: '${market.createdAtHeight}'),
+            SailDetailLine(wrap: true, label: 'Market id', value: market.shortId),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _FactRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _FactRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        Expanded(child: SailText.secondary13(label)),
-        SailText.primary13(value),
-      ],
     );
   }
 }
@@ -1168,13 +1101,10 @@ class _PriceCardState extends State<_PriceCard> {
 
           final ranges = SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: SailToggleGroup<PriceRange>(
-              items: [
-                for (final range in PriceRange.values) SailToggleGroupItem(value: range, label: range.label),
-              ],
-              values: [_range],
-              singleChoice: true,
-              onChanged: (values) => setState(() => _range = values.isEmpty ? _range : values.first),
+            child: Segments<PriceRange>(
+              items: [for (final range in PriceRange.values) (range, range.label)],
+              value: _range,
+              onChanged: (range) => setState(() => _range = range),
             ),
           );
 
@@ -1231,14 +1161,10 @@ class _MarketTabsState extends State<_MarketTabs> {
       children: [
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: SailToggleGroup<_MarketTab>(
-            items: const [
-              SailToggleGroupItem(value: _MarketTab.rules, label: 'Rules'),
-              SailToggleGroupItem(value: _MarketTab.holders, label: 'Holders'),
-            ],
-            values: [_tab],
-            singleChoice: true,
-            onChanged: (values) => setState(() => _tab = values.isEmpty ? _tab : values.first),
+          child: Segments<_MarketTab>(
+            items: const [(_MarketTab.rules, 'Rules'), (_MarketTab.holders, 'Holders')],
+            value: _tab,
+            onChanged: (tab) => setState(() => _tab = tab),
           ),
         ),
         switch (_tab) {
@@ -1329,8 +1255,9 @@ class MarketDetailViewModel extends BaseViewModel {
     notifyListeners();
   }
 
-  Future<void> addLiquidity(BuildContext context) async {
-    if (liquidityAmountSats <= 0) return;
+  /// True when the node takes the liquidity transaction.
+  Future<bool> addLiquidity(BuildContext context) async {
+    if (liquidityAmountSats <= 0) return false;
 
     isAddingLiquidity = true;
     notifyListeners();
@@ -1353,6 +1280,7 @@ class MarketDetailViewModel extends BaseViewModel {
     }
 
     notifyListeners();
+    return txid != null;
   }
 
   int get shares => int.tryParse(sharesController.text) ?? 0;

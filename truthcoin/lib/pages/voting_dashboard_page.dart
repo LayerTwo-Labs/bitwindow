@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -6,14 +8,18 @@ import 'package:sail_ui/sail_ui.dart';
 import 'package:truthcoin/models/voting.dart';
 import 'package:truthcoin/providers/voting_provider.dart';
 import 'package:truthcoin/widgets/market_stat_tile.dart';
+import 'package:truthcoin/widgets/v2_parts.dart';
 
 const double _panelWidth = 348;
 
 /// Below this width the side panel sits under the decisions.
 const double _twoColumnWidth = 900;
 
+/// From this width the period facts get their own column.
+const double _threeColumnWidth = 1300;
+
 /// Below this width the vote buttons sit under the question.
-const double _wideRowWidth = 700;
+const double _wideRowWidth = 600;
 
 const double _tableHeight = 200;
 
@@ -39,12 +45,12 @@ class VotingDashboardPage extends StatelessWidget {
           );
         }
 
+        final phone = SailStyleValues.phoneLayout(context);
         return QtPage(
           child: SailColumn(
-            spacing: SailStyleValues.padding16,
+            spacing: SailStyleValues.padding12,
             children: [
-              _Header(model: model),
-              _StatTiles(model: model),
+              if (phone) ...[_Header(model: model), _StatTiles(model: model)] else _HeadCard(model: model),
               if (model.votingError != null) SailInlineError(model.votingError!),
               Expanded(
                 child: LayoutBuilder(
@@ -70,35 +76,33 @@ class VotingDashboardPage extends StatelessWidget {
                       );
                     }
 
-                    final panel = [
-                      _BallotCard(model: model),
-                      _VoterAddressCard(model: model),
-                      _PeriodCard(model: model),
-                      _VoterCard(model: model),
-                    ];
+                    Widget column(List<Widget> children) => SingleChildScrollView(
+                      child: SailColumn(spacing: SailStyleValues.padding12, children: children),
+                    );
+                    final main = column([_DecisionsCard(model: model), ...tables]);
+                    final ballot = [_BallotCard(model: model), _VoterAddressCard(model: model)];
+                    final facts = [_PeriodCard(model: model), _VoterCard(model: model)];
+
+                    if (constraints.maxWidth < _threeColumnWidth) {
+                      return SailRow(
+                        spacing: SailStyleValues.padding12,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.max,
+                        children: [
+                          Expanded(child: main),
+                          SizedBox(width: _panelWidth, child: column([...ballot, ...facts])),
+                        ],
+                      );
+                    }
 
                     return SailRow(
-                      spacing: SailStyleValues.padding16,
+                      spacing: SailStyleValues.padding12,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.max,
                       children: [
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: SailColumn(
-                              spacing: SailStyleValues.padding12,
-                              children: [
-                                _DecisionsCard(model: model),
-                                ...tables,
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: _panelWidth,
-                          child: SingleChildScrollView(
-                            child: SailColumn(spacing: SailStyleValues.padding12, children: panel),
-                          ),
-                        ),
+                        Expanded(child: main),
+                        SizedBox(width: 300, child: column(facts)),
+                        SizedBox(width: _panelWidth, child: column(ballot)),
                       ],
                     );
                   },
@@ -108,6 +112,69 @@ class VotingDashboardPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The head card: the title, the period pill and block count, the four key numbers, and a "…" with Refresh.
+class _HeadCard extends StatelessWidget {
+  final VotingDashboardViewModel model;
+
+  const _HeadCard({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final voter = model.currentVoter;
+    final period = model.currentPeriod;
+    final status = model.slotStatus;
+    final participation = voter?.currentPeriodParticipation;
+
+    return PageHeadCard(
+      title: 'Oracle voting',
+      subtitle: 'You answer every decision slot that your Votecoin covers.',
+      extra: [
+        if (period != null || status != null)
+          Wrap(
+            spacing: SailStyleValues.padding08,
+            runSpacing: SailStyleValues.padding04,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (period != null)
+                SailStatusPill(
+                  label: 'Period ${period.periodId} · ${period.status}',
+                  tone: period.isActive ? SailStatusTone.success : SailStatusTone.neutral,
+                ),
+              if (status != null) SailText.secondary12('${status.blocksPerPeriod} blocks per period'),
+            ],
+          ),
+      ],
+      stats: [
+        HeadStat(
+          label: 'Your Votecoin',
+          value: voter == null ? '—' : '${voter.votecoinBalance}',
+          caption: voter?.isRegistered == true ? 'registered voter' : 'not a registered voter',
+        ),
+        HeadStat(
+          label: 'Reputation',
+          value: voter?.reputationDisplay ?? '—',
+          caption: voter == null ? 'no voter data' : 'accuracy —',
+        ),
+        HeadStat(
+          label: 'Ballot',
+          value: participation == null
+              ? '${model.pendingVotesCount}'
+              : '${participation.votesCast} of ${participation.decisionsAvailable}',
+          caption: '${model.pendingVotesCount} answers wait for a send',
+        ),
+        HeadStat(
+          label: 'Period turnout',
+          value: period?.stats.participationPercent ?? '—',
+          caption: period == null
+              ? 'no period data'
+              : '${period.stats.activeVoters} of ${period.stats.totalVoters} voters',
+        ),
+      ],
+      menuItems: () => [menuItem('Refresh', () => unawaited(model.loadData()))],
     );
   }
 }
@@ -278,7 +345,7 @@ class _DecisionRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.max,
       children: [
-        SailBadge(_shortSlot, tone: value == null ? SailBadgeTone.neutral : SailBadgeTone.success),
+        SizedBox(width: 72, child: SailText.primary13(_shortSlot, monospace: true)),
         Expanded(
           child: SailColumn(
             spacing: SailStyleValues.padding04,
@@ -297,12 +364,22 @@ class _DecisionRow extends StatelessWidget {
         ? _CategoryVoteInput(options: decision.categoryOptions, value: value, onChanged: onChanged)
         : _BinaryVoteInput(value: value, onChanged: onChanged);
 
+    final menu = SailRowMenuButton(items: () => [menuItem('Clear', () => onChanged(null))]);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < _wideRowWidth) {
           return SailColumn(
             spacing: SailStyleValues.padding08,
-            children: [question, vote],
+            children: [
+              question,
+              Row(
+                children: [
+                  Expanded(child: vote),
+                  menu,
+                ],
+              ),
+            ],
           );
         }
 
@@ -312,7 +389,8 @@ class _DecisionRow extends StatelessWidget {
           mainAxisSize: MainAxisSize.max,
           children: [
             Expanded(child: question),
-            SizedBox(width: 340, child: vote),
+            SizedBox(width: 300, child: vote),
+            menu,
           ],
         );
       },
@@ -332,12 +410,22 @@ class _BallotCard extends StatelessWidget {
     return SailCard(
       title: 'Your ballot',
       child: SailColumn(
-        spacing: SailStyleValues.padding08,
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _FactRow(label: 'Answers ready', value: '${model.pendingVotesCount}'),
-          _FactRow(label: 'Vote weight', value: voter == null ? '—' : '${voter.votecoinBalance} Votecoin'),
-          _FactRow(label: 'Reputation', value: voter?.reputationDisplay ?? '—'),
-          if (model.userAddress != null) _FactRow(label: 'Address', value: model.shortAddress),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(wrap: true, label: 'Answers ready', value: '${model.pendingVotesCount}'),
+              SailDetailLine(
+                wrap: true,
+                label: 'Vote weight',
+                value: voter == null ? '—' : '${voter.votecoinBalance} Votecoin',
+              ),
+              SailDetailLine(wrap: true, label: 'Reputation', value: voter?.reputationDisplay ?? '—'),
+              if (model.userAddress != null) SailDetailLine(wrap: true, label: 'Address', value: model.shortAddress),
+            ],
+          ),
           SailButton(
             plainLabel: true,
             label: 'Submit ballot',
@@ -364,20 +452,15 @@ class _VoterAddressCard extends StatelessWidget {
     return SailCard(
       title: 'Voter',
       error: model.voterAddressError,
-      child: SailRow(
-        spacing: SailStyleValues.padding08,
-        mainAxisSize: MainAxisSize.max,
+      widgetHeaderEnd: address == null
+          ? null
+          : SailRowMenuButton(
+              items: () => [menuItem('Copy', () => unawaited(Clipboard.setData(ClipboardData(text: address))))],
+            ),
+      child: SailDetailGroup(
+        fill: SailDetailFill.canvas,
         children: [
-          Expanded(child: SailText.secondary13('Voter address')),
-          SailText.primary13(address == null ? '—' : model.short(address), bold: true, monospace: true),
-          SailButton(
-            plainLabel: true,
-            label: 'Copy',
-            variant: ButtonVariant.secondary,
-            small: true,
-            disabled: address == null,
-            onPressed: () async => Clipboard.setData(ClipboardData(text: address!)),
-          ),
+          SailDetailLine(wrap: true, label: 'Voter address', value: address == null ? '—' : model.short(address)),
         ],
       ),
     );
@@ -416,16 +499,15 @@ class _YourDecisionsCard extends StatelessWidget {
               SailTableCell(value: 'Period ${slot.periodIndex}'),
               SailTableCell(
                 value: slot.state.displayName,
-                child: SailBadge(
-                  slot.state.displayName,
-                  tone: slot.state == SlotState.ossified ? SailBadgeTone.neutral : SailBadgeTone.success,
+                child: StatusDotCell(
+                  label: slot.state.displayName,
+                  tone: slot.state == SlotState.ossified ? SailStatusTone.neutral : SailStatusTone.success,
                 ),
               ),
             ];
           },
           rowCount: decisions.length,
           emptyPlaceholder: 'You claimed no decision yet',
-          drawGrid: true,
         ),
       ),
     );
@@ -469,7 +551,6 @@ class _YourVotesCard extends StatelessWidget {
           },
           rowCount: votes.length,
           emptyPlaceholder: 'You sent no vote yet',
-          drawGrid: true,
         ),
       ),
     );
@@ -495,14 +576,19 @@ class _PeriodCard extends StatelessWidget {
     return SailCard(
       title: 'Period ${period.periodId}',
       child: SailColumn(
-        spacing: SailStyleValues.padding08,
+        spacing: SailStyleValues.padding12,
         children: [
-          _FactRow(label: 'State', value: period.status),
-          _FactRow(label: 'Start block', value: '${period.startHeight}'),
-          _FactRow(label: 'End block', value: '${period.endHeight}'),
-          _FactRow(label: 'Decisions', value: '${period.decisions.length}'),
-          _FactRow(label: 'Votes cast', value: '${period.stats.totalVotes}'),
-          if (status != null) _FactRow(label: 'Period name', value: status.currentPeriodName),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(wrap: true, label: 'State', value: period.status),
+              SailDetailLine(wrap: true, label: 'Start block', value: '${period.startHeight}'),
+              SailDetailLine(wrap: true, label: 'End block', value: '${period.endHeight}'),
+              SailDetailLine(wrap: true, label: 'Decisions', value: '${period.decisions.length}'),
+              SailDetailLine(wrap: true, label: 'Votes cast', value: '${period.stats.totalVotes}'),
+              if (status != null) SailDetailLine(wrap: true, label: 'Period name', value: status.currentPeriodName),
+            ],
+          ),
           if (status?.isTestingMode == true)
             SailAlert(
               variant: SailAlertVariant.warning,
@@ -532,36 +618,41 @@ class _VoterCard extends StatelessWidget {
 
     return SailCard(
       title: 'Voter record',
-      child: SailColumn(
-        spacing: SailStyleValues.padding08,
+      child: SailDetailGroup(
+        fill: SailDetailFill.canvas,
         children: [
-          _FactRow(label: 'Registered', value: voter.isRegistered ? 'yes' : 'no'),
-          _FactRow(label: 'Active', value: voter.isActive ? 'yes' : 'no'),
-          _FactRow(label: 'Total votes', value: '${voter.totalVotes}'),
-          _FactRow(label: 'Periods active', value: '${voter.periodsActive}'),
-          _FactRow(label: 'Accuracy', value: '—'),
-          _FactRow(label: 'Registered at block', value: '—'),
+          SailDetailLine(wrap: true, label: 'Registered', value: voter.isRegistered ? 'yes' : 'no'),
+          SailDetailLine(wrap: true, label: 'Active', value: voter.isActive ? 'yes' : 'no'),
+          SailDetailLine(wrap: true, label: 'Total votes', value: '${voter.totalVotes}'),
+          SailDetailLine(wrap: true, label: 'Periods active', value: '${voter.periodsActive}'),
+          const SailDetailLine(wrap: true, label: 'Accuracy', value: '—'),
+          const SailDetailLine(wrap: true, label: 'Registered at block', value: '—'),
         ],
       ),
     );
   }
 }
 
-class _FactRow extends StatelessWidget {
-  final String label;
-  final String value;
+/// The value that stands for Abstain in the answer segments.
+const double _abstain = -1;
 
-  const _FactRow({required this.label, required this.value});
+/// Answer segments: a tap on the picked answer, or on Abstain, clears it.
+class _AnswerSegments extends StatelessWidget {
+  final List<(double, String)> answers;
+  final double? value;
+  final ValueChanged<double?> onChanged;
+
+  const _AnswerSegments({required this.answers, required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        Expanded(child: SailText.secondary13(label)),
-        SailText.primary13(value),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Segments<double>(
+        items: [...answers, (_abstain, 'Abstain')],
+        value: value,
+        onChanged: (answer) => onChanged(answer == _abstain || answer == value ? null : answer),
+      ),
     );
   }
 }
@@ -577,39 +668,7 @@ class _BinaryVoteInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        Expanded(
-          child: _VoteButton(
-            label: 'Yes',
-            isSelected: value == 1.0,
-            color: theme.colors.success,
-            onTap: () => onChanged(value == 1.0 ? null : 1.0),
-          ),
-        ),
-        Expanded(
-          child: _VoteButton(
-            label: 'No',
-            isSelected: value == 0.0,
-            color: theme.colors.error,
-            onTap: () => onChanged(value == 0.0 ? null : 0.0),
-          ),
-        ),
-        SizedBox(
-          width: 90,
-          child: _VoteButton(
-            label: 'Abstain',
-            isSelected: false,
-            color: theme.colors.text,
-            onTap: () => onChanged(null),
-          ),
-        ),
-      ],
-    );
+    return _AnswerSegments(answers: const [(1.0, 'Yes'), (0.0, 'No')], value: value, onChanged: onChanged);
   }
 }
 
@@ -626,33 +685,10 @@ class _CategoryVoteInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return Wrap(
-      spacing: SailStyleValues.padding08,
-      runSpacing: SailStyleValues.padding08,
-      alignment: WrapAlignment.end,
-      children: [
-        for (final (index, label) in options.indexed)
-          SizedBox(
-            width: 160,
-            child: _VoteButton(
-              label: label,
-              isSelected: value == index.toDouble(),
-              color: theme.colors.primary,
-              onTap: () => onChanged(value == index.toDouble() ? null : index.toDouble()),
-            ),
-          ),
-        SizedBox(
-          width: 90,
-          child: _VoteButton(
-            label: 'Abstain',
-            isSelected: false,
-            color: theme.colors.text,
-            onTap: () => onChanged(null),
-          ),
-        ),
-      ],
+    return _AnswerSegments(
+      answers: [for (final (index, label) in options.indexed) (index.toDouble(), label)],
+      value: value,
+      onChanged: onChanged,
     );
   }
 }
@@ -689,30 +725,11 @@ class _ScaledVoteInputState extends State<_ScaledVoteInput> {
 
   @override
   Widget build(BuildContext context) {
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        Expanded(
-          child: SailTextField(
-            controller: controller,
-            hintText: 'Value',
-            size: TextFieldSize.small,
-            textFieldType: TextFieldType.bitcoin,
-            onChanged: (text) => widget.onChanged(double.tryParse(text)),
-          ),
-        ),
-        SailButton(
-          plainLabel: true,
-          label: 'Clear',
-          variant: ButtonVariant.secondary,
-          small: true,
-          onPressed: () async {
-            controller.clear();
-            widget.onChanged(null);
-          },
-        ),
-      ],
+    return SailTextField(
+      controller: controller,
+      hintText: 'Value',
+      textFieldType: TextFieldType.bitcoin,
+      onChanged: (text) => widget.onChanged(double.tryParse(text)),
     );
   }
 
@@ -720,48 +737,6 @@ class _ScaledVoteInputState extends State<_ScaledVoteInput> {
   void dispose() {
     controller.dispose();
     super.dispose();
-  }
-}
-
-class _VoteButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _VoteButton({
-    required this.label,
-    required this.isSelected,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return SailTappable(
-      onTap: () async => onTap(),
-      borderRadius: SailStyleValues.borderRadius,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding08),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.12) : theme.colors.background,
-          borderRadius: SailStyleValues.borderRadius,
-          border: Border.all(
-            color: isSelected ? color : theme.colors.border,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Center(
-          child: SailText.primary13(
-            label,
-            bold: isSelected,
-            color: isSelected ? color : null,
-          ),
-        ),
-      ),
-    );
   }
 }
 

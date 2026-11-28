@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:auto_route/auto_route.dart';
 // ignore: drivechain_lints/avoid_material_import
 import 'package:flutter/material.dart' show MaterialApp;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -19,6 +20,7 @@ import 'package:truthcoin/providers/market_provider.dart';
 import 'package:truthcoin/providers/price_history_provider.dart';
 import 'package:truthcoin/routing/open_market.dart';
 import 'package:truthcoin/routing/router.dart';
+import 'package:truthcoin/widgets/v2_parts.dart';
 
 import '../mocks/mock_truthcoin_rpc.dart';
 import '../test_utils.dart';
@@ -115,23 +117,30 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('a tap on a card of two decisions opens the market', (tester) async {
+  Future<void> openMarket(WidgetTester tester) async {
+    await tester.tap(find.descendant(of: find.byType(MarketSidePanel), matching: find.byType(SailButton)));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a row of two decisions opens its panel, and the panel button opens the market', (tester) async {
     await pumpApp(tester);
     expect(find.byType(MarketExplorerPage), findsOneWidget);
 
     await tester.tap(find.text(twoDecisions['title'] as String));
+    await tester.pump(kDoubleTapTimeout);
     await tester.pumpAndSettle();
+    expect(find.byType(MarketSidePanel), findsOneWidget);
+    expect(find.byType(MarketDetailPage), findsNothing);
+
+    await openMarket(tester);
 
     expect(find.byType(MarketDetailPage), findsOneWidget);
   });
 
-  testWidgets('the line of left-out outcomes opens the market', (tester) async {
+  testWidgets('the price line names the left-out outcomes', (tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('+ 1 more outcome'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(MarketDetailPage), findsOneWidget);
+    expect(find.textContaining('+ 1 more outcome'), findsOneWidget);
   });
 
   testWidgets('a tap opens the market again after a deep link to it and a step back', (tester) async {
@@ -140,12 +149,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(MarketDetailPage), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(SailButton, '←  Markets').first);
+    await tester.tap(find.widgetWithText(BackLink, 'Markets'));
     await tester.pumpAndSettle();
     expect(find.byType(MarketExplorerPage), findsOneWidget, reason: 'back shows the grid');
 
     await tester.tap(find.text(twoDecisions['title'] as String));
+    await tester.pump(kDoubleTapTimeout);
     await tester.pumpAndSettle();
+    await openMarket(tester);
     expect(find.byType(MarketDetailPage), findsOneWidget);
   });
 
@@ -154,14 +165,16 @@ void main() {
     final tabs = router.innerRouterOf<TabsRouter>(SidechainHomeRoute.name)!;
 
     await tester.tap(find.text(twoDecisions['title'] as String));
+    await tester.pump(kDoubleTapTimeout);
     await tester.pumpAndSettle();
+    await openMarket(tester);
     tabs.setActiveIndex(1);
     await tester.pumpAndSettle();
     tabs.setActiveIndex(0);
     await tester.pumpAndSettle();
     expect(find.byType(MarketDetailPage), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(SailButton, '←  Markets').first);
+    await tester.tap(find.widgetWithText(BackLink, 'Markets'));
     await tester.pumpAndSettle();
 
     expect(tabs.activeIndex, 0);
@@ -174,8 +187,10 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text(twoDecisions['title'] as String));
+    await tester.pump(kDoubleTapTimeout);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(SailButton, '←  Markets').first);
+    await openMarket(tester);
+    await tester.tap(find.widgetWithText(BackLink, 'Markets'));
     await tester.pumpAndSettle();
 
     expect(find.byType(MarketExplorerPage), findsOneWidget);

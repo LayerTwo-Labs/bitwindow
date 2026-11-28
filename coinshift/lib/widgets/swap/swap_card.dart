@@ -4,153 +4,151 @@ import 'package:sail_ui/sail_ui.dart';
 import 'package:coinshift/providers/swap_provider.dart';
 import 'package:coinshift/widgets/swap/parent_chain_selector.dart';
 
-/// Create swap widget based on coinshift-rs create.rs
+/// The Create Swap card, as on the chain Overview.
 class SwapCard extends StatelessWidget {
   const SwapCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
     return ViewModelBuilder<SwapCardViewModel>.reactive(
       viewModelBuilder: () => SwapCardViewModel(),
-      builder: (context, model, child) {
-        return SailCard(
-          title: 'Create Swap (L2 → L1)',
-          error: model.swapError,
-          child: SingleChildScrollView(
-            child: SailColumn(
-              spacing: SailStyleValues.padding12,
-              children: [
-                // Description
-                SailText.secondary12(
-                  'You offer L2 (sidechain) coins and request L1. Set where you want to receive L1, then who gets your L2 and the amounts.',
-                  color: theme.colors.textSecondary,
-                ),
-                const SailSeparator(),
+      builder: (context, model, child) => SailCard(
+        title: 'Create Swap (L2 → L1)',
+        error: model.swapError,
+        child: SingleChildScrollView(
+          child: SwapForm(model: model, onCreate: () => model.createSwap(context)),
+        ),
+      ),
+    );
+  }
+}
 
-                // What you want (L1) section
-                SailText.primary13('What you want (L1)', bold: true),
+/// Opens the Create Swap form as a dialog; it closes once the swap is created.
+Future<void> showCreateSwapDialog(BuildContext context) {
+  return showSailDialog<void>(
+    context: context,
+    builder: (dialogContext) => ViewModelBuilder<SwapCardViewModel>.reactive(
+      viewModelBuilder: () => SwapCardViewModel(),
+      builder: (context, model, child) => SailDialog(
+        title: 'Create Swap (L2 → L1)',
+        error: model.swapError,
+        withCloseButton: true,
+        maxWidth: 480,
+        maxHeight: 900,
+        child: SwapForm(
+          model: model,
+          onCreate: () async {
+            await model.createSwap(context);
+            if (model.swapError == null && dialogContext.mounted) {
+              Navigator.of(dialogContext).pop();
+            }
+          },
+        ),
+      ),
+    ),
+  );
+}
 
-                // Parent Chain Selector
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    SailText.secondary13('Parent chain:'),
-                    Expanded(
-                      child: ParentChainSelector(
-                        value: model.parentChain,
-                        onChanged: model.setParentChain,
-                      ),
-                    ),
-                  ],
-                ),
+/// The fields of a new L2 → L1 swap over the one Create Swap button.
+class SwapForm extends StatelessWidget {
+  final SwapCardViewModel model;
+  final Future<void> Function() onCreate;
 
-                // L1 Recipient Address
-                SailTextField(
-                  controller: model.l1AddressController,
-                  hintText: 'Where you receive the L1 coins (e.g. bc1...)',
-                  label: 'Your L1 address',
-                ),
+  const SwapForm({super.key, required this.model, required this.onCreate});
 
-                // L1 Amount (receiving)
-                NumericField(
-                  label: 'Amount you want ()',
-                  controller: model.l1AmountController,
-                  hintText: 'e.g. 100000 sats',
-                  suffixWidget: SailText.secondary12(activeTicker.subunit),
-                ),
-
-                const SizedBox(height: SailStyleValues.padding08),
-
-                // What you offer (L2) section
-                SailText.primary13('What you offer (L2)', bold: true),
-
-                // Open swap checkbox
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    SailCheckbox(
-                      value: model.isOpenSwap,
-                      onChanged: (value) => model.setOpenSwap(value),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => model.setOpenSwap(!model.isOpenSwap),
-                        child: SailText.secondary13(
-                          'Open swap — anyone can fill (no specific claimer)',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                // L2 Claimer Address (only shown when not open swap)
-                if (!model.isOpenSwap) ...[
-                  SailRow(
-                    spacing: SailStyleValues.padding08,
-                    children: [
-                      Expanded(
-                        child: SailTextField(
-                          controller: model.l2ClaimerController,
-                          hintText: 'Who can claim (sends L1, then gets L2)',
-                          label: 'L2 claimer address',
-                        ),
-                      ),
-                      SailButton(
-                        label: 'Use My Address',
-                        small: true,
-                        variant: ButtonVariant.secondary,
-                        onPressed: () async => await model.useMyAddress(),
-                      ),
-                    ],
-                  ),
-                ],
-
-                // L2 Amount (sending)
-                NumericField(
-                  label: 'L2 amount you offer',
-                  controller: model.l2AmountController,
-                  hintText: 'e.g. 100000 sats',
-                  suffixWidget: SailText.secondary12(activeTicker.subunit),
-                ),
-
-                const SizedBox(height: SailStyleValues.padding08),
-
-                // Options section
-                SailText.primary13('Options', bold: true),
-
-                // Required confirmations
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    Expanded(
-                      child: NumericField(
-                        label: 'Required L1 confirmations',
-                        controller: model.confirmationsController,
-                        hintText: 'leave empty for default',
-                      ),
-                    ),
-                    SailText.secondary12(
-                      '(default: ${model.defaultConfirmations})',
-                    ),
-                  ],
-                ),
-
-                const SailSeparator(),
-
-                // Create Swap Button
-                SailButton(
-                  label: 'Create Swap',
-                  disabled: !model.canCreateSwap,
-                  loading: model.isLoading,
-                  onPressed: () async => await model.createSwap(context),
-                ),
-              ],
+  @override
+  Widget build(BuildContext context) {
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SailText.secondary12(
+          'You offer L2 (sidechain) coins and request L1. Set where you want to receive L1, then who gets your L2 and the amounts.',
+        ),
+        SailText.primary13('What you want (L1)', bold: true),
+        SailRow(
+          spacing: SailStyleValues.padding08,
+          children: [
+            SailText.secondary13('Parent chain:'),
+            Expanded(
+              child: ParentChainSelector(value: model.parentChain, onChanged: model.setParentChain),
             ),
+          ],
+        ),
+        SailTextField(
+          controller: model.l1AddressController,
+          hintText: 'Where you receive the L1 coins (e.g. bc1...)',
+          label: 'Your L1 address',
+        ),
+        NumericField(
+          label: 'Amount you want (${activeTicker.subunit})',
+          controller: model.l1AmountController,
+          hintText: 'e.g. 100000 sats',
+          suffixWidget: SailText.secondary12(activeTicker.subunit),
+        ),
+        SailText.primary13('What you offer (L2)', bold: true),
+        SailRow(
+          spacing: SailStyleValues.padding08,
+          children: [
+            SailCheckbox(value: model.isOpenSwap, onChanged: (value) => model.setOpenSwap(value)),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => model.setOpenSwap(!model.isOpenSwap),
+                child: SailText.primary13('Open swap — anyone can fill (no specific claimer)'),
+              ),
+            ),
+          ],
+        ),
+        if (!model.isOpenSwap)
+          SailRow(
+            spacing: SailStyleValues.padding08,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: SailTextField(
+                  controller: model.l2ClaimerController,
+                  hintText: 'Who can claim (sends L1, then gets L2)',
+                  label: 'L2 claimer address',
+                ),
+              ),
+              SailButton(
+                label: 'Use My Address',
+                variant: ButtonVariant.secondary,
+                onPressed: () async => await model.useMyAddress(),
+              ),
+            ],
           ),
-        );
-      },
+        NumericField(
+          label: 'L2 amount you offer',
+          controller: model.l2AmountController,
+          hintText: 'e.g. 100000 sats',
+          suffixWidget: SailText.secondary12(activeTicker.subunit),
+        ),
+        SailText.primary13('Options', bold: true),
+        SailRow(
+          spacing: SailStyleValues.padding08,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: NumericField(
+                label: 'Required L1 confirmations',
+                controller: model.confirmationsController,
+                hintText: 'leave empty for default',
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: SailStyleValues.padding12),
+              child: SailText.secondary12('(default: ${model.defaultConfirmations})'),
+            ),
+          ],
+        ),
+        SailButton(
+          label: 'Create Swap',
+          disabled: !model.canCreateSwap,
+          loading: model.isLoading,
+          onPressed: onCreate,
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sail_ui/sail_ui.dart' show SailColorScheme, SailFontValues, SailTheme, SailThemeData, SailThemeStyle;
+import 'package:flutter/gestures.dart';
+import 'package:sail_ui/sail_ui.dart'
+    show SailColorScheme, SailFontValues, SailRowMenuButton, SailTheme, SailThemeData, SailThemeStyle;
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sidechain_core/mocks/mocks.dart';
@@ -47,31 +49,59 @@ void main() {
   });
 
   group('MarketExplorerPage', () {
-    testWidgets('draws one card per market', (tester) async {
+    testWidgets('draws one table row per market', (tester) async {
       await tester.pumpSailPage(const MarketExplorerPage());
       await tester.pumpAndSettle();
 
-      expect(find.byType(MarketCard), findsNWidgets(3));
+      expect(find.byType(MarketCard), findsNothing);
       expect(find.text('Prediction markets'), findsOneWidget);
+      expect(find.text('US Presidential Election 2028 Winner'), findsOneWidget);
+      expect(find.text('Will BTC reach \$100k by end of 2026?'), findsOneWidget);
+      expect(find.text('Cancelled Market Example'), findsOneWidget);
+      expect(find.text('Yes 65%'), findsWidgets);
     });
 
-    testWidgets('shows a chip per state and per tag', (tester) async {
+    testWidgets('one filter dropdown lists All, each tag and each state', (tester) async {
       await tester.pumpSailPage(const MarketExplorerPage());
       await tester.pumpAndSettle();
 
-      expect(find.text('All'), findsOneWidget);
-      expect(find.text('Live'), findsWidgets);
-      expect(find.text('Resolved'), findsOneWidget);
-      expect(find.text('bitcoin'), findsOneWidget);
-      expect(find.text('price'), findsOneWidget);
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+
+      for (final label in ['bitcoin', 'crypto', 'price', 'Live', 'Cancelled', 'Invalid', 'Resolved']) {
+        expect(find.text(label), findsWidgets, reason: label);
+      }
     });
 
-    testWidgets('shows the outcome price of a market', (tester) async {
+    testWidgets('a row click opens the market panel with one Buy button', (tester) async {
       await tester.pumpSailPage(const MarketExplorerPage());
       await tester.pumpAndSettle();
 
-      expect(find.text('Buy Yes'), findsWidgets);
-      expect(find.text('65%'), findsWidgets);
+      await tester.tap(find.text('Will BTC reach \$100k by end of 2026?'));
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MarketSidePanel), findsOneWidget);
+      expect(find.text('Buy Yes 65%'), findsWidgets);
+      expect(find.text('Outcome prices'), findsOneWidget);
+    });
+
+    testWidgets('the row "…" holds Buy Yes, Buy No and Trade', (tester) async {
+      await tester.pumpSailPage(const MarketExplorerPage());
+      await tester.pumpAndSettle();
+
+      final row = tester.getCenter(find.text('Will BTC reach \$100k by end of 2026?')).dy;
+      final menu = find
+          .byType(SailRowMenuButton)
+          .evaluate()
+          .firstWhere((element) => (tester.getCenter(find.byWidget(element.widget)).dy - row).abs() < 16);
+      await tester.tap(find.byWidget(menu.widget));
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Buy Yes'), findsOneWidget);
+      expect(find.text('Buy No'), findsOneWidget);
+      expect(find.text('Trade'), findsOneWidget);
     });
 
     testWidgets('under the eCash theme a page button keeps its case and the regular weight', (tester) async {

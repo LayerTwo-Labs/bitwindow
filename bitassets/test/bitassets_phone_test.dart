@@ -90,10 +90,28 @@ void main() {
     expect(tester.getSize(swap).width, greaterThan(300));
   });
 
-  testWidgets('the desktop keeps the tall swap bar', (tester) async {
+  testWidgets('the desktop swaps with the normal full-width primary button', (tester) async {
     await _pump(tester, const AmmTabPage(), phone: false);
 
-    expect(find.widgetWithText(SailButton, 'Swap'), findsNothing);
-    expect(find.text('Swap'), findsWidgets);
+    final swap = find.widgetWithText(SailButton, 'Swap').first;
+    expect(tester.widget<SailButton>(swap).variant, ButtonVariant.primary);
+    expect(tester.getSize(swap).width, greaterThan(400));
+    expect(find.byType(SailIconBoxButton), findsOneWidget);
+  });
+
+  testWidgets('the slippage tolerance is one segmented control', (tester) async {
+    await _pump(tester, const AmmTabPage(), phone: false);
+
+    await tester.tap(find.text('Advanced Settings'));
+    await tester.pumpAndSettle();
+    final segments = find.byType(SailSegments);
+    expect(segments, findsOneWidget);
+    expect(tester.widget<SailSegments>(segments).labels, ['0.1%', '0.5%', '1.0%', '2.0%']);
+    expect(tester.widget<SailSegments>(segments).activeIndex, 1);
+
+    await tester.tap(find.text('2.0%'));
+    await tester.pump();
+
+    expect(tester.widget<SailSegments>(segments).activeIndex, 3);
   });
 }

@@ -15,256 +15,122 @@ class AmmTabPage extends StatelessWidget {
       child: ViewModelBuilder<AmmSwapViewModel>.reactive(
         viewModelBuilder: () => AmmSwapViewModel(),
         builder: (context, model, child) {
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: SailCard(
-                title: 'Swap',
-                subtitle: 'Trade BitAssets',
-                error: model.swapError,
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    SailColumn(
-                      spacing: SailStyleValues.padding08,
-                      children: [
-                        // Asset to spend
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SailText.primary13('You pay'),
-                            const SizedBox(height: 4),
-                            SailRow(
-                              spacing: SailStyleValues.padding08,
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: SailDropdownButton<String>(
-                                    value: model.assetSpend,
-                                    items: model.assetOptions,
-                                    onChanged: (value) => model.setAssetSpend(value),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: SailTextField(
-                                    hintText: '0',
-                                    controller: model.amountSpendController,
-                                    suffix: model.assetSpend.isEmpty ? activeTicker.symbol : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-
-                        // Swap direction button
-                        Center(
-                          child: SailTooltip(
-                            message: 'Swap direction',
-                            child: SailButton(
-                              variant: ButtonVariant.icon,
-                              icon: SailSVGAsset.iconArrow,
-                              iconWidth: 24,
-                              onPressed: () async => model.swapAssets(),
+          final theme = SailTheme.of(context);
+          return SingleChildScrollView(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: SailCard(
+                  title: 'Swap',
+                  subtitle: 'Trade BitAssets',
+                  error: model.swapError,
+                  child: SailColumn(
+                    spacing: SailStyleValues.padding08,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SailText.primary13('You pay'),
+                      SailRow(
+                        spacing: SailStyleValues.padding08,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: SailDropdownButton<String>(
+                              value: model.assetSpend,
+                              items: model.assetOptions,
+                              onChanged: (value) => model.setAssetSpend(value),
                             ),
                           ),
-                        ),
-
-                        // Asset to receive
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SailText.primary13('You receive (estimated)'),
-                            const SizedBox(height: 4),
-                            SailRow(
-                              spacing: SailStyleValues.padding08,
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: SailDropdownButton<String>(
-                                    value: model.assetReceive,
-                                    items: model.assetOptions,
-                                    onChanged: (value) => model.setAssetReceive(value),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: SailTextField(
-                                    hintText: '0',
-                                    controller: model.amountReceiveController,
-                                    readOnly: true,
-                                    suffix: model.assetReceive.isEmpty ? activeTicker.symbol : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-
-                        // Price info
-                        if (model.priceInfo != null)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: context.sailTheme.colors.backgroundSecondary,
-                              borderRadius: SailStyleValues.borderRadius,
-                            ),
-                            child: SailColumn(
-                              spacing: SailStyleValues.padding08,
-                              children: [
-                                SailRow(
-                                  spacing: SailStyleValues.padding08,
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    SailText.secondary13('Rate'),
-                                    SailText.primary13(model.priceInfo!, monospace: true),
-                                  ],
-                                ),
-                                if (model.feeEstimate != null)
-                                  SailRow(
-                                    spacing: SailStyleValues.padding08,
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      SailText.secondary13('Swap Fee (0.3%)'),
-                                      SailText.primary13(
-                                        '~${model.feeEstimate} ${activeTicker.subunit}',
-                                        monospace: true,
-                                      ),
-                                    ],
-                                  ),
-                                if (model.minimumReceived != null)
-                                  SailRow(
-                                    spacing: SailStyleValues.padding08,
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      SailText.secondary13('Min. received (${model.slippageTolerance}% slippage)'),
-                                      SailText.primary13('~${model.minimumReceived}', monospace: true),
-                                    ],
-                                  ),
-                              ],
+                          Expanded(
+                            flex: 3,
+                            child: SailTextField(
+                              hintText: '0',
+                              controller: model.amountSpendController,
+                              suffix: model.assetSpend.isEmpty ? activeTicker.symbol : null,
                             ),
                           ),
-
-                        // Advanced settings
-                        SailCollapsible(
-                          trigger: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: SailText.secondary13('Advanced Settings'),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: context.sailTheme.colors.backgroundSecondary,
-                                    borderRadius: SailStyleValues.borderRadius,
-                                  ),
-                                  child: SailColumn(
-                                    spacing: SailStyleValues.padding08,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      SailText.secondary12('Slippage Tolerance'),
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: [
-                                          _SlippageButton(
-                                            value: 0.1,
-                                            selected: model.slippageTolerance == 0.1,
-                                            onTap: () => model.setSlippage(0.1),
-                                          ),
-                                          _SlippageButton(
-                                            value: 0.5,
-                                            selected: model.slippageTolerance == 0.5,
-                                            onTap: () => model.setSlippage(0.5),
-                                          ),
-                                          _SlippageButton(
-                                            value: 1.0,
-                                            selected: model.slippageTolerance == 1.0,
-                                            onTap: () => model.setSlippage(1.0),
-                                          ),
-                                          _SlippageButton(
-                                            value: 2.0,
-                                            selected: model.slippageTolerance == 2.0,
-                                            onTap: () => model.setSlippage(2.0),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                        ],
+                      ),
+                      Center(
+                        child: SailIconBoxButton(
+                          icon: SailSVGAsset.arrowDownUp,
+                          tooltip: 'Swap direction',
+                          onPressed: () async => model.swapAssets(),
+                        ),
+                      ),
+                      SailText.primary13('You receive (estimated)'),
+                      SailRow(
+                        spacing: SailStyleValues.padding08,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: SailDropdownButton<String>(
+                              value: model.assetReceive,
+                              items: model.assetOptions,
+                              onChanged: (value) => model.setAssetReceive(value),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-
-                    const Spacer(),
-                    const SizedBox(height: 16),
-
-                    if (SailStyleValues.phoneLayout(context))
-                      SizedBox(
-                        width: double.infinity,
-                        child: SailButton(
-                          label: 'Swap',
-                          loading: model.swapLoading,
-                          loadingLabel: 'Swapping...',
-                          disabled: !model.canSwap,
-                          onPressed: () async => model.executeSwap(context),
-                        ),
-                      )
-                    else
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: model.canSwap
-                                ? context.sailTheme.colors.primary
-                                : context.sailTheme.colors.primary.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: model.canSwap
-                                ? [
-                                    BoxShadow(
-                                      color: context.sailTheme.colors.shadow,
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: SailTappable(
-                            onTap: model.canSwap && !model.swapLoading ? () async => model.executeSwap(context) : null,
-                            borderRadius: BorderRadius.circular(8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (model.swapLoading)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 12),
-                                    child: SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: LoadingIndicator(
-                                        color: context.sailTheme.colors.primaryButtonText,
-                                      ),
-                                    ),
-                                  ),
-                                SailText.primary15(
-                                  model.swapLoading ? 'Swapping...' : 'Swap',
-                                  color: context.sailTheme.colors.primaryButtonText,
-                                  bold: true,
-                                ),
-                              ],
+                          Expanded(
+                            flex: 3,
+                            child: SailTextField(
+                              hintText: '0',
+                              controller: model.amountReceiveController,
+                              readOnly: true,
+                              suffix: model.assetReceive.isEmpty ? activeTicker.symbol : null,
                             ),
+                          ),
+                        ],
+                      ),
+                      if (model.priceInfo != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: SailStyleValues.padding04),
+                          child: SailDetailGroup(
+                            children: [
+                              SailDetailLine(label: 'Rate', value: model.priceInfo!),
+                              if (model.feeEstimate != null)
+                                SailDetailLine(
+                                  label: 'Swap Fee (0.3%)',
+                                  value: '~${model.feeEstimate} ${activeTicker.subunit}',
+                                ),
+                              if (model.minimumReceived != null)
+                                SailDetailLine(
+                                  label: 'Min. received (${model.slippageTolerance}% slippage)',
+                                  value: '~${model.minimumReceived}',
+                                ),
+                            ],
+                          ),
+                        ),
+                      SailCollapsible(
+                        trigger: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: SailText.primary13('Advanced Settings'),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SailText.secondary12('Slippage Tolerance', color: theme.colors.textSecondary),
+                              const SizedBox(height: SailStyleValues.padding08),
+                              SailSegments(
+                                labels: [for (final value in slippageChoices) '$value%'],
+                                activeIndex: slippageChoices.indexOf(model.slippageTolerance),
+                                onSelect: (index) => model.setSlippage(slippageChoices[index]),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                  ],
+                      SailButton(
+                        label: 'Swap',
+                        loading: model.swapLoading,
+                        loadingLabel: 'Swapping...',
+                        disabled: !model.canSwap,
+                        onPressed: () async => model.executeSwap(context),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -275,41 +141,8 @@ class AmmTabPage extends StatelessWidget {
   }
 }
 
-class _SlippageButton extends StatelessWidget {
-  final double value;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _SlippageButton({
-    required this.value,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return SailTappable(
-      onTap: () async => onTap(),
-      borderRadius: SailStyleValues.borderRadius,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? theme.colors.primary : theme.colors.backgroundSecondary,
-          borderRadius: SailStyleValues.borderRadius,
-          border: Border.all(
-            color: selected ? theme.colors.primary : theme.colors.divider,
-          ),
-        ),
-        child: SailText.primary12(
-          '$value%',
-          color: selected ? theme.colors.primaryButtonText : null,
-        ),
-      ),
-    );
-  }
-}
+/// The slippage tolerances the swap offers, in percent.
+const slippageChoices = [0.1, 0.5, 1.0, 2.0];
 
 class AmmSwapViewModel extends BaseViewModel {
   final BitAssetsRPC rpc = GetIt.I.get<BitAssetsRPC>();

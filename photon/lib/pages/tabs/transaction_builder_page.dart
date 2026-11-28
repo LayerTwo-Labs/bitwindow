@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
+import 'package:sail_ui/pages/sidechains/sidechain_overview_page.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 @RoutePage()
@@ -17,16 +18,10 @@ class TransactionBuilderPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Left panel - UTXO selector
-              Expanded(
-                flex: 2,
-                child: _UtxoSelectorPanel(model: model),
-              ),
-              const SizedBox(width: SailStyleValues.padding16),
+              Expanded(flex: 2, child: _UtxoSelectorPanel(model: model)),
+              const SizedBox(width: SailStyleValues.padding12),
               // Right panel - Transaction creator
-              Expanded(
-                flex: 3,
-                child: _TransactionCreatorPanel(model: model),
-              ),
+              Expanded(flex: 3, child: _TransactionCreatorPanel(model: model)),
             ],
           );
         },
@@ -59,41 +54,27 @@ class _UtxoSelectorPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Summary
-          Container(
-            padding: const EdgeInsets.all(SailStyleValues.padding12),
-            decoration: BoxDecoration(
-              color: theme.colors.backgroundSecondary,
-              borderRadius: SailStyleValues.borderRadiusSmall,
-            ),
-            child: ListenableBuilder(
-              listenable: formatter,
-              builder: (context, child) => SailRow(
-                spacing: SailStyleValues.padding16,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SailText.secondary13('Total Available'),
-                      SailText.primary15(formatter.formatSats(model.totalAvailable), bold: true),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SailText.secondary13('Selected'),
-                      SailText.primary15(formatter.formatSats(model.selectedValue), bold: true),
-                    ],
-                  ),
-                ],
-              ),
+          ListenableBuilder(
+            listenable: formatter,
+            builder: (context, child) => Wrap(
+              spacing: SailStyleValues.padding20,
+              runSpacing: SailStyleValues.padding08,
+              children: [
+                SailStat(label: 'Total Available', value: formatter.formatSats(model.totalAvailable)),
+                SailStat(label: 'Selected', value: formatter.formatSats(model.selectedValue)),
+              ],
             ),
           ),
           const SizedBox(height: SailStyleValues.padding08),
           // UTXO list
           Expanded(
             child: model.utxoError != null
-                ? Center(child: SailText.primary13(model.utxoError!, color: theme.colors.error))
+                ? Center(
+                    child: SailText.primary13(
+                      model.utxoError!,
+                      color: theme.colors.error,
+                    ),
+                  )
                 : ListenableBuilder(
                     listenable: formatter,
                     builder: (context, child) => SailTable(
@@ -101,11 +82,13 @@ class _UtxoSelectorPanel extends StatelessWidget {
                       headerBuilder: (context) => [
                         SailTableHeaderCell(name: ''),
                         SailTableHeaderCell(name: 'Outpoint'),
-                        SailTableHeaderCell(name: 'Value'),
+                        SailTableHeaderCell(name: 'Value', alignment: Alignment.centerRight),
                       ],
                       rowBuilder: (context, row, selected) {
                         final utxo = model.walletUtxos[row];
-                        final isSelected = model.selectedUtxos.contains(utxo.outpoint);
+                        final isSelected = model.selectedUtxos.contains(
+                          utxo.outpoint,
+                        );
                         return [
                           SailTableCell(
                             value: '',
@@ -122,11 +105,16 @@ class _UtxoSelectorPanel extends StatelessWidget {
                           SailTableCell(
                             value: formatter.formatSats(utxo.valueSats.toInt()),
                             monospace: true,
+                            alignment: Alignment.centerRight,
                           ),
                         ];
                       },
                       rowCount: model.walletUtxos.length,
                       drawGrid: true,
+                      rowHasMenu: (_) => false,
+                      rowBackgroundColor: (index) => model.selectedUtxos.contains(model.walletUtxos[index].outpoint)
+                          ? theme.colors.formField
+                          : null,
                       emptyPlaceholder: model.isLoadingUtxos ? 'Loading UTXOs...' : 'No UTXOs in wallet',
                     ),
                   ),
@@ -157,163 +145,62 @@ class _TransactionCreatorPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
     final formatter = GetIt.I<FormatterProvider>();
 
     return SailCard(
       title: 'Create Transaction',
       subtitle: 'Build and broadcast a transaction',
-      child: SailColumn(
-        spacing: SailStyleValues.padding16,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Info banner
-          Container(
-            padding: const EdgeInsets.all(SailStyleValues.padding12),
-            decoration: BoxDecoration(
-              color: theme.colors.info.withValues(alpha: 0.1),
-              borderRadius: SailStyleValues.borderRadiusSmall,
+      widgetHeaderEnd: SailRowMenuButton(
+        filled: true,
+        items: () => [
+          SailMenuItem(onSelected: model.clear, child: SailText.primary12('Clear')),
+        ],
+      ),
+      child: SingleChildScrollView(
+        child: SailColumn(
+          spacing: SailStyleValues.padding12,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SidechainNotice(
+              message:
+                  'UTXO selection is informational. The wallet will automatically select UTXOs for the transaction.',
             ),
-            child: Row(
-              children: [
-                SailSVG.fromAsset(SailSVGAsset.info, width: 16, color: theme.colors.info),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SailText.primary12(
-                    'UTXO selection is informational. The wallet will automatically select UTXOs for the transaction.',
-                    color: theme.colors.info,
-                  ),
-                ),
-              ],
+            SailText.primary13('Create Output', bold: true),
+            SailTextField(
+              label: 'Destination Address',
+              controller: model.addressController,
+              hintText: 'Enter recipient address',
             ),
-          ),
-
-          // Output creator
-          SailText.primary15('Create Output', bold: true),
-          SailTextField(
-            label: 'Destination Address',
-            controller: model.addressController,
-            hintText: 'Enter recipient address',
-          ),
-          NumericField(
-            label: 'Amount (BTC)',
-            controller: model.amountController,
-            hintText: '0.00000000',
-          ),
-          SailTextField(
-            label: 'Fee (BTC)',
-            controller: model.feeController,
-            hintText: '0.00001',
-            readOnly: true,
-          ),
-
-          // Fee breakdown
-          if (model.amountBtc != null) ...[
-            Container(
-              padding: const EdgeInsets.all(SailStyleValues.padding12),
-              decoration: BoxDecoration(
-                color: theme.colors.backgroundSecondary,
-                borderRadius: SailStyleValues.borderRadiusSmall,
-              ),
-              child: ListenableBuilder(
+            NumericField(label: 'Amount (BTC)', controller: model.amountController, hintText: '0.00000000'),
+            SailTextField(label: 'Fee (BTC)', controller: model.feeController, hintText: '0.00001', readOnly: true),
+            if (model.amountBtc != null)
+              ListenableBuilder(
                 listenable: formatter,
-                builder: (context, child) => Column(
+                builder: (context, child) => SailDetailGroup(
                   children: [
-                    _FeeRow(label: 'Amount', value: model.amountBtc ?? 0),
-                    const SizedBox(height: 4),
-                    _FeeRow(label: 'Fee', value: model.feeBtc),
-                    SailSeparator(
-                      color: theme.colors.divider,
-                      padding: EdgeInsets.symmetric(vertical: SailStyleValues.padding08),
-                    ),
-                    _FeeRow(label: 'Total', value: (model.amountBtc ?? 0) + model.feeBtc, bold: true),
+                    SailDetailLine(label: 'Amount', value: formatBitcoin(model.amountBtc ?? 0)),
+                    SailDetailLine(label: 'Fee', value: formatBitcoin(model.feeBtc)),
+                    SailDetailLine(label: 'Total', value: formatBitcoin((model.amountBtc ?? 0) + model.feeBtc)),
                   ],
                 ),
               ),
+            SailButton(
+              label: 'Sign & Broadcast',
+              onPressed: model.canSend ? () async => model.sendTransaction(context) : null,
+              disabled: !model.canSend,
+              loading: model.isSending,
             ),
+            if (model.sendError != null) SidechainNotice(message: model.sendError!, tone: SidechainNoticeTone.error),
+            if (model.txid != null)
+              SidechainNotice(
+                title: 'Transaction sent!',
+                message: 'TXID: ${model.txid}',
+                tone: SidechainNoticeTone.success,
+                trailing: CopyButton(text: model.txid!),
+              ),
           ],
-
-          // Actions
-          const SizedBox(height: SailStyleValues.padding08),
-          SailRow(
-            spacing: SailStyleValues.padding08,
-            children: [
-              SailButton(
-                label: 'Sign & Broadcast',
-                onPressed: model.canSend ? () async => model.sendTransaction(context) : null,
-                disabled: !model.canSend,
-                loading: model.isSending,
-              ),
-              SailButton(
-                label: 'Clear',
-                variant: ButtonVariant.secondary,
-                onPressed: model.clear,
-              ),
-            ],
-          ),
-
-          // Error/Success messages
-          if (model.sendError != null)
-            Container(
-              padding: const EdgeInsets.all(SailStyleValues.padding08),
-              decoration: BoxDecoration(
-                color: theme.colors.error.withValues(alpha: 0.1),
-                borderRadius: SailStyleValues.borderRadiusSmall,
-              ),
-              child: SailText.primary12(model.sendError!, color: theme.colors.error),
-            ),
-          if (model.txid != null)
-            Container(
-              padding: const EdgeInsets.all(SailStyleValues.padding08),
-              decoration: BoxDecoration(
-                color: theme.colors.success.withValues(alpha: 0.1),
-                borderRadius: SailStyleValues.borderRadiusSmall,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailText.primary12('Transaction sent!', color: theme.colors.success, bold: true),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SailText.primary12(
-                          'TXID: ${model.txid}',
-                          color: theme.colors.success,
-                          monospace: true,
-                        ),
-                      ),
-                      CopyButton(text: model.txid!),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-        ],
+        ),
       ),
-    );
-  }
-}
-
-class _FeeRow extends StatelessWidget {
-  final String label;
-  final double value;
-  final bool bold;
-
-  const _FeeRow({
-    required this.label,
-    required this.value,
-    this.bold = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        SailText.primary12(label, bold: bold),
-        SailText.primary12(formatBitcoin(value), monospace: true, bold: bold),
-      ],
     );
   }
 }

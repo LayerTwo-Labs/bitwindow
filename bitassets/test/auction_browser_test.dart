@@ -97,7 +97,8 @@ void main() {
     final paragraphs = tester
         .renderObjectList<RenderParagraph>(find.descendant(of: find.text('Upcoming'), matching: find.byType(RichText)))
         .toList();
-    expect(paragraphs, hasLength(2));
+    expect(paragraphs, hasLength(1));
+    expect(find.text('Upcoming 1'), findsOneWidget);
     for (final paragraph in paragraphs) {
       final oneLine = TextPainter(
         text: paragraph.text,
@@ -109,7 +110,51 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await GetIt.I.reset();
   });
+
+  testWidgets('a row click opens the auction panel with Bid as its one button', (tester) async {
+    await tester.pumpSailPage(const AuctionBrowserTabPage());
+    await tester.pumpAndSettle();
+    expect(_panel(), findsNothing);
+
+    await tester.tap(find.text('aaaaaaaaaaaaaaaa...'));
+    await tester.pumpAndSettle();
+
+    expect(_panel(), findsOneWidget);
+    expect(tester.getSize(_panel()).width, SailSidePanel.width);
+    final buttons = find.descendant(of: _panel(), matching: find.byType(SailButton));
+    expect(buttons, findsOneWidget);
+    expect(tester.widget<SailButton>(buttons).label, 'Bid');
+    expect(find.text('Bid'), findsOneWidget, reason: 'the rows have no Bid button');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await GetIt.I.reset();
+  });
+
+  testWidgets('the row "…" holds the price alert, the favorite and the id copy', (tester) async {
+    await tester.pumpSailPage(const AuctionBrowserTabPage());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(SailRowMenuButton).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Set Price Alert'), findsOneWidget);
+    expect(find.text('Favorite'), findsOneWidget);
+    expect(find.text('Copy auction ID'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await GetIt.I.reset();
+  });
+
+  testWidgets('the filters are one segmented control with counts', (tester) async {
+    await tester.pumpSailPage(const AuctionBrowserTabPage());
+    await tester.pumpAndSettle();
+
+    final segments = tester.widget<SailSegments>(find.byType(SailSegments));
+    expect(segments.labels, ['All 2', 'Active 2', 'Upcoming 0', 'Ended 0']);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await GetIt.I.reset();
+  });
 }
+
+Finder _panel() => find.byType(AuctionPanel);
 
 class AuctionRPC extends MockBitAssetsRPC {
   int height = 101;

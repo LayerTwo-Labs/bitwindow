@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:auto_route/auto_route.dart';
@@ -9,11 +10,15 @@ import 'package:truthcoin/models/voting.dart';
 import 'package:truthcoin/providers/market_provider.dart';
 import 'package:truthcoin/providers/voting_provider.dart';
 import 'package:truthcoin/widgets/market_card.dart';
+import 'package:truthcoin/widgets/v2_parts.dart';
 
 const double _panelWidth = 380;
 
 /// Below this width the preview sits under the form, not beside it.
 const double _twoColumnWidth = 900;
+
+/// From this width the decisions get their own column.
+const double _threeColumnWidth = 1300;
 const int _networkFeeSats = 1000;
 
 @RoutePage()
@@ -26,11 +31,7 @@ class MarketCreationPage extends StatelessWidget {
       viewModelBuilder: () => MarketCreationViewModel(),
       onViewModelReady: (model) => model.init(),
       builder: (context, model, child) {
-        final panel = [
-          _PreviewCard(model: model),
-          _CostCard(model: model),
-          const _NextStepsCard(),
-        ];
+        final panel = _PreviewCard(model: model);
 
         return QtPage(
           child: LayoutBuilder(
@@ -40,26 +41,33 @@ class MarketCreationPage extends StatelessWidget {
                   child: SailColumn(
                     spacing: SailStyleValues.padding12,
                     children: [
-                      _FormColumn(model: model),
-                      ...panel,
+                      _FormColumn(model: model, withDecisions: true),
+                      panel,
                     ],
                   ),
                 );
               }
 
+              final three = constraints.maxWidth >= _threeColumnWidth;
               return SailRow(
-                spacing: SailStyleValues.padding16,
+                spacing: SailStyleValues.padding12,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.max,
                 children: [
                   Expanded(
-                    child: SingleChildScrollView(child: _FormColumn(model: model)),
+                    child: SingleChildScrollView(
+                      child: _FormColumn(model: model, withDecisions: !three),
+                    ),
                   ),
+                  if (three)
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: _DecisionsCard(model: model),
+                      ),
+                    ),
                   SizedBox(
                     width: _panelWidth,
-                    child: SingleChildScrollView(
-                      child: SailColumn(spacing: SailStyleValues.padding12, children: panel),
-                    ),
+                    child: SingleChildScrollView(child: panel),
                   ),
                 ],
               );
@@ -73,38 +81,31 @@ class MarketCreationPage extends StatelessWidget {
 
 class _FormColumn extends StatelessWidget {
   final MarketCreationViewModel model;
+  final bool withDecisions;
 
-  const _FormColumn({required this.model});
+  const _FormColumn({required this.model, required this.withDecisions});
 
   @override
   Widget build(BuildContext context) {
     return SailColumn(
       spacing: SailStyleValues.padding12,
       children: [
-        SailRow(
-          spacing: SailStyleValues.padding04,
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            SailButton(
-              plainLabel: true,
-              label: '←  Markets',
-              variant: ButtonVariant.link,
-              small: true,
-              onPressed: () async => AutoRouter.of(context).maybePop(),
-            ),
-          ],
+        BackLink(
+          label: 'Markets',
+          onTap: () => unawaited(AutoRouter.of(context).maybePop()),
         ),
         SailColumn(
           spacing: SailStyleValues.padding04,
           children: [
-            SailText.primary24('Create a market', bold: true),
-            SailText.secondary13('A market needs a question, one or more decisions, and a liquidity subsidy.'),
+            SailText.primary20('Create a market', bold: true),
+            SailText.secondary12(
+              'A market needs a question, one or more decisions, and a liquidity subsidy.',
+            ),
           ],
         ),
         _QuestionCard(model: model),
-        _DecisionsCard(model: model),
+        if (withDecisions) _DecisionsCard(model: model),
         _LiquidityCard(model: model),
-        _ActionRow(model: model),
       ],
     );
   }
@@ -116,7 +117,11 @@ class _Responsive extends StatelessWidget {
   final double spacing;
   final List<Widget> children;
 
-  const _Responsive({required this.breakpoint, required this.spacing, required this.children});
+  const _Responsive({
+    required this.breakpoint,
+    required this.spacing,
+    required this.children,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -192,7 +197,9 @@ class _DecisionsCard extends StatelessWidget {
                   // The closed button holds the id, so a long question never
                   // pushes the control past the card.
                   label: slot.slotIdHex,
-                  child: SailText.primary13('${slot.slotIdHex}  ·  ${model.slotLabel(slot)}'),
+                  child: SailText.primary13(
+                    '${slot.slotIdHex}  ·  ${model.slotLabel(slot)}',
+                  ),
                 ),
             ],
             onChanged: (id) {
@@ -203,7 +210,12 @@ class _DecisionsCard extends StatelessWidget {
           if (model.slotError != null) SailInlineError(model.slotError!),
           if (model.periodsError != null) SailInlineError(model.periodsError!),
           for (final (index, draft) in model.newDecisions.indexed)
-            _NewDecisionCard(key: ObjectKey(draft), model: model, number: index + 1, draft: draft),
+            _NewDecisionCard(
+              key: ObjectKey(draft),
+              model: model,
+              number: index + 1,
+              draft: draft,
+            ),
           SailRow(
             mainAxisSize: MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.start,
@@ -251,14 +263,15 @@ class _ExistingDecisionRow extends StatelessWidget {
           SailText.secondary13('Existing decision'),
           SailText.primary13(slot.slotIdHex, monospace: true),
           Expanded(child: SailText.primary13(model.slotLabel(slot))),
-          SailTooltip(
-            message: 'Remove',
-            child: SailButton(
-              variant: ButtonVariant.icon,
-              icon: SailSVGAsset.x,
-              small: true,
-              onPressed: () async => model.removeExistingDecision(slot.slotIdHex),
-            ),
+          SailRowMenuButton(
+            key: ValueKey('remove_existing_decision_${slot.slotIdHex}'),
+            filled: false,
+            items: () => [
+              menuItem(
+                'Remove',
+                () => model.removeExistingDecision(slot.slotIdHex),
+              ),
+            ],
           ),
         ],
       ),
@@ -266,49 +279,59 @@ class _ExistingDecisionRow extends StatelessWidget {
   }
 }
 
-const double _decisionLabelWidth = 110;
-const double _decisionRowBreakpoint = 420;
+class _LabeledControl extends StatelessWidget {
+  final String label;
+  final Widget control;
+
+  const _LabeledControl(this.label, this.control);
+
+  @override
+  Widget build(BuildContext context) {
+    return SailColumn(
+      spacing: SailStyleValues.padding04,
+      children: [SailText.secondary12(label), control],
+    );
+  }
+}
+
+class _DecisionField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final String hint;
+  final VoidCallback onChanged;
+
+  const _DecisionField({
+    required this.label,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _LabeledControl(
+      label,
+      SailTextField(
+        controller: controller,
+        hintText: hint,
+        maxLines: 1,
+        onChanged: (_) => onChanged(),
+      ),
+    );
+  }
+}
 
 class _NewDecisionCard extends StatelessWidget {
   final MarketCreationViewModel model;
   final int number;
   final NewDecisionDraft draft;
 
-  const _NewDecisionCard({super.key, required this.model, required this.number, required this.draft});
-
-  /// The label sits left of the control, and above it on a narrow card.
-  Widget _row(String label, Widget control) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < _decisionRowBreakpoint) {
-          return SailColumn(
-            spacing: SailStyleValues.padding04,
-            children: [SailText.secondary13(label), control],
-          );
-        }
-        return SailRow(
-          spacing: SailStyleValues.padding12,
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            SizedBox(width: _decisionLabelWidth, child: SailText.secondary13(label)),
-            Expanded(child: control),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _field(String label, TextEditingController controller, String hint) {
-    return _row(
-      label,
-      SailTextField(
-        controller: controller,
-        hintText: hint,
-        maxLines: 1,
-        onChanged: (_) => model.onDecisionChanged(),
-      ),
-    );
-  }
+  const _NewDecisionCard({
+    super.key,
+    required this.model,
+    required this.number,
+    required this.draft,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -327,21 +350,20 @@ class _NewDecisionCard extends StatelessWidget {
           SailRow(
             mainAxisSize: MainAxisSize.max,
             children: [
-              Expanded(child: SailText.primary13('New decision #$number', bold: true)),
+              Expanded(
+                child: SailText.primary13('New decision #$number', bold: true),
+              ),
               if (model.decisionCount > 1)
-                SailTooltip(
-                  message: 'Remove',
-                  child: SailButton(
-                    key: ValueKey('remove_new_decision_$number'),
-                    variant: ButtonVariant.icon,
-                    icon: SailSVGAsset.x,
-                    small: true,
-                    onPressed: () async => model.removeNewDecision(draft),
-                  ),
+                SailRowMenuButton(
+                  key: ValueKey('remove_new_decision_$number'),
+                  filled: false,
+                  items: () => [
+                    menuItem('Remove', () => model.removeNewDecision(draft)),
+                  ],
                 ),
             ],
           ),
-          _row(
+          _LabeledControl(
             'Period',
             SailDropdownButton<int>(
               value: draft.periodIndex,
@@ -350,41 +372,77 @@ class _NewDecisionCard extends StatelessWidget {
               hint: model.isLoadingPeriods ? 'Periods load' : 'Pick a period',
               items: [
                 for (final period in model.periods)
-                  SailDropdownItem<int>(value: period.periodIndex, label: period.label),
+                  SailDropdownItem<int>(
+                    value: period.periodIndex,
+                    label: period.label,
+                  ),
               ],
               onChanged: (period) {
                 if (period != null) model.setDecisionPeriod(draft, period);
               },
             ),
           ),
-          _row(
+          _LabeledControl(
             'Type',
-            Wrap(
-              spacing: SailStyleValues.padding08,
-              runSpacing: SailStyleValues.padding04,
-              children: [
-                for (final type in NewDecisionType.values)
-                  SailTabItem(
-                    label: type.label,
-                    isSelected: draft.type == type,
-                    onTap: () => model.setDecisionType(draft, type),
-                  ),
-              ],
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Segments<NewDecisionType>(
+                items: [
+                  for (final type in NewDecisionType.values) (type, type.label),
+                ],
+                value: draft.type,
+                onChanged: (type) => model.setDecisionType(draft, type),
+              ),
             ),
           ),
-          _field('Header', draft.header, 'Decision-specific question'),
+          _DecisionField(
+            label: 'Header',
+            controller: draft.header,
+            hint: 'Decision-specific question',
+            onChanged: model.onDecisionChanged,
+          ),
           ...switch (draft.type) {
             NewDecisionType.binary => [
-              _field('Option 0 label', draft.option0Label, 'No / False'),
-              _field('Option 1 label', draft.option1Label, 'Yes / True'),
+              _DecisionField(
+                label: 'Option 0 label',
+                controller: draft.option0Label,
+                hint: 'No / False',
+                onChanged: model.onDecisionChanged,
+              ),
+              _DecisionField(
+                label: 'Option 1 label',
+                controller: draft.option1Label,
+                hint: 'Yes / True',
+                onChanged: model.onDecisionChanged,
+              ),
             ],
             NewDecisionType.scaled => [
-              _field('Min', draft.min, '0'),
-              _field('Max', draft.max, '1'),
-              _field('Increment', draft.increment, '1'),
+              _DecisionField(
+                label: 'Min',
+                controller: draft.min,
+                hint: '0',
+                onChanged: model.onDecisionChanged,
+              ),
+              _DecisionField(
+                label: 'Max',
+                controller: draft.max,
+                hint: '1',
+                onChanged: model.onDecisionChanged,
+              ),
+              _DecisionField(
+                label: 'Increment',
+                controller: draft.increment,
+                hint: '1',
+                onChanged: model.onDecisionChanged,
+              ),
             ],
             NewDecisionType.category => [
-              _field('Option labels', draft.optionLabels, 'Red, Green, Blue'),
+              _DecisionField(
+                label: 'Option labels',
+                controller: draft.optionLabels,
+                hint: 'Red, Green, Blue',
+                onChanged: model.onDecisionChanged,
+              ),
             ],
           },
           if (error != null) SailInlineError(error),
@@ -406,21 +464,16 @@ class _LiquidityCard extends StatelessWidget {
       child: SailColumn(
         spacing: SailStyleValues.padding12,
         children: [
-          Wrap(
-            spacing: SailStyleValues.padding08,
-            runSpacing: SailStyleValues.padding04,
-            children: [
-              SailTabItem(
-                label: 'Initial liquidity',
-                isSelected: model.liquidityMethod == LiquidityMethod.initialLiquidity,
-                onTap: () => model.setLiquidityMethod(LiquidityMethod.initialLiquidity),
-              ),
-              SailTabItem(
-                label: 'Liquidity β',
-                isSelected: model.liquidityMethod == LiquidityMethod.beta,
-                onTap: () => model.setLiquidityMethod(LiquidityMethod.beta),
-              ),
-            ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Segments<LiquidityMethod>(
+              items: const [
+                (LiquidityMethod.initialLiquidity, 'Initial liquidity'),
+                (LiquidityMethod.beta, 'Liquidity β'),
+              ],
+              value: model.liquidityMethod,
+              onChanged: model.setLiquidityMethod,
+            ),
           ),
           _Responsive(
             breakpoint: 620,
@@ -452,7 +505,6 @@ class _LiquidityCard extends StatelessWidget {
                 plainLabel: true,
                 label: 'Calculate cost',
                 variant: ButtonVariant.secondary,
-                small: true,
                 disabled: !model.hasDimensions,
                 onPressed: () async => model.calculateLiquidityPreview(),
               ),
@@ -464,76 +516,17 @@ class _LiquidityCard extends StatelessWidget {
                 : 'β = liquidity / ln(number of outcomes).',
           ),
           Wrap(
-            spacing: SailStyleValues.padding08,
+            spacing: SailStyleValues.padding12,
             runSpacing: SailStyleValues.padding04,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SailText.secondary12('Fee presets'),
-              for (final preset in const [0.5, 1.0, 2.0])
-                SailTabItem(
-                  label: '$preset%',
-                  isSelected: model.tradingFeePercent == preset,
-                  onTap: () => model.setTradingFee(preset),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionRow extends StatelessWidget {
-  final MarketCreationViewModel model;
-
-  const _ActionRow({required this.model});
-
-  @override
-  Widget build(BuildContext context) {
-    final formatter = GetIt.I.get<FormatterProvider>();
-
-    return ListenableBuilder(
-      listenable: formatter,
-      builder: (context, _) => SailColumn(
-        spacing: SailStyleValues.padding08,
-        children: [
-          if (model.createError != null) SailInlineError(model.createError!),
-          Wrap(
-            spacing: SailStyleValues.padding12,
-            runSpacing: SailStyleValues.padding08,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: 240,
-                child: SailColumn(
-                  spacing: SailStyleValues.padding04,
-                  children: [
-                    SailText.primary15(
-                      model.totalCostSats == null
-                          ? 'Total cost unknown'
-                          : 'Total cost ${formatter.formatSats(model.totalCostSats!)}',
-                      bold: true,
-                    ),
-                    SailText.secondary12(
-                      model.totalCostSats == null
-                          ? 'press calculate cost to read the subsidy'
-                          : 'subsidy plus the network fee',
-                    ),
-                  ],
-                ),
-              ),
-              SailButton(
-                plainLabel: true,
-                label: 'Cancel',
-                variant: ButtonVariant.secondary,
-                onPressed: () async => AutoRouter.of(context).maybePop(),
-              ),
-              SailButton(
-                plainLabel: true,
-                label: 'Create market',
-                loading: model.isCreating,
-                disabled: !model.canCreate,
-                onPressed: () async => model.createMarket(context),
+              Segments<double>(
+                items: [
+                  for (final preset in const [0.5, 1.0, 2.0]) (preset, '$preset%'),
+                ],
+                value: model.tradingFeePercent,
+                onChanged: model.setTradingFee,
               ),
             ],
           ),
@@ -543,6 +536,14 @@ class _ActionRow extends StatelessWidget {
   }
 }
 
+const List<String> _nextSteps = [
+  'The market opens as soon as the block confirms.',
+  'A trade moves the price of every outcome.',
+  'Voters answer the decision slot in its period.',
+  'The market pays out after the tally.',
+];
+
+/// The right card: the market preview, its cost, Create market, and what happens next.
 class _PreviewCard extends StatelessWidget {
   final MarketCreationViewModel model;
 
@@ -551,151 +552,170 @@ class _PreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-    final title = model.titleController.text.trim();
-
-    return SailCard(
-      title: 'Preview',
-      child: SailColumn(
-        spacing: SailStyleValues.padding12,
-        children: [
-          SailRow(
-            spacing: SailStyleValues.padding12,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Container(
-                height: 40,
-                width: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colors.backgroundSecondary,
-                  borderRadius: SailStyleValues.borderRadius,
-                ),
-                child: SailText.secondary13(
-                  title.isEmpty ? '?' : marketInitials(title),
-                  bold: true,
-                ),
-              ),
-              Expanded(
-                child: SailColumn(
-                  spacing: SailStyleValues.padding04,
-                  children: [
-                    SailText.primary15(
-                      title.isEmpty ? 'Your question shows here' : title,
-                      bold: true,
-                    ),
-                    SailText.secondary12(model.previewMeta),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SailSeparator(),
-          SailRow(
-            spacing: SailStyleValues.padding08,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Expanded(child: SailText.secondary12('0 volume')),
-              SailBadge('new'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CostCard extends StatelessWidget {
-  final MarketCreationViewModel model;
-
-  const _CostCard({required this.model});
-
-  @override
-  Widget build(BuildContext context) {
     final formatter = GetIt.I.get<FormatterProvider>();
+    final title = model.titleController.text.trim();
     final preview = model.liquidityPreview;
 
     return SailCard(
-      title: 'Cost',
-      subtitle: preview == null ? 'Press calculate cost to read the subsidy.' : null,
+      title: 'Preview',
+      widgetHeaderEnd: SailRowMenuButton(
+        items: () => [
+          menuItem(
+            'Cancel',
+            () => unawaited(AutoRouter.of(context).maybePop()),
+          ),
+        ],
+      ),
       child: ListenableBuilder(
         listenable: formatter,
         builder: (context, _) => SailColumn(
-          spacing: SailStyleValues.padding08,
+          spacing: SailStyleValues.padding12,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _CostRow(
-              label: 'Liquidity subsidy',
-              value: model.subsidySats == null ? '—' : formatter.formatSats(model.subsidySats!),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colors.background,
+                borderRadius: theme.chrome.radius,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(SailStyleValues.padding12),
+                child: SailColumn(
+                  spacing: SailStyleValues.padding08,
+                  children: [
+                    SailRow(
+                      spacing: SailStyleValues.padding12,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Container(
+                          height: 32,
+                          width: 32,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: theme.colors.backgroundSecondary,
+                            borderRadius: theme.chrome.radius,
+                          ),
+                          child: SailText.secondary13(
+                            title.isEmpty ? '?' : marketInitials(title),
+                            bold: true,
+                          ),
+                        ),
+                        Expanded(
+                          child: SailColumn(
+                            spacing: SailStyleValues.padding04,
+                            children: [
+                              SailText.primary15(
+                                title.isEmpty ? 'Your question shows here' : title,
+                                bold: true,
+                              ),
+                              SailText.secondary12(model.previewMeta),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SailRow(
+                      spacing: SailStyleValues.padding08,
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Expanded(child: SailText.secondary12('0 volume')),
+                        SailText.secondary12('new'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
-            if (preview != null) ...[
-              _CostRow(label: 'Minimum treasury', value: formatter.formatSats(preview.minTreasurySats)),
-              _CostRow(label: 'Outcomes', value: '${preview.numOutcomes}'),
-              _CostRow(label: 'Liquidity β', value: preview.beta.toStringAsFixed(2)),
-            ],
-            if (model.listingFeeSats > 0)
-              _CostRow(label: 'Decision listing', value: formatter.formatSats(model.listingFeeSats)),
-            _CostRow(label: 'Network fee', value: formatter.formatSats(_networkFeeSats)),
-            const SailSeparator(),
-            _CostRow(
-              label: 'Total',
-              value: model.totalCostSats == null ? '—' : formatter.formatSats(model.totalCostSats!),
-              bold: true,
+            const SailDetailHeading('Cost'),
+            if (preview == null) SailText.secondary12('Press calculate cost to read the subsidy.'),
+            SailDetailGroup(
+              fill: SailDetailFill.canvas,
+              children: [
+                SailDetailLine(
+                  wrap: true,
+                  label: 'Liquidity subsidy',
+                  value: model.subsidySats == null ? '—' : formatter.formatSats(model.subsidySats!),
+                ),
+                if (preview != null) ...[
+                  SailDetailLine(
+                    wrap: true,
+                    label: 'Minimum treasury',
+                    value: formatter.formatSats(preview.minTreasurySats),
+                  ),
+                  SailDetailLine(
+                    wrap: true,
+                    label: 'Outcomes',
+                    value: '${preview.numOutcomes}',
+                  ),
+                  SailDetailLine(
+                    wrap: true,
+                    label: 'Liquidity β',
+                    value: preview.beta.toStringAsFixed(2),
+                  ),
+                ],
+                if (model.listingFeeSats > 0)
+                  SailDetailLine(
+                    wrap: true,
+                    label: 'Decision listing',
+                    value: formatter.formatSats(model.listingFeeSats),
+                  ),
+                SailDetailLine(
+                  wrap: true,
+                  label: 'Network fee',
+                  value: formatter.formatSats(_networkFeeSats),
+                ),
+                SailDetailLine(
+                  wrap: true,
+                  label: 'Total',
+                  value: model.totalCostSats == null ? '—' : formatter.formatSats(model.totalCostSats!),
+                ),
+              ],
+            ),
+            Wrap(
+              spacing: SailStyleValues.padding08,
+              runSpacing: SailStyleValues.padding04,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              alignment: WrapAlignment.spaceBetween,
+              children: [
+                SailText.primary13(
+                  model.totalCostSats == null
+                      ? 'Total cost unknown'
+                      : 'Total cost ${formatter.formatSats(model.totalCostSats!)}',
+                  bold: true,
+                ),
+                SailText.secondary12(
+                  model.totalCostSats == null
+                      ? 'press calculate cost to read the subsidy'
+                      : 'subsidy plus the network fee',
+                ),
+              ],
+            ),
+            if (model.createError != null) SailInlineError(model.createError!),
+            SailButton(
+              plainLabel: true,
+              label: 'Create market',
+              loading: model.isCreating,
+              disabled: !model.canCreate,
+              onPressed: () async => model.createMarket(context),
+            ),
+            const SailDetailHeading('What happens next'),
+            SailDetailGroup(
+              fill: SailDetailFill.canvas,
+              children: [
+                for (final (index, step) in _nextSteps.indexed)
+                  SailRow(
+                    spacing: SailStyleValues.padding08,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      SailText.secondary12('${index + 1}'),
+                      Expanded(child: SailText.primary12(step)),
+                    ],
+                  ),
+              ],
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CostRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool bold;
-
-  const _CostRow({required this.label, required this.value, this.bold = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        Expanded(child: SailText.secondary13(label)),
-        bold ? SailText.primary15(value, bold: true) : SailText.primary13(value, bold: true),
-      ],
-    );
-  }
-}
-
-class _NextStepsCard extends StatelessWidget {
-  const _NextStepsCard();
-
-  @override
-  Widget build(BuildContext context) {
-    const steps = [
-      'The market opens as soon as the block confirms.',
-      'A trade moves the price of every outcome.',
-      'Voters answer the decision slot in its period.',
-      'The market pays out after the tally.',
-    ];
-
-    return SailCard(
-      title: 'What happens next',
-      child: SailColumn(
-        spacing: SailStyleValues.padding08,
-        children: [
-          for (final (index, step) in steps.indexed)
-            SailRow(
-              spacing: SailStyleValues.padding08,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                SailBadge('${index + 1}'),
-                Expanded(child: SailText.secondary12(step)),
-              ],
-            ),
-        ],
       ),
     );
   }
@@ -707,9 +727,15 @@ class MarketCreationViewModel extends BaseViewModel {
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
-  final TextEditingController liquidityController = TextEditingController(text: '100000');
-  final TextEditingController betaController = TextEditingController(text: '7.0');
-  final TextEditingController tradingFeeController = TextEditingController(text: '0.5');
+  final TextEditingController liquidityController = TextEditingController(
+    text: '100000',
+  );
+  final TextEditingController betaController = TextEditingController(
+    text: '7.0',
+  );
+  final TextEditingController tradingFeeController = TextEditingController(
+    text: '0.5',
+  );
 
   final List<String> existingDecisionIds = [];
   final List<NewDecisionDraft> newDecisions = [NewDecisionDraft()];
@@ -820,7 +846,11 @@ class MarketCreationViewModel extends BaseViewModel {
   }
 
   void addNewDecision() {
-    newDecisions.add(NewDecisionDraft(periodIndex: periods.isEmpty ? null : periods.first.periodIndex));
+    newDecisions.add(
+      NewDecisionDraft(
+        periodIndex: periods.isEmpty ? null : periods.first.periodIndex,
+      ),
+    );
     notifyListeners();
   }
 
@@ -929,7 +959,10 @@ class MarketCreationViewModel extends BaseViewModel {
     final beta = liquidityMethod == LiquidityMethod.beta ? double.tryParse(betaController.text) ?? 7.0 : 7.0;
 
     final request = ++_liquidityRequest;
-    final result = await _marketProvider.calculateInitialLiquidity(beta: beta, numOutcomes: outcomeCount);
+    final result = await _marketProvider.calculateInitialLiquidity(
+      beta: beta,
+      numOutcomes: outcomeCount,
+    );
     if (request != _liquidityRequest) return;
 
     liquidityPreview = result;

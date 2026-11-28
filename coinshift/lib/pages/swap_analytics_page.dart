@@ -1,7 +1,9 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:coinshift/providers/analytics_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
+import 'package:sail_ui/pages/sidechains/sidechain_overview_page.dart';
 import 'package:sail_ui/sail_ui.dart';
 
 @RoutePage()
@@ -15,18 +17,15 @@ class SwapAnalyticsPage extends StatelessWidget {
       builder: (context, model, child) {
         return QtPage(
           child: SailColumn(
-            spacing: SailStyleValues.padding16,
+            spacing: SailStyleValues.padding12,
             children: [
-              // Header with time range selector
               _AnalyticsHeader(model: model),
-
-              // Stats cards row
-              _StatsCardsRow(model: model),
+              if (SailStyleValues.phoneLayout(context)) _StatsCardsRow(model: model),
 
               // Main content
               Expanded(
                 child: SailRow(
-                  spacing: SailStyleValues.padding16,
+                  spacing: SailStyleValues.padding12,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Left side: Chain breakdown
@@ -37,7 +36,7 @@ class SwapAnalyticsPage extends StatelessWidget {
 
                     // Right side: Swaps needing attention
                     Expanded(
-                      flex: 2,
+                      flex: 1,
                       child: _SwapsNeedingAttentionCard(model: model),
                     ),
                   ],
@@ -101,19 +100,34 @@ class _AnalyticsHeader extends StatelessWidget {
       );
     }
 
-    return SailCard(
-      child: SailRow(
-        spacing: SailStyleValues.padding16,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          SailText.primary20('Swap Analytics', bold: true),
-          SailRow(
-            spacing: SailStyleValues.padding08,
+    final formatter = GetIt.I<FormatterProvider>();
+    final stats = model.statistics;
+    return ListenableBuilder(
+      listenable: formatter,
+      builder: (context, child) => SailStrip(
+        lead: SailText.primary15('Swap Analytics', bold: true),
+        stats: [
+          SailStat(label: 'Total Swaps', value: stats.totalSwaps.toString()),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SailText.secondary13('Time Range:'),
-              rangePicker,
-              refresh,
+              SailStat(label: 'Completed', value: stats.completedSwaps.toString()),
+              SailText.secondary12('${(stats.successRate * 100).toStringAsFixed(1)}% success'),
             ],
+          ),
+          SailStat(label: 'Pending', value: stats.pendingSwaps.toString()),
+          SailStat(label: 'Volume (L2)', value: formatter.formatSats(stats.l2AmountTotal)),
+          SailStat(label: 'Volume (L1)', value: formatter.formatSats(stats.l1AmountTotal)),
+        ],
+        actions: [
+          SailText.secondary13('Time Range:'),
+          rangePicker,
+          SailIconBoxButton(
+            icon: SailSVGAsset.refreshCw,
+            tooltip: 'Refresh',
+            size: 32,
+            onPressed: model.isLoading ? null : () async => await model.refresh(),
           ),
         ],
       ),
@@ -128,99 +142,22 @@ class _StatsCardsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
     final formatter = GetIt.I<FormatterProvider>();
     final stats = model.statistics;
 
-    if (SailStyleValues.phoneLayout(context)) {
-      return ListenableBuilder(
-        listenable: formatter,
-        builder: (context, child) => SailStatList(
-          children: [
-            SailStatRow(title: 'Total Swaps', subtitle: '', value: stats.totalSwaps.toString()),
-            SailStatRow(
-              title: 'Completed',
-              subtitle: '${(stats.successRate * 100).toStringAsFixed(1)}% success',
-              value: stats.completedSwaps.toString(),
-            ),
-            SailStatRow(title: 'Pending', subtitle: '', value: stats.pendingSwaps.toString()),
-            SailStatRow(title: 'Volume (L2)', subtitle: '', value: formatter.formatSats(stats.l2AmountTotal)),
-            SailStatRow(title: 'Volume (L1)', subtitle: '', value: formatter.formatSats(stats.l1AmountTotal)),
-          ],
-        ),
-      );
-    }
-
     return ListenableBuilder(
       listenable: formatter,
-      builder: (context, child) => SailRow(
-        spacing: SailStyleValues.padding16,
+      builder: (context, child) => SailStatList(
         children: [
-          Expanded(
-            child: _StatCard(
-              title: 'Total Swaps',
-              value: stats.totalSwaps.toString(),
-              color: theme.colors.text,
-            ),
+          SailStatRow(title: 'Total Swaps', subtitle: '', value: stats.totalSwaps.toString()),
+          SailStatRow(
+            title: 'Completed',
+            subtitle: '${(stats.successRate * 100).toStringAsFixed(1)}% success',
+            value: stats.completedSwaps.toString(),
           ),
-          Expanded(
-            child: _StatCard(
-              title: 'Completed',
-              value: stats.completedSwaps.toString(),
-              subtitle: '${(stats.successRate * 100).toStringAsFixed(1)}% success',
-              color: theme.colors.success,
-            ),
-          ),
-          Expanded(
-            child: _StatCard(
-              title: 'Pending',
-              value: stats.pendingSwaps.toString(),
-              color: theme.colors.orange,
-            ),
-          ),
-          Expanded(
-            child: _StatCard(
-              title: 'Volume (L2)',
-              value: formatter.formatSats(stats.l2AmountTotal),
-              color: theme.colors.info,
-            ),
-          ),
-          Expanded(
-            child: _StatCard(
-              title: 'Volume (L1)',
-              value: formatter.formatSats(stats.l1AmountTotal),
-              color: theme.colors.info,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String? subtitle;
-  final Color color;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    this.subtitle,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SailCard(
-      child: SailColumn(
-        spacing: SailStyleValues.padding04,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SailText.secondary12(title),
-          SailText.primary24(value, bold: true, color: color),
-          if (subtitle != null) SailText.secondary12(subtitle!),
+          SailStatRow(title: 'Pending', subtitle: '', value: stats.pendingSwaps.toString()),
+          SailStatRow(title: 'Volume (L2)', subtitle: '', value: formatter.formatSats(stats.l2AmountTotal)),
+          SailStatRow(title: 'Volume (L1)', subtitle: '', value: formatter.formatSats(stats.l1AmountTotal)),
         ],
       ),
     );
@@ -234,111 +171,58 @@ class _ChainBreakdownCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final chainHealth = model.chainHealth;
+    final chains = model.chainHealth.entries
+        .where((e) => e.value.activeSwaps > 0 || model.statistics.swapsByChain[e.key] != null)
+        .toList();
 
     return SailCard(
       title: 'Chain Breakdown',
-      child: SailColumn(
-        spacing: SailStyleValues.padding08,
-        children: [
-          if (chainHealth.isEmpty)
-            SailText.secondary13('No swap data available')
-          else
-            ...chainHealth.entries
-                .where((e) => e.value.activeSwaps > 0 || model.statistics.swapsByChain[e.key] != null)
-                .map(
-                  (entry) {
-                    final chain = entry.key;
-                    final health = entry.value;
-                    final swapCount = model.statistics.swapsByChain[chain] ?? 0;
-
-                    return Container(
-                      padding: const EdgeInsets.all(SailStyleValues.padding12),
-                      decoration: BoxDecoration(
-                        color: theme.colors.backgroundSecondary,
-                        borderRadius: SailStyleValues.borderRadius,
-                        border: Border.all(
-                          color: health.isHealthy ? theme.colors.divider : theme.colors.orange,
+      bottomPadding: false,
+      child: chains.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(SailStyleValues.padding16),
+              child: Center(child: SailText.secondary13('No swap data available')),
+            )
+          : SailTable(
+              getRowId: (index) => chains[index].key.name,
+              headerBuilder: (context) => [
+                SailTableHeaderCell(name: 'Chain'),
+                SailTableHeaderCell(name: 'Total', alignment: Alignment.centerRight),
+                SailTableHeaderCell(name: 'Active', alignment: Alignment.centerRight),
+                SailTableHeaderCell(name: 'Success', alignment: Alignment.centerRight),
+              ],
+              rowBuilder: (context, row, selected) {
+                final chain = chains[row].key;
+                final health = chains[row].value;
+                return [
+                  SailTableCell(
+                    value: chain.label,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SidechainStatusText(
+                          tone: health.isHealthy ? SailStatusTone.success : SailStatusTone.warning,
+                          text: chain.label,
                         ),
-                      ),
-                      child: SailColumn(
-                        spacing: SailStyleValues.padding08,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SailRow(
-                            spacing: SailStyleValues.padding08,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              SailText.primary15(chain.label, bold: true),
-                              _HealthBadge(isHealthy: health.isHealthy),
-                            ],
-                          ),
-                          SailRow(
-                            spacing: SailStyleValues.padding16,
-                            children: [
-                              _ChainStat(label: 'Total', value: swapCount.toString()),
-                              _ChainStat(label: 'Active', value: health.activeSwaps.toString()),
-                              _ChainStat(
-                                label: 'Success',
-                                value: '${(health.successRate * 100).toStringAsFixed(0)}%',
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HealthBadge extends StatelessWidget {
-  final bool isHealthy;
-
-  const _HealthBadge({required this.isHealthy});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    final color = isHealthy ? theme.colors.success : theme.colors.orange;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: SailStyleValues.padding08,
-        vertical: SailStyleValues.padding04,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: SailStyleValues.borderRadius,
-        border: Border.all(color: color),
-      ),
-      child: SailText.secondary12(
-        isHealthy ? 'Healthy' : 'Attention',
-        color: color,
-      ),
-    );
-  }
-}
-
-class _ChainStat extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _ChainStat({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return SailColumn(
-      spacing: SailStyleValues.padding04,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SailText.secondary12(label),
-        SailText.primary13(value, bold: true),
-      ],
+                        SailText.secondary12(health.isHealthy ? 'Healthy' : 'Attention'),
+                      ],
+                    ),
+                  ),
+                  SailTableCell(
+                    value: (model.statistics.swapsByChain[chain] ?? 0).toString(),
+                    alignment: Alignment.centerRight,
+                  ),
+                  SailTableCell(value: health.activeSwaps.toString(), alignment: Alignment.centerRight),
+                  SailTableCell(
+                    value: '${(health.successRate * 100).toStringAsFixed(0)}%',
+                    alignment: Alignment.centerRight,
+                  ),
+                ];
+              },
+              rowCount: chains.length,
+              drawGrid: true,
+            ),
     );
   }
 }
@@ -350,7 +234,6 @@ class _SwapsNeedingAttentionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
     final swaps = model.swapsNeedingAttention;
     final formatter = GetIt.I<FormatterProvider>();
 
@@ -359,85 +242,73 @@ class _SwapsNeedingAttentionCard extends StatelessWidget {
       subtitle: swaps.isEmpty ? null : '${swaps.length} swap(s) may need your attention',
       bottomPadding: false,
       child: swaps.isEmpty
-          ? Center(
-              child: SailColumn(
-                spacing: SailStyleValues.padding08,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SailSVG.fromAsset(SailSVGAsset.circleCheck, width: 48, color: theme.colors.success),
-                  SailText.primary15('All swaps are healthy'),
-                  SailText.secondary13('No swaps require attention at this time'),
-                ],
+          ? Padding(
+              padding: const EdgeInsets.all(SailStyleValues.padding16),
+              child: Center(
+                child: SailColumn(
+                  spacing: SailStyleValues.padding04,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SailText.primary13('All swaps are healthy'),
+                    SailText.secondary12('No swaps require attention at this time'),
+                  ],
+                ),
               ),
             )
           : ListenableBuilder(
               listenable: formatter,
-              builder: (context, child) => ListView.separated(
-                itemCount: swaps.length,
-                separatorBuilder: (context, index) => const SailSeparator(),
-                itemBuilder: (context, index) {
-                  final swap = swaps[index];
-                  return _SwapAttentionRow(swap: swap, formatter: formatter);
+              builder: (context, child) => SailTable(
+                getRowId: (index) => swaps[index].idHex,
+                headerBuilder: (context) => [
+                  SailTableHeaderCell(name: 'Swap'),
+                  SailTableHeaderCell(name: 'Amount', alignment: Alignment.centerRight),
+                ],
+                rowBuilder: (context, row, selected) {
+                  final swap = swaps[row];
+                  final (issue, tone) = _issue(swap);
+                  return [
+                    SailTableCell(
+                      value: 'Swap ${swap.idHex.substring(0, 12)}...',
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SidechainStatusText(tone: tone, text: 'Swap ${swap.idHex.substring(0, 12)}...'),
+                          SailText.secondary12(issue),
+                        ],
+                      ),
+                    ),
+                    SailTableCell(
+                      value: formatter.formatSats(swap.l2Amount),
+                      secondaryValue: swap.parentChain.label,
+                      monospace: true,
+                      alignment: Alignment.centerRight,
+                    ),
+                  ];
                 },
+                rowCount: swaps.length,
+                drawGrid: true,
+                contextMenuItems: (rowId) => [
+                  SailMenuItem(
+                    onSelected: () => Clipboard.setData(ClipboardData(text: rowId)),
+                    child: SailText.primary12('Copy swap ID'),
+                  ),
+                ],
               ),
             ),
     );
   }
-}
 
-class _SwapAttentionRow extends StatelessWidget {
-  final CoinShiftSwap swap;
-  final FormatterProvider formatter;
-
-  const _SwapAttentionRow({required this.swap, required this.formatter});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    String issue;
-    Color issueColor;
-
+  (String, SailStatusTone) _issue(CoinShiftSwap swap) {
     if (swap.state.isPending) {
-      issue = 'Pending - waiting for L1 payment';
-      issueColor = theme.colors.orange;
-    } else if (swap.state.isWaitingConfirmations) {
+      return ('Pending - waiting for L1 payment', SailStatusTone.warning);
+    }
+    if (swap.state.isWaitingConfirmations) {
       final current = swap.state.currentConfirmations ?? 0;
       final required = swap.state.requiredConfirmations ?? 1;
-      issue = 'Waiting: $current/$required confirmations';
-      issueColor = theme.colors.info;
-    } else {
-      issue = swap.state.state;
-      issueColor = theme.colors.textSecondary;
+      return ('Waiting: $current/$required confirmations', SailStatusTone.info);
     }
-
-    return Padding(
-      padding: const EdgeInsets.all(SailStyleValues.padding12),
-      child: SailRow(
-        spacing: SailStyleValues.padding16,
-        children: [
-          SailSVG.fromAsset(SailSVGAsset.triangleAlert, width: 20, color: issueColor),
-          Expanded(
-            child: SailColumn(
-              spacing: SailStyleValues.padding04,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SailText.primary13(
-                  'Swap ${swap.idHex.substring(0, 12)}...',
-                  monospace: true,
-                ),
-                SailText.secondary12(issue, color: issueColor),
-              ],
-            ),
-          ),
-          SailText.primary13(
-            formatter.formatSats(swap.l2Amount),
-            monospace: true,
-          ),
-          SailText.secondary12(swap.parentChain.label),
-        ],
-      ),
-    );
+    return (swap.state.state, SailStatusTone.neutral);
   }
 }
 

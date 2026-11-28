@@ -4,10 +4,9 @@ import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
-import 'package:sail_ui/shell/chain_navigator.dart';
 import 'package:zside/providers/cast_provider.dart';
 import 'package:zside/providers/zside_provider.dart';
-import 'package:zside/routing/router.dart';
+import 'package:zside/pages/tabs/zside/zside_bill_page.dart';
 import 'package:zside/widgets/containers/tabs/zside_tab_widgets.dart';
 
 @RoutePage()
@@ -19,83 +18,120 @@ class ZSideMeltCastTabPage extends StatelessWidget {
     return ViewModelBuilder.reactive(
       viewModelBuilder: () => ZSideMeltCastViewModel(),
       builder: ((context, model, child) {
-        return QtPage(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: SailStyleValues.padding32),
+        final phone = SailStyleValues.phoneLayout(context);
+        final melts = MeltCastCard(
+          title: 'Pending melts',
+          action: 'Melt',
+          line: 'Click here to Melt ALL of your transparent Coins',
+          subtitle: 'See list of ongoing melts and their status',
+          onAction: () async => model.melt(context),
+          showAction: !phone,
+          menuItems: () => [
+            SailMenuItem(onSelected: () => model.meltHelp(context), child: SailText.primary12('Melt help')),
+            SailMenuItem(
+              onSelected: () => model.doEverything(context),
+              child: SailText.primary12('Do everything for me'),
+            ),
+            SailMenuItem(
+              onSelected: () => model.consolidateTransparent(context),
+              child: SailText.primary12('Consolidate Transparent'),
+            ),
+          ],
+          table: PendingMeltTable(entries: model.pendingMelts, onMelt: () => model.melt(context)),
+        );
+        final casts = MeltCastCard(
+          title: 'Pending casts',
+          action: 'Cast',
+          line: 'Click here to Cast 95-100% of your z-value as 4 new Coins',
+          subtitle: 'See list of ongoing casts and their status',
+          onAction: () async => model.cast(context),
+          showAction: !phone,
+          menuItems: () => [
+            SailMenuItem(onSelected: () => model.castHelp(context), child: SailText.primary12('Cast help')),
+            SailMenuItem(onSelected: () => model.viewBills(context), child: SailText.primary12('Bill Amounts')),
+            SailMenuItem(
+              onSelected: () => model.consolidateShielded(context),
+              child: SailText.primary12('Consolidate Private'),
+            ),
+          ],
+          table: PendingCastsTable(entries: model.pendingNonEmptyBills, chain: model.chain),
+        );
+
+        if (phone) {
+          return QtPage(
+            child: SingleChildScrollView(
               child: SailColumn(
-                spacing: SailStyleValues.padding32,
+                spacing: SailStyleValues.padding12,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Flexible(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            MeltButton(
-                              onPressed: () async => model.melt(context),
-                            ),
-                            const SizedBox(height: SailStyleValues.padding16),
-                            SailCard(
-                              bottomPadding: false,
-                              title: 'Pending melts',
-                              subtitle: 'See list of ongoing melts and their status',
-                              widgetHeaderEnd: HelpButton(onPressed: () => model.meltHelp(context)),
-                              child: SizedBox(
-                                height: 300,
-                                child: PendingMeltTable(
-                                  entries: model.pendingMelts,
-                                  onMelt: () => model.melt(context),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: SailStyleValues.padding16),
-                      Flexible(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CastButton(
-                              onPressed: () async => model.cast(context),
-                            ),
-                            const SizedBox(height: SailStyleValues.padding16),
-                            SailCard(
-                              title: 'Pending casts',
-                              subtitle: 'See list of ongoing casts and their status',
-                              bottomPadding: false,
-                              widgetHeaderEnd: SailRow(
-                                spacing: SailStyleValues.padding08,
-                                children: [
-                                  HelpButton(onPressed: () => model.castHelp(context)),
-                                  SailButton(
-                                    variant: ButtonVariant.icon,
-                                    onPressed: () => model.viewBills(),
-                                    icon: SailSVGAsset.iconCalendar,
-                                  ),
-                                ],
-                              ),
-                              child: SizedBox(
-                                height: 300,
-                                child: PendingCastsTable(
-                                  entries: model.pendingNonEmptyBills,
-                                  chain: model.chain,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  MeltButton(onPressed: () async => model.melt(context)),
+                  SizedBox(height: 360, child: melts),
+                  CastButton(onPressed: () async => model.cast(context)),
+                  SizedBox(height: 360, child: casts),
                 ],
               ),
             ),
+          );
+        }
+
+        return QtPage(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: melts),
+              const SizedBox(width: SailStyleValues.padding12),
+              Expanded(child: casts),
+            ],
           ),
         );
       }),
+    );
+  }
+}
+
+/// A card of pending melts or casts: the title, its one action and a "…" menu, two help lines, and the table.
+class MeltCastCard extends StatelessWidget {
+  final String title;
+  final String action;
+  final String line;
+  final String subtitle;
+  final Future<void> Function() onAction;
+  final bool showAction;
+  final List<SailMenuEntity> Function() menuItems;
+  final Widget table;
+
+  const MeltCastCard({
+    super.key,
+    required this.title,
+    required this.action,
+    required this.line,
+    required this.subtitle,
+    required this.onAction,
+    required this.showAction,
+    required this.menuItems,
+    required this.table,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SailCard(
+      bottomPadding: false,
+      title: title,
+      subtitle: showAction ? line : null,
+      widgetHeaderEnd: SailRow(
+        spacing: SailStyleValues.padding08,
+        children: [
+          if (showAction) SailButton(label: action, onPressed: onAction),
+          SailRowMenuButton(items: menuItems),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SailText.secondary13(subtitle),
+          const SizedBox(height: SailStyleValues.padding08),
+          Expanded(child: table),
+        ],
+      ),
     );
   }
 }
@@ -197,7 +233,7 @@ class ZSideMeltCast extends StatelessWidget {
                               HelpButton(onPressed: () => model.castHelp(context)),
                               SailButton(
                                 variant: ButtonVariant.icon,
-                                onPressed: () => model.viewBills(),
+                                onPressed: () => model.viewBills(context),
                                 icon: SailSVGAsset.iconCalendar,
                               ),
                             ],
@@ -288,7 +324,6 @@ class ZSideMeltCastViewModel extends BaseViewModel {
   CastProvider get _castProvider => GetIt.I.get<CastProvider>();
   SidechainBalanceProvider get _balanceProvider => GetIt.I.get<SidechainBalanceProvider>();
   ZSideRPC get _rpc => GetIt.I.get<ZSideRPC>();
-  ChainNavigator get _navigator => GetIt.I.get<ChainNavigator>();
 
   Binary get chain => _rpc.chain;
   String get zsideAddress => _zsideProvider.zsideAddress;
@@ -401,8 +436,8 @@ class ZSideMeltCastViewModel extends BaseViewModel {
     );
   }
 
-  Future<void> viewBills() async {
-    await _navigator.push(const ZSideBillRoute());
+  Future<void> viewBills(BuildContext context) async {
+    await showBillAmounts(context);
   }
 
   void consolidateTransparent(BuildContext context) async {
@@ -491,7 +526,6 @@ class _PendingMeltTableState extends State<PendingMeltTable> {
           ];
         },
         rowCount: widget.entries.length,
-        drawGrid: true,
       ),
     );
   }
@@ -609,7 +643,6 @@ class _PendingCastsTableState extends State<PendingCastsTable> {
           ];
         },
         rowCount: entries.length,
-        drawGrid: true,
         sortColumnIndex: [
           'amount',
           'executeTime',
@@ -634,6 +667,7 @@ class _PendingCastsTableState extends State<PendingCastsTable> {
         constraints: const BoxConstraints(maxWidth: 800),
         child: SailCard(
           title: 'Cast Bill Details',
+          withCloseButton: true,
           subtitle: 'Details of the selected cast bill',
           child: SingleChildScrollView(
             child: Column(
@@ -672,6 +706,7 @@ class _PendingCastsTableState extends State<PendingCastsTable> {
   }
 }
 
+/// The Melt action card above the pending melts on a phone.
 class MeltButton extends StatelessWidget {
   final Future<void> Function() onPressed;
 
@@ -682,62 +717,16 @@ class MeltButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    if (SailStyleValues.phoneLayout(context)) {
-      return _PhoneActionCard(
-        icon: SailSVGAsset.iconMelt,
-        title: 'Melt',
-        line: 'Click here to Melt ALL of your transparent Coins',
-        onPressed: onPressed,
-      );
-    }
-
-    return SailTappable(
-      onTap: onPressed,
-      borderRadius: SailStyleValues.borderRadius,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        decoration: BoxDecoration(
-          borderRadius: SailStyleValues.borderRadius,
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [
-              theme.colors.orange.withValues(alpha: 0.25),
-              theme.colors.orangeLight.withValues(alpha: 0.25),
-            ],
-          ),
-          border: Border.all(
-            color: theme.colors.orange,
-            width: 1.0,
-          ),
-        ),
-        child: Column(
-          children: [
-            SailRow(
-              mainAxisAlignment: MainAxisAlignment.center,
-              spacing: SailStyleValues.padding08,
-              children: [
-                SailSVG.icon(
-                  SailSVGAsset.iconMelt,
-                  color: theme.colors.text,
-                  height: 24,
-                ),
-                SailText.primary24('Melt', bold: true),
-              ],
-            ),
-            SailText.secondary13(
-              'Click here to Melt ALL of your transparent Coins',
-              color: theme.colors.textSecondary,
-            ),
-          ],
-        ),
-      ),
+    return _PhoneActionCard(
+      icon: SailSVGAsset.iconMelt,
+      title: 'Melt',
+      line: 'Click here to Melt ALL of your transparent Coins',
+      onPressed: onPressed,
     );
   }
 }
 
+/// The Cast action card above the pending casts on a phone.
 class CastButton extends StatelessWidget {
   final Future<void> Function() onPressed;
 
@@ -748,56 +737,15 @@ class CastButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-    if (SailStyleValues.phoneLayout(context)) {
-      return _PhoneActionCard(
-        icon: SailSVGAsset.iconCast,
-        title: 'Cast',
-        line: 'Click here to Cast 95-100% of your z-value as 4 new Coins',
-        onPressed: onPressed,
-      );
-    }
-
-    return SailTappable(
-      onTap: onPressed,
-      borderRadius: SailStyleValues.borderRadius,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        decoration: BoxDecoration(
-          borderRadius: SailStyleValues.borderRadius,
-          color: theme.colors.backgroundSecondary,
-          border: Border.all(
-            color: theme.colors.orange,
-            width: 1.0,
-          ),
-        ),
-        child: Column(
-          children: [
-            SailRow(
-              mainAxisAlignment: MainAxisAlignment.center,
-              spacing: SailStyleValues.padding08,
-              children: [
-                SailSVG.icon(
-                  SailSVGAsset.iconCast,
-                  color: theme.colors.text,
-                  height: 24,
-                ),
-                SailText.primary24('Cast', bold: true),
-              ],
-            ),
-            SailText.secondary13(
-              'Click here to Cast 95-100% of your z-value as 4 new Coins',
-              color: theme.colors.textSecondary,
-            ),
-          ],
-        ),
-      ),
+    return _PhoneActionCard(
+      icon: SailSVGAsset.iconCast,
+      title: 'Cast',
+      line: 'Click here to Cast 95-100% of your z-value as 4 new Coins',
+      onPressed: onPressed,
     );
   }
 }
 
-/// The phone form of the Melt and Cast buttons: a plain card with the title at the left.
 class _PhoneActionCard extends StatelessWidget {
   final SailSVGAsset icon;
   final String title;
@@ -1019,7 +967,6 @@ class _UTXOsTableState extends State<UTXOsTable> {
           ];
         },
         rowCount: entries.length,
-        drawGrid: true,
         sortColumnIndex: [
           'amount',
           'type',
@@ -1044,6 +991,7 @@ class _UTXOsTableState extends State<UTXOsTable> {
         constraints: const BoxConstraints(maxWidth: 800),
         child: SailCard(
           title: 'UTXO Details',
+          withCloseButton: true,
           subtitle: 'Details of the selected UTXO',
           child: SingleChildScrollView(
             child: Column(
@@ -1091,6 +1039,7 @@ class PendingMeltView extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 800),
       child: SailCard(
         title: 'Pending Melt Details',
+        withCloseButton: true,
         subtitle: 'Details of the selected pending melt',
         child: SingleChildScrollView(
           child: Column(

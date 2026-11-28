@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:sail_ui/sail_ui.dart';
+import 'package:zside/widgets/v2_parts.dart';
 
+/// A square action dialog: title and × in the head, the form, and one full-width action.
 class DashboardActionModal extends StatelessWidget {
   const DashboardActionModal(
     this.title, {
@@ -15,52 +17,53 @@ class DashboardActionModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
     return SailModal(
-      backgroundColor: theme.colors.actionHeader,
+      constraints: const BoxConstraints(maxWidth: 540),
       child: SailCard(
-        child: SailColumn(
-          spacing: SailStyleValues.padding64,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SailColumn(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 0,
-              withDivider: true,
-              trailingSpacing: true,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: SailStyleValues.padding16,
-                    top: SailStyleValues.padding16,
-                  ),
-                  child: ActionHeaderChip(title: title),
-                ),
-                for (final child in children) child,
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(SailStyleValues.padding20),
-              child: SailRow(
-                spacing: SailStyleValues.padding10,
-                children: [
-                  Expanded(child: Container()),
-                  SailButton(
-                    label: 'Cancel',
-                    variant: ButtonVariant.ghost,
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                  endActionButton,
-                ],
-              ),
-            ),
-          ],
-        ),
+        title: title,
+        withCloseButton: true,
+        child: ActionForm(action: endActionButton, children: children),
       ),
+    );
+  }
+}
+
+/// The body of a zSide action: fields, the read-only values in one grey group, notes, and the action at full width.
+class ActionForm extends StatelessWidget {
+  final List<Widget> children;
+  final Widget action;
+
+  const ActionForm({super.key, required this.children, required this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <Widget>[];
+    var group = <Widget>[];
+    void closeGroup() {
+      if (group.isNotEmpty) {
+        parts.add(SailDetailGroup(fill: SailDetailFill.canvas, children: group));
+        group = [];
+      }
+    }
+
+    for (final child in children) {
+      if (child is StaticActionField) {
+        group.add(SailDetailLine(wrap: true, label: child.label ?? '', value: child.value, copyable: child.copyable));
+        continue;
+      }
+      closeGroup();
+      parts.add(child is StaticActionInfo ? DetailNote(child.text) : child);
+    }
+    closeGroup();
+
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ...parts,
+        SizedBox(width: double.infinity, child: action),
+      ],
     );
   }
 }

@@ -9,6 +9,7 @@ import 'package:sail_ui/shell/chain_navigator.dart';
 import 'package:zside/providers/cast_provider.dart';
 import 'package:zside/providers/zside_provider.dart';
 import 'package:zside/widgets/containers/dashboard_action_modal.dart';
+import 'package:zside/widgets/v2_parts.dart';
 
 class ShieldUTXOAction extends StatelessWidget {
   final UnshieldedUTXO utxo;
@@ -17,16 +18,38 @@ class ShieldUTXOAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return SailModal(
+      constraints: const BoxConstraints(maxWidth: 540),
+      child: SailCard(
+        title: 'Shield coins',
+        withCloseButton: true,
+        child: ShieldUTXOForm(utxo: utxo),
+      ),
+    );
+  }
+}
+
+/// The Shield coins form, for a dialog or a side panel.
+class ShieldUTXOForm extends StatelessWidget {
+  final UnshieldedUTXO utxo;
+
+  /// Runs after a shield starts. Null pops the dialog.
+  final VoidCallback? onDone;
+
+  const ShieldUTXOForm({super.key, required this.utxo, this.onDone});
+
+  @override
+  Widget build(BuildContext context) {
     final formatter = GetIt.I<FormatterProvider>();
 
     return ViewModelBuilder.reactive(
-      viewModelBuilder: () => ShieldUTXOActionViewModel(utxo),
+      key: ValueKey(utxo.txid),
+      viewModelBuilder: () => ShieldUTXOActionViewModel(utxo, onDone: onDone),
       builder: ((context, model, child) {
         return ListenableBuilder(
           listenable: formatter,
-          builder: (context, child) => DashboardActionModal(
-            'Shield coins',
-            endActionButton: SailButton(
+          builder: (context, child) => ActionForm(
+            action: SailButton(
               label: 'Execute shield',
               disabled: model.bitcoinAmountController.text.isEmpty,
               loading: model.isBusy,
@@ -35,7 +58,7 @@ class ShieldUTXOAction extends StatelessWidget {
               },
             ),
             children: [
-              LargeEmbeddedInput(
+              ZSideField(
                 controller: model.bitcoinAmountController,
                 hintText: 'How much do you want to shield?',
                 suffixText: model.ticker,
@@ -88,8 +111,9 @@ class ShieldUTXOActionViewModel extends BaseViewModel {
   String get ticker => _rpc.chain.ticker;
   double? get amount => double.tryParse(bitcoinAmountController.text);
   late double maxAmount;
+  final VoidCallback? onDone;
 
-  ShieldUTXOActionViewModel(UnshieldedUTXO utxo) {
+  ShieldUTXOActionViewModel(UnshieldedUTXO utxo, {this.onDone}) {
     maxAmount = max(0, utxo.amount - shieldFee);
     bitcoinAmountController.addListener(_withMaxAmount);
 
@@ -156,8 +180,11 @@ class ShieldUTXOActionViewModel extends BaseViewModel {
         title: 'Initiated shield of $amount $ticker to your Z-address',
         subtitle: 'OPID: $shieldID',
       );
-      // also pop the info modal
-      await _navigator.pop();
+      if (onDone != null) {
+        onDone!();
+      } else {
+        await _navigator.pop();
+      }
     } catch (error) {
       if (!context.mounted) {
         return;
@@ -186,16 +213,38 @@ class DeshieldUTXOAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return SailModal(
+      constraints: const BoxConstraints(maxWidth: 540),
+      child: SailCard(
+        title: 'Deshield coins',
+        withCloseButton: true,
+        child: DeshieldUTXOForm(utxo: utxo),
+      ),
+    );
+  }
+}
+
+/// The Deshield coins form, for a dialog or a side panel.
+class DeshieldUTXOForm extends StatelessWidget {
+  final ShieldedUTXO utxo;
+
+  /// Runs after a deshield starts. Null pops the dialog.
+  final VoidCallback? onDone;
+
+  const DeshieldUTXOForm({super.key, required this.utxo, this.onDone});
+
+  @override
+  Widget build(BuildContext context) {
     final formatter = GetIt.I<FormatterProvider>();
 
     return ViewModelBuilder.reactive(
-      viewModelBuilder: () => DeshieldUTXOActionViewModel(utxo),
+      key: ValueKey(utxo.txid),
+      viewModelBuilder: () => DeshieldUTXOActionViewModel(utxo, onDone: onDone),
       builder: ((context, model, child) {
         return ListenableBuilder(
           listenable: formatter,
-          builder: (context, child) => DashboardActionModal(
-            'Deshield coins',
-            endActionButton: SailButton(
+          builder: (context, child) => ActionForm(
+            action: SailButton(
               label: 'Execute deshield',
               disabled: model.bitcoinAmountController.text.isEmpty,
               loading: model.isBusy,
@@ -204,7 +253,7 @@ class DeshieldUTXOAction extends StatelessWidget {
               },
             ),
             children: [
-              LargeEmbeddedInput(
+              ZSideField(
                 controller: model.bitcoinAmountController,
                 hintText: 'How much do you want to deshield?',
                 suffixText: model.ticker,
@@ -254,8 +303,9 @@ class DeshieldUTXOActionViewModel extends BaseViewModel {
 
   String deshieldAddress = '';
   late double maxAmount;
+  final VoidCallback? onDone;
 
-  DeshieldUTXOActionViewModel(ShieldedUTXO utxo) {
+  DeshieldUTXOActionViewModel(ShieldedUTXO utxo, {this.onDone}) {
     maxAmount = max(0, utxo.amount - deshieldFee);
     bitcoinAmountController.addListener(_withMaxAmount);
 
@@ -325,8 +375,11 @@ class DeshieldUTXOActionViewModel extends BaseViewModel {
         title: 'Initiated deshield of $amount $ticker to ${utxo.address}',
         subtitle: 'OPID: $deshieldID',
       );
-      // also pop the info modal
-      await _navigator.pop();
+      if (onDone != null) {
+        onDone!();
+      } else {
+        await _navigator.pop();
+      }
     } catch (error) {
       if (!context.mounted) {
         return;
@@ -532,10 +585,8 @@ class MeltAction extends StatelessWidget {
               ),
               children: [
                 if (doEverythingMode)
-                  const SailPadding(
-                    child: QuestionText(
-                      '"Do everything for me" will first melt all your coins, then cast them. The entire process can take up to 7 days.',
-                    ),
+                  const DetailNote(
+                    '"Do everything for me" will first melt all your coins, then cast them. The entire process can take up to 7 days.',
                   ),
                 const StaticActionField(
                   label: 'Melt to',
@@ -951,8 +1002,8 @@ class CastHelp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const QuestionContainer(
-      category: 'Cast help',
+    return const ZSideHelpDialog(
+      title: 'Cast help',
       children: [
         QuestionTitle('What is casting?'),
         QuestionText('Casting gives you ultra-secure ultra-user-friendly “click button”-level coin anonymization.'),
@@ -979,8 +1030,8 @@ class MeltHelp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const QuestionContainer(
-      category: 'Melt help',
+    return const ZSideHelpDialog(
+      title: 'Melt help',
       children: [
         QuestionTitle('What is melting?'),
         QuestionText(
@@ -1015,8 +1066,8 @@ class OperationHelp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const QuestionContainer(
-      category: 'Operation help',
+    return const ZSideHelpDialog(
+      title: 'Operation help',
       children: [
         QuestionTitle('What are operations?'),
         QuestionText(
@@ -1035,8 +1086,8 @@ class MeltAndCastHelp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return QuestionContainer(
-      category: "What's going on?",
+    return ZSideHelpDialog(
+      title: "What's going on?",
       children: [
         const QuestionText(
           'On this page, you can "melt" and "cast" your UTXOs. The diagram below explains the process.',
