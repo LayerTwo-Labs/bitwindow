@@ -291,7 +291,7 @@ func TestListCoinNews_RanksByFee(t *testing.T) {
 	ctx := t.Context()
 	topic := mustTopicID(t, "a1a1a1a1")
 	db := database.Test(t)
-	seedCurrentTopic(t, ctx, db, topic, "Topic", 0, 99)
+	seedCurrentTopic(t, ctx, db, topic, "Topic", 0, 1)
 	now := time.Now()
 	stories := []struct {
 		headline string
@@ -318,6 +318,47 @@ func TestListCoinNews_RanksByFee(t *testing.T) {
 	var itemID []byte
 	require.NoError(t, db.QueryRowContext(ctx, `SELECT item_id FROM cn_stories WHERE headline = 'Dear'`).Scan(&itemID))
 	assert.Equal(t, hex.EncodeToString(itemID), news[0].ItemID)
+}
+
+// Equal fees rank as the indexer ranks them: the higher block first, then the
+// last in the block first. Block times are not in height order.
+func TestListCoinNews_RanksTiesByChainPosition(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	topic := mustTopicID(t, "a1a1a1a1")
+	db := database.Test(t)
+	seedCurrentTopic(t, ctx, db, topic, "Topic", 0, 1)
+	now := time.Now()
+	stories := []struct {
+		headline string
+		height   uint32
+		txIndex  uint32
+		time     time.Time
+	}{
+		{"First in block 100", 100, 1, now.Add(-time.Hour)},
+		{"Second in block 100", 100, 2, now.Add(-time.Hour)},
+		{"Block 101 with an older time", 101, 1, now.Add(-2 * time.Hour)},
+	}
+	var ct codec.Topic
+	copy(ct[:], topic[:])
+	for _, st := range stories {
+		txid := canonicalTxID(st.headline)
+		require.NoError(t, cnstore.Index(ctx, db, cnstore.IndexEnv{
+			Pos:     cnstore.BlockPos{BlockHeight: st.height, TxIndex: st.txIndex, BlockTime: st.time, TxID: txid},
+			TypeTag: codec.TypeStory,
+			Msg:     &codec.Story{Topic: ct, Headline: st.headline},
+		}))
+		_, err := db.ExecContext(ctx,
+			`INSERT INTO op_returns (txid, vout, op_return_data, fee_sats) VALUES (?, 0, '', 3000)`, txid)
+		require.NoError(t, err)
+	}
+
+	news, err := ListCoinNews(ctx, db)
+	require.NoError(t, err)
+	assert.Equal(t,
+		[]string{"Block 101 with an older time", "Second in block 100", "First in block 100"},
+		lo.Map(news, func(n CoinNews, _ int) string { return n.Headline }))
+	assert.Equal(t, []uint32{101, 100, 100}, lo.Map(news, func(n CoinNews, _ int) uint32 { return n.BlockHeight }))
 }
 
 func canonicalTxID(label string) string {
