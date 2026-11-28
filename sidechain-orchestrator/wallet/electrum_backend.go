@@ -3491,9 +3491,11 @@ func walletRowsForTx(tx EsploraTx, scan *electrumScan, tip int, txTime int64) []
 			rows = append(rows, row)
 		}
 		if len(rows) == 0 {
-			// Self-send / consolidation: every output returns to the wallet, so
-			// there's no external payment row. Emit one so the tx and its fee
-			// still appear in history.
+			rows = selfPaymentRows(tx, scan, confs, txTime)
+		}
+		if len(rows) == 0 {
+			// Every output is change, so no row names a payment. Emit one so
+			// the tx and its fee still appear in history.
 			var addr string
 			if len(tx.Vout) > 0 {
 				addr = tx.Vout[0].ScriptPubKeyAddress
@@ -3535,6 +3537,35 @@ func walletRowsForTx(tx EsploraTx, scan *electrumScan, tip int, txTime int64) []
 			Time:          txTime,
 			TxID:          tx.TxID,
 		})
+	}
+	return rows
+}
+
+// selfPaymentRows lists a payment to the wallet's own receive addresses as Core
+// does: a send and a receive row per output, and the fee on the first send.
+func selfPaymentRows(tx EsploraTx, scan *electrumScan, confs int, txTime int64) []WalletTransaction {
+	var rows []WalletTransaction
+	for n, vout := range tx.Vout {
+		own, ok := scan.byAddr[vout.ScriptPubKeyAddress]
+		if !ok || own.change {
+			continue
+		}
+		row := WalletTransaction{
+			Address:       vout.ScriptPubKeyAddress,
+			Vout:          n,
+			Confirmations: confs,
+			BlockTime:     tx.Status.BlockTime,
+			BlockHeight:   uint32(tx.Status.BlockHeight),
+			Time:          txTime,
+			TxID:          tx.TxID,
+		}
+		send, receive := row, row
+		send.Category, send.Amount = "send", -float64(vout.Value)/1e8
+		if len(rows) == 0 {
+			send.Fee = -float64(tx.Fee) / 1e8
+		}
+		receive.Category, receive.Amount = "receive", float64(vout.Value)/1e8
+		rows = append(rows, send, receive)
 	}
 	return rows
 }
