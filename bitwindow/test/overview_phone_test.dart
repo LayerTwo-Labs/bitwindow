@@ -37,10 +37,8 @@ class _Overview extends ChangeNotifier implements OverviewViewModel {
   Future<void> openBumpFee(BuildContext context, walletpb.WalletTransaction tx) => feeDialog.future;
 
   @override
-  Future<void> saveNote(BuildContext context, String txid, String note) async {
-    saved[txid] = note;
-    Navigator.of(context).pop();
-  }
+  Future<void> editNote(BuildContext context, walletpb.WalletTransaction tx) =>
+      showTransactionNoteDialog(context, tx, (note) async => saved[tx.txid] = note);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
