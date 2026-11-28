@@ -416,6 +416,8 @@ type CoinNews struct {
 	Outdated bool
 	// Pending is true for a story in the mempool.
 	Pending bool
+	// BlockHeight is the height of the block of the story, or 0 for a pending story.
+	BlockHeight uint32
 
 	CreatedAt *time.Time
 }
@@ -650,7 +652,8 @@ func (t *TopicID) Scan(src any) error {
 	return nil
 }
 
-// ListCoinNews returns articles from the canonical CoinNews tables.
+// ListCoinNews returns the stories in the order of the feed (spec §13): the
+// highest fee first, then the last in scan order first.
 func ListCoinNews(ctx context.Context, db *sql.DB) ([]CoinNews, error) {
 	coinNewsCacheMu.RLock()
 	cached, hit := coinNewsCacheEntries[db]
@@ -665,7 +668,6 @@ func ListCoinNews(ctx context.Context, db *sql.DB) ([]CoinNews, error) {
 	if err != nil {
 		return nil, err
 	}
-	rankCoinNews(coinNews)
 
 	snapshot := make([]CoinNews, len(coinNews))
 	copy(snapshot, coinNews)
@@ -686,6 +688,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 		Fee       btcutil.Amount `db:"fee"`
 		Retention int32          `db:"retention_days"`
 		BlockTime time.Time      `db:"block_time"`
+		Height    uint32         `db:"block_height"`
 		ItemID    string         `db:"item_id"`
 		RawTLV    []byte         `db:"raw_tlv"`
 		URL       string         `db:"url"`
@@ -704,6 +707,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 			COALESCE(o.fee_sats, 0) AS fee,
 			COALESCE(ct.retention_days, 0) AS retention_days,
 			i.block_time AS block_time,
+			i.block_height AS block_height,
 			lower(hex(s.item_id)) AS item_id,
 			COALESCE(s.raw_tlv, x'') AS raw_tlv,
 			COALESCE(s.url, '') AS url,
@@ -716,6 +720,7 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 		LEFT JOIN cn_topics ct ON ct.topic = s.topic
 		LEFT JOIN op_returns o ON o.txid = i.txid AND o.vout = i.vout
 		WHERE trim(s.headline) != ''
+		ORDER BY fee DESC, i.block_height DESC, i.tx_index DESC, i.vout_index DESC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("list coin news: query new-format stories: %w", err)
@@ -735,20 +740,21 @@ func listCoinNewsNewFormat(ctx context.Context, db *sql.DB) ([]CoinNews, error) 
 		}
 		blockTime := row.BlockTime
 		out = append(out, CoinNews{
-			ID:        row.ID,
-			Topic:     row.Topic,
-			TopicName: row.TopicName,
-			Headline:  row.Headline,
-			Content:   row.Content,
-			Fee:       row.Fee,
-			ItemID:    row.ItemID,
-			URL:       row.URL,
-			Subtype:   row.Subtype,
-			NSFW:      row.NSFW,
-			TxID:      row.TxID,
-			Vout:      row.Vout,
-			Outdated:  Outdated(blockTime, row.Retention, now),
-			CreatedAt: &blockTime,
+			ID:          row.ID,
+			Topic:       row.Topic,
+			TopicName:   row.TopicName,
+			Headline:    row.Headline,
+			Content:     row.Content,
+			Fee:         row.Fee,
+			ItemID:      row.ItemID,
+			URL:         row.URL,
+			Subtype:     row.Subtype,
+			NSFW:        row.NSFW,
+			TxID:        row.TxID,
+			Vout:        row.Vout,
+			Outdated:    Outdated(blockTime, row.Retention, now),
+			BlockHeight: row.Height,
+			CreatedAt:   &blockTime,
 		})
 		toReassemble = append(toReassemble, continuationTarget{idx: len(out) - 1, itemID: row.ItemID, rawTLV: row.RawTLV})
 	}
@@ -860,32 +866,4 @@ func reassembledTLVs(ctx context.Context, db *sql.DB, itemIDHex string, rawTLV [
 		return nil, fmt.Errorf("reassemble story %s: %w", itemIDHex, err)
 	}
 	return tlvs, nil
-}
-
-// rankCoinNews orders the feed by descending §13 score, breaking ties
-// with the newer item first.
-func rankCoinNews(news []CoinNews) {
-	slices.SortFunc(news, func(a, b CoinNews) int {
-		if a.Fee != b.Fee {
-			if a.Fee > b.Fee {
-				return -1
-			}
-			return 1
-		}
-		at, bt := time.Time{}, time.Time{}
-		if a.CreatedAt != nil {
-			at = *a.CreatedAt
-		}
-		if b.CreatedAt != nil {
-			bt = *b.CreatedAt
-		}
-		switch {
-		case at.After(bt):
-			return -1
-		case bt.After(at):
-			return 1
-		default:
-			return 0
-		}
-	})
 }

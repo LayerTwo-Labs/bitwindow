@@ -130,3 +130,30 @@ func TestService_ListCoinNews_RemoteCurrentAfterOutdated(t *testing.T) {
 	require.Len(t, current, 1)
 	assert.Equal(t, "New", current[0].Headline)
 }
+
+// A story in a later block ranks first on equal fees, also with an older block
+// time. A pending story is newer than both.
+func TestService_ListCoinNews_RanksTiesByHeight(t *testing.T) {
+	t.Parallel()
+	db := database.Test(t)
+	topic, err := opreturns.ValidNewsTopicID("a1a1a1a1")
+	require.NoError(t, err)
+	payload, err := opreturns.EncodeNewsMessageWithOptions(topic, "Pending", "", opreturns.StoryOptions{})
+	require.NoError(t, err)
+	require.NoError(t, opreturns.Persist(t.Context(), db, []opreturns.OPReturn{
+		{TxID: fmt.Sprintf("%064x", 7), Vout: 0, Data: payload, Fee: 3000},
+	}))
+	now := time.Now()
+	remote := stubRemote{
+		{ItemIDHex: "bb", TopicHex: "a1a1a1a1", Headline: "Block 105", FeeSats: 3000, BlockHeight: 105, BlockTime: now.Add(-2 * time.Hour), TxID: fmt.Sprintf("%064x", 2)},
+		{ItemIDHex: "aa", TopicHex: "a1a1a1a1", Headline: "Block 104", FeeSats: 3000, BlockHeight: 104, BlockTime: now.Add(-time.Hour), TxID: fmt.Sprintf("%064x", 1)},
+		{ItemIDHex: "cc", TopicHex: "a2a2a2a2", Headline: "Block 103", FeeSats: 3000, BlockHeight: 103, BlockTime: now, TxID: fmt.Sprintf("%064x", 3)},
+	}
+	srv := misc.New(db, nil, nil, nil, remote)
+
+	resp, err := srv.ListCoinNews(t.Context(), &miscv1.ListCoinNewsRequest{})
+	require.NoError(t, err)
+	assert.Equal(t,
+		[]string{"Pending", "Block 105", "Block 104", "Block 103"},
+		lo.Map(resp.CoinNews, func(n *miscv1.CoinNews, _ int) string { return n.Headline }))
+}

@@ -385,27 +385,29 @@ func (s *Server) ListCoinNews(ctx context.Context, req *miscv1.ListCoinNewsReque
 		return nil, err
 	}
 
-	var out []*miscv1.CoinNews
+	var out []rankedStory
 	for _, topic := range topics {
 		news, err := s.confirmedCoinNews(ctx, topic, retention[topic])
 		if err != nil {
 			return nil, err
 		}
-		confirmed := lo.SliceToMap(news, func(n *miscv1.CoinNews) (string, bool) {
-			return fmt.Sprintf("%s:%d", n.Txid, n.Vout), true
+		confirmed := lo.SliceToMap(news, func(n rankedStory) (string, bool) {
+			return fmt.Sprintf("%s:%d", n.story.Txid, n.story.Vout), true
 		})
 		for _, story := range pending {
 			if story.Topic == topic && !confirmed[fmt.Sprintf("%s:%d", story.TxID, story.Vout)] {
-				news = append(news, coinNewsToProto(story, 0))
+				news = append(news, rankedStory{story: coinNewsToProto(story, 0)})
 			}
 		}
 		rankCoinNews(news)
-		outdated, current := lo.FilterReject(news, func(n *miscv1.CoinNews, _ int) bool { return n.Outdated })
+		outdated, current := lo.FilterReject(news, func(n rankedStory, _ int) bool { return n.story.Outdated })
 		out = append(out, current[:min(len(current), coinNewsPerTopic)]...)
 		out = append(out, outdated[:min(len(outdated), coinNewsPerTopic)]...)
 	}
 	rankCoinNews(out)
-	return &miscv1.ListCoinNewsResponse{CoinNews: out}, nil
+	return &miscv1.ListCoinNewsResponse{
+		CoinNews: lo.Map(out, func(n rankedStory, _ int) *miscv1.CoinNews { return n.story }),
+	}, nil
 }
 
 // remoteCoinNewsPages is the number of indexer pages that one topic can take.
@@ -413,7 +415,7 @@ const remoteCoinNewsPages = 10
 
 // confirmedCoinNews returns the stories of one topic, from the network's
 // indexer, or from the local index when the network publishes no indexer.
-func (s *Server) confirmedCoinNews(ctx context.Context, topic opreturns.TopicID, retentionDays int32) ([]*miscv1.CoinNews, error) {
+func (s *Server) confirmedCoinNews(ctx context.Context, topic opreturns.TopicID, retentionDays int32) ([]rankedStory, error) {
 	news, err := s.remoteCoinNewsOf(ctx, topic, retentionDays)
 	switch {
 	case errors.Is(err, engines.ErrNoIndexer):
@@ -428,15 +430,17 @@ func (s *Server) confirmedCoinNews(ctx context.Context, topic opreturns.TopicID,
 		return nil, fmt.Errorf("list coin news: %w", err)
 	}
 	local = lo.Filter(local, func(n opreturns.CoinNews, _ int) bool { return n.Topic == topic })
-	return lo.Map(local, coinNewsToProto), nil
+	return lo.Map(local, func(n opreturns.CoinNews, i int) rankedStory {
+		return rankedStory{story: coinNewsToProto(n, i), height: n.BlockHeight}
+	}), nil
 }
 
 // remoteCoinNewsOf reads the indexer by fee, page after page, until it holds
 // coinNewsPerTopic current stories. The indexer does not know the retention,
 // so outdated stories with a high fee come before the current ones.
-func (s *Server) remoteCoinNewsOf(ctx context.Context, topic opreturns.TopicID, retentionDays int32) ([]*miscv1.CoinNews, error) {
+func (s *Server) remoteCoinNewsOf(ctx context.Context, topic opreturns.TopicID, retentionDays int32) ([]rankedStory, error) {
 	now := time.Now()
-	var news []*miscv1.CoinNews
+	var news []rankedStory
 	current := 0
 	for page := range uint32(remoteCoinNewsPages) {
 		items, err := s.remoteCoinNews.ListFrontPage(ctx, topic.String(), coinNewsPerTopic, page*coinNewsPerTopic)
@@ -449,7 +453,7 @@ func (s *Server) remoteCoinNewsOf(ctx context.Context, topic opreturns.TopicID, 
 			if !story.Outdated {
 				current++
 			}
-			news = append(news, story)
+			news = append(news, rankedStory{story: story, height: item.BlockHeight})
 		}
 		if current >= coinNewsPerTopic || len(items) < coinNewsPerTopic {
 			break
@@ -458,13 +462,30 @@ func (s *Server) remoteCoinNewsOf(ctx context.Context, topic opreturns.TopicID, 
 	return news, nil
 }
 
-// rankCoinNews orders stories by fee, the newest first on equal fees.
-func rankCoinNews(news []*miscv1.CoinNews) {
-	slices.SortStableFunc(news, func(a, b *miscv1.CoinNews) int {
-		if c := cmp.Compare(b.FeeSats, a.FeeSats); c != 0 {
+// rankedStory is a story with the height of its block, 0 for a pending story.
+type rankedStory struct {
+	story  *miscv1.CoinNews
+	height uint32
+}
+
+// rankCoinNews orders stories as the indexer does (spec §13): the highest fee
+// first, then the newest. A pending story is newer than each story in a block.
+// Stories of one block keep the order they come in: the last in the block first.
+func rankCoinNews(news []rankedStory) {
+	slices.SortStableFunc(news, func(a, b rankedStory) int {
+		if c := cmp.Compare(b.story.FeeSats, a.story.FeeSats); c != 0 {
 			return c
 		}
-		return b.CreateTime.AsTime().Compare(a.CreateTime.AsTime())
+		if a.story.Pending != b.story.Pending {
+			if a.story.Pending {
+				return -1
+			}
+			return 1
+		}
+		if a.story.Pending {
+			return b.story.CreateTime.AsTime().Compare(a.story.CreateTime.AsTime())
+		}
+		return cmp.Compare(b.height, a.height)
 	})
 }
 

@@ -31,17 +31,18 @@ type RemoteCoinNews interface {
 
 // RemoteItem is one indexed CoinNews story as the indexer renders it.
 type RemoteItem struct {
-	ItemIDHex string
-	TopicHex  string
-	Headline  string
-	URL       string
-	Body      string
-	Subtype   int32
-	NSFW      bool
-	BlockTime time.Time
-	FeeSats   int64
-	TxID      string
-	Vout      uint32
+	ItemIDHex   string
+	TopicHex    string
+	Headline    string
+	URL         string
+	Body        string
+	Subtype     int32
+	NSFW        bool
+	BlockHeight uint32
+	BlockTime   time.Time
+	FeeSats     int64
+	TxID        string
+	Vout        uint32
 }
 
 // connectRemote reads a coinnewsd deployment over ConnectRPC.
@@ -141,17 +142,18 @@ func (r *connectRemote) ListFrontPage(ctx context.Context, topicHex string, limi
 	out := make([]RemoteItem, len(res.Items))
 	for i, item := range res.Items {
 		out[i] = RemoteItem{
-			ItemIDHex: item.ItemIdHex,
-			TopicHex:  item.TopicHex,
-			Headline:  item.Headline,
-			URL:       item.Url,
-			Body:      item.Body,
-			Subtype:   int32(item.Subtype),
-			NSFW:      item.Nsfw,
-			BlockTime: item.BlockTime.AsTime(),
-			FeeSats:   item.FeeSats,
-			TxID:      item.Txid,
-			Vout:      item.Vout,
+			ItemIDHex:   item.ItemIdHex,
+			TopicHex:    item.TopicHex,
+			Headline:    item.Headline,
+			URL:         item.Url,
+			Body:        item.Body,
+			Subtype:     int32(item.Subtype),
+			NSFW:        item.Nsfw,
+			BlockHeight: item.BlockHeight,
+			BlockTime:   item.BlockTime.AsTime(),
+			FeeSats:     item.FeeSats,
+			TxID:        item.Txid,
+			Vout:        item.Vout,
 		}
 	}
 	return out, nil
