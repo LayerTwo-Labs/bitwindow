@@ -45,6 +45,7 @@ dev_dependencies:
 flutter:
   assets:
     - assets/svgs/
+    - assets/icons/
     - assets/pngs/
     - assets/quotes.json
   fonts:
