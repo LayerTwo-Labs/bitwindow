@@ -414,6 +414,49 @@ func Delete(ctx context.Context, db *sql.DB, walletID string, id int64) error {
 	return nil
 }
 
+// AdoptFromRemovedWallets gives walletID each cheque that no wallet in live
+// owns: the cheques of keyDomain, and the legacy cheques at legacyAddresses.
+func AdoptFromRemovedWallets(ctx context.Context, db *sql.DB, walletID string, live []string, keyDomain string, legacyAddresses []string) error {
+	owned := sq.Or{sq.Eq{"key_version": 1, "key_domain": keyDomain}}
+	if len(legacyAddresses) > 0 {
+		owned = append(owned, sq.Eq{"key_version": 0, "address": legacyAddresses})
+	}
+	query, args := sq.Select("id", "derivation_index", "key_version").
+		From("cheques").
+		Where(sq.And{owned, sq.NotEq{"wallet_id": append(slices.Clone(live), "")}}).
+		MustSql()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer database.SafeDefer(ctx, tx.Rollback)
+
+	type orphan struct {
+		ID         int64  `db:"id"`
+		Index      uint32 `db:"derivation_index"`
+		KeyVersion uint32 `db:"key_version"`
+	}
+	orphans, err := database.Select[orphan](ctx, tx, query, args...)
+	if err != nil {
+		return fmt.Errorf("find cheques of removed wallets: %w", err)
+	}
+	for _, o := range orphans {
+		if err := database.CheckOne(tx.ExecContext(ctx, `UPDATE cheques SET wallet_id = ? WHERE id = ?`, walletID, o.ID)); err != nil {
+			return fmt.Errorf("adopt cheque %d: %w", o.ID, err)
+		}
+		if o.KeyVersion == 0 {
+			if err := bumpIndexCounter(ctx, tx, walletID, o.Index); err != nil {
+				return err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit adopted cheques: %w", err)
+	}
+	return nil
+}
+
 func CreateOrUpdateFromRecovery(ctx context.Context, db *sql.DB, walletID string, index uint32, address string, outputs []FundingOutput, amount uint64) error {
 	return CreateOrUpdateFromRecoveryVersioned(ctx, db, walletID, index, address, outputs, amount, 0, "", "")
 }

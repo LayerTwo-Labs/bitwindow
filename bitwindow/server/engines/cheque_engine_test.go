@@ -474,3 +474,40 @@ func TestRecoverWalletScansAgainAfterAFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
+
+// A wallet restored from the seed of a removed wallet owns the checks of that seed.
+func TestRecoverWalletAdoptsTheChecksOfARemovedWallet(t *testing.T) {
+	chain := &fakeChain{funded: map[string][]ChequeUTXO{}}
+	engine := testChequeEngine(t, chain)
+	ctx := t.Context()
+
+	funded, err := engine.CreateCheque(ctx, chequeWalletID, 1000)
+	require.NoError(t, err)
+	unfunded, err := engine.CreateCheque(ctx, chequeWalletID, 2000)
+	require.NoError(t, err)
+	legacy, err := engine.DeriveChequeAddress(ctx, chequeWalletID, 4)
+	require.NoError(t, err)
+	_, err = cheques.Create(ctx, engine.db, "removed-wallet", 4, 3000, legacy)
+	require.NoError(t, err)
+	_, err = engine.db.ExecContext(ctx, `UPDATE cheques SET wallet_id = 'removed-wallet'`)
+	require.NoError(t, err)
+	chain.funded[funded.Address] = testUTXOs()
+	chain.funded[legacy] = testUTXOs()
+
+	count, err := engine.RecoverWallet(ctx, chequeWalletID)
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+
+	list, err := cheques.List(ctx, engine.db, chequeWalletID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{funded.Address, unfunded.Address, legacy},
+		lo.Map(list, func(c cheques.Cheque, _ int) string { return c.Address }))
+	for _, c := range list {
+		if c.Address != unfunded.Address {
+			require.Equal(t, []string{testUTXOs()[0].TxID}, c.FundedTxids)
+		}
+	}
+	next, err := cheques.GetNextIndex(ctx, engine.db, chequeWalletID)
+	require.NoError(t, err)
+	require.Equal(t, uint32(5), next)
+}

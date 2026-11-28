@@ -427,7 +427,8 @@ func (e *ChequeEngine) Start(ctx context.Context) <-chan struct{} {
 }
 
 // RecoverWallet stores each funded cheque of the wallet seed that the chain
-// holds, one time per run. It returns the number of funded cheques found.
+// holds, one time per run, and gives the wallet the cheques of its seed that a
+// removed wallet owned. It returns the number of funded cheques found.
 func (e *ChequeEngine) RecoverWallet(ctx context.Context, walletID string) (int, error) {
 	log := zerolog.Ctx(ctx)
 
@@ -447,6 +448,9 @@ func (e *ChequeEngine) RecoverWallet(ctx context.Context, walletID string) (int,
 		return 0, err
 	}
 
+	if err := e.adoptChequesOfRemovedWallets(ctx, walletID, recoveries); err != nil {
+		return 0, err
+	}
 	for _, recovery := range recoveries {
 		if err := cheques.CreateOrUpdateFromRecoveryVersioned(
 			ctx, e.db, walletID, recovery.Index, recovery.Address, recovery.Outputs, recovery.Amount, recovery.KeyVersion, recovery.KeyDomain, recovery.KeyScope,
@@ -463,6 +467,24 @@ func (e *ChequeEngine) RecoverWallet(ctx context.Context, walletID string) (int,
 	}
 	e.recovered[walletID] = true
 	return len(recoveries), nil
+}
+
+func (e *ChequeEngine) adoptChequesOfRemovedWallets(ctx context.Context, walletID string, recoveries []ChequeRecovery) error {
+	seedHex, err := e.walletEngine.GetWalletSeed(ctx, walletID)
+	if err != nil {
+		return err
+	}
+	_, domain, err := e.chequeRoot(ctx, walletID, seedHex, e.network)
+	if err != nil {
+		return err
+	}
+	wallets, err := e.walletEngine.GetAllWallets(ctx)
+	if err != nil {
+		return fmt.Errorf("list wallets: %w", err)
+	}
+	live := lo.Map(wallets, func(w WalletInfo, _ int) string { return w.ID })
+	legacy := lo.FilterMap(recoveries, func(r ChequeRecovery, _ int) (string, bool) { return r.Address, r.KeyVersion == 0 })
+	return cheques.AdoptFromRemovedWallets(ctx, e.db, walletID, live, domain, legacy)
 }
 
 // recoverChequesOnUnlock waits for wallet unlock, then recovers cheques for all wallets
