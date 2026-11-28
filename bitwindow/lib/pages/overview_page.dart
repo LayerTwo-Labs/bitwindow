@@ -1025,6 +1025,8 @@ class _CreateTopicTab extends StatelessWidget {
           ),
           if (viewModel.createTopicError != null)
             SailInlineError(viewModel.createTopicError!)
+          else if (viewModel.existingTopicText case final text?)
+            SailText.secondary12(text)
           else
             FeeQuoteText(quote: viewModel.createFee),
           if (pendingTopics.isNotEmpty) ...[
@@ -1083,7 +1085,24 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   final TextEditingController retentionDaysController = TextEditingController(text: '7');
 
   bool get canCreate =>
-      identifierController.text.isNotEmpty && nameController.text.isNotEmpty && identifierController.text.length == 8;
+      identifierController.text.isNotEmpty &&
+      nameController.text.isNotEmpty &&
+      identifierController.text.length == 8 &&
+      existingTopic == null;
+
+  /// The topic of the Create Topic identifier when Your Topics or the chain has it.
+  Topic? get existingTopic {
+    final id = identifierController.text.trim().toLowerCase();
+    return _listed(id) ?? _onChain(id);
+  }
+
+  /// Why Create Topic cannot create the topic of the identifier, or null when it can.
+  String? get existingTopicText => switch (existingTopic) {
+    null => null,
+    final topic when _listed(topic.topic.toLowerCase()) != null =>
+      '${topic.name} (${topic.topic}) is already in Your Topics. It costs nothing.',
+    final topic => '${topic.name} (${topic.topic}) is on the chain. Subscribe to it on the Subscribe tab at no cost.',
+  };
 
   String? createTopicError;
   String? subscribeError;
@@ -1130,7 +1149,8 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
     createTopicError = null;
     final name = nameController.text;
     final days = _retentionDays;
-    final valid = topicError(topic: identifierController.text, name: name, retentionDays: days) == null;
+    final valid =
+        topicError(topic: identifierController.text, name: name, retentionDays: days) == null && existingTopic == null;
     createFee.update(
       valid ? () => estimateTopicFee(TopicLine(retentionDays: days!, topic: '', name: name)) : null,
     );
@@ -1140,6 +1160,9 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   void _onTopicsChanged() {
     if (listedTopic != null || chainTopic != null) {
       subscribeFee.update(null);
+    }
+    if (existingTopic != null) {
+      createFee.update(null);
     }
     notifyListeners();
   }
@@ -1159,7 +1182,7 @@ class ManageNewsSubscriptionsViewModel extends BaseViewModel {
   }
 
   Future<void> createTopic(BuildContext context) async {
-    if (identifierController.text.isEmpty || nameController.text.isEmpty) {
+    if (identifierController.text.isEmpty || nameController.text.isEmpty || existingTopic != null) {
       return;
     }
     final retentionDays = _retentionDays;
