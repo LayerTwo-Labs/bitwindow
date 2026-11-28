@@ -5459,6 +5459,7 @@ class SendTransactionRequest extends $pb.GeneratedMessage {
     $core.bool? replaceable,
     $core.bool? allowReplay,
     UnspentOutput? notificationInput,
+    $core.String? subtractFeeFromAddress,
   }) {
     final result = SendTransactionRequest._();
     if (walletId != null) result.walletId = walletId;
@@ -5473,6 +5474,7 @@ class SendTransactionRequest extends $pb.GeneratedMessage {
     if (replaceable != null) result.replaceable = replaceable;
     if (allowReplay != null) result.allowReplay = allowReplay;
     if (notificationInput != null) result.notificationInput = notificationInput;
+    if (subtractFeeFromAddress != null) result.subtractFeeFromAddress = subtractFeeFromAddress;
     return result;
   }
 
@@ -5504,6 +5506,7 @@ class SendTransactionRequest extends $pb.GeneratedMessage {
     ..aOB(11, _omitFieldNames ? '' : 'replaceable')
     ..aOB(12, _omitFieldNames ? '' : 'allowReplay')
     ..aOM<UnspentOutput>(13, _omitFieldNames ? '' : 'notificationInput', subBuilder: UnspentOutput.$_createMessage)
+    ..aOS(14, _omitFieldNames ? '' : 'subtractFeeFromAddress')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5627,6 +5630,16 @@ class SendTransactionRequest extends $pb.GeneratedMessage {
   void clearNotificationInput() => $_clearField(13);
   @$pb.TagNumber(13)
   UnspentOutput ensureNotificationInput() => $_ensure(11);
+
+  /// The destination whose amount pays the fee. Setting it subtracts the fee.
+  @$pb.TagNumber(14)
+  $core.String get subtractFeeFromAddress => $_getSZ(12);
+  @$pb.TagNumber(14)
+  set subtractFeeFromAddress($core.String value) => $_setString(12, value);
+  @$pb.TagNumber(14)
+  $core.bool hasSubtractFeeFromAddress() => $_has(12);
+  @$pb.TagNumber(14)
+  void clearSubtractFeeFromAddress() => $_clearField(14);
 }
 
 class SendTransactionResponse extends $pb.GeneratedMessage {
@@ -5694,6 +5707,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     $core.bool? notificationOnly,
     $core.String? opReturnHex,
     CoinOrder? coinOrder,
+    $core.String? subtractFeeFromAddress,
   }) {
     final result = PreviewSendRequest._();
     if (walletId != null) result.walletId = walletId;
@@ -5705,6 +5719,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     if (notificationOnly != null) result.notificationOnly = notificationOnly;
     if (opReturnHex != null) result.opReturnHex = opReturnHex;
     if (coinOrder != null) result.coinOrder = coinOrder;
+    if (subtractFeeFromAddress != null) result.subtractFeeFromAddress = subtractFeeFromAddress;
     return result;
   }
 
@@ -5733,6 +5748,7 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
     ..aOB(7, _omitFieldNames ? '' : 'notificationOnly')
     ..aOS(8, _omitFieldNames ? '' : 'opReturnHex')
     ..aE<CoinOrder>(9, _omitFieldNames ? '' : 'coinOrder', enumValues: CoinOrder.values)
+    ..aOS(10, _omitFieldNames ? '' : 'subtractFeeFromAddress')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5826,6 +5842,16 @@ class PreviewSendRequest extends $pb.GeneratedMessage {
   $core.bool hasCoinOrder() => $_has(8);
   @$pb.TagNumber(9)
   void clearCoinOrder() => $_clearField(9);
+
+  /// The destination whose amount pays the fee. Setting it subtracts the fee.
+  @$pb.TagNumber(10)
+  $core.String get subtractFeeFromAddress => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set subtractFeeFromAddress($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasSubtractFeeFromAddress() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearSubtractFeeFromAddress() => $_clearField(10);
 }
 
 class PreviewSendResponse extends $pb.GeneratedMessage {
@@ -6280,6 +6306,7 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
     $core.Iterable<ExternalInput>? externalInputs,
     $core.bool? allowReplay,
     CoinOrder? coinOrder,
+    $core.String? subtractFeeFromAddress,
   }) {
     final result = CreatePsbtRequest._();
     if (walletId != null) result.walletId = walletId;
@@ -6293,6 +6320,7 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
     if (externalInputs != null) result.externalInputs.addAll(externalInputs);
     if (allowReplay != null) result.allowReplay = allowReplay;
     if (coinOrder != null) result.coinOrder = coinOrder;
+    if (subtractFeeFromAddress != null) result.subtractFeeFromAddress = subtractFeeFromAddress;
     return result;
   }
 
@@ -6323,6 +6351,7 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
     ..pPM<ExternalInput>(9, _omitFieldNames ? '' : 'externalInputs', subBuilder: ExternalInput.$_createMessage)
     ..aOB(11, _omitFieldNames ? '' : 'allowReplay')
     ..aE<CoinOrder>(12, _omitFieldNames ? '' : 'coinOrder', enumValues: CoinOrder.values)
+    ..aOS(13, _omitFieldNames ? '' : 'subtractFeeFromAddress')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -6422,6 +6451,16 @@ class CreatePsbtRequest extends $pb.GeneratedMessage {
   $core.bool hasCoinOrder() => $_has(10);
   @$pb.TagNumber(12)
   void clearCoinOrder() => $_clearField(12);
+
+  /// The destination whose amount pays the fee. Setting it subtracts the fee.
+  @$pb.TagNumber(13)
+  $core.String get subtractFeeFromAddress => $_getSZ(11);
+  @$pb.TagNumber(13)
+  set subtractFeeFromAddress($core.String value) => $_setString(11, value);
+  @$pb.TagNumber(13)
+  $core.bool hasSubtractFeeFromAddress() => $_has(11);
+  @$pb.TagNumber(13)
+  void clearSubtractFeeFromAddress() => $_clearField(13);
 }
 
 class CreatePsbtResponse extends $pb.GeneratedMessage {

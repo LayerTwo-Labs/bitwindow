@@ -75,6 +75,7 @@ String feePreviewKey({
   required Map<String, int> destinations,
   required double feeRateSatPerVbyte,
   required bool subtractFeeFromAmount,
+  String subtractFeeFrom = '',
   required Iterable<String> requiredOutpoints,
   required Iterable<String> frozenOutpoints,
   required Iterable<String> walletOutpoints,
@@ -86,6 +87,7 @@ String feePreviewKey({
     coinOrder.value,
     feeRateSatPerVbyte,
     subtractFeeFromAmount,
+    subtractFeeFrom,
     sorted(destinations.entries.map((e) => '${e.key}=${e.value}')),
     sorted(requiredOutpoints),
     sorted(frozenOutpoints),
@@ -143,34 +145,13 @@ int notificationKeepBack(PreviewSendResponse probe, {required bool coinsSelected
 }
 
 /// The amount MAX puts in a recipient: what is left after the other
-/// recipients, the notification keep-back and the payment fee.
+/// recipients and the notification keep-back. The recipient pays the fee out
+/// of it, because Core cannot fund an amount that keeps back a fee on top.
 int maxSendAmountSats({
   required int availableSats,
   required int otherRecipientsSats,
-  required int paymentFeeSats,
   required int notificationKeepBackSats,
-}) => availableSats - otherRecipientsSats - notificationKeepBackSats - paymentFeeSats;
-
-/// What MAX puts in a recipient, and whether the fee comes out of it. A sole
-/// recipient pays the fee out of the amount: Core cannot fund an amount that
-/// keeps back the fee for a fee on top. More recipients pay [feeOnTopSats] on
-/// top, because a subtracted fee takes one destination only.
-({int amountSats, bool subtractFee}) maxSendPlan({
-  required int recipientCount,
-  required int availableSats,
-  required int otherRecipientsSats,
-  required int notificationKeepBackSats,
-  required int feeOnTopSats,
-}) {
-  final subtractFee = recipientCount == 1;
-  final amount = maxSendAmountSats(
-    availableSats: availableSats,
-    otherRecipientsSats: otherRecipientsSats,
-    paymentFeeSats: subtractFee ? 0 : feeOnTopSats,
-    notificationKeepBackSats: notificationKeepBackSats,
-  );
-  return (amountSats: max(amount, 0), subtractFee: subtractFee);
-}
+}) => max(availableSats - otherRecipientsSats - notificationKeepBackSats, 0);
 
 /// The smallest payment the backend sends to an address.
 const dustSats = 546;
