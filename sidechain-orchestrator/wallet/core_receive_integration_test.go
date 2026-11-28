@@ -97,10 +97,10 @@ func TestCoreReceiveBalancesMatchTheCoins(t *testing.T) {
 
 	checkAgrees(t, "after the wallet is funded")
 
-	// The spent and change states are unit-tested against every descriptor
-	// shape in TestCoreReceiveListReportsCurrentBalance and
-	// TestDescriptorIsChange. A send here adds no coverage and costs a
-	// broadcast, which outruns the RPC client on a loaded runner.
+	// The spent and change states are unit-tested in
+	// TestCoreReceiveListReportsCurrentBalance and
+	// TestCoreReceiveListKeepsASpentChangeAddress. A send here adds no coverage
+	// and costs a broadcast, which outruns the RPC client on a loaded runner.
 }
 
 // Core holds the BIP47 notification key as a single key, and lists its unused
