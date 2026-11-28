@@ -1219,15 +1219,22 @@ func (s *Server) ListCheques(ctx context.Context, c *pb.ListChequesRequest) (*pb
 		return nil, fmt.Errorf("get wallet type: %w", err)
 	}
 
+	unlocked, err := s.walletEngine.IsUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var scanError string
+	if unlocked {
+		if _, err := s.chequeEngine.RecoverWallet(ctx, walletID); err != nil {
+			scanError = fmt.Sprintf("find the checks of this wallet on the chain: %s", err)
+		}
+	}
+
 	chequeList, err := cheques.List(ctx, s.database, walletID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Sprintf("list cheques: %s", err)).WithCause(err)
 	}
 
-	unlocked, err := s.walletEngine.IsUnlocked(ctx)
-	if err != nil {
-		return nil, err
-	}
 	pbCheques := make([]*pb.Cheque, len(chequeList))
 	for i, ch := range chequeList {
 		pbCheques[i], err = s.chequeToPb(ctx, &ch, unlocked)
@@ -1237,7 +1244,8 @@ func (s *Server) ListCheques(ctx context.Context, c *pb.ListChequesRequest) (*pb
 	}
 
 	return &pb.ListChequesResponse{
-		Cheques: pbCheques,
+		Cheques:   pbCheques,
+		ScanError: scanError,
 	}, nil
 }
 

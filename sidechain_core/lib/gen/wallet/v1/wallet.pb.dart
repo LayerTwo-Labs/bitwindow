@@ -3208,9 +3208,11 @@ class ListChequesRequest extends $pb.GeneratedMessage {
 class ListChequesResponse extends $pb.GeneratedMessage {
   factory ListChequesResponse({
     $core.Iterable<Cheque>? cheques,
+    $core.String? scanError,
   }) {
     final result = ListChequesResponse._();
     if (cheques != null) result.cheques.addAll(cheques);
+    if (scanError != null) result.scanError = scanError;
     return result;
   }
 
@@ -3227,6 +3229,7 @@ class ListChequesResponse extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'wallet.v1'),
       createEmptyInstance: ListChequesResponse.$_createMessage)
     ..pPM<Cheque>(1, _omitFieldNames ? '' : 'cheques', subBuilder: Cheque.$_createMessage)
+    ..aOS(2, _omitFieldNames ? '' : 'scanError')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3251,6 +3254,16 @@ class ListChequesResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $pb.PbList<Cheque> get cheques => $_getList(0);
+
+  /// Why the chain read for the cheques of the wallet seed failed. Empty on success.
+  @$pb.TagNumber(2)
+  $core.String get scanError => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set scanError($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasScanError() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearScanError() => $_clearField(2);
 }
 
 class CheckChequeFundingRequest extends $pb.GeneratedMessage {

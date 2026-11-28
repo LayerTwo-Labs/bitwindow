@@ -307,8 +307,8 @@ class MockWalletAPI implements WalletAPI {
   }
 
   @override
-  Future<List<Cheque>> listCheques(String walletId) {
-    return Future.value([]);
+  Future<ListChequesResponse> listCheques(String walletId) {
+    return Future.value(ListChequesResponse());
   }
 
   @override

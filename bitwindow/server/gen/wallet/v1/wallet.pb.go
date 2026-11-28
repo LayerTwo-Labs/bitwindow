@@ -2561,8 +2561,10 @@ func (x *ListChequesRequest) GetWalletId() string {
 }
 
 type ListChequesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Cheques       []*Cheque              `protobuf:"bytes,1,rep,name=cheques,proto3" json:"cheques,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Cheques []*Cheque              `protobuf:"bytes,1,rep,name=cheques,proto3" json:"cheques,omitempty"`
+	// Why the chain read for the cheques of the wallet seed failed. Empty on success.
+	ScanError     string `protobuf:"bytes,2,opt,name=scan_error,json=scanError,proto3" json:"scan_error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2602,6 +2604,13 @@ func (x *ListChequesResponse) GetCheques() []*Cheque {
 		return x.Cheques
 	}
 	return nil
+}
+
+func (x *ListChequesResponse) GetScanError() string {
+	if x != nil {
+		return x.ScanError
+	}
+	return ""
 }
 
 type CheckChequeFundingRequest struct {
@@ -4630,9 +4639,11 @@ const file_wallet_v1_wallet_proto_rawDesc = "" +
 	"\v_swept_txidB\v\n" +
 	"\t_swept_at\"1\n" +
 	"\x12ListChequesRequest\x12\x1b\n" +
-	"\twallet_id\x18\x01 \x01(\tR\bwalletId\"B\n" +
+	"\twallet_id\x18\x01 \x01(\tR\bwalletId\"a\n" +
 	"\x13ListChequesResponse\x12+\n" +
-	"\acheques\x18\x01 \x03(\v2\x11.wallet.v1.ChequeR\acheques\"H\n" +
+	"\acheques\x18\x01 \x03(\v2\x11.wallet.v1.ChequeR\acheques\x12\x1d\n" +
+	"\n" +
+	"scan_error\x18\x02 \x01(\tR\tscanError\"H\n" +
 	"\x19CheckChequeFundingRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\x03R\x02id\"\xfe\x01\n" +

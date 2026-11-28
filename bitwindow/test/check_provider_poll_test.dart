@@ -11,13 +11,20 @@ import 'mocks/api_mock.dart';
 
 class _WalletAPI extends MockWalletAPI {
   List<Cheque> cheques = [];
+  String scanError = '';
   int listCalls = 0;
 
   @override
-  Future<List<Cheque>> listCheques(String walletId) async {
+  Future<ListChequesResponse> listCheques(String walletId) async {
     listCalls++;
-    return [...cheques];
+    return ListChequesResponse(cheques: cheques, scanError: scanError);
   }
+
+  @override
+  Future<CheckChequeFundingResponse> checkChequeFunding(String walletId, int id) async => CheckChequeFundingResponse(
+    funded: true,
+    actualAmountSats: Int64(1000),
+  );
 }
 
 class _BitwindowRPC implements BitwindowRPC {
@@ -80,5 +87,27 @@ void main() {
     rpc.wallet.cheques = [];
     await provider.fetch();
     expect(notified, 1);
+  });
+
+  test('a failed scan shows its error with the stored checks and runs again', () {
+    fakeAsync((async) {
+      rpc.wallet.cheques = [
+        Cheque(id: Int64(1), address: 'bcrt1qcheck', expectedAmountSats: Int64(1000), funded: true),
+      ];
+      rpc.wallet.scanError = 'find the checks of this wallet on the chain: esplora down';
+      final provider = CheckProvider();
+      async.flushMicrotasks();
+
+      expect(provider.checks, hasLength(1));
+      expect(provider.modelError, contains('esplora down'));
+
+      rpc.wallet.scanError = '';
+      async.elapse(const Duration(seconds: 6));
+
+      expect(rpc.wallet.listCalls, 2);
+      expect(provider.modelError, isNull);
+      expect(provider.checks, hasLength(1));
+      provider.dispose();
+    });
   });
 }

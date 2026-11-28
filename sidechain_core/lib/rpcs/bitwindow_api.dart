@@ -691,7 +691,7 @@ abstract class WalletAPI {
   // cheque operations
   Future<CreateChequeResponse> createCheque(String walletId, int expectedAmountSats);
   Future<Cheque> getCheque(String walletId, int id);
-  Future<List<Cheque>> listCheques(String walletId);
+  Future<ListChequesResponse> listCheques(String walletId);
   Future<CheckChequeFundingResponse> checkChequeFunding(String walletId, int id);
 
   /// Reads what a private key holds. [destinationAddress] sizes the fee for
@@ -1008,10 +1008,9 @@ class _WalletAPILive implements WalletAPI {
   }
 
   @override
-  Future<List<Cheque>> listCheques(String walletId) async {
+  Future<ListChequesResponse> listCheques(String walletId) async {
     try {
-      final response = await _client.listCheques(ListChequesRequest()..walletId = walletId);
-      return response.cheques;
+      return await _client.listCheques(ListChequesRequest()..walletId = walletId);
     } catch (e) {
       final error = extractConnectException(e);
       throw WalletException(error);

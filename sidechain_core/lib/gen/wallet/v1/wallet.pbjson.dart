@@ -765,13 +765,14 @@ const ListChequesResponse$json = {
   '1': 'ListChequesResponse',
   '2': [
     {'1': 'cheques', '3': 1, '4': 3, '5': 11, '6': '.wallet.v1.Cheque', '10': 'cheques'},
+    {'1': 'scan_error', '3': 2, '4': 1, '5': 9, '10': 'scanError'},
   ],
 };
 
 /// Descriptor for `ListChequesResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List listChequesResponseDescriptor =
     $convert.base64Decode('ChNMaXN0Q2hlcXVlc1Jlc3BvbnNlEisKB2NoZXF1ZXMYASADKAsyES53YWxsZXQudjEuQ2hlcX'
-        'VlUgdjaGVxdWVz');
+        'VlUgdjaGVxdWVzEh0KCnNjYW5fZXJyb3IYAiABKAlSCXNjYW5FcnJvcg==');
 
 @$core.Deprecated('Use checkChequeFundingRequestDescriptor instead')
 const CheckChequeFundingRequest$json = {

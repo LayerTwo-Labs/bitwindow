@@ -386,6 +386,8 @@ message ListChequesRequest {
 
 message ListChequesResponse {
   repeated Cheque cheques = 1;
+  // Why the chain read for the cheques of the wallet seed failed. Empty on success.
+  string scan_error = 2;
 }
 
 message CheckChequeFundingRequest {
