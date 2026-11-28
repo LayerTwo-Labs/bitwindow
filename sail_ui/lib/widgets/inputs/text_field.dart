@@ -139,7 +139,10 @@ class SailTextField extends StatelessWidget {
         ),
         inputFormatters: [
           if (textFieldType == TextFieldType.number) FilteringTextInputFormatter.allow(RegExp(r'^\d+$')),
-          if (textFieldType == TextFieldType.bitcoin) FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,8}')),
+          if (textFieldType == TextFieldType.bitcoin) ...[
+            CommaReplacerInputFormatter(),
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,8}')),
+          ],
           ...?inputFormatters,
         ],
         expands: expands,

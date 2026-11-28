@@ -247,6 +247,28 @@ void main() {
       expect(controller.text, isNot('abc'));
     });
 
+    testWidgets('a bitcoin field reads a typed comma as the decimal point', (tester) async {
+      final controller = TextEditingController();
+      await tester.pumpWidget(
+        buildTestableWidget(
+          SailTextField(controller: controller, hintText: '', textFieldType: TextFieldType.bitcoin),
+        ),
+      );
+
+      for (final key in '0,001'.split('')) {
+        await tester.enterText(find.byType(TextField), controller.text + key);
+        await tester.pump();
+      }
+      expect(controller.text, '0.001');
+
+      controller.clear();
+      for (final key in ',00001'.split('')) {
+        await tester.enterText(find.byType(TextField), controller.text + key);
+        await tester.pump();
+      }
+      expect(controller.text, '.00001');
+    });
+
     // Regression: an icon-variant SailButton must keep the same width whether
     // it shows the spinner (loading=true) or the icon (loading=false).
     // Otherwise hovering the daemon stop/restart button caused UI jitter.
