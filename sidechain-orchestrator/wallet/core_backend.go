@@ -479,7 +479,7 @@ func (p *CoreBackend) ListReceivedByAddress(ctx context.Context, walletID string
 	out = lo.Filter(out, func(r ReceivedByAddress, _ int) bool {
 		return r.HDPath != "" || r.Amount != 0 || r.BalanceSats != 0 || len(r.TxIDs) != 0
 	})
-	lastUsed, err := p.lastUsedTimes(ctx, name, out, utxos)
+	lastUsed, err := p.lastUsedTimes(ctx, name, out, history)
 	if err != nil {
 		return nil, err
 	}
@@ -562,41 +562,20 @@ type coreTx struct {
 
 // lastUsedTimes maps each address to the time of the newest wallet tx that pays
 // to it or spends from it. Core names no source address on a send, so the
-// inputs of each send resolve through their parent wallet txs.
+// inputs of each send resolve through their parent wallet txs. history holds
+// the change rows too, so a tx that pays only change still counts.
 func (p *CoreBackend) lastUsedTimes(
-	ctx context.Context, name string, rows []ReceivedByAddress, utxos []UTXO,
+	ctx context.Context, name string, rows []ReceivedByAddress, history []WalletTransaction,
 ) (map[string]int64, error) {
 	txTimes := make(map[string]int64)
 	var spends []string
 	queued := make(map[string]bool)
-	queue := func(txid string) {
-		if txid != "" && !queued[txid] {
-			queued[txid] = true
-			spends = append(spends, txid)
+	for _, tx := range history {
+		if tx.Category == "send" && tx.TxID != "" && !queued[tx.TxID] {
+			queued[tx.TxID] = true
+			spends = append(spends, tx.TxID)
 		}
-	}
-	for skip := 0; ; skip += coreHistoryPage {
-		page, err := p.rpc.ListTransactionsRange(ctx, name, coreHistoryPage, skip)
-		if err != nil {
-			return nil, err
-		}
-		for _, tx := range page {
-			if tx.Category == "send" {
-				queue(tx.TxID)
-			}
-			txTimes[tx.TxID] = max(txTimes[tx.TxID], tx.Time)
-		}
-		if len(page) < coreHistoryPage {
-			break
-		}
-	}
-	// listtransactions leaves out a tx that pays only change, such as a
-	// consolidation, but the coins it made still name it. A listed tx with no
-	// send row spends no wallet coin, so its listed time is all it gives.
-	for _, utxo := range utxos {
-		if _, listed := txTimes[utxo.TxID]; !listed {
-			queue(utxo.TxID)
-		}
+		txTimes[tx.TxID] = max(txTimes[tx.TxID], tx.Time)
 	}
 
 	last := make(map[string]int64, len(rows))
