@@ -2918,7 +2918,7 @@ func TestCoreReceiveListReportsCurrentBalance(t *testing.T) {
 		{Address: "", Amount: 5},
 	}
 
-	out := coreReceiveList(received, utxos)
+	out := coreReceiveList(received, utxos, nil)
 
 	require.Len(t, out, 4, "an address Core never listed still appears when it holds a coin")
 	require.Equal(t, spent, out[0].Address)
@@ -2933,41 +2933,14 @@ func TestCoreReceiveListReportsCurrentBalance(t *testing.T) {
 	require.EqualValues(t, 83_299_983_637, out[3].BalanceSats)
 	require.Equal(t, "back", out[3].Label)
 	require.Equal(t, 2, out[3].Confirmations)
-	require.True(t, out[3].Change, "the descriptor puts this coin on the change chain")
 	require.Equal(t, []string{"7f9e76"}, out[3].TxIDs, "the row carries its transactions, so TxCount is not zero")
-}
-
-// Core hands every coin its output descriptor, so the chain comes from the path
-// rather than from a guess about the address book.
-func TestDescriptorIsChange(t *testing.T) {
-	for descriptor, want := range map[string]bool{
-		// listunspent: one coin, whole path inside the key origin.
-		"wpkh([abcd1234/84h/0h/0h/1/7]02aabb)#aaaaaaaa": true,
-		"wpkh([abcd1234/84h/0h/0h/0/7]02aabb)#99999999": false,
-		"tr([abcd1234/86h/0h/0h/1/3]02aabb)#88888888":   true,
-		// listdescriptors: ranged, chain and range outside the origin.
-		"wpkh([abcd1234/84h/0h/0h]xpub6.../1/7)#aaaaaaaa": true,
-		"tr([abcd1234/86h/0h/0h]xpub6.../1/*)#bbbbbbbb":   true,
-		"wpkh([abcd1234/84h/0h/0h]xpub6.../0/7)#cccccccc": false,
-		// An imported single key names no chain, so it is a receive address.
-		"pkh(cVjzvJz2pRT1SMTDgfvbYVNqKFzMJmbLzTJmbLzTJmbLzTJmbLzT)#dddddddd": false,
-		// A key origin that ends in a hardened 1 is not a chain.
-		"wpkh([abcd1234/84h/1h/0h]xpub6...)#eeeeeeee": false,
-		// Multisig: one origin per cosigner, all on the same chain.
-		"wsh(multi(2,[abcd1234/48h/0h/0h/2h/1/7]02aabb,[99887766/48h/0h/0h/2h/1/7]02ccdd))#ffffffff":           true,
-		"wsh(multi(2,[abcd1234/48h/0h/0h/2h/0/7]02aabb,[99887766/48h/0h/0h/2h/0/7]02ccdd))#gggggggg":           false,
-		"wsh(sortedmulti(2,[abcd1234/48h/0h/0h/2h]xpub6.../1/7,[99887766/48h/0h/0h/2h]xpub7.../1/7))#hhhhhhhh": true,
-		"": false,
-	} {
-		require.Equal(t, want, descriptorIsChange(descriptor), "descriptor %q", descriptor)
-	}
 }
 
 // A fully spent address holds nothing. This is the rule the electrum list
 // already holds; see TestElectrumListReceivedReportsCurrentBalance.
 func TestCoreReceiveListZerosAFullySpentAddress(t *testing.T) {
 	const addr = "bc1qyqqf4r7cqpae3jg78mvd936048jakqcr2p6uuw"
-	out := coreReceiveList([]ReceivedByAddress{{Address: addr, Amount: 12.5, TxIDs: []string{"a"}}}, nil)
+	out := coreReceiveList([]ReceivedByAddress{{Address: addr, Amount: 12.5, TxIDs: []string{"a"}}}, nil, nil)
 	require.Len(t, out, 1)
 	require.EqualValues(t, 0, out[0].BalanceSats, "fully spent address must report zero balance, not gross received")
 	require.InDelta(t, 12.5, out[0].Amount, 1e-9, "the BIP47 window still sees the address as used")
@@ -2981,9 +2954,92 @@ func TestCoreReceiveListAddsEveryCoinOnAnAddress(t *testing.T) {
 		{Address: addr, Amount: 0.00000001},
 		{Address: addr, Amount: 0.00000002},
 	}
-	out := coreReceiveList([]ReceivedByAddress{{Address: addr}}, utxos)
+	out := coreReceiveList([]ReceivedByAddress{{Address: addr}}, utxos, nil)
 	require.Len(t, out, 1)
 	require.EqualValues(t, 3, out[0].BalanceSats)
+}
+
+// Core's receive list names only the address book, so a change address that
+// spent its coin must come from the history.
+func TestCoreReceiveListKeepsASpentChangeAddress(t *testing.T) {
+	const (
+		book    = "bc1qvr65a480qf05d88ufyvpc57lqwvpe2zqv0ygnx"
+		spent   = "bc1qyqqf4r7cqpae3jg78mvd936048jakqcr2p6uuw"
+		holding = "bc1qucvvwyfrgfv5lslc2tan8zjpd4l5nlwsfcm599"
+		dropped = "bc1qw0vpvx08d5xuzyas4muavm8jg2nfuqfdkcs3at"
+	)
+	received := []ReceivedByAddress{{Address: book, Amount: 50, TxIDs: []string{"cb"}}}
+	utxos := []UTXO{{Address: holding, TxID: "c2", Amount: 0.25, Confirmations: 0}}
+	history := []WalletTransaction{
+		{Address: book, Category: "generate", Amount: 50, TxID: "cb", Confirmations: 101},
+		{Address: spent, Category: "receive", Amount: 48.99999718, TxID: "c1", Vout: 1, Confirmations: 2},
+		{Address: spent, Category: "send", Amount: -48.99999718, TxID: "c1", Vout: 1, Confirmations: 2},
+		{Address: spent, Category: "receive", Amount: 48.99999718, TxID: "c1", Vout: 1, Confirmations: 2},
+		{Address: holding, Category: "receive", Amount: 0.25, TxID: "c2", Confirmations: 0},
+		{Address: holding, Category: "receive", Amount: 0.5, TxID: "c0", Confirmations: 3},
+		{Address: dropped, Category: "receive", Amount: 1, TxID: "x1", Confirmations: -1},
+		{Address: dropped, Category: "orphan", Amount: 50, TxID: "x2", Confirmations: 0},
+	}
+
+	out := coreReceiveList(received, utxos, history)
+
+	rows := lo.SliceToMap(out, func(r ReceivedByAddress) (string, ReceivedByAddress) { return r.Address, r })
+	require.Len(t, out, 3, "a conflicted receipt and an orphan coinbase make no row")
+	require.Equal(t, book, out[0].Address)
+	require.InDelta(t, 50, rows[book].Amount, 1e-9, "the address book row keeps Core's receipts")
+
+	require.Contains(t, rows, spent, "a change address shows after it spent its coin")
+	require.EqualValues(t, 0, rows[spent].BalanceSats)
+	require.InDelta(t, 48.99999718, rows[spent].Amount, 1e-9, "one output counts one time")
+	require.Equal(t, []string{"c1"}, rows[spent].TxIDs)
+	require.Equal(t, 2, rows[spent].Confirmations)
+
+	require.EqualValues(t, 25_000_000, rows[holding].BalanceSats)
+	require.InDelta(t, 0.75, rows[holding].Amount, 1e-9, "Amount counts the spent coin too")
+	require.ElementsMatch(t, []string{"c2", "c0"}, rows[holding].TxIDs)
+}
+
+// The chain of a row comes from Core's address info, so a spent change address
+// still reads as change.
+func TestCoreBackendListReceivedListsSpentChange(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	net := &chaincfg.RegressionNetParams
+	receiveAddr := p2wpkhAddr(t, fixedKey(0x65), net)
+	changeAddr := p2wpkhAddr(t, fixedKey(0x66), net)
+	fake.handle("getaddressinfo", func(c bitcoindCall) (any, string) {
+		var address string
+		require.NoError(t, json.Unmarshal(c.Params[0], &address))
+		if address == changeAddr {
+			return map[string]any{"address": address, "hdkeypath": "m/84h/1h/0h/1/0", "ismine": true, "ischange": true, "parent_desc": rangedParentDesc}, ""
+		}
+		return map[string]any{"address": address, "hdkeypath": "m/84h/1h/0h/0/0", "ismine": true, "parent_desc": rangedParentDesc}, ""
+	})
+	fake.handle("listreceivedbyaddress", func(bitcoindCall) (any, string) {
+		return []map[string]any{{"address": receiveAddr, "amount": 50, "txids": []string{"cb"}}}, ""
+	})
+	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+	fake.handle("listsinceblock", func(c bitcoindCall) (any, string) {
+		var includeChange bool
+		require.Len(t, c.Params, 5)
+		require.NoError(t, json.Unmarshal(c.Params[4], &includeChange))
+		require.True(t, includeChange, "Core lists a change output only on request")
+		return map[string]any{"transactions": []map[string]any{
+			{"address": changeAddr, "category": "receive", "amount": 48.99999718, "txid": "c1", "vout": 1, "confirmations": 2, "time": 1700000100},
+		}}, ""
+	})
+	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
+
+	recv, err := backend.ListReceivedByAddress(context.Background(), coreID)
+	require.NoError(t, err)
+	rows := lo.SliceToMap(recv, func(r ReceivedByAddress) (string, ReceivedByAddress) { return r.Address, r })
+	require.Len(t, recv, 2)
+	assert.False(t, rows[receiveAddr].Change)
+	require.Contains(t, rows, changeAddr)
+	assert.True(t, rows[changeAddr].Change)
+	assert.Equal(t, "m/84h/1h/0h/1/0", rows[changeAddr].HDPath)
+	assert.Equal(t, []string{"c1"}, rows[changeAddr].TxIDs)
+	assert.EqualValues(t, 0, rows[changeAddr].BalanceSats)
 }
 
 func TestCoreBackendListReceivedReportsHDPath(t *testing.T) {
@@ -3005,6 +3061,7 @@ func TestCoreBackendListReceivedReportsHDPath(t *testing.T) {
 			{"address": freshAddr, "amount": 0, "txids": []string{}},
 		}, ""
 	})
+	fake.handle("listsinceblock", func(bitcoindCall) (any, string) { return map[string]any{"transactions": []any{}}, "" })
 	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
 	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
 
@@ -3053,6 +3110,7 @@ func TestCoreBackendImportedKeyHasNoSeedPath(t *testing.T) {
 			{"address": fundedKey, "amount": 0.0002, "txids": []string{"f1"}},
 		}, ""
 	})
+	fake.handle("listsinceblock", func(bitcoindCall) (any, string) { return map[string]any{"transactions": []any{}}, "" })
 	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
 	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
 
@@ -3097,6 +3155,7 @@ func TestCoreBackendListReceivedCountsImmatureCoinbase(t *testing.T) {
 		}
 		return []map[string]any{{"address": addr, "amount": 50, "txids": []string{"coinbase"}}}, ""
 	})
+	fake.handle("listsinceblock", func(bitcoindCall) (any, string) { return map[string]any{"transactions": []any{}}, "" })
 	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
 	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
 
@@ -3114,6 +3173,7 @@ func TestCoreBackendListReceivedReturnsPathError(t *testing.T) {
 	fake.handle("listreceivedbyaddress", func(bitcoindCall) (any, string) {
 		return []map[string]any{{"address": addr, "amount": 0, "txids": []string{}}}, ""
 	})
+	fake.handle("listsinceblock", func(bitcoindCall) (any, string) { return map[string]any{"transactions": []any{}}, "" })
 	fake.handle("listunspent", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
 	fake.handle("listtransactions", func(bitcoindCall) (any, string) { return []map[string]any{}, "" })
 
@@ -3170,6 +3230,7 @@ func TestCoreBackendListReceivedReportsLastUsed(t *testing.T) {
 			{"address": freshAddr, "amount": 0.001, "txids": []string{fresh.Hash.String()}},
 		}, ""
 	})
+	fake.handle("listsinceblock", func(bitcoindCall) (any, string) { return map[string]any{"transactions": []any{}}, "" })
 	fake.handle("listunspent", func(bitcoindCall) (any, string) {
 		return []map[string]any{
 			{"txid": self.Hash.String(), "vout": 0, "address": selfAddr, "amount": 0.001},

@@ -11,7 +11,6 @@ import (
 	"net"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -61,9 +60,9 @@ type CoreBackend struct {
 
 	// spentMu guards spentTxs, receivedAt and hdPaths, and it is never held across an RPC.
 	spentMu    sync.Mutex
-	spentTxs   map[string]coreSpend // Core wallet name:txid -> what the tx spends
-	receivedAt map[string]int64     // Core wallet name:txid -> Core's timereceived
-	hdPaths    map[string]string    // Core wallet name:address -> BIP32 path
+	spentTxs   map[string]coreSpend   // Core wallet name:txid -> what the tx spends
+	receivedAt map[string]int64       // Core wallet name:txid -> Core's timereceived
+	hdPaths    map[string]coreAddress // Core wallet name:address -> path and chain
 
 	// previewChange holds the change address a send preview reuses, so a
 	// preview does not reserve a new change key in Core each time.
@@ -115,7 +114,7 @@ func NewCoreBackend(svc *Service, rpc *CoreRPCClient, params ParamsFunc, log zer
 		staleWallets:    make(map[string]bool),
 		spentTxs:        make(map[string]coreSpend),
 		receivedAt:      make(map[string]int64),
-		hdPaths:         make(map[string]string),
+		hdPaths:         make(map[string]coreAddress),
 	}
 	rpc.OnWalletError = backend.markWalletStale
 	return backend
@@ -167,7 +166,7 @@ func (p *CoreBackend) ResetNetworkState() {
 	p.spentMu.Lock()
 	p.spentTxs = make(map[string]coreSpend)
 	p.receivedAt = make(map[string]int64)
-	p.hdPaths = make(map[string]string)
+	p.hdPaths = make(map[string]coreAddress)
 	p.spentMu.Unlock()
 }
 
@@ -337,9 +336,11 @@ func (p *CoreBackend) ListUnspent(ctx context.Context, walletID string) ([]UTXO,
 		return nil, err
 	}
 	for i := range utxos {
-		if utxos[i].HDPath, err = p.cachedHDPath(ctx, name, utxos[i].Address); err != nil {
+		info, err := p.cachedAddress(ctx, name, utxos[i].Address)
+		if err != nil {
 			return nil, err
 		}
+		utxos[i].HDPath = info.path
 	}
 	return utxos, nil
 }
@@ -463,8 +464,14 @@ func (p *CoreBackend) ListReceivedByAddress(ctx context.Context, walletID string
 	if err != nil {
 		return nil, err
 	}
-	out := coreReceiveList(received, utxos)
-	if err := p.fillHDPaths(ctx, name, out); err != nil {
+	// listreceivedbyaddress names only the address book, so a change address
+	// comes from the history, also after it spent its coins.
+	history, err := p.rpc.ListAllTransactions(ctx, name, true)
+	if err != nil {
+		return nil, err
+	}
+	out := coreReceiveList(received, utxos, history)
+	if err := p.fillAddressInfo(ctx, name, out); err != nil {
 		return nil, err
 	}
 	// A key that the wallet imported alone shows once it received, the same
@@ -482,37 +489,45 @@ func (p *CoreBackend) ListReceivedByAddress(ctx context.Context, walletID string
 	return out, nil
 }
 
-// fillHDPaths sets the BIP32 path of each row. listreceivedbyaddress does not
-// report it.
-func (p *CoreBackend) fillHDPaths(ctx context.Context, name string, rows []ReceivedByAddress) error {
+// fillAddressInfo sets the BIP32 path and the chain of each row.
+// listreceivedbyaddress reports neither.
+func (p *CoreBackend) fillAddressInfo(ctx context.Context, name string, rows []ReceivedByAddress) error {
 	for i := range rows {
-		path, err := p.cachedHDPath(ctx, name, rows[i].Address)
+		info, err := p.cachedAddress(ctx, name, rows[i].Address)
 		if err != nil {
 			return err
 		}
-		rows[i].HDPath = path
+		rows[i].HDPath = info.path
+		rows[i].Change = info.change
 	}
 	return nil
 }
 
-// cachedHDPath returns the BIP32 path of a wallet address. A path never
-// changes, so each address costs one getaddressinfo.
-func (p *CoreBackend) cachedHDPath(ctx context.Context, name, address string) (string, error) {
+// coreAddress is what getaddressinfo tells about a wallet address.
+type coreAddress struct {
+	path   string
+	change bool
+}
+
+// cachedAddress returns the BIP32 path and the chain of a wallet address. They
+// never change, so each address costs one getaddressinfo.
+func (p *CoreBackend) cachedAddress(ctx context.Context, name, address string) (coreAddress, error) {
 	key := name + ":" + address
 	p.spentMu.Lock()
-	path, ok := p.hdPaths[key]
+	cached, ok := p.hdPaths[key]
 	p.spentMu.Unlock()
 	if ok {
-		return path, nil
+		return cached, nil
 	}
 	info, err := p.rpc.GetAddressInfo(ctx, name, address)
 	if err != nil {
-		return "", fmt.Errorf("read path of %s: %w", address, err)
+		return coreAddress{}, fmt.Errorf("read path of %s: %w", address, err)
 	}
+	cached = coreAddress{path: info.SeedPath(), change: info.IsChange}
 	p.spentMu.Lock()
-	p.hdPaths[key] = info.SeedPath()
+	p.hdPaths[key] = cached
 	p.spentMu.Unlock()
-	return info.SeedPath(), nil
+	return cached, nil
 }
 
 // ReceivedTxIDs implements AddressReceiver.
@@ -683,107 +698,87 @@ func (p *CoreBackend) decodedWalletTx(ctx context.Context, name, txid string, de
 }
 
 // coreReceiveList gives each address the balance it still holds, and lists the
-// addresses Core's receive list leaves out. Amount keeps every coin the address
-// ever received, because the BIP47 import window and the unused-address pick
-// both read it. Core names only its address book, so an address holding change
-// arrives from the coins instead.
-func coreReceiveList(received []ReceivedByAddress, utxos []UTXO) []ReceivedByAddress {
-	type holding struct {
-		sats          int64
+// wallet addresses Core's receive list leaves out: each one that holds a coin or
+// received one in history. Amount keeps every coin the address ever received,
+// because the BIP47 import window and the unused-address pick both read it.
+func coreReceiveList(received []ReceivedByAddress, utxos []UTXO, history []WalletTransaction) []ReceivedByAddress {
+	type use struct {
+		receivedSats  int64
+		balanceSats   int64
 		confirmations int
 		label         string
-		change        bool
 		txids         []string
 		seen          map[string]bool
 	}
-	unspent := make(map[string]*holding, len(utxos))
+	uses := make(map[string]*use)
+	useOf := func(address, txid string) *use {
+		u, ok := uses[address]
+		if !ok {
+			u = &use{seen: map[string]bool{}}
+			uses[address] = u
+		}
+		if txid != "" && !u.seen[txid] {
+			u.seen[txid] = true
+			u.txids = append(u.txids, txid)
+		}
+		return u
+	}
 	for _, utxo := range utxos {
 		if utxo.Address == "" {
 			continue
 		}
-		held, ok := unspent[utxo.Address]
-		if !ok {
-			held = &holding{seen: map[string]bool{}}
-			unspent[utxo.Address] = held
-		}
-		held.sats += int64(math.Round(utxo.Amount * 1e8))
-		if utxo.TxID != "" && !held.seen[utxo.TxID] {
-			held.seen[utxo.TxID] = true
-			held.txids = append(held.txids, utxo.TxID)
-		}
-		held.change = held.change || descriptorIsChange(utxo.Descriptor)
-		if utxo.Confirmations > held.confirmations {
-			held.confirmations = utxo.Confirmations
-		}
-		if held.label == "" {
-			held.label = utxo.Label
+		u := useOf(utxo.Address, utxo.TxID)
+		u.balanceSats += int64(math.Round(utxo.Amount * 1e8))
+		u.confirmations = max(u.confirmations, utxo.Confirmations)
+		if u.label == "" {
+			u.label = utxo.Label
 		}
 	}
+	// Core's receive list counts no conflicted tx and no orphan coinbase.
+	paid := make(map[string]bool)
+	for _, tx := range history {
+		if tx.Address == "" || tx.Category == "send" || tx.Category == "orphan" || tx.Confirmations < 0 {
+			continue
+		}
+		output := fmt.Sprintf("%s:%d", tx.TxID, tx.Vout)
+		if paid[output] {
+			continue
+		}
+		paid[output] = true
+		u := useOf(tx.Address, tx.TxID)
+		u.receivedSats += int64(math.Round(tx.Amount * 1e8))
+		u.confirmations = max(u.confirmations, tx.Confirmations)
+	}
 
-	out := make([]ReceivedByAddress, 0, len(received)+len(unspent))
+	out := make([]ReceivedByAddress, 0, len(received)+len(uses))
 	listed := make(map[string]bool, len(received))
 	for _, entry := range received {
 		listed[entry.Address] = true
-		if held, ok := unspent[entry.Address]; ok {
-			entry.BalanceSats = held.sats
+		if u, ok := uses[entry.Address]; ok {
+			entry.BalanceSats = u.balanceSats
 		}
 		out = append(out, entry)
 	}
 
-	extra := make([]string, 0, len(unspent))
-	for address := range unspent {
+	extra := make([]string, 0, len(uses))
+	for address := range uses {
 		if !listed[address] {
 			extra = append(extra, address)
 		}
 	}
 	sort.Strings(extra)
 	for _, address := range extra {
-		held := unspent[address]
+		u := uses[address]
 		out = append(out, ReceivedByAddress{
 			Address:       address,
-			Amount:        float64(held.sats) / 1e8,
-			BalanceSats:   held.sats,
-			Confirmations: held.confirmations,
-			Label:         held.label,
-			TxIDs:         held.txids,
-			Change:        held.change,
+			Amount:        float64(u.receivedSats) / 1e8,
+			BalanceSats:   u.balanceSats,
+			Confirmations: u.confirmations,
+			Label:         u.label,
+			TxIDs:         u.txids,
 		})
 	}
 	return out
-}
-
-// descriptorIsChange reads the chain a coin sits on from its output descriptor.
-// A BIP44-family path ends /0/<index> for a receive address and /1/<index> for
-// change. A descriptor that carries no such path, such as an imported single
-// key, names no chain and is not change.
-//
-// listunspent gives one coin's concrete descriptor, which carries the whole path
-// inside the key origin brackets. listdescriptors gives a ranged one, which
-// leaves the chain and the range after the key. A multisig descriptor carries
-// one origin per cosigner, and every cosigner derives on the same chain. So the
-// rule reads each path the descriptor holds and takes the first that names one.
-func descriptorIsChange(descriptor string) bool {
-	body, _, _ := strings.Cut(descriptor, "#")
-	for _, token := range strings.FieldsFunc(body, func(r rune) bool {
-		return r == '[' || r == ']' || r == '(' || r == ')' || r == ','
-	}) {
-		parts := strings.Split(token, "/")
-		if len(parts) < 2 {
-			continue
-		}
-		index, chain := parts[len(parts)-1], parts[len(parts)-2]
-		if index != "*" {
-			if _, err := strconv.Atoi(index); err != nil {
-				continue
-			}
-		}
-		// Only an unhardened 0 or 1 names a chain. A hardened level, such as
-		// the coin type in 84h/1h/0h, is an account and never a chain.
-		if chain == "0" || chain == "1" {
-			return chain == "1"
-		}
-	}
-	return false
 }
 
 func (p *CoreBackend) GetWalletTransaction(ctx context.Context, walletID, txid string) (*WalletTx, error) {
@@ -807,7 +802,8 @@ func (p *CoreBackend) AddressHDPath(ctx context.Context, walletID, address strin
 	if err != nil {
 		return "", err
 	}
-	return p.cachedHDPath(ctx, name, address)
+	info, err := p.cachedAddress(ctx, name, address)
+	return info.path, err
 }
 
 func (p *CoreBackend) OwnedAddresses(ctx context.Context, walletID string, addresses []string) (map[string]bool, error) {
