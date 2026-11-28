@@ -4,6 +4,9 @@ import 'package:sail_ui/sail_ui.dart';
 
 enum TextFieldSize { small, regular }
 
+/// The height of a regular text field in BitWindow v2.
+const double sailV2FieldHeight = 40;
+
 enum TextFieldType { number, bitcoin, text }
 
 class SailTextField extends StatelessWidget {
@@ -42,6 +45,9 @@ class SailTextField extends StatelessWidget {
   /// Puts [suffixWidget] beside the first line of text, not at the vertical center.
   final bool alignSuffixTop;
 
+  /// Non-null draws the border in the error color and shows this text under the field.
+  final String? errorText;
+
   const SailTextField({
     super.key,
     required this.controller,
@@ -72,22 +78,36 @@ class SailTextField extends StatelessWidget {
     this.monospace = false,
     this.bottomWidget,
     this.alignSuffixTop = false,
+    this.errorText,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-    final padding = EdgeInsets.symmetric(vertical: 11.5, horizontal: 12);
     final textSize = size == TextFieldSize.regular ? 13.0 : 10.0;
 
     final terminal = theme.chrome.terminalStyle;
     final borderRadius = terminal ? theme.chrome.radiusSmall : theme.chrome.radius;
-    final restingBorderColor = terminal ? theme.colors.outlineButtonBorder : theme.colors.border;
-    final focusedBorderColor = terminal ? theme.colors.primary : theme.colors.text;
+    final error = errorText != null;
+    final restingBorderColor = error
+        ? theme.colors.error
+        : terminal
+        ? theme.colors.outlineButtonBorder
+        : theme.colors.border;
+    final focusedBorderColor = error
+        ? theme.colors.error
+        : terminal
+        ? theme.colors.primary
+        : theme.colors.text;
     final hintColor = terminal ? theme.colors.textHint : theme.colors.inactiveNavText;
-    final fillColor = theme.chrome.fieldsSunken ? theme.colors.formField : theme.colors.background;
+    final fillColor = theme.chrome.fieldsSunken || theme.isBitwindowV2
+        ? theme.colors.formField
+        : theme.colors.background;
     // The box draws the border, the fill and the suffix, so the TextField draws none of them.
     final boxed = bottomWidget != null || alignSuffixTop;
+    final heightFloor = theme.isBitwindowV2 && size == TextFieldSize.regular;
+    // With a height floor the floor sets the height, so the text centers in it.
+    final padding = EdgeInsets.symmetric(vertical: heightFloor && !boxed ? 8 : 11.5, horizontal: 12);
 
     final Widget? trailing = loading != null && loading!.enabled
         ? Tooltip(
@@ -147,6 +167,7 @@ class SailTextField extends StatelessWidget {
         maxLines: expands ? null : maxLines ?? (minLines != null ? null : 1),
         decoration: InputDecoration(
           isDense: true, // This helps reduce the minimum height
+          constraints: heightFloor ? const BoxConstraints(minHeight: sailV2FieldHeight) : null,
           errorBorder: InputBorder.none,
           disabledBorder: InputBorder.none,
           enabledBorder: boxed
@@ -215,6 +236,7 @@ class SailTextField extends StatelessWidget {
       children: [
         if (label != null) SailText.primary13(label!, bold: true),
         if (expands) Expanded(child: body) else body,
+        if (errorText != null) SailText.primary12(errorText!, color: theme.colors.error),
       ],
     );
   }

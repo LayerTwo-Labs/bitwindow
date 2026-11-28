@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sail_ui/sail_ui.dart';
 
 class SailAppBarBackButton extends StatelessWidget {
   final VoidCallback? onPressed;
@@ -10,7 +11,17 @@ class SailAppBarBackButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: 8),
       child: IconButton(
-        icon: const Icon(Icons.arrow_back),
+        icon: Builder(
+          builder: (context) {
+            final iconTheme = IconTheme.of(context);
+            return SailSVG.fromAsset(
+              SailSVGAsset.arrowLeft,
+              width: iconTheme.size,
+              height: iconTheme.size,
+              color: iconTheme.color,
+            );
+          },
+        ),
         onPressed: onPressed,
       ),
     );

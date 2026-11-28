@@ -42,12 +42,7 @@ class StaticField extends StatelessWidget {
                   if (!context.mounted) {
                     return;
                   }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Copied $label to clipboard'),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
+                  showSnackBar(context, 'Copied $label to clipboard', duration: 2);
                 },
                 icon: SailSVGAsset.iconCopy,
               ),

@@ -64,7 +64,7 @@ class _NotificationPanel extends StatelessWidget implements SailMenuEntity {
                   Expanded(child: SailText.primary13('Notifications', bold: true)),
                   if (items.isNotEmpty)
                     SailButton(
-                      variant: ButtonVariant.link,
+                      variant: ButtonVariant.ghost,
                       label: 'Clear all',
                       small: true,
                       onPressed: () async => provider.clearAll(),
@@ -143,8 +143,13 @@ class _NotificationRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: SailSVG.fromAsset(SailSVGAsset.iconInfo, color: _colorForType(item.dialogType)),
+            padding: const EdgeInsets.only(top: 2),
+            child: SailSVG.fromAsset(
+              notificationTypeIcon(item.dialogType),
+              width: 14,
+              height: 14,
+              color: notificationTypeColor(theme.colors, item.dialogType),
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -168,28 +173,36 @@ class _NotificationRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          SailButton(
-            variant: ButtonVariant.icon,
-            icon: SailSVGAsset.iconClose,
-            small: true,
-            onPressed: () async => provider.dismiss(item.id),
+          SailTooltip(
+            message: 'Dismiss',
+            child: SailTappable(
+              onTap: () async => provider.dismiss(item.id),
+              borderRadius: theme.chrome.radius,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: SailSVG.fromAsset(SailSVGAsset.x, width: 14, height: 14, color: theme.colors.text),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
-
-  Color _colorForType(DialogType type) {
-    switch (type) {
-      case DialogType.info:
-        return SailColorScheme.blue;
-      case DialogType.error:
-        return SailColorScheme.red;
-      case DialogType.success:
-        return SailColorScheme.green;
-    }
-  }
 }
+
+/// The icon of a notification of [type].
+SailSVGAsset notificationTypeIcon(DialogType type) => switch (type) {
+  DialogType.info => SailSVGAsset.info,
+  DialogType.error => SailSVGAsset.circleAlert,
+  DialogType.success => SailSVGAsset.circleCheck,
+};
+
+/// The icon color of a notification of [type].
+Color notificationTypeColor(SailColor colors, DialogType type) => switch (type) {
+  DialogType.info => colors.info,
+  DialogType.error => colors.error,
+  DialogType.success => colors.success,
+};
 
 String _timeAgo(DateTime t) {
   final d = DateTime.now().difference(t);

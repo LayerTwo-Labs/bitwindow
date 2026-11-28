@@ -137,13 +137,7 @@ class _ShutDownPageState extends State<ShutDownPage> {
       child: QtPage(
         child: Stack(
           children: [
-            // Centered logo
-            Center(
-              child: SailSVG.fromAsset(
-                SailSVGAsset.layerTwoLabsLogo,
-                height: 71,
-              ),
-            ),
+            const Center(child: LayerTwoLabsLogo()),
 
             // Progress and text overlay
             Positioned(

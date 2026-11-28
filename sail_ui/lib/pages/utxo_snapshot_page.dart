@@ -120,9 +120,19 @@ class _UTXOSnapshotPageState extends State<UTXOSnapshotPage> {
                         spacing: SailStyleValues.padding12,
                         children: [
                           if (_done)
-                            Icon(Icons.check_circle, color: theme.colors.success, size: 32)
+                            SailSVG.fromAsset(
+                              SailSVGAsset.circleCheck,
+                              color: theme.colors.success,
+                              width: 32,
+                              height: 32,
+                            )
                           else if (_error != null)
-                            Icon(Icons.error, color: theme.colors.error, size: 32)
+                            SailSVG.fromAsset(
+                              SailSVGAsset.circleAlert,
+                              color: theme.colors.error,
+                              width: 32,
+                              height: 32,
+                            )
                           else
                             SailSVG.fromAsset(
                               SailSVGAsset.iconRestart,

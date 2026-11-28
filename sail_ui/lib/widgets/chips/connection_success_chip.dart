@@ -42,6 +42,8 @@ class ConnectionStatusChip extends StatelessWidget {
             children: [
               SailSVG.fromAsset(
                 SailSVGAsset.iconGlobe,
+                width: 14,
+                height: 14,
                 color: infoMessage != null
                     ? theme.colors.info
                     : initializing

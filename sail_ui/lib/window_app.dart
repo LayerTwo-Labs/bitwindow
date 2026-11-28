@@ -15,6 +15,7 @@ SailApp buildSailWindowApp(
       theme: ThemeData(
         visualDensity: VisualDensity.compact,
         fontFamily: SailTheme.of(context).chrome.textFamily(),
+        dialogTheme: sailDialogTheme(SailTheme.of(context)),
       ),
       home: SailWindowScaffold(title: windowTitle, child: child),
     ),

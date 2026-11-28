@@ -55,6 +55,8 @@ class SailTextFormField extends StatelessWidget {
             horizontal: theme.dense ? SailStyleValues.padding10 : SailStyleValues.padding16,
           );
     final textSize = size == TextFieldSize.regular ? 15.0 : 12.0;
+    final v2 = theme.isBitwindowV2;
+    final radius = v2 ? theme.chrome.radius : const BorderRadius.all(Radius.circular(6));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,20 +76,20 @@ class SailTextFormField extends StatelessWidget {
           readOnly: readOnly,
           decoration: InputDecoration(
             errorBorder: OutlineInputBorder(
-              borderRadius: const BorderRadius.all(Radius.circular(6)),
+              borderRadius: radius,
               borderSide: BorderSide(color: theme.colors.error),
             ),
             disabledBorder: InputBorder.none,
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: const BorderRadius.all(Radius.circular(6)),
+              borderRadius: radius,
               borderSide: BorderSide(color: theme.colors.error),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: const BorderRadius.all(Radius.circular(6)),
+              borderRadius: radius,
               borderSide: BorderSide(color: theme.colors.border),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: const BorderRadius.all(Radius.circular(6)),
+              borderRadius: radius,
               borderSide: BorderSide(color: theme.colors.border),
             ),
             suffixStyle: TextStyle(
@@ -111,8 +113,9 @@ class SailTextFormField extends StatelessWidget {
             prefix: prefixWidget,
             prefixIcon: prefixIcon,
             prefixIconConstraints: prefixIconConstraints,
-            fillColor: SailTheme.of(context).colors.backgroundSecondary,
+            fillColor: v2 ? theme.colors.formField : theme.colors.backgroundSecondary,
             filled: true,
+            constraints: v2 && size != TextFieldSize.small ? const BoxConstraints(minHeight: sailV2FieldHeight) : null,
             contentPadding: padding,
             isDense: theme.dense,
             hintText: hintText,

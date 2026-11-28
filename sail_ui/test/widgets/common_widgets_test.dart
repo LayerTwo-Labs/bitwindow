@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
 
+import '../svg_finder.dart';
+
 class MockStore implements KeyValueStore {
   final _db = <String, String>{};
 
@@ -200,7 +202,7 @@ void main() {
         await tester.pumpWidget(
           buildTestableWidget(SailAppBarBackButton(onPressed: () {})),
         );
-        expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+        expect(findSailSVG(SailSVGAsset.arrowLeft), findsOneWidget);
         final padding = tester.widget<Padding>(
           find
               .descendant(

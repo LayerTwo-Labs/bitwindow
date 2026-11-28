@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -140,6 +141,116 @@ class SidechainOverviewTabPage extends StatelessWidget {
 }
 
 String sendAddressHint(String chainName) => 'Enter a $chainName address';
+
+/// The Balance card of a chain Overview: the big total over a grey group of available and pending.
+class SidechainBalanceCard extends StatelessWidget {
+  final String total;
+  final String available;
+  final String pending;
+  final bool loading;
+  final String loadingDescription;
+
+  const SidechainBalanceCard({
+    super.key,
+    required this.total,
+    required this.available,
+    required this.pending,
+    required this.loading,
+    required this.loadingDescription,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final details = LoadingDetails(enabled: loading, description: loadingDescription);
+    return SailCard(
+      title: 'Balance',
+      child: SailStyleValues.phoneLayout(context)
+          ? SidechainBalanceRows(total: total, available: available, pending: pending, loading: details)
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SailSkeletonizer(
+                    enabled: loading,
+                    description: loadingDescription,
+                    child: SailText.primary24(total, bold: true),
+                  ),
+                ),
+                const SizedBox(height: SailStyleValues.padding12),
+                SailDetailGroup(
+                  children: [
+                    SailDetailLine(label: 'Available', value: available, loading: details),
+                    SailDetailLine(label: 'Pending', value: pending, loading: details),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+/// The Receive on Sidechain card: the receive address with a copy button.
+class SidechainReceiveCard extends StatelessWidget {
+  final OverviewTabViewModel model;
+
+  const SidechainReceiveCard({super.key, required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailCard(
+      title: 'Receive on Sidechain',
+      error: model.receiveError,
+      child: SailTextField(
+        loading: LoadingDetails(
+          enabled: model.receiveAddress == null,
+          description: 'Waiting for ${model.sidechainName} to boot...',
+        ),
+        controller: TextEditingController(text: model.receiveAddress),
+        hintText: 'Generating deposit address...',
+        readOnly: true,
+        suffixWidget: CopyButton(text: model.receiveAddress ?? ''),
+      ),
+    );
+  }
+}
+
+/// The Send on Sidechain card: address and amount fields over the one Send button.
+class SidechainSendCard extends StatelessWidget {
+  final OverviewTabViewModel model;
+
+  const SidechainSendCard({super.key, required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailCard(
+      title: 'Send on Sidechain',
+      error: model.sendError,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SailText.primary13('Pay to'),
+          const SizedBox(height: SailStyleValues.padding08),
+          SailTextField(controller: model.bitcoinAddressController, hintText: sendAddressHint(model.sidechainName)),
+          const SizedBox(height: SailStyleValues.padding12),
+          NumericField(label: 'Amount', controller: model.bitcoinAmountController, hintText: '0.00'),
+          const SizedBox(height: SailStyleValues.padding12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SailButton(
+              label: 'Send',
+              disabled: !model.canSend,
+              onPressed: () async => await model.executeSendOnSidechain(context),
+              loading: model.isSending,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class OverviewTabViewModel extends BaseViewModel with ChangeTrackingMixin {
   @override
@@ -427,122 +538,215 @@ class _TransactionTableState extends State<TransactionTable> {
   @override
   Widget build(BuildContext context) {
     final entries = sortedEntries;
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        return SailCard(
-          title: 'Wallet Transaction History',
-          bottomPadding: false,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: SailStyleValues.padding16,
+    final phone = SailStyleValues.phoneLayout(context);
+    return SailCard(
+      title: 'Wallet Transaction History',
+      bottomPadding: false,
+      widgetHeaderEnd: phone ? null : SizedBox(width: 300, child: widget.searchWidget),
+      child: Column(
+        children: [
+          if (phone)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding12),
+              child: widget.searchWidget,
+            ),
+          Expanded(
+            child: SailTable(
+              getRowId: (index) => entries[index].txid,
+              headerBuilder: (context) => [
+                SailTableHeaderCell(name: 'TxID', onSort: () => onSort('txid')),
+                SailTableHeaderCell(name: 'Date', onSort: () => onSort('date')),
+                SailTableHeaderCell(
+                  name: phone ? 'Conf.' : 'Confirmations',
+                  onSort: () => onSort('confirmations'),
                 ),
-                child: widget.searchWidget,
-              ),
-              Expanded(
-                child: SailTable(
-                  getRowId: (index) => entries[index].txid,
-                  headerBuilder: (context) => [
-                    SailTableHeaderCell(
-                      name: SailStyleValues.phoneLayout(context) ? 'Conf.' : 'Confirmations',
-                      onSort: () => onSort('confirmations'),
-                    ),
-                    SailTableHeaderCell(
-                      name: 'Amount',
-                      onSort: () => onSort('amount'),
-                    ),
-                    SailTableHeaderCell(
-                      name: 'TxID',
-                      onSort: () => onSort('txid'),
-                    ),
-                    SailTableHeaderCell(
-                      name: 'Date',
-                      onSort: () => onSort('date'),
-                    ),
-                  ],
-                  rowBuilder: (context, row, selected) {
-                    final entry = entries[row];
-                    final amount = formatBitcoin(
-                      satoshiToBTC(entry.amount.toInt()),
-                    );
-
-                    return [
-                      SailTableCell(
-                        value: entry.confirmations == 0 ? 'Unconfirmed' : entry.confirmations.toString(),
-                      ),
-                      SailTableCell(value: amount, monospace: true),
-                      SailTableCell(
-                        value: '${entry.txid.substring(0, 6)}..:${entry.vout}',
-                        copyValue: '${entry.txid}:${entry.vout}',
-                      ),
-                      SailTableCell(
-                        // A chain that records no time for a coin reads as
-                        // zero. Rendering that as 1970 names a date it never
-                        // had.
-                        value: entry.blocktime == 0
-                            ? '-'
-                            : DateTime.fromMillisecondsSinceEpoch(
-                                entry.blocktime * 1000,
-                              ).toLocal().toString(),
-                      ),
-                    ];
-                  },
-                  rowCount: entries.length,
-                  emptyPlaceholder: 'No transactions yet',
-                  drawGrid: true,
-                  sortColumnIndex: [
-                    'confirmations',
-                    'amount',
-                    'txid',
-                    'date',
-                  ].indexOf(sortColumn),
-                  sortAscending: sortAscending,
-                  onSort: (columnIndex, ascending) {
-                    onSort(['confirmations', 'amount', 'txid', 'date'][columnIndex]);
-                  },
-                  onDoubleTap: (rowId) {
-                    final utxo = entries.firstWhere((u) => u.txid == rowId);
-                    _showUtxoDetails(context, utxo);
-                  },
+                SailTableHeaderCell(
+                  name: 'Amount',
+                  alignment: Alignment.centerRight,
+                  onSort: () => onSort('amount'),
                 ),
-              ),
-            ],
+              ],
+              rowBuilder: (context, row, selected) {
+                final entry = entries[row];
+                return [
+                  SailTableCell(
+                    value: '${entry.txid.substring(0, 6)}..:${entry.vout}',
+                    copyValue: '${entry.txid}:${entry.vout}',
+                  ),
+                  SailTableCell(value: transactionDateText(entry)),
+                  SailTableCell(
+                    value: confirmationsText(entry),
+                    child: SidechainStatusText(
+                      tone: entry.confirmations == 0 ? SailStatusTone.warning : SailStatusTone.success,
+                      text: confirmationsText(entry),
+                    ),
+                  ),
+                  SailTableCell(
+                    value: formatBitcoin(satoshiToBTC(entry.amount.toInt()), symbol: ''),
+                    monospace: true,
+                    alignment: Alignment.centerRight,
+                  ),
+                ];
+              },
+              rowCount: entries.length,
+              emptyPlaceholder: 'No transactions yet',
+              drawGrid: true,
+              phoneColumns: const [0, 2, 3],
+              sortColumnIndex: _columns.indexOf(sortColumn),
+              sortAscending: sortAscending,
+              onSort: (columnIndex, ascending) => onSort(_columns[columnIndex]),
+              onRowTap: (rowId) => _showDetails(context, entries.firstWhere((tx) => tx.txid == rowId)),
+              contextMenuItems: (rowId) {
+                final tx = entries.firstWhere((tx) => tx.txid == rowId);
+                return [
+                  SailMenuItem(
+                    onSelected: () => _showDetails(context, tx),
+                    child: SailText.primary12('Transaction Details'),
+                  ),
+                  SailMenuItem(
+                    onSelected: () => Clipboard.setData(ClipboardData(text: tx.txid)),
+                    child: SailText.primary12('Copy TxID'),
+                  ),
+                ];
+              },
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
-  void _showUtxoDetails(BuildContext context, CoreTransaction utxo) {
-    showSailDialog<void>(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: SingleChildScrollView(
-            child: SailCard(
-              title: 'Transaction Details',
-              subtitle: 'Details of the selected transaction',
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DetailRow(label: 'TxID', value: utxo.txid),
-                  DetailRow(
-                    label: 'Amount',
-                    value: formatBitcoin(satoshiToBTC(utxo.amount.toInt())),
-                  ),
-                  DetailRow(label: 'Date', value: utxo.time.toLocal().format()),
-                  DetailRow(
-                    label: 'Confirmations',
-                    value: utxo.confirmations.toString(),
-                  ),
-                ],
-              ),
-            ),
+  static const _columns = ['txid', 'date', 'confirmations', 'amount'];
+
+  void _showDetails(BuildContext context, CoreTransaction tx) {
+    unawaited(
+      showSailSidePanel(
+        context,
+        (context, close) => TransactionDetailsPanel(tx: tx, onClose: close),
+      ),
+    );
+  }
+}
+
+String confirmationsText(CoreTransaction tx) => tx.confirmations == 0 ? 'Unconfirmed' : tx.confirmations.toString();
+
+/// A chain that records no time for a coin reads as zero; '-' stands in for the 1970 date it never had.
+String transactionDateText(CoreTransaction tx) =>
+    tx.blocktime == 0 ? '-' : DateTime.fromMillisecondsSinceEpoch(tx.blocktime * 1000).toLocal().toString();
+
+/// The 380 px panel of one sidechain transaction.
+class TransactionDetailsPanel extends StatelessWidget {
+  final CoreTransaction tx;
+  final Future<void> Function() onClose;
+
+  const TransactionDetailsPanel({super.key, required this.tx, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = formatBitcoin(satoshiToBTC(tx.amount.toInt()), symbol: '');
+    return SailSidePanel(
+      title: 'Transaction Details',
+      onClose: onClose,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SailText.secondary12('Details of the selected transaction'),
+          const SizedBox(height: SailStyleValues.padding16),
+          SailText.primary24(amount, bold: true),
+          SailText.secondary13('BTC'),
+          const SizedBox(height: SailStyleValues.padding12),
+          SailStatusPill(
+            label: tx.confirmations == 0 ? 'Unconfirmed' : 'Confirmations ${tx.confirmations}',
+            tone: tx.confirmations == 0 ? SailStatusTone.warning : SailStatusTone.success,
           ),
+          const SizedBox(height: SailStyleValues.padding16),
+          SailText.primary13('Details', bold: true),
+          const SizedBox(height: SailStyleValues.padding08),
+          SailDetailGroup(
+            children: [
+              SailDetailLine(label: 'Amount', value: amount),
+              SailDetailLine(label: 'Date', value: tx.time.toLocal().format()),
+              SailDetailLine(label: 'Confirmations', value: tx.confirmations.toString()),
+            ],
+          ),
+          const SizedBox(height: SailStyleValues.padding16),
+          SailText.primary13('TxID', bold: true),
+          const SizedBox(height: SailStyleValues.padding08),
+          SailSelectableText(tx.txid, monospace: true),
+        ],
+      ),
+    );
+  }
+}
+
+/// A status dot in front of [text], as in a table cell.
+class SidechainStatusText extends StatelessWidget {
+  final SailStatusTone tone;
+  final String text;
+
+  const SidechainStatusText({super.key, required this.tone, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SailStatusDot(tone: tone),
+        const SizedBox(width: 6),
+        Flexible(child: SailText.primary13(text, maxLines: 1)),
+      ],
+    );
+  }
+}
+
+/// The tone of a [SidechainNotice].
+enum SidechainNoticeTone { info, warning, error, success }
+
+/// One grey line with an icon: an info note, a warning, an error or a result.
+class SidechainNotice extends StatelessWidget {
+  final String message;
+  final SidechainNoticeTone tone;
+  final String? title;
+  final Widget? trailing;
+
+  const SidechainNotice({
+    super.key,
+    required this.message,
+    this.tone = SidechainNoticeTone.info,
+    this.title,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final (icon, color) = switch (tone) {
+      SidechainNoticeTone.info => (SailSVGAsset.info, theme.colors.info),
+      SidechainNoticeTone.warning => (SailSVGAsset.triangleAlert, theme.colors.orange),
+      SidechainNoticeTone.error => (SailSVGAsset.triangleAlert, theme.colors.error),
+      SidechainNoticeTone.success => (SailSVGAsset.check, theme.colors.success),
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding08, vertical: 6),
+        child: Row(
+          children: [
+            SailSVG.fromAsset(icon, width: 14, height: 14, color: color),
+            const SizedBox(width: SailStyleValues.padding08),
+            Expanded(
+              child: title == null
+                  ? SailText.primary12(message)
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SailText.primary12(title!, color: color),
+                        SailText.primary12(message, monospace: true),
+                      ],
+                    ),
+            ),
+            if (trailing != null) ...[const SizedBox(width: SailStyleValues.padding08), trailing!],
+          ],
         ),
       ),
     );
@@ -697,18 +901,16 @@ class TransactionHistoryCard extends ViewModelWidget<OverviewTabViewModel> {
 }
 
 class UTXOsTab extends StatelessWidget {
-  const UTXOsTab({super.key});
+  final bool showStatus;
+
+  const UTXOsTab({super.key, this.showStatus = true});
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        return ViewModelBuilder<LatestUTXOsViewModel>.reactive(
-          viewModelBuilder: () => LatestUTXOsViewModel(),
-          builder: (context, model, child) {
-            return UTXOTable(entries: model.entries, model: model);
-          },
-        );
+    return ViewModelBuilder<LatestUTXOsViewModel>.reactive(
+      viewModelBuilder: () => LatestUTXOsViewModel(),
+      builder: (context, model, child) {
+        return UTXOTable(entries: model.entries, model: model, showStatus: showStatus);
       },
     );
   }
@@ -717,8 +919,9 @@ class UTXOsTab extends StatelessWidget {
 class UTXOTable extends StatefulWidget {
   final List<SidechainUTXO> entries;
   final LatestUTXOsViewModel model;
+  final bool showStatus;
 
-  const UTXOTable({super.key, required this.entries, required this.model});
+  const UTXOTable({super.key, required this.entries, required this.model, this.showStatus = true});
 
   @override
   State<UTXOTable> createState() => _UTXOTableState();
@@ -778,80 +981,75 @@ class _UTXOTableState extends State<UTXOTable> {
     });
   }
 
+  List<String> get _columns => ['output', 'type', 'address', 'value', if (widget.showStatus) 'status'];
+
   @override
   Widget build(BuildContext context) {
+    final formatter = GetIt.I<FormatterProvider>();
+    final columns = _columns;
     return SailCard(
       title: 'Your UTXOs',
       bottomPadding: false,
-      child: Column(
-        children: [
-          Expanded(
-            child: SailSkeletonizer(
-              description: 'Waiting for enforcer to start and wallet to sync..',
-              enabled: widget.model.loading,
-              child: SailTable(
-                shrinkWrap: true,
-                getRowId: (index) => widget.entries[index].outpoint.split(':').first,
-                headerBuilder: (context) => [
-                  SailTableHeaderCell(
-                    name: 'Type',
-                    onSort: () => onSort('type'),
-                  ),
-                  SailTableHeaderCell(
-                    name: 'Output',
-                    onSort: () => onSort('output'),
-                  ),
-                  SailTableHeaderCell(
-                    name: 'Address',
-                    onSort: () => onSort('address'),
-                  ),
-                  SailTableHeaderCell(
-                    name: 'Amount',
-                    onSort: () => onSort('value'),
-                  ),
-                  SailTableHeaderCell(
-                    name: 'Status',
-                    onSort: () => onSort('status'),
-                  ),
-                ],
-                rowBuilder: (context, row, selected) {
-                  final utxo = widget.entries[row];
-                  final formattedAmount = formatBitcoin(
-                    satoshiToBTC(utxo.valueSats),
-                    symbol: '',
-                  );
-                  return [
-                    SailTableCell(value: utxo.type.name, monospace: true),
-                    SailTableCell(
-                      value: '${utxo.outpoint.substring(0, 6)}..:${utxo.outpoint.split(':').last}',
-                      copyValue: utxo.outpoint,
+      child: SailSkeletonizer(
+        description: 'Waiting for enforcer to start and wallet to sync..',
+        enabled: widget.model.loading,
+        child: ListenableBuilder(
+          listenable: formatter,
+          builder: (context, child) => SailTable(
+            getRowId: (index) => widget.entries[index].outpoint,
+            headerBuilder: (context) => [
+              SailTableHeaderCell(name: 'Output', onSort: () => onSort('output')),
+              SailTableHeaderCell(name: 'Type', onSort: () => onSort('type')),
+              SailTableHeaderCell(name: 'Address', onSort: () => onSort('address')),
+              SailTableHeaderCell(name: 'Amount', alignment: Alignment.centerRight, onSort: () => onSort('value')),
+              if (widget.showStatus) SailTableHeaderCell(name: 'Status', onSort: () => onSort('status')),
+            ],
+            rowBuilder: (context, row, selected) {
+              final utxo = widget.entries[row];
+              return [
+                SailTableCell(
+                  value: '${utxo.outpoint.substring(0, 6)}..:${utxo.outpoint.split(':').last}',
+                  copyValue: utxo.outpoint,
+                ),
+                SailTableCell(value: utxo.type.name),
+                SailTableCell(value: utxo.address, copyValue: utxo.address),
+                SailTableCell(
+                  value: formatter
+                      .formatSats(utxo.valueSats.toInt())
+                      .replaceAll(' ${formatter.currentUnit.symbol}', ''),
+                  monospace: true,
+                  alignment: Alignment.centerRight,
+                ),
+                if (widget.showStatus)
+                  SailTableCell(
+                    value: utxo.confirmed ? 'Confirmed' : 'Unconfirmed',
+                    child: SidechainStatusText(
+                      tone: utxo.confirmed ? SailStatusTone.success : SailStatusTone.warning,
+                      text: utxo.confirmed ? 'Confirmed' : 'Unconfirmed',
                     ),
-                    SailTableCell(value: utxo.address, monospace: true),
-                    SailTableCell(value: formattedAmount, monospace: true),
-                    SailTableCell(
-                      value: utxo.confirmed ? 'Confirmed' : 'Unconfirmed',
-                      textColor: utxo.confirmed ? null : SailTheme.of(context).colors.orange,
-                    ),
-                  ];
-                },
-                rowCount: widget.entries.length,
-                emptyPlaceholder: 'No UTXOs in wallet',
-                drawGrid: true,
-                sortColumnIndex: [
-                  'type',
-                  'output',
-                  'address',
-                  'value',
-                  'status',
-                ].indexOf(sortColumn),
-                sortAscending: sortAscending,
-                onSort: (columnIndex, ascending) {
-                  onSort(['type', 'output', 'address', 'value', 'status'][columnIndex]);
-                },
+                  ),
+              ];
+            },
+            rowCount: widget.entries.length,
+            emptyPlaceholder: 'No UTXOs in wallet',
+            drawGrid: true,
+            sortColumnIndex: columns.indexOf(sortColumn),
+            sortAscending: sortAscending,
+            onSort: (columnIndex, ascending) => onSort(columns[columnIndex]),
+            contextMenuItems: (rowId) => [
+              SailMenuItem(
+                onSelected: () => Clipboard.setData(ClipboardData(text: rowId)),
+                child: SailText.primary12('Copy output'),
               ),
-            ),
+              SailMenuItem(
+                onSelected: () => Clipboard.setData(
+                  ClipboardData(text: widget.entries.firstWhere((utxo) => utxo.outpoint == rowId).address),
+                ),
+                child: SailText.primary12('Copy address'),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui' as ui;
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -44,10 +43,11 @@ class _ComingSoonPageState extends State<ComingSoonPage> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
     return Scaffold(
+      backgroundColor: theme.colors.background,
       body: Stack(
         children: [
-          // Animated starfield background
           AnimatedBuilder(
             animation: _starController,
             builder: (context, child) {
@@ -55,146 +55,58 @@ class _ComingSoonPageState extends State<ComingSoonPage> with TickerProviderStat
                 painter: _StarfieldPainter(
                   stars: _stars,
                   animation: _starController.value,
+                  color: theme.colors.textSecondary,
                 ),
                 size: Size.infinite,
               );
             },
           ),
-
-          // Gradient overlay
-          Container(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 1.2,
-                colors: [
-                  Colors.transparent,
-                  SailColorScheme.black.withValues(alpha: 0.7),
-                ],
-              ),
-            ),
-          ),
-
-          // Content
           Center(
-            child: Padding(
-              padding: const EdgeInsets.all(48.0),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(SailStyleValues.padding32),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 700),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Title with glow effect
-                    ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(
-                        colors: [
-                          Color(0xFFFFD700),
-                          Color(0xFFFFA500),
-                          Color(0xFFFFD700),
-                        ],
-                      ).createShader(bounds),
-                      child: const Text(
-                        'THIS COULD BE BITCOIN',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 42,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 4,
-                          shadows: [
-                            ui.Shadow(color: Color(0xFFFFD700), blurRadius: 20),
-                            ui.Shadow(color: Color(0xFFFFD700), blurRadius: 40),
-                          ],
-                        ),
+                constraints: const BoxConstraints(maxWidth: 840),
+                child: Container(
+                  key: const Key('coming-soon-card'),
+                  padding: const EdgeInsets.all(SailStyleValues.padding32),
+                  decoration: BoxDecoration(
+                    color: theme.colors.backgroundSecondary,
+                    borderRadius: theme.chrome.radiusLarge,
+                    border: Border.all(color: theme.colors.border),
+                  ),
+                  child: SailColumn(
+                    spacing: SailStyleValues.padding12,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SailText.primary22('THIS COULD BE BITCOIN', bold: true),
+                      SailText.primary13(widget.message),
+                      SailText.secondary13(
+                        'Drivechain (BIP-300/301) enables sidechains on Bitcoin. '
+                        'This feature requires activation with a soft fork.\n\n'
+                        'Until activated, you can continue this demo and take a peak into the future by switching to Signet, where Drivechain is already active.',
                       ),
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // Subtitle
-                    Text(
-                      widget.message,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white.withValues(alpha: 0.9),
-                        height: 1.6,
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Description
-                    Text(
-                      'Drivechain (BIP-300/301) enables sidechains on Bitcoin. '
-                      'This feature requires activation with a soft fork.\n\n'
-                      'Until activated, you can continue this demo and take a peak into the future by switching to Signet, where Drivechain is already active.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white.withValues(alpha: 0.7),
-                        height: 1.8,
-                      ),
-                    ),
-
-                    const SizedBox(height: 48),
-
-                    // Switch to Signet button
-                    MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () {
+                      const SizedBox(height: SailStyleValues.padding04),
+                      SailButton(
+                        label: 'Switch to Signet',
+                        onPressed: () async {
                           Navigator.of(context).pop();
-                          widget.router.push(NetworkSwitchRoute());
+                          await widget.router.push(NetworkSwitchRoute());
                         },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
-                            ),
-                            borderRadius: BorderRadius.circular(4),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFFFFD700,
-                                ).withValues(alpha: 0.4),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: const Text(
-                            'Switch to Signet',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-
-          // Back button
           Positioned(
-            top: 16,
-            left: 16,
-            child: IconButton(
-              icon: Icon(
-                Icons.arrow_back,
-                color: Colors.white.withValues(alpha: 0.7),
-              ),
-              onPressed: () => Navigator.of(context).pop(),
+            top: SailStyleValues.padding12,
+            left: SailStyleValues.padding12,
+            child: SailIconBoxButton(
+              icon: SailSVGAsset.chevronLeft,
+              tooltip: 'Back',
+              onPressed: () async => Navigator.of(context).pop(),
             ),
           ),
         ],
@@ -233,37 +145,20 @@ class _Star {
 class _StarfieldPainter extends CustomPainter {
   final List<_Star> stars;
   final double animation;
+  final Color color;
 
-  _StarfieldPainter({required this.stars, required this.animation});
+  _StarfieldPainter({required this.stars, required this.animation, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Dark background with subtle gradient
-    final bgPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          const Color(0xFF0a0a1a),
-          const Color(0xFF1a1a2e),
-          const Color(0xFF0a0a1a),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
-
-    // Draw stars
     for (final star in stars) {
       final twinkle = (sin((animation + star.speed) * pi * 2) + 1) / 2;
       final alpha = star.brightness * (0.5 + twinkle * 0.5);
 
-      final paint = Paint()
-        ..color = Colors.white.withValues(alpha: alpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, star.size * 0.5);
-
       canvas.drawCircle(
         Offset(star.x * size.width, star.y * size.height),
-        star.size,
-        paint,
+        star.size * 0.6,
+        Paint()..color = color.withValues(alpha: alpha * 0.6),
       );
     }
   }

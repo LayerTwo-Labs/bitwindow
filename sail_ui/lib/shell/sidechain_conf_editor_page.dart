@@ -28,6 +28,10 @@ class _SidechainConfEditorPageContent extends StatelessWidget {
     final theme = SailTheme.of(context);
     final appName = viewModel.module.appName;
 
+    if (theme.isBitwindowV2 && !SailStyleValues.phoneLayout(context)) {
+      return SailPage(body: ConfEditorV2Body(viewModel: viewModel));
+    }
+
     return SailPage(
       widgetTitle: SailText.secondary12('Back to settings'),
       body: QtPage(
@@ -119,6 +123,152 @@ class _SidechainConfEditorPageContent extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The v2 configurator: a head card with Save and a "…", a note, two cards, and the CLI preview.
+@visibleForTesting
+class ConfEditorV2Body extends StatelessWidget {
+  final SidechainConfEditorViewModel viewModel;
+
+  const ConfEditorV2Body({super.key, required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final appName = viewModel.module.appName;
+
+    return QtPage(
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SailCard(
+            child: Row(
+              children: [
+                SailIconBoxButton(
+                  icon: SailSVGAsset.arrowLeft,
+                  tooltip: 'Back to settings',
+                  onPressed: () async => Navigator.of(context).maybePop(),
+                ),
+                const SizedBox(width: SailStyleValues.padding12),
+                Expanded(child: SailText.primary15('$appName Conf Configurator', bold: true)),
+                SailButton(
+                  label: 'Save',
+                  loading: viewModel.isLoading,
+                  disabled: !viewModel.hasUnsavedChanges,
+                  onPressed: () async => viewModel.saveConfig(),
+                ),
+                const SizedBox(width: SailStyleValues.padding08),
+                SailRowMenuButton(
+                  items: () => [
+                    SailMenuItem(
+                      onSelected: viewModel.hasUnsavedChanges ? viewModel.resetChanges : null,
+                      child: SailText.primary13(
+                        'Reset',
+                        color: viewModel.hasUnsavedChanges ? null : theme.colors.textTertiary,
+                      ),
+                    ),
+                    SailMenuItem(
+                      onSelected: viewModel.resetToDefault,
+                      child: SailText.primary13('Reset to Default'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(SailStyleValues.padding12),
+            decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+            child: Row(
+              children: [
+                SailSVG.fromAsset(SailSVGAsset.iconInfo, color: theme.colors.textSecondary, width: 14, height: 14),
+                const SailSpacing(SailStyleValues.padding08),
+                Expanded(
+                  child: SailText.secondary12(
+                    '$appName does not read from a config file. These settings are converted to CLI arguments when $appName starts. '
+                    'Restart $appName after saving for changes to take effect.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SailCard(
+                    title: 'Configuration',
+                    child: _ConfigBody(viewModel: viewModel),
+                  ),
+                ),
+                const SizedBox(width: SailStyleValues.padding12),
+                SizedBox(
+                  width: 500,
+                  child: SailCard(padding: false, child: _ConfiguratorPanel(viewModel: viewModel)),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(SailStyleValues.padding12),
+            decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+            child: _CliPreviewText(viewModel: viewModel),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConfigBody extends StatelessWidget {
+  final SidechainConfEditorViewModel viewModel;
+
+  const _ConfigBody({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    if (viewModel.isLoading && viewModel.workingConfig == null) {
+      return const Center(child: LoadingIndicator());
+    }
+    final error = viewModel.errorMessage;
+    if (error != null) {
+      return Align(
+        alignment: Alignment.topLeft,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(SailStyleValues.padding12),
+          decoration: BoxDecoration(
+            borderRadius: theme.chrome.radius,
+            border: Border.all(color: theme.colors.error),
+          ),
+          child: SailColumn(
+            spacing: SailStyleValues.padding08,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SailText.primary13('Error loading configuration', bold: true, color: theme.colors.error),
+              SailText.secondary13(error),
+              SailButton(
+                label: 'Retry',
+                variant: ButtonVariant.outline,
+                onPressed: () async => viewModel.loadConfig(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return SailTextField(
+      controller: TextEditingController(text: viewModel.workingConfigText),
+      hintText: '',
+      expands: true,
+      monospace: true,
+      onChanged: viewModel.updateFromRawText,
     );
   }
 }
@@ -319,6 +469,18 @@ class _DropdownSetting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dropdown = SailDropdownButton<String>(
+      value: currentValue,
+      items: options.map((opt) => SailDropdownItem<String>(value: opt, label: opt)).toList(),
+      onChanged: (value) {
+        if (value != null) {
+          onChanged(value);
+        }
+      },
+    );
+    if (SailTheme.of(context).isBitwindowV2) {
+      return _V2SettingRow(label: label, trailing: dropdown);
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -354,6 +516,12 @@ class _ToggleSetting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (SailTheme.of(context).isBitwindowV2) {
+      return _V2SettingRow(
+        label: label,
+        trailing: SailSwitch(value: currentValue, onChanged: onChanged),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -437,6 +605,29 @@ class _CliPreview extends StatelessWidget {
   }
 }
 
+/// The CLI preview as a label over the command line.
+class _CliPreviewText extends StatelessWidget {
+  final SidechainConfEditorViewModel viewModel;
+
+  const _CliPreviewText({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cliArgs = GetIt.I.get<GenericSidechainConfProvider>().getCliArgs();
+    return SailColumn(
+      spacing: SailStyleValues.padding04,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SailText.secondary12('CLI Preview:', bold: true),
+        SailSelectableText(
+          cliArgs.isEmpty ? '(no args)' : '${viewModel.module.chain.registryKey} ${cliArgs.join(' ')}',
+          monospace: true,
+        ),
+      ],
+    );
+  }
+}
+
 class _TextSettingField extends StatefulWidget {
   final String initialValue;
   final String hintText;
@@ -500,6 +691,9 @@ class _DerivedSetting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (SailTheme.of(context).isBitwindowV2) {
+      return _V2SettingRow(label: label, trailing: SailText.secondary13(value));
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -508,6 +702,31 @@ class _DerivedSetting extends StatelessWidget {
           SailText.secondary12(label),
           const SailSpacing(SailStyleValues.padding04),
           SailText.primary13(value),
+        ],
+      ),
+    );
+  }
+}
+
+/// A v2 setting: the label at the left, its control at the right, a hairline under it.
+class _V2SettingRow extends StatelessWidget {
+  final String label;
+  final Widget trailing;
+
+  const _V2SettingRow({required this.label, required this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 44),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: theme.colors.divider)),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: SailText.primary13(label)),
+          trailing,
         ],
       ),
     );

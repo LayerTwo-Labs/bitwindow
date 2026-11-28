@@ -63,8 +63,10 @@ class _ExplorerModel extends Fake implements ExplorerModel {
 
 Widget _app(Widget child) {
   return MaterialApp(
-    builder: (context, child) =>
-        SailTheme(data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter), child: child!),
+    builder: (context, child) => SailTheme(
+      data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter, SailThemeStyle.bitwindowV2),
+      child: child!,
+    ),
     home: Scaffold(body: child),
   );
 }
@@ -89,11 +91,40 @@ Future<void> _showActions(
 
 Future<void> _showForm(WidgetTester tester, _ExplorerModel model, {ValueChanged<ExplorerTarget>? onOpen}) async {
   await tester.pumpWidget(_app(ExplorerBroadcastButton(model: model, onOpen: onOpen ?? (_) {})));
-  await tester.tap(_button('Broadcast Transaction'));
+  await _pickMenuItem(tester, 'Broadcast Transaction');
+}
+
+/// Shows the side panel of a pending transaction, with the actions and the "…" menu.
+Future<void> _showPanel(WidgetTester tester, _ExplorerModel model) async {
+  await tester.binding.setSurfaceSize(const Size(800, 900));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    _app(
+      Align(
+        alignment: Alignment.topRight,
+        child: ExplorerDetail(model: model, target: ExplorerTarget.transaction(_txid), onClose: () {}, onOpen: (_) {}),
+      ),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
+Future<void> _pickMenuItem(WidgetTester tester, String label, {bool settle = true}) async {
+  await tester.tap(find.byType(SailRowMenuButton).first);
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(find.text(label).last);
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+}
+
 Finder _button(String label) => find.byWidgetPredicate((widget) => widget is SailButton && widget.label == label);
+
+Finder get _close => find.byWidgetPredicate((widget) => widget is SailIconBoxButton && widget.tooltip == 'Close');
+
+Finder get _form => find.text('Broadcast Transaction');
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -102,11 +133,15 @@ void main() {
   });
 
   for (final chain in ['bitnames', 'bitassets']) {
-    testWidgets('$chain shows both actions for a pending transaction', (tester) async {
-      await _showActions(tester, _ExplorerModel(chain: chain));
+    testWidgets('$chain shows Rebroadcast and puts Copy Signed Transaction in the panel menu', (tester) async {
+      await _showPanel(tester, _ExplorerModel(chain: chain));
 
       expect(_button('Rebroadcast'), findsOneWidget);
-      expect(_button('Copy Signed Transaction'), findsOneWidget);
+      expect(_button('Copy Signed Transaction'), findsNothing);
+      await tester.tap(find.byType(SailRowMenuButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy TxID'), findsOneWidget);
+      expect(find.text('Copy Signed Transaction'), findsOneWidget);
     });
 
     testWidgets('$chain opens the signed transaction form', (tester) async {
@@ -136,7 +171,7 @@ void main() {
       expect(find.byType(SailButton), findsNothing);
 
       await tester.pumpWidget(_app(ExplorerBroadcastButton(model: model, onOpen: (_) {})));
-      expect(find.byType(SailButton), findsNothing);
+      expect(find.byType(SailRowMenuButton), findsNothing);
     }
   });
 
@@ -216,7 +251,7 @@ void main() {
     await tester.tap(_button('Rebroadcast'));
     await tester.pumpAndSettle();
 
-    expect(_button('Copy Signed Transaction').hitTestable(), findsOneWidget);
+    expect(_button('Rebroadcast').hitTestable(), findsOneWidget);
     expect(_button('Open Transaction').hitTestable(), findsOneWidget);
     expect(tester.renderObject<RenderParagraph>(find.text(_txid)).didExceedMaxLines, isFalse);
     expect(tester.takeException(), isNull);
@@ -242,14 +277,13 @@ void main() {
   testWidgets('rebroadcast blocks repeated clicks and copy until the response arrives', (tester) async {
     final reply = Completer<pb.RebroadcastTransactionResponse>();
     final model = _ExplorerModel()..rebroadcastReply = reply;
-    await _showActions(tester, model);
+    await _showPanel(tester, model);
 
     await tester.tap(_button('Rebroadcast'));
     await tester.pump();
     expect(tester.widget<SailButton>(_button('Rebroadcast')).disabled, isTrue);
-    expect(tester.widget<SailButton>(_button('Copy Signed Transaction')).disabled, isTrue);
     await tester.tap(_button('Rebroadcast'));
-    await tester.tap(_button('Copy Signed Transaction'));
+    await _pickMenuItem(tester, 'Copy Signed Transaction', settle: false);
     expect(model.rebroadcastIds, [_txid]);
     expect(model.copiedIds, isEmpty);
 
@@ -268,10 +302,9 @@ void main() {
     });
     addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
     final model = _ExplorerModel();
-    await _showActions(tester, model);
+    await _showPanel(tester, model);
 
-    await tester.tap(_button('Copy Signed Transaction'));
-    await tester.pumpAndSettle();
+    await _pickMenuItem(tester, 'Copy Signed Transaction');
 
     expect(model.copiedIds, [_txid]);
     expect(clipboard, _signedTransaction);
@@ -280,10 +313,9 @@ void main() {
 
   testWidgets('copy errors stay visible', (tester) async {
     final model = _ExplorerModel()..copyError = StateError('The transaction is absent from the mempool.');
-    await _showActions(tester, model);
+    await _showPanel(tester, model);
 
-    await tester.tap(_button('Copy Signed Transaction'));
-    await tester.pumpAndSettle();
+    await _pickMenuItem(tester, 'Copy Signed Transaction');
 
     expect(find.textContaining('The transaction is absent from the mempool.'), findsOneWidget);
     expect(find.text('The signed transaction is on the clipboard.'), findsNothing);
@@ -292,11 +324,10 @@ void main() {
   testWidgets('copy blocks repeated clicks and rebroadcast until the response arrives', (tester) async {
     final reply = Completer<String>();
     final model = _ExplorerModel()..copyReply = reply;
-    await _showActions(tester, model);
+    await _showPanel(tester, model);
 
-    await tester.tap(_button('Copy Signed Transaction'));
-    await tester.pump();
-    await tester.tap(_button('Copy Signed Transaction'));
+    await _pickMenuItem(tester, 'Copy Signed Transaction', settle: false);
+    await _pickMenuItem(tester, 'Copy Signed Transaction', settle: false);
     await tester.tap(_button('Rebroadcast'));
     expect(model.copiedIds, [_txid]);
     expect(model.rebroadcastIds, isEmpty);
@@ -326,7 +357,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_button('Broadcast').hitTestable(), findsOneWidget);
-    expect(_button('Close').hitTestable(), findsOneWidget);
+    expect(_close.hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -373,7 +404,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(target?.id, _txid);
     expect(target?.kind, ExplorerTargetKind.transaction);
-    expect(find.byType(SailDialog), findsNothing);
+    expect(_form, findsNothing);
   });
 
   testWidgets('the form reports zero peers', (tester) async {
@@ -416,15 +447,17 @@ void main() {
     await tester.tap(_button('Broadcast'));
     await tester.pump();
     expect(tester.widget<SailButton>(_button('Broadcast')).disabled, isTrue);
-    expect(tester.widget<SailButton>(_button('Close')).disabled, isTrue);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
     await tester.tap(_button('Broadcast'));
-    await tester.tap(_button('Close'));
+    await tester.tap(_close);
+    await tester.pump();
     expect(model.broadcastPayloads, [_signedTransaction]);
-    expect(find.byType(SailDialog), findsOneWidget);
+    expect(_form, findsOneWidget);
 
     reply.complete(pb.BroadcastTransactionResponse(txid: _txid, peerCount: 1));
     await tester.pumpAndSettle();
-    expect(tester.widget<SailButton>(_button('Close')).disabled, isFalse);
+    await tester.tap(_close);
+    await tester.pumpAndSettle();
+    expect(_form, findsNothing);
   });
 }

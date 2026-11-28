@@ -36,6 +36,12 @@ class SailCombobox<T> extends StatefulWidget {
   final double? width;
   final double maxPopoverHeight;
 
+  /// Null makes the list as wide as the field.
+  final double? popoverWidth;
+
+  /// The edge of the field that the list lines up with.
+  final SailPopoverAlignment popoverAlignment;
+
   /// Custom match predicate on the query as typed; defaults to a case-blind substring match on the item's matchKey.
   final bool Function(SailComboboxItem<T> item, String query)? filter;
 
@@ -49,6 +55,8 @@ class SailCombobox<T> extends StatefulWidget {
     this.noResultsText = 'No results.',
     this.width,
     this.maxPopoverHeight = 240,
+    this.popoverWidth,
+    this.popoverAlignment = SailPopoverAlignment.start,
     this.filter,
   });
 
@@ -168,8 +176,9 @@ class _SailComboboxState<T> extends State<SailCombobox<T>> {
 
     return SailPopover(
       controller: _popover,
+      alignment: widget.popoverAlignment,
       popover: SizedBox(
-        width: widget.width ?? 240,
+        width: widget.popoverWidth ?? widget.width ?? 240,
         child: Focus(
           autofocus: true,
           onKeyEvent: _onKey,

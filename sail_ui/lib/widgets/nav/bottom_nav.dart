@@ -164,6 +164,8 @@ class BottomNav extends StatelessWidget {
                             : const BoxDecoration(),
                         child: SailSVG.fromAsset(
                           SailSVGAsset.iconConnectionStatus,
+                          width: 24,
+                          height: 20,
                           // The swap stops the daemons on purpose, so the red alarm would misread.
                           color: statusOverride == null ? model.connectionColor : SailTheme.of(context).colors.primary,
                         ),
@@ -1101,6 +1103,7 @@ class UpdateIndicator extends StatelessWidget {
         if (!updateProvider.updateAvailable) {
           return const SizedBox.shrink();
         }
+        final theme = SailTheme.of(context);
 
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -1116,24 +1119,25 @@ class UpdateIndicator extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: SailColorScheme.green.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
+                    color: theme.colors.success.withValues(alpha: 0.2),
+                    borderRadius: theme.chrome.radiusSmall,
                     border: Border.all(
-                      color: SailColorScheme.green.withValues(alpha: 0.5),
+                      color: theme.colors.success.withValues(alpha: 0.5),
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.update,
-                        size: 14,
-                        color: SailColorScheme.green,
+                      SailSVG.fromAsset(
+                        SailSVGAsset.clockClockwise,
+                        width: 14,
+                        height: 14,
+                        color: theme.colors.success,
                       ),
                       const SizedBox(width: 4),
                       SailText.primary12(
                         'Update available',
-                        color: SailColorScheme.green,
+                        color: theme.colors.success,
                       ),
                     ],
                   ),

@@ -20,6 +20,17 @@ class SidechainDebugWindow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (context.sailTheme.isBitwindowV2) {
+      return _DebugSegments(
+        tabs: [
+          ('Information', SidechainInfoTab(rpc: rpc, sidechainName: sidechainName)),
+          ('Processes', const SidechainProcessesTab()),
+          ('Console', SidechainConsoleTab(sidechainName: sidechainName)),
+          ('Peers', SidechainPeersTab(rpc: rpc)),
+          ('RPC Methods', SidechainRPCMethodsTab(rpc: rpc)),
+        ],
+      );
+    }
     return SailCard(
       color: context.sailTheme.colors.background,
       inSeparateWindow: true,
@@ -53,6 +64,113 @@ class SidechainDebugWindow extends StatelessWidget {
         ],
         initialIndex: 0,
       ),
+    );
+  }
+}
+
+/// The tabs of the v2 debug window as one segmented control over the selected tab.
+class _DebugSegments extends StatefulWidget {
+  final List<(String, Widget)> tabs;
+
+  const _DebugSegments({required this.tabs});
+
+  @override
+  State<_DebugSegments> createState() => _DebugSegmentsState();
+}
+
+class _DebugSegmentsState extends State<_DebugSegments> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SailSegments(
+          labels: [for (final (label, _) in widget.tabs) label],
+          activeIndex: _index,
+          onSelect: (index) => setState(() => _index = index),
+        ),
+        const SizedBox(height: SailStyleValues.padding16),
+        Expanded(child: widget.tabs[_index].$2),
+      ],
+    );
+  }
+}
+
+/// A debug tab: a card in the older styles, a flat head and body in v2.
+class _DebugPanel extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<Widget> actions;
+  final Widget child;
+
+  const _DebugPanel({required this.title, required this.subtitle, this.actions = const [], required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!context.sailTheme.isBitwindowV2) {
+      return SailCard(title: title, subtitle: subtitle, child: child);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SailText.primary15(title, bold: true),
+                  SailText.secondary12(subtitle),
+                ],
+              ),
+            ),
+            for (final action in actions) ...[const SizedBox(width: SailStyleValues.padding12), action],
+          ],
+        ),
+        const SizedBox(height: SailStyleValues.padding12),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+/// A table on a grey box in v2.
+class _GreyTable extends StatelessWidget {
+  final Widget table;
+
+  const _GreyTable({required this.table});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.sailTheme;
+    if (!theme.isBitwindowV2) {
+      return table;
+    }
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+      child: table,
+    );
+  }
+}
+
+/// A state dot before its label.
+class _DotLabel extends StatelessWidget {
+  final String label;
+  final SailStatusTone tone;
+
+  const _DotLabel({required this.label, required this.tone});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SailStatusDot(tone: tone),
+        const SizedBox(width: 6),
+        Flexible(child: SailText.primary13(label, maxLines: 1)),
+      ],
     );
   }
 }
@@ -162,7 +280,7 @@ class _SidechainInfoTabState extends State<SidechainInfoTab> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const SailCard(
+      return const _DebugPanel(
         title: 'Debug Information',
         subtitle: 'General information about the sidechain node',
         child: Center(child: LoadingIndicator()),
@@ -170,7 +288,7 @@ class _SidechainInfoTabState extends State<SidechainInfoTab> {
     }
 
     if (_error != null) {
-      return SailCard(
+      return _DebugPanel(
         title: 'Debug Information',
         subtitle: 'General information about the sidechain node',
         child: Center(
@@ -191,7 +309,75 @@ class _SidechainInfoTabState extends State<SidechainInfoTab> {
       );
     }
 
-    return SailCard(
+    final actions = [
+      SailRow(
+        spacing: SailStyleValues.padding08,
+        children: [
+          SailText.secondary12('Auto-refresh'),
+          SailToggle(
+            value: _autoRefreshEnabled,
+            onChanged: (_) => _toggleAutoRefresh(),
+          ),
+        ],
+      ),
+      SailButton(
+        label: 'Refresh',
+        onPressed: () async => _loadInfo(),
+        variant: context.sailTheme.isBitwindowV2 ? ButtonVariant.outline : ButtonVariant.secondary,
+      ),
+    ];
+    final sections = [
+      SidechainInfoSection(
+        title: 'General Info',
+        details: {
+          'Sidechain': widget.sidechainName,
+          'Network': _blockchainInfo?.chain ?? 'Unknown',
+          'Connected': widget.rpc.connected ? 'Yes' : 'No',
+        },
+      ),
+      SidechainInfoSection(
+        title: 'Blockchain Info',
+        details: {
+          'Current Block Height': _blockchainInfo?.blocks.toString() ?? 'Loading...',
+          'Headers': _blockchainInfo?.headers.toString() ?? 'Loading...',
+          'Best Block Hash': _truncateHash(
+            _blockchainInfo?.bestBlockHash ?? '',
+          ),
+          'Sync Progress': '${((_blockchainInfo?.verificationProgress ?? 0) * 100).toStringAsFixed(0)}%',
+        },
+      ),
+      SidechainInfoSection(
+        title: 'Wallet Info',
+        details: {
+          'Confirmed Balance': '${_confirmedBalance?.toStringAsFixed(8) ?? '0.00000000'} ${activeTicker.symbol}',
+          'Unconfirmed Balance': '${_unconfirmedBalance?.toStringAsFixed(8) ?? '0.00000000'} ${activeTicker.symbol}',
+          'Total Balance':
+              '${((_confirmedBalance ?? 0) + (_unconfirmedBalance ?? 0)).toStringAsFixed(8)} ${activeTicker.symbol}',
+          if (_sidechainWealth != null)
+            'Total Sidechain Wealth': '${_sidechainWealth!.toStringAsFixed(8)} ${activeTicker.symbol}',
+        },
+      ),
+    ];
+
+    if (context.sailTheme.isBitwindowV2) {
+      return _DebugPanel(
+        title: 'Debug Information',
+        subtitle: 'General information about the ${widget.sidechainName} node',
+        actions: actions,
+        child: SingleChildScrollView(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (index, section) in sections.indexed) ...[
+                if (index > 0) const SizedBox(width: SailStyleValues.padding12),
+                Expanded(child: section),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return _DebugPanel(
       title: 'Debug Information',
       subtitle: 'General information about the ${widget.sidechainName} node',
       child: SingleChildScrollView(
@@ -201,56 +387,9 @@ class _SidechainInfoTabState extends State<SidechainInfoTab> {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    SailText.secondary12('Auto-refresh'),
-                    SailToggle(
-                      value: _autoRefreshEnabled,
-                      onChanged: (_) => _toggleAutoRefresh(),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                SailButton(
-                  label: 'Refresh',
-                  onPressed: () async => _loadInfo(),
-                  variant: ButtonVariant.secondary,
-                ),
-              ],
+              children: [actions.first, const SizedBox(width: 16), actions.last],
             ),
-            SidechainInfoSection(
-              title: 'General Info',
-              details: {
-                'Sidechain': widget.sidechainName,
-                'Network': _blockchainInfo?.chain ?? 'Unknown',
-                'Connected': widget.rpc.connected ? 'Yes' : 'No',
-              },
-            ),
-            SidechainInfoSection(
-              title: 'Blockchain Info',
-              details: {
-                'Current Block Height': _blockchainInfo?.blocks.toString() ?? 'Loading...',
-                'Headers': _blockchainInfo?.headers.toString() ?? 'Loading...',
-                'Best Block Hash': _truncateHash(
-                  _blockchainInfo?.bestBlockHash ?? '',
-                ),
-                'Sync Progress': '${((_blockchainInfo?.verificationProgress ?? 0) * 100).toStringAsFixed(0)}%',
-              },
-            ),
-            SidechainInfoSection(
-              title: 'Wallet Info',
-              details: {
-                'Confirmed Balance': '${_confirmedBalance?.toStringAsFixed(8) ?? '0.00000000'} ${activeTicker.symbol}',
-                'Unconfirmed Balance':
-                    '${_unconfirmedBalance?.toStringAsFixed(8) ?? '0.00000000'} ${activeTicker.symbol}',
-                'Total Balance':
-                    '${((_confirmedBalance ?? 0) + (_unconfirmedBalance ?? 0)).toStringAsFixed(8)} ${activeTicker.symbol}',
-                if (_sidechainWealth != null)
-                  'Total Sidechain Wealth': '${_sidechainWealth!.toStringAsFixed(8)} ${activeTicker.symbol}',
-              },
-            ),
+            ...sections,
           ],
         ),
       ),
@@ -278,6 +417,35 @@ class SidechainInfoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.sailTheme;
+    if (theme.isBitwindowV2) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SailText.primary13(title, bold: true),
+          const SizedBox(height: SailStyleValues.padding08),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding12, vertical: 6),
+            decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+            child: Column(
+              children: [
+                for (final e in details.entries)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        SailText.secondary13(e.key),
+                        const SizedBox(width: SailStyleValues.padding12),
+                        Expanded(child: SailText.primary13(e.value, textAlign: TextAlign.end)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -313,38 +481,48 @@ class SidechainProcessesTab extends StatelessWidget {
       builder: (context, _) {
         final allBinaries = binaryProvider.binaries;
 
-        return SailCard(
+        return _DebugPanel(
           title: 'Binaries',
           subtitle: 'Managed by orchestrator',
-          child: SailTable(
-            backgroundColor: theme.colors.backgroundSecondary,
-            getRowId: (index) => allBinaries[index].name,
-            headerBuilder: (context) => [
-              const SailTableHeaderCell(name: 'Name'),
-              const SailTableHeaderCell(name: 'Type'),
-              const SailTableHeaderCell(name: 'Port'),
-              const SailTableHeaderCell(name: 'Status'),
-            ],
-            rowBuilder: (context, row, selected) {
-              final binary = allBinaries[row];
-              final connected = binaryProvider.isConnected(binary);
-              final initializing = binaryProvider.isInitializing(binary);
+          child: _GreyTable(
+            table: SailTable(
+              backgroundColor: theme.isBitwindowV2 ? theme.colors.formField : theme.colors.backgroundSecondary,
+              getRowId: (index) => allBinaries[index].name,
+              headerBuilder: (context) => [
+                const SailTableHeaderCell(name: 'Name'),
+                const SailTableHeaderCell(name: 'Type'),
+                const SailTableHeaderCell(name: 'Port'),
+                const SailTableHeaderCell(name: 'Status'),
+              ],
+              rowBuilder: (context, row, selected) {
+                final binary = allBinaries[row];
+                final connected = binaryProvider.isConnected(binary);
+                final initializing = binaryProvider.isInitializing(binary);
 
-              final status = connected
-                  ? 'Connected'
-                  : initializing
-                  ? 'Initializing'
-                  : 'Disconnected';
+                final status = connected
+                    ? 'Connected'
+                    : initializing
+                    ? 'Initializing'
+                    : 'Disconnected';
 
-              return [
-                SailTableCell(value: binary.name),
-                SailTableCell(value: binary.type.name),
-                SailTableCell(value: binary.port.toString()),
-                SailTableCell(value: status),
-              ];
-            },
-            rowCount: allBinaries.length,
-            emptyPlaceholder: 'No processes running',
+                final tone = connected
+                    ? SailStatusTone.success
+                    : initializing
+                    ? SailStatusTone.warning
+                    : SailStatusTone.error;
+                return [
+                  SailTableCell(value: binary.name),
+                  SailTableCell(value: binary.type.name),
+                  SailTableCell(value: binary.port.toString()),
+                  SailTableCell(
+                    value: status,
+                    child: theme.isBitwindowV2 ? _DotLabel(label: status, tone: tone) : null,
+                  ),
+                ];
+              },
+              rowCount: allBinaries.length,
+              emptyPlaceholder: 'No processes running',
+            ),
           ),
         );
       },
@@ -360,7 +538,7 @@ class SidechainConsoleTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SailCard(
+    return _DebugPanel(
       title: 'Debug Console',
       subtitle: 'Execute $sidechainName CLI commands',
       child: const CLIConsoleView(),
@@ -477,7 +655,7 @@ class _SidechainPeersTabState extends State<SidechainPeersTab> {
     final theme = context.sailTheme;
 
     if (_isLoading) {
-      return const SailCard(
+      return const _DebugPanel(
         title: 'Peer Information',
         subtitle: 'Connected peers and their details',
         child: Center(child: LoadingIndicator()),
@@ -485,7 +663,7 @@ class _SidechainPeersTabState extends State<SidechainPeersTab> {
     }
 
     if (_error != null) {
-      return SailCard(
+      return _DebugPanel(
         title: 'Peer Information',
         subtitle: 'Connected peers and their details',
         child: Center(
@@ -503,7 +681,71 @@ class _SidechainPeersTabState extends State<SidechainPeersTab> {
       );
     }
 
-    return SailCard(
+    if (theme.isBitwindowV2) {
+      return _DebugPanel(
+        title: 'Peer Information',
+        subtitle: 'Connected peers and their details',
+        actions: [
+          SailRow(
+            spacing: SailStyleValues.padding08,
+            children: [
+              SailText.secondary12('Auto-refresh'),
+              SailToggle(
+                value: _autoRefreshEnabled,
+                onChanged: (_) => _toggleAutoRefresh(),
+              ),
+            ],
+          ),
+          SailButton(
+            label: 'Connect Peer',
+            onPressed: () async => _showConnectPeerDialog(),
+          ),
+          SailButton(
+            label: 'Refresh',
+            onPressed: () async => _loadPeers(),
+            variant: ButtonVariant.outline,
+          ),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SailText.secondary13('${_peers.length} peer(s) connected'),
+            const SizedBox(height: SailStyleValues.padding08),
+            Expanded(
+              child: _GreyTable(
+                table: SailTable(
+                  backgroundColor: theme.colors.formField,
+                  getRowId: (index) => _peers[index].address,
+                  headerBuilder: (context) => [
+                    const SailTableHeaderCell(name: 'Address'),
+                    const SailTableHeaderCell(name: 'Status'),
+                  ],
+                  rowBuilder: (context, row, selected) {
+                    final peer = _peers[row];
+                    return [
+                      SailTableCell(value: peer.address),
+                      SailTableCell(
+                        value: peer.status,
+                        child: _DotLabel(
+                          label: peer.status,
+                          tone: peer.status.toLowerCase().contains('connected')
+                              ? SailStatusTone.success
+                              : SailStatusTone.neutral,
+                        ),
+                      ),
+                    ];
+                  },
+                  rowCount: _peers.length,
+                  emptyPlaceholder: 'No peers connected',
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _DebugPanel(
       title: 'Peer Information',
       subtitle: 'Connected peers and their details',
       child: Column(
@@ -631,6 +873,41 @@ class _ConnectPeerDialogState extends State<ConnectPeerDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+
+    if (theme.isBitwindowV2) {
+      return Dialog(
+        backgroundColor: theme.colors.backgroundSecondary,
+        shape: RoundedRectangleBorder(borderRadius: theme.chrome.radiusLarge),
+        child: SizedBox(
+          width: 440,
+          child: SailCard(
+            title: 'Connect to Peer',
+            withCloseButton: true,
+            child: SailColumn(
+              spacing: SailStyleValues.padding12,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SailText.secondary13('Enter the address of the peer you want to connect to.'),
+                SailTextField(
+                  controller: _addressController,
+                  hintText: 'e.g., 127.0.0.1:8080 or peer.example.com:8080',
+                  enabled: !_isConnecting,
+                  errorText: _error,
+                ),
+                SailDialogActionButton(
+                  action: SailDialogAction(
+                    label: 'Connect',
+                    loadingLabel: _isConnecting ? 'Connecting...' : null,
+                    onPressed: _connect,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Dialog(
       backgroundColor: theme.colors.background,
@@ -901,7 +1178,7 @@ class _SidechainRPCMethodsTabState extends State<SidechainRPCMethodsTab> {
   Widget build(BuildContext context) {
     final theme = context.sailTheme;
 
-    return SailCard(
+    return _DebugPanel(
       title: 'RPC Methods',
       subtitle: 'Browse and execute available RPC methods',
       child: Row(

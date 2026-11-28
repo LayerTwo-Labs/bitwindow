@@ -76,18 +76,12 @@ class _UnlockWalletDialogState extends State<UnlockWalletDialog> {
   Widget build(BuildContext context) {
     return SailDialog(
       title: widget.title,
-      actions: [
-        SailButton(
-          label: 'Cancel',
-          variant: ButtonVariant.ghost,
-          onPressed: () async => Navigator.of(context).pop(false),
-        ),
-        SailButton(
-          label: 'Unlock',
-          loading: _unlocking,
-          onPressed: _unlock,
-        ),
-      ],
+      withCloseButton: true,
+      action: SailDialogAction(
+        label: 'Unlock',
+        loadingLabel: _unlocking ? 'Unlock' : null,
+        onPressed: _unlock,
+      ),
       child: SizedBox(
         width: 400,
         child: SailColumn(

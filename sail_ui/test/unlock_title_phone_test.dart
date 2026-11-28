@@ -3,9 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sail_ui/pages/unlock_wallet_page.dart' show BootTitle;
 import 'package:sail_ui/sail_ui.dart' hide BootTitle;
 
-Widget _title() {
+Widget _title({SailThemeStyle style = SailThemeStyle.sail}) {
   return SailTheme(
-    data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+    data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter, style),
     child: const Directionality(
       textDirection: TextDirection.ltr,
       child: Align(
@@ -39,5 +39,12 @@ void main() {
     await tester.pumpWidget(_title());
 
     expect(_fontSize(tester), 40);
+  });
+
+  testWidgets('in v2 the desktop decrypt title is 24 px, as on the other onboarding pages', (tester) async {
+    SailStyleValues.phoneLayoutOverride = false;
+    await tester.pumpWidget(_title(style: SailThemeStyle.bitwindowV2));
+
+    expect(_fontSize(tester), 24);
   });
 }

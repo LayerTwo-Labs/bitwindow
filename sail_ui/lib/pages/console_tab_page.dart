@@ -13,6 +13,11 @@ class ConsoleTabPage extends StatefulWidget {
 class _ConsoleTabPageState extends State<ConsoleTabPage> {
   @override
   Widget build(BuildContext context) {
+    if (SailTheme.of(context).isBitwindowV2) {
+      return const QtPage(
+        child: SailCard(padding: false, child: CLIConsoleView()),
+      );
+    }
     return QtPage(
       child: SailColumn(
         children: [const Expanded(child: CLIConsoleView())],

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sail_ui/sail_ui.dart';
 
-Widget _table({required bool fill}) {
+Widget _table({required bool fill, double width = 360, String fillHeader = 'Status'}) {
   return MaterialApp(
     home: SailTheme(
       data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
@@ -10,14 +11,14 @@ Widget _table({required bool fill}) {
         body: Align(
           alignment: Alignment.topLeft,
           child: SizedBox(
-            width: 360,
+            width: width,
             height: 200,
             child: SailTable(
               getRowId: (index) => 'row$index',
-              headerBuilder: (context) => const [
-                SailTableHeaderCell(name: 'Date'),
-                SailTableHeaderCell(name: 'Status'),
-                SailTableHeaderCell(name: 'Amount'),
+              headerBuilder: (context) => [
+                const SailTableHeaderCell(name: 'Date'),
+                SailTableHeaderCell(name: fillHeader),
+                const SailTableHeaderCell(name: 'Amount'),
               ],
               rowBuilder: (context, index, selected) => [
                 const SailTableCell(value: '2026-10-31 18:42', width: 118),
@@ -51,5 +52,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_header(tester, 'Amount').right, greaterThan(361));
+  });
+
+  testWidgets('a fill column with no width left keeps its header whole', (tester) async {
+    await tester.pumpWidget(_table(fill: true, width: 240, fillHeader: 'Long status header'));
+    await tester.pumpAndSettle();
+
+    final header = tester.renderObject<RenderParagraph>(find.text('Long status header'));
+    expect(header.didExceedMaxLines, isFalse);
+    expect(_header(tester, 'Long status header').width, greaterThan(defaultMinColumnWidth));
   });
 }

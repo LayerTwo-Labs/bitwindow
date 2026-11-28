@@ -110,7 +110,9 @@ class _WalletManagementDialogState extends State<WalletManagementDialog> {
 
     return Dialog(
       backgroundColor: theme.colors.background,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: theme.isBitwindowV2 ? theme.chrome.radiusLarge : BorderRadius.circular(12),
+      ),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 400),
         padding: const EdgeInsets.all(24),
@@ -189,7 +191,9 @@ class _DeleteConfirmationDialog extends StatelessWidget {
 
     return AlertDialog(
       backgroundColor: theme.colors.background,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: theme.isBitwindowV2 ? theme.chrome.radiusLarge : BorderRadius.circular(12),
+      ),
       title: SailText.primary15('Delete Wallet?', bold: true),
       content: SailText.primary13(
         'Are you sure you want to delete "$walletName"? This action cannot be undone.',

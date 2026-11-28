@@ -87,6 +87,9 @@ abstract class SidechainModule {
 
   Map<String, HomepageWidgetInfo> get widgetCatalog;
 
+  /// True puts the tables of the homepage at the left and the cards in a column at the right.
+  bool get homepageCardsRight => false;
+
   String get homeTabLabel => 'Overview';
 
   /// What the BMM tab shows above its controls about bidding on this chain,

@@ -49,7 +49,7 @@ void main() {
 
   tearDown(() async => GetIt.instance.reset());
 
-  testWidgets('the footer offers to open the configurator', (tester) async {
+  testWidgets('the "…" menu offers to open the configurator and to wipe', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -68,7 +68,11 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Open configurator'), findsWidgets);
+    expect(find.text('Open configurator'), findsNothing);
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Open configurator'), findsOneWidget);
+    expect(find.text('Wipe and reinstall'), findsOneWidget);
     expect(find.text('Open conf configurator'), findsNothing);
   });
 
@@ -101,7 +105,7 @@ void main() {
     expect(find.text('Installed at'), findsNothing);
     expect(find.text('Download file'), findsNothing);
     expect(find.text('Paths'), findsNothing);
-    expect(find.text('Wipe and reinstall'), findsNothing);
+    expect(find.byType(SailRowMenuButton), findsNothing, reason: 'a remote daemon offers no actions');
   });
 
   testWidgets('a local enforcer shows its binary', (tester) async {
@@ -111,10 +115,12 @@ void main() {
     expect(find.text('Version'), findsOneWidget);
     expect(find.text('Installed at'), findsOneWidget);
     expect(find.text('Paths'), findsOneWidget);
-    expect(find.text('Wipe and reinstall'), findsWidgets);
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Wipe and reinstall'), findsOneWidget);
   });
 
-  for (final (phone, titleSize, labelWidth) in [(true, 16.0, 112.0), (false, 20.0, 170.0)]) {
+  for (final (phone, titleSize, labelWidth) in [(true, 16.0, 112.0), (false, 16.0, 150.0)]) {
     testWidgets('the title is $titleSize px and the labels $labelWidth px wide when phoneLayout is $phone', (
       tester,
     ) async {

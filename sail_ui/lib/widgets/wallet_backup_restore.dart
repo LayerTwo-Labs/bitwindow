@@ -249,10 +249,11 @@ class _BackupWalletPageState extends State<BackupWalletPage> {
                       _selectedPath ?? 'Click to choose save location...',
                     ),
                   ),
-                  Icon(
-                    Icons.folder_open,
+                  SailSVG.fromAsset(
+                    SailSVGAsset.folderOpen,
+                    width: 20,
+                    height: 20,
                     color: theme.colors.textSecondary,
-                    size: 20,
                   ),
                 ],
               ),
@@ -362,9 +363,10 @@ class _BackupSuccessScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.check_circle_outline,
-                  size: 80,
+                SailSVG.fromAsset(
+                  SailSVGAsset.circleCheck,
+                  width: 80,
+                  height: 80,
                   color: SailColorScheme.green,
                 ),
                 const SizedBox(height: 24),
@@ -932,10 +934,11 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        backup.encrypted ? Icons.lock_outline : Icons.wallet_outlined,
+                      SailSVG.fromAsset(
+                        backup.encrypted ? SailSVGAsset.lock : SailSVGAsset.wallet,
+                        width: 18,
+                        height: 18,
                         color: selected ? theme.colors.primary : theme.colors.textSecondary,
-                        size: 18,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -1130,10 +1133,11 @@ class _WalletBackupRestoreOptionsState extends State<WalletBackupRestoreOptions>
                     _selectedFile?.path ?? 'Click to choose backup file...',
                   ),
                 ),
-                Icon(
-                  Icons.file_open,
+                SailSVG.fromAsset(
+                  SailSVGAsset.fileArrowUp,
+                  width: 20,
+                  height: 20,
                   color: theme.colors.textSecondary,
-                  size: 20,
                 ),
               ],
             ),
@@ -1191,7 +1195,11 @@ class _BackupPasswordDialogState extends State<_BackupPasswordDialog> {
     final theme = SailTheme.of(context);
     return Dialog(
       backgroundColor: theme.colors.background,
-      shape: SailSheetScope.of(context) ? null : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: SailSheetScope.of(context)
+          ? null
+          : RoundedRectangleBorder(
+              borderRadius: theme.isBitwindowV2 ? theme.chrome.radiusLarge : BorderRadius.circular(12),
+            ),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 400),
         padding: const EdgeInsets.all(24),

@@ -31,24 +31,17 @@ SailText.secondary12(  // ✅ Correct
 
 ## Icons
 
-### SailSVGAsset Available Icons
-Common icons available in sail_ui:
-- `SailSVGAsset.iconHome` - Home/Overview
-- `SailSVGAsset.iconWallet` - Wallet management
-- `SailSVGAsset.iconTools` - Developer tools/utilities
-- `SailSVGAsset.iconTabSettings` - Settings/Configuration
-- `SailSVGAsset.iconSend` - Send/Receive/Transfer
-- `SailSVGAsset.iconSidechains` - Sidechains/Network
-- `SailSVGAsset.iconCoins` - Coins/Balance
-- `SailSVGAsset.dividerDot` - Dot separator
+### SailSVGAsset Icons
+Every icon is a Phosphor Light (v2.1.1, MIT) SVG in `sail_ui/assets/icons/`.
+To add an icon:
+1. Copy `<name>-light.svg` from Phosphor into `sail_ui/assets/icons/<name>.svg`.
+2. Add a `SailSVGAsset` value and its `toAssetPath` case.
+
+Do not use Material `Icons`. `test/phosphor_icons_test.dart` fails for an icon that is not Phosphor Light.
 
 Usage:
 ```dart
-QtTab(
-  icon: SailSVGAsset.iconHome,
-  label: 'Home',
-  active: true,
-)
+SailSVG.icon(SailSVGAsset.wallet, width: 16, color: theme.colors.text)
 ```
 
 ## Theme Usage

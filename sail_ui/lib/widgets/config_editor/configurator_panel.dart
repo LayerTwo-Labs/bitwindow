@@ -695,6 +695,7 @@ class _FileInputState extends State<_FileInput> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
+                  showCloseIcon: true,
                   content: Text('Selected directory is not writable: $e'),
                   backgroundColor: SailTheme.of(context).colors.error,
                 ),
@@ -711,6 +712,7 @@ class _FileInputState extends State<_FileInput> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            showCloseIcon: true,
             content: Text(
               'Error selecting ${widget.option.inputType == ConfigInputType.directory ? 'directory' : 'file'}: $e',
             ),

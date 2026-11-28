@@ -204,11 +204,12 @@ class _NotificationBannerState extends State<NotificationBanner> {
                 const SizedBox(width: 10),
                 Expanded(child: SailText.secondary12(item.content, color: theme.colors.orange)),
                 GestureDetector(
+                  key: const Key('notification-banner-close'),
                   behavior: HitTestBehavior.opaque,
                   onTap: () async => provider.markRead(item.id),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: SailText.secondary13('✕', color: theme.colors.textSecondary),
+                    child: SailSVG.fromAsset(SailSVGAsset.x, width: 12, height: 12, color: theme.colors.text),
                   ),
                 ),
               ],

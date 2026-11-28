@@ -8,6 +8,8 @@ import 'package:sail_ui/sail_ui.dart';
 import 'package:sidechain_core/gen/walletmanager/v1/walletmanager.pb.dart' as wmpb;
 import 'package:sidechain_core/providers/price_provider.dart';
 
+import 'svg_finder.dart';
+
 class _Balance extends ChangeNotifier implements BalanceProvider {
   @override
   double balance = 1.5;
@@ -112,7 +114,7 @@ void main() {
       final labels = ['Generate wallet', 'Paste seed phrase', 'Import descriptor'];
       final tops = [for (final l in labels) tester.getTopLeft(find.text(l)).dy];
       expect(tops, [...tops]..sort());
-      expect(find.byIcon(Icons.content_paste), findsOneWidget);
+      expect(findSailSVG(SailSVGAsset.clipboardPaste), findsOneWidget);
 
       await tester.tap(find.text('Paste seed phrase'));
       await tester.pumpAndSettle();

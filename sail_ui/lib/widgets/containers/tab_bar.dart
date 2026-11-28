@@ -9,6 +9,9 @@ class InlineTabBar extends StatefulWidget {
   final Widget? endWidget;
   final bool secondary;
 
+  /// Sits at the left of the tab strip and moves the strip to the right, as in a card head.
+  final Widget? leading;
+
   const InlineTabBar({
     super.key,
     required this.tabs,
@@ -17,6 +20,7 @@ class InlineTabBar extends StatefulWidget {
     this.onTabChanged,
     this.endWidget,
     this.secondary = false,
+    this.leading,
   });
 
   @override
@@ -67,17 +71,29 @@ class InlineTabBarState extends State<InlineTabBar> {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    final v2 = theme.isBitwindowV2;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            if (widget.leading != null) ...[
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: widget.leading,
+                ),
+              ),
+              const SizedBox(width: SailStyleValues.padding12),
+            ],
             Flexible(
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                padding: v2 ? const EdgeInsets.all(3) : const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
                 decoration: BoxDecoration(
-                  color: widget.secondary
+                  color: v2
+                      ? theme.colors.formField
+                      : widget.secondary
                       ? context.sailTheme.colors.background
                       : context.sailTheme.colors.backgroundSecondary,
                   borderRadius: theme.chrome.radius,
@@ -180,7 +196,9 @@ class InlineTabBarState extends State<InlineTabBar> {
             if (widget.endWidget != null) widget.endWidget!,
           ],
         ),
-        const SizedBox(height: SailStyleValues.padding16),
+        SizedBox(
+          height: v2 ? SailStyleValues.padding12 : SailStyleValues.padding16,
+        ),
         Expanded(
           child: () {
             final tab = widget.tabs[_selectedIndex];
@@ -228,14 +246,26 @@ class SailTabItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
+    final v2 = theme.isBitwindowV2;
+    final labelColor = v2
+        ? (isSelected ? theme.colors.text : theme.colors.textSecondary)
+        : isSelected
+        ? context.sailTheme.colors.activeNavText
+        : context.sailTheme.colors.inactiveSubNavText;
     return InkWell(
       onTap: onTap,
+      borderRadius: v2 ? theme.chrome.radiusSmall : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          vertical: SailStyleValues.padding04,
+        padding: EdgeInsets.symmetric(
+          vertical: v2 ? 6 : SailStyleValues.padding04,
           horizontal: SailStyleValues.padding12,
         ),
-        decoration: theme.chrome.terminalStyle
+        decoration: v2
+            ? BoxDecoration(
+                color: isSelected ? theme.colors.backgroundSecondary : Colors.transparent,
+                borderRadius: theme.chrome.radiusSmall,
+              )
+            : theme.chrome.terminalStyle
             ? BoxDecoration(
                 color: Colors.transparent,
                 borderRadius: theme.chrome.radiusSmall,
@@ -255,44 +285,47 @@ class SailTabItem extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (leading != null) ...[leading!, const SizedBox(width: SailStyleValues.padding04)],
+            if (leading != null) ...[
+              leading!,
+              const SizedBox(width: SailStyleValues.padding04),
+            ],
             if (onLabelChanged != null && isSelected)
               SailEditableText(
                 value: label,
                 onSubmitted: onLabelChanged!,
                 showPencil: false,
                 editOnDoubleTap: true,
-                style: SailStyleValues.thirteen.copyWith(color: context.sailTheme.colors.activeNavText),
+                style: SailStyleValues.thirteen.copyWith(
+                  color: labelColor,
+                  fontWeight: v2 ? FontWeight.w600 : null,
+                ),
+              )
+            else if (v2)
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 2),
+                style: SailStyleValues.thirteen.copyWith(
+                  color: labelColor,
+                  fontWeight: isSelected ? FontWeight.w600 : null,
+                  fontFamily: theme.chrome.textFamily(),
+                ),
               )
             else
-              SailText.primary13(
-                label,
-                color: isSelected
-                    ? context.sailTheme.colors.activeNavText
-                    : context.sailTheme.colors.inactiveSubNavText,
-                bold: false,
-              ),
-            if (trailing != null) ...[const SizedBox(width: SailStyleValues.padding08), trailing!],
+              SailText.primary13(label, color: labelColor, bold: false),
+            if (trailing != null) ...[
+              const SizedBox(width: SailStyleValues.padding08),
+              trailing!,
+            ],
             if (icon != null) const SizedBox(width: SailStyleValues.padding04),
             if (icon != null)
               GestureDetector(
                 onTap: onIconTap,
-                child: SailSVG.fromAsset(
-                  icon!,
-                  color: isSelected
-                      ? context.sailTheme.colors.activeNavText
-                      : context.sailTheme.colors.inactiveSubNavText,
-                  height: 13,
-                ),
+                child: SailSVG.fromAsset(icon!, color: labelColor, height: 13),
               )
             else if (withDropdown)
-              Icon(
-                Icons.arrow_drop_down,
-                color: isSelected
-                    ? context.sailTheme.colors.activeNavText
-                    : context.sailTheme.colors.inactiveSubNavText,
-                size: 18,
-              ),
+              SailSVG.fromAsset(SailSVGAsset.chevronDown, color: labelColor, width: 18, height: 18),
           ],
         ),
       ),

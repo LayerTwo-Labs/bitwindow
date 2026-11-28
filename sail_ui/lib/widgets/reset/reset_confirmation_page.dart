@@ -211,7 +211,12 @@ class _ResetConfirmationPageState extends State<ResetConfirmationPage> {
   ) {
     final state = resetHeaderState(deletionComplete: _deletionComplete, errorCount: errorCount);
     final icon = switch (state) {
-      ResetHeaderState.success => Icon(Icons.check_circle, color: theme.colors.success, size: 32),
+      ResetHeaderState.success => SailSVG.fromAsset(
+        SailSVGAsset.circleCheck,
+        color: theme.colors.success,
+        width: 32,
+        height: 32,
+      ),
       ResetHeaderState.partial => SailSVG.fromAsset(
         SailSVGAsset.iconWarning,
         color: theme.colors.orange,
@@ -409,7 +414,7 @@ class _StatusIcon extends StatelessWidget {
         return SizedBox(
           width: 16,
           height: 16,
-          child: Icon(Icons.circle_outlined, size: 14, color: theme.colors.textTertiary),
+          child: SailSVG.fromAsset(SailSVGAsset.circle, width: 14, height: 14, color: theme.colors.textTertiary),
         );
       case DeleteItemStatus.inProgress:
         return SizedBox(
@@ -421,13 +426,13 @@ class _StatusIcon extends StatelessWidget {
         return SizedBox(
           width: 16,
           height: 16,
-          child: Icon(Icons.check_circle, size: 16, color: theme.colors.success),
+          child: SailSVG.fromAsset(SailSVGAsset.circleCheck, width: 16, height: 16, color: theme.colors.success),
         );
       case DeleteItemStatus.error:
         return SizedBox(
           width: 16,
           height: 16,
-          child: Icon(Icons.error, size: 16, color: theme.colors.error),
+          child: SailSVG.fromAsset(SailSVGAsset.circleAlert, width: 16, height: 16, color: theme.colors.error),
         );
     }
   }

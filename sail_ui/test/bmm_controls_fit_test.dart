@@ -89,10 +89,10 @@ void main() {
 
     expect(tester.takeException(), isNull);
     final card = tester.getRect(find.byType(BmmControls));
-    for (final label in ['Start auto-bidding', 'Bid manually']) {
-      final button = find.byWidgetPredicate((w) => w is SailButton && w.label == label);
-      expect(card.contains(tester.getRect(button).bottomRight - const Offset(1, 1)), isTrue, reason: label);
-    }
+    final toggle = find.byWidgetPredicate((w) => w is SailButton && w.label == 'Start auto-bidding');
+    expect(card.contains(tester.getRect(toggle).bottomRight - const Offset(1, 1)), isTrue);
+    final menu = find.byType(SailRowMenuButton);
+    expect(card.contains(tester.getRect(menu).bottomRight - const Offset(1, 1)), isTrue, reason: 'Bid manually');
     for (final label in ['Min bid:', 'Max bid:']) {
       expect(card.contains(tester.getRect(find.text(label)).center), isTrue, reason: label);
     }

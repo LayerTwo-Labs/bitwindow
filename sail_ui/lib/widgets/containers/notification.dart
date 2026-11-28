@@ -58,6 +58,8 @@ class SailNotification extends StatelessWidget {
               children: [
                 SailSVG.fromAsset(
                   SailSVGAsset.iconInfo,
+                  width: 14,
+                  height: 14,
                   color: findColorForType(dialogType),
                 ),
                 const SizedBox(width: 8),

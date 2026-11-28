@@ -67,14 +67,17 @@ class _SailCheckboxState extends State<SailCheckbox> {
                 color: color,
                 boxShadow: enabled && !flat ? sailBoxShadow(context) : null,
               ),
-        child: Icon(
-          Icons.check,
-          size: widget.size - 2,
-          color: chrome.beveled
-              ? context.sailTheme.colors.text
-              : flat
-              ? context.sailTheme.colors.primaryButtonText
-              : context.sailTheme.colors.background,
+        child: Center(
+          child: SailSVG.fromAsset(
+            SailSVGAsset.check,
+            width: widget.size - 2,
+            height: widget.size - 2,
+            color: chrome.beveled
+                ? context.sailTheme.colors.text
+                : flat
+                ? context.sailTheme.colors.primaryButtonText
+                : context.sailTheme.colors.background,
+          ),
         ),
       );
     } else {

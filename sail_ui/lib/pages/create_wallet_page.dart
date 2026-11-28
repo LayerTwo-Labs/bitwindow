@@ -615,7 +615,7 @@ class _SailCreateWalletPageState extends State<SailCreateWalletPage> {
         ),
         child: Row(
           children: [
-            Icon(Icons.upload_file, color: theme.colors.textSecondary, size: 20),
+            SailSVG.fromAsset(SailSVGAsset.fileArrowUp, color: theme.colors.textSecondary, width: 20, height: 20),
             const SizedBox(width: 12),
             Expanded(
               child: SailText.secondary13(
@@ -625,7 +625,7 @@ class _SailCreateWalletPageState extends State<SailCreateWalletPage> {
             if (selected != null)
               GestureDetector(
                 onTap: () => setState(() => _selectedBackupFile = null),
-                child: Icon(Icons.close, color: theme.colors.textSecondary, size: 18),
+                child: SailSVG.fromAsset(SailSVGAsset.x, color: theme.colors.textSecondary, width: 18, height: 18),
               ),
           ],
         ),

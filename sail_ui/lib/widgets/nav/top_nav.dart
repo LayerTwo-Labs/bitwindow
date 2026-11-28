@@ -138,6 +138,8 @@ class _PhoneTopNav extends StatelessWidget {
                     SailButton(
                       variant: ButtonVariant.icon,
                       icon: SailSVGAsset.menu,
+                      // The square icon box needs a thinner pad to keep the phone bar at 53 px.
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10.5),
                       onPressed: () async => Scaffold.of(context).openDrawer(),
                     ),
                     Expanded(
@@ -207,7 +209,9 @@ class TopNavDrawer extends StatelessWidget {
       width: 288,
       backgroundColor: theme.colors.backgroundSecondary,
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
+        borderRadius: BorderRadius.horizontal(
+          right: theme.isBitwindowV2 ? theme.chrome.radiusLarge.topRight : const Radius.circular(20),
+        ),
         side: BorderSide(color: theme.colors.border),
       ),
       child: SafeArea(

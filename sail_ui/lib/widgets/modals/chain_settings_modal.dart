@@ -42,6 +42,8 @@ class _ChainSettingsModalState extends State<ChainSettingsModal> {
 
   bool get _resetting => _resetStream != null;
 
+  int _tab = 0;
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +54,13 @@ class _ChainSettingsModalState extends State<ChainSettingsModal> {
       _loadBinaryVersion();
     }
     _loadChainHeight();
+    _resetTarget.addListener(_clearNoTarget);
+  }
+
+  void _clearNoTarget() {
+    if (_error == _noTargetError && _resetTarget.text.isNotEmpty) {
+      setState(() => _error = null);
+    }
   }
 
   @override
@@ -167,20 +176,32 @@ class _ChainSettingsModalState extends State<ChainSettingsModal> {
   Future<void> _startReset(BuildContext context) async {
     final target = _resetTarget.text.trim();
     if (target.isEmpty) {
-      setState(() => _error = 'Give a height or a block hash.');
+      setState(() => _error = _noTargetError);
       return;
     }
 
-    await infoDialog(
+    BuildContext? confirmContext;
+    await widgetDialog(
       context: context,
       title: 'Reset to block $target?',
-      subtitle:
-          'That block and every block above it leave the active chain, then the node replays them from disk. '
-          'The blocks stay on disk, so the replay downloads nothing.',
-      onConfirm: () async {
-        Navigator.of(context).pop();
-        await _runReset(target);
-      },
+      maxWidth: 440,
+      action: SailDialogAction(
+        label: 'Confirm',
+        variant: ButtonVariant.destructive,
+        onPressed: () async {
+          Navigator.of(confirmContext!).pop();
+          await _runReset(target);
+        },
+      ),
+      child: Builder(
+        builder: (context) {
+          confirmContext = context;
+          return SailText.secondary13(
+            'That block and every block above it leave the active chain, then the node replays them from disk. '
+            'The blocks stay on disk, so the replay downloads nothing.',
+          );
+        },
+      ),
     );
   }
 
@@ -296,36 +317,142 @@ class _ChainSettingsModalState extends State<ChainSettingsModal> {
         final theme = SailTheme.of(context);
         final binary = viewModel.binary;
         final version = _loadingVersion ? 'Loading...' : (_binaryVersion ?? binary.version);
+        final menu = _menuItems(context, viewModel);
+        final tabs = [
+          (
+            'Overview',
+            () => widget.remote
+                ? _RemoteOverviewTab(binary: binary)
+                : _OverviewTab(viewModel: viewModel, version: version),
+          ),
+          if (!widget.remote)
+            ('Paths', () => _PathsTab(viewModel: viewModel, args: args, resolvedBinaryPath: _resolvedBinaryPath)),
+          if (_isBitcoinCore)
+            (
+              'Chain',
+              () {
+                final height = _chainHeight?.toString() ?? (_chainHeightFailed ? 'Unavailable' : 'Loading...');
+                final enforcer =
+                    _enforcerHeight?.toString() ??
+                    (_chainHeightFailed || _enforcerFailed ? 'Unavailable' : 'Loading...');
+                final noTarget = _error == _noTargetError;
+
+                return SailColumn(
+                  spacing: SailStyleValues.padding12,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FieldGroup(
+                      children: [
+                        _FieldRow(label: 'Network', value: GetIt.I.get<BitcoinConfProvider>().network.name),
+                        _FieldRow(label: 'Core height', value: height),
+                        _FieldRow(label: 'Enforcer height', value: enforcer),
+                      ],
+                    ),
+                    SailColumn(
+                      spacing: SailStyleValues.padding08,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SailText.primary13('Reset to Block', bold: true),
+                        SailText.secondary13(
+                          'Give a height or a block hash. The node moves back to that block, then syncs forward to the tip again. '
+                          'The blocks stay on disk, so it downloads nothing.',
+                        ),
+                      ],
+                    ),
+                    SailRow(
+                      spacing: SailStyleValues.padding08,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: SailTextField(
+                            controller: _resetTarget,
+                            hintText: 'Height or block hash',
+                            enabled: !_resetting,
+                            errorText: noTarget ? _noTargetError : null,
+                          ),
+                        ),
+                        SailButton(
+                          label: 'Reset to Block',
+                          variant: ButtonVariant.outline,
+                          onPressed: _resetting ? null : () async => _startReset(context),
+                          loading: _resetting,
+                          loadingLabel: _resetLoadingLabel(),
+                        ),
+                      ],
+                    ),
+                    ?_resetStatus(theme, noTarget),
+                  ],
+                );
+              },
+            ),
+        ];
+        final tab = _tab.clamp(0, tabs.length - 1);
+        final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
 
         return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            width: 640,
-            height: 620,
-            padding: const EdgeInsets.all(SailStyleValues.padding25),
-            decoration: BoxDecoration(
-              color: theme.colors.backgroundSecondary,
-              borderRadius: context.sailTheme.chrome.radius,
-            ),
-            child: SailColumn(
-              spacing: SailStyleValues.padding16,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _header(context, viewModel, version),
-                Expanded(
-                  child: InlineTabBar(
-                    tabs: [
-                      SingleTabItem(
-                        label: 'Overview',
-                        child: widget.remote ? _remoteOverviewTab(viewModel) : _overviewTab(viewModel, version),
+          backgroundColor: theme.colors.backgroundSecondary,
+          shape: RoundedRectangleBorder(
+            borderRadius: theme.chrome.radiusLarge,
+            side: BorderSide(color: theme.colors.border),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 640, maxHeight: maxHeight),
+            child: Padding(
+              padding: const EdgeInsets.all(SailStyleValues.padding16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SailColumn(
+                    spacing: SailStyleValues.padding12,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SailRow(
+                        spacing: SailStyleValues.padding08,
+                        children: [
+                          Expanded(child: SailText.primary16(binary.name, bold: true)),
+                          if (menu.isNotEmpty) SailRowMenuButton(items: () => _menuItems(context, viewModel)),
+                          SailIconBoxButton(
+                            icon: SailSVGAsset.x,
+                            tooltip: 'Close',
+                            onPressed: () async => Navigator.pop(context),
+                          ),
+                        ],
                       ),
-                      if (!widget.remote) SingleTabItem(label: 'Paths', child: _pathsTab(viewModel)),
-                      if (_isBitcoinCore) SingleTabItem(label: 'Chain', child: _chainTab(context, theme)),
+                      SailText.secondary13(
+                        widget.remote
+                            ? '${_chainLayer(binary)} · remote'
+                            : '${_chainLayer(binary)} · 127.0.0.1:${_port()} · version $version',
+                      ),
                     ],
                   ),
-                ),
-                _footer(context, viewModel),
-              ],
+                  const SailSpacing(SailStyleValues.padding12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SailSegments(
+                      labels: [for (final (label, _) in tabs) label],
+                      activeIndex: tab,
+                      onSelect: (index) => setState(() => _tab = index),
+                    ),
+                  ),
+                  const SailSpacing(SailStyleValues.padding12),
+                  Flexible(child: SingleChildScrollView(child: tabs[tab].$2())),
+                  if (viewModel.showUpdateButton || viewModel.isUpdating) ...[
+                    const SailSpacing(SailStyleValues.padding16),
+                    SailDialogActionButton(
+                      action: SailDialogAction(
+                        label: 'Update',
+                        loadingLabel: viewModel.isUpdating ? 'Updating' : null,
+                        onPressed: () async {
+                          if (!viewModel.isUpdating) {
+                            await viewModel.handleUpdate(context);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         );
@@ -333,175 +460,26 @@ class _ChainSettingsModalState extends State<ChainSettingsModal> {
     );
   }
 
-  Widget _header(BuildContext context, ChainSettingsViewModel viewModel, String version) {
+  List<SailMenuEntity> _menuItems(BuildContext context, ChainSettingsViewModel viewModel) {
     final theme = SailTheme.of(context);
-    final binary = viewModel.binary;
-
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      children: [
-        Expanded(
-          child: SailColumn(
-            spacing: SailStyleValues.padding04,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SailStyleValues.phoneLayout(context)
-                  ? SailText.primary16(binary.name, bold: true)
-                  : SailText.primary20(binary.name),
-              SailText.secondary13(
-                widget.remote
-                    ? '${_chainLayer(binary)} · remote'
-                    : '${_chainLayer(binary)} · 127.0.0.1:${_port()} · version $version',
-                color: theme.colors.textSecondary,
-              ),
-            ],
+    return [
+      if (!widget.remote)
+        SailMenuItem(
+          onSelected: () => unawaited(_showWipeReset(context, viewModel.binary)),
+          child: SailTooltip(
+            message: 'Wipe ${viewModel.binary.name} binary, data, and wallets, then reinstall',
+            child: SailText.primary13('Wipe and reinstall', color: theme.colors.error),
           ),
         ),
-        if (viewModel.showUpdateButton)
-          SailButton(
-            label: 'Update',
-            onPressed: viewModel.isUpdating ? null : () => viewModel.handleUpdate(context),
-            loading: viewModel.isUpdating,
-            loadingLabel: 'Updating',
-          ),
-      ],
-    );
-  }
-
-  Widget _remoteOverviewTab(ChainSettingsViewModel viewModel) {
-    final binary = viewModel.binary;
-    return SingleChildScrollView(
-      child: SailColumn(
-        spacing: 0,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _FieldRow(label: 'Runs on', value: 'Remote validator'),
-          if (binary.repoUrl.isNotEmpty) _FieldRow(label: 'Repository', value: binary.repoUrl, copyable: true),
-        ],
-      ),
-    );
-  }
-
-  Widget _overviewTab(ChainSettingsViewModel viewModel, String version) {
-    final binary = viewModel.binary;
-    final network = GetIt.I.get<BitcoinConfProvider>().network;
-    var downloadFile = binary.metadata.downloadConfig.files[network]?[viewModel.os];
-    final variants = binary.metadata.downloadConfig.variants;
-    if (downloadFile == null && variants.isNotEmpty && GetIt.I.isRegistered<CoreVariantProvider>()) {
-      final activeId = GetIt.I.get<CoreVariantProvider>().activeId;
-      downloadFile = (variants[activeId] ?? variants.values.first)[viewModel.os];
-    }
-
-    return SingleChildScrollView(
-      child: SailColumn(
-        spacing: 0,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _FieldRow(label: 'Version', value: version),
-          if (binary.repoUrl.isNotEmpty) _FieldRow(label: 'Repository', value: binary.repoUrl, copyable: true),
-          _FieldRow(
-            label: 'Latest release at',
-            value: binary.metadata.remoteTimestamp?.toLocal().toString() ?? 'N/A',
-          ),
-          _FieldRow(
-            label: 'Installed at',
-            value: binary.metadata.downloadedTimestamp?.toLocal().toString() ?? 'N/A',
-          ),
-          if (downloadFile != null) _FieldRow(label: 'Download file', value: downloadFile, copyable: true),
-          _HashVerificationSection(downloadInfo: binary.downloadInfo),
-        ],
-      ),
-    );
-  }
-
-  Widget _pathsTab(ChainSettingsViewModel viewModel) {
-    final binary = viewModel.binary;
-    final network = GetIt.I.get<BitcoinConfProvider>().network;
-    final baseDir = binary.directories.binary[network]?[viewModel.os];
-
-    return SingleChildScrollView(
-      child: SailColumn(
-        spacing: 0,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (baseDir != null) _FieldRow(label: 'Installation directory', value: baseDir, copyable: true),
-          _FieldRow(label: 'Data directory', value: binary.datadirNetwork(), copyable: true),
-          _FieldRow(label: 'Log path', value: binary.logPath(), copyable: true),
-          _FieldRow(
-            label: 'Binary asset path',
-            // Prefer the path the orchestrator actually resolved (and ran
-            // --version against); fall back to the reported status path while
-            // that's still loading.
-            value: _resolvedBinaryPath ?? binary.metadata.binaryPath?.path ?? 'N/A',
-            copyable: true,
-          ),
-          if (args.isNotEmpty) _FieldRow(label: 'Binary arguments', value: args.join(' \\\n'), copyable: true),
-        ],
-      ),
-    );
-  }
-
-  Widget _chainTab(BuildContext context, SailThemeData theme) {
-    final height = _chainHeight?.toString() ?? (_chainHeightFailed ? 'Unavailable' : 'Loading...');
-    final enforcer =
-        _enforcerHeight?.toString() ?? (_chainHeightFailed || _enforcerFailed ? 'Unavailable' : 'Loading...');
-
-    return SingleChildScrollView(
-      child: SailColumn(
-        spacing: SailStyleValues.padding20,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SailColumn(
-            spacing: 0,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _FieldRow(label: 'Network', value: GetIt.I.get<BitcoinConfProvider>().network.name),
-              _FieldRow(label: 'Core height', value: height),
-              _FieldRow(label: 'Enforcer height', value: enforcer),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.all(SailStyleValues.padding16),
-            decoration: BoxDecoration(
-              borderRadius: context.sailTheme.chrome.radius,
-              border: Border.all(color: theme.colors.border),
-            ),
-            child: SailColumn(
-              spacing: SailStyleValues.padding12,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SailText.primary13('Reset to Block', bold: true),
-                SailText.secondary13(
-                  'Give a height or a block hash. The node moves back to that block, then syncs forward to the tip again. '
-                  'The blocks stay on disk, so it downloads nothing.',
-                  color: theme.colors.textSecondary,
-                ),
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  children: [
-                    Expanded(
-                      child: SailTextField(
-                        controller: _resetTarget,
-                        hintText: 'Height or block hash',
-                        enabled: !_resetting,
-                        dense: true,
-                      ),
-                    ),
-                    SailButton(
-                      label: 'Reset to Block',
-                      onPressed: _resetting ? null : () async => _startReset(context),
-                      loading: _resetting,
-                      loadingLabel: _resetLoadingLabel(),
-                    ),
-                  ],
-                ),
-                ..._resetStatus(theme),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+      if (widget.onOpenConfConfigurator != null)
+        SailMenuItem(
+          onSelected: () {
+            Navigator.pop(context);
+            widget.onOpenConfConfigurator!();
+          },
+          child: SailText.primary13('Open configurator'),
+        ),
+    ];
   }
 
   String _resetLoadingLabel() {
@@ -512,38 +490,59 @@ class _ChainSettingsModalState extends State<ChainSettingsModal> {
     };
   }
 
-  /// The panel under the field: the failure, the live progress, or the result.
-  List<Widget> _resetStatus(SailThemeData theme) {
+  /// The area under the field: the failure, the live progress, or the result.
+  Widget? _resetStatus(SailThemeData theme, bool noTarget) {
+    if (noTarget) {
+      return null;
+    }
     if (_error != null) {
-      return [SailText.secondary12(_error!, color: theme.colors.error)];
+      return _ResetArea(children: [SailText.secondary12(_error!, color: theme.colors.error)]);
     }
 
     final reset = _reset;
     if (reset == null) {
-      return [
-        SailText.secondary12(
-          'A height names the block on the chain this node follows today. Paste a hash to name one exactly.',
-          color: theme.colors.textSecondary,
-        ),
-      ];
+      return SailText.secondary12(
+        'A height names the block on the chain this node follows today. Paste a hash to name one exactly.',
+      );
     }
 
     if (reset.done) {
-      return [
-        SailText.secondary12(reset.message, color: theme.colors.success),
-        SailText.secondary12(_enforcerResult(reset), color: theme.colors.textSecondary),
-      ];
+      final enforcerError = reset.enforcerError.isNotEmpty;
+      return _ResetArea(
+        children: [
+          SailText.primary12(reset.message, bold: true),
+          SailText.secondary12(
+            _enforcerResult(reset),
+            color: enforcerError
+                ? theme.colors.error
+                : reset.enforcerChecked && !reset.enforcerRebuilt
+                ? theme.colors.success
+                : null,
+          ),
+        ],
+      );
     }
 
-    return [
-      SailText.secondary12(reset.message, color: theme.colors.textSecondary),
-      if (reset.phase == ResetPhase.RESET_PHASE_SYNC_FORWARD && reset.blocksTotal != 0)
-        ProgressBar(
-          current: reset.blocksDone.toDouble(),
-          goal: reset.blocksTotal.toDouble(),
-          color: theme.colors.primary,
+    final forward =
+        reset.phase == ResetPhase.RESET_PHASE_SYNC_FORWARD || reset.phase == ResetPhase.RESET_PHASE_ENFORCER;
+    return _ResetArea(
+      children: [
+        SailRow(
+          spacing: SailStyleValues.padding12,
+          children: [
+            _ResetStep(label: 'Moves back', tone: forward ? SailStatusTone.success : SailStatusTone.warning),
+            _ResetStep(label: 'Syncs forward', tone: forward ? SailStatusTone.warning : SailStatusTone.neutral),
+          ],
         ),
-    ];
+        if (reset.phase == ResetPhase.RESET_PHASE_SYNC_FORWARD && reset.blocksTotal != 0)
+          ProgressBar(
+            current: reset.blocksDone.toDouble(),
+            goal: reset.blocksTotal.toDouble(),
+            color: theme.colors.primary,
+          ),
+        SailText.secondary12(reset.message),
+      ],
+    );
   }
 
   String _enforcerResult(ResetToBlockResponse reset) {
@@ -558,41 +557,165 @@ class _ChainSettingsModalState extends State<ChainSettingsModal> {
     }
     return "The enforcer sits on Core's chain at ${reset.enforcerHeight}.";
   }
+}
 
-  Widget _footer(BuildContext context, ChainSettingsViewModel viewModel) {
-    return SailRow(
-      spacing: SailStyleValues.padding08,
+const String _noTargetError = 'Give a height or a block hash.';
+
+class _RemoteOverviewTab extends StatelessWidget {
+  final Binary binary;
+
+  const _RemoteOverviewTab({required this.binary});
+
+  @override
+  Widget build(BuildContext context) {
+    return _FieldGroup(
       children: [
-        if (!widget.remote)
-          Tooltip(
-            message: 'Wipe ${viewModel.binary.name} binary, data, and wallets, then reinstall',
-            child: SailButton(
-              label: 'Wipe and reinstall',
-              variant: ButtonVariant.ghost,
-              textColor: SailColorScheme.red,
-              onPressed: () async => _showWipeReset(context, viewModel.binary),
-            ),
-          ),
-        const Spacer(),
-        if (widget.onOpenConfConfigurator != null)
-          SailButton(
-            label: 'Open configurator',
-            variant: ButtonVariant.outline,
-            onPressed: () async {
-              Navigator.pop(context);
-              widget.onOpenConfConfigurator!();
-            },
-          ),
-        SailButton(
-          label: 'Close',
-          onPressed: () async => Navigator.pop(context),
-        ),
+        const _FieldRow(label: 'Runs on', value: 'Remote validator'),
+        if (binary.repoUrl.isNotEmpty) _FieldRow(label: 'Repository', value: binary.repoUrl, copyable: true),
       ],
     );
   }
 }
 
-double _labelWidth(BuildContext context) => SailStyleValues.phoneLayout(context) ? 112 : 170;
+class _OverviewTab extends StatelessWidget {
+  final ChainSettingsViewModel viewModel;
+  final String version;
+
+  const _OverviewTab({required this.viewModel, required this.version});
+
+  @override
+  Widget build(BuildContext context) {
+    final binary = viewModel.binary;
+    final network = GetIt.I.get<BitcoinConfProvider>().network;
+    var downloadFile = binary.metadata.downloadConfig.files[network]?[viewModel.os];
+    final variants = binary.metadata.downloadConfig.variants;
+    if (downloadFile == null && variants.isNotEmpty && GetIt.I.isRegistered<CoreVariantProvider>()) {
+      final activeId = GetIt.I.get<CoreVariantProvider>().activeId;
+      downloadFile = (variants[activeId] ?? variants.values.first)[viewModel.os];
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FieldGroup(
+          children: [
+            _FieldRow(label: 'Version', value: version),
+            if (binary.repoUrl.isNotEmpty) _FieldRow(label: 'Repository', value: binary.repoUrl, copyable: true),
+            _FieldRow(
+              label: 'Latest release at',
+              value: binary.metadata.remoteTimestamp?.toLocal().toString() ?? 'N/A',
+            ),
+            _FieldRow(
+              label: 'Installed at',
+              value: binary.metadata.downloadedTimestamp?.toLocal().toString() ?? 'N/A',
+            ),
+            if (downloadFile != null) _FieldRow(label: 'Download file', value: downloadFile, copyable: true),
+          ],
+        ),
+        _HashVerificationSection(downloadInfo: binary.downloadInfo),
+      ],
+    );
+  }
+}
+
+class _PathsTab extends StatelessWidget {
+  final ChainSettingsViewModel viewModel;
+  final List<String> args;
+  final String? resolvedBinaryPath;
+
+  const _PathsTab({required this.viewModel, required this.args, required this.resolvedBinaryPath});
+
+  @override
+  Widget build(BuildContext context) {
+    final binary = viewModel.binary;
+    final network = GetIt.I.get<BitcoinConfProvider>().network;
+    final baseDir = binary.directories.binary[network]?[viewModel.os];
+
+    return _FieldGroup(
+      children: [
+        if (baseDir != null) _FieldRow(label: 'Installation directory', value: baseDir, copyable: true),
+        _FieldRow(label: 'Data directory', value: binary.datadirNetwork(), copyable: true),
+        _FieldRow(label: 'Log path', value: binary.logPath(), copyable: true),
+        _FieldRow(
+          label: 'Binary asset path',
+          // Prefer the path the orchestrator actually resolved (and ran
+          // --version against); fall back to the reported status path while
+          // that's still loading.
+          value: resolvedBinaryPath ?? binary.metadata.binaryPath?.path ?? 'N/A',
+          copyable: true,
+        ),
+        if (args.isNotEmpty) _FieldRow(label: 'Binary arguments', value: args.join(' \\\n'), copyable: true),
+      ],
+    );
+  }
+}
+
+/// The grey box that holds the run or the result of a reset.
+class _ResetArea extends StatelessWidget {
+  final List<Widget> children;
+
+  const _ResetArea({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(SailStyleValues.padding12),
+      decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+      child: SailColumn(
+        spacing: SailStyleValues.padding08,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+}
+
+/// One step of a reset: a dot that is orange while it runs, green once it is done.
+class _ResetStep extends StatelessWidget {
+  final String label;
+  final SailStatusTone tone;
+
+  const _ResetStep({required this.label, required this.tone});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailRow(
+      spacing: 6,
+      children: [
+        SailStatusDot(tone: tone),
+        SailText.primary12(label),
+      ],
+    );
+  }
+}
+
+double _labelWidth(BuildContext context) => SailStyleValues.phoneLayout(context) ? 112 : 150;
+
+/// Detail rows on a grey box, a hairline between two rows.
+class _FieldGroup extends StatelessWidget {
+  final List<Widget> children;
+
+  const _FieldGroup({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding12),
+      decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (index, child) in children.indexed) ...[
+            if (index > 0) Container(height: 1, color: theme.colors.divider),
+            child,
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 /// Label and value on one line, with an optional copy action.
 class _FieldRow extends StatelessWidget {
@@ -606,18 +729,15 @@ class _FieldRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.colors.divider)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding08),
       child: SailRow(
         spacing: SailStyleValues.padding16,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: _labelWidth(context),
-            child: SailText.secondary13(label, color: theme.colors.textSecondary),
+            child: SailText.secondary13(label),
           ),
           Expanded(
             child: SelectableText(
@@ -654,45 +774,40 @@ class _HashVerificationSection extends StatelessWidget {
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: SailStyleValues.padding20),
-        SailText.secondary12('HASH VERIFICATION', color: theme.colors.textSecondary),
-        const SizedBox(height: SailStyleValues.padding04),
-        if (localHash != null) _HashRow(label: 'Local SHA256', hash: localHash),
-        if (releaseHash != null)
-          _HashRow(
-            label: 'Release server',
-            hash: releaseHash,
-            isMismatch: localHash != null && releaseHash != localHash,
-          ),
+        const SizedBox(height: SailStyleValues.padding16),
+        SailText.secondary12('HASH VERIFICATION', bold: true),
+        const SizedBox(height: SailStyleValues.padding08),
+        _FieldGroup(
+          children: [
+            if (localHash != null) _HashRow(label: 'Local SHA256', hash: localHash),
+            if (releaseHash != null)
+              _HashRow(
+                label: 'Release server',
+                hash: releaseHash,
+                isMismatch: localHash != null && releaseHash != localHash,
+              ),
+          ],
+        ),
         const SizedBox(height: SailStyleValues.padding08),
         if (isMismatch)
-          Tooltip(
+          SailTooltip(
             message:
                 'The downloaded binary does not match the expected hash from the release server. '
                 'This could indicate the binary was tampered with or the download was corrupted.',
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding12, vertical: 10),
               decoration: BoxDecoration(
-                color: theme.colors.error.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: theme.colors.error.withValues(alpha: 0.3),
-                ),
+                color: theme.colors.formField,
+                borderRadius: theme.chrome.radius,
+                border: Border.all(color: theme.colors.error),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: theme.colors.error,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  SailText.secondary12(
-                    'HASH MISMATCH — binary may be compromised',
-                    color: theme.colors.error,
-                  ),
+                  const SailStatusDot(tone: SailStatusTone.error),
+                  const SizedBox(width: SailStyleValues.padding08),
+                  Flexible(child: SailText.primary13('HASH MISMATCH — binary may be compromised')),
                 ],
               ),
             ),
@@ -700,10 +815,7 @@ class _HashVerificationSection extends StatelessWidget {
         else if (downloadInfo.hashMatch == true)
           SailText.secondary12('Hashes match the release server.', color: theme.colors.success)
         else
-          SailText.secondary12(
-            'Not compared — one of the two hashes is missing.',
-            color: theme.colors.textSecondary,
-          ),
+          SailText.secondary12('Not compared — one of the two hashes is missing.'),
       ],
     );
   }
@@ -724,22 +836,16 @@ class _HashRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
 
-    return Tooltip(
+    return SailTooltip(
       message: hash,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding10),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: theme.colors.divider)),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding08),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
               width: _labelWidth(context),
-              child: SailText.secondary13(
-                label,
-                color: isMismatch ? theme.colors.error : theme.colors.textSecondary,
-              ),
+              child: SailText.secondary13(label, color: isMismatch ? theme.colors.error : null),
             ),
             const SizedBox(width: SailStyleValues.padding16),
             Expanded(
