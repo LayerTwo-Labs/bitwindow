@@ -525,6 +525,7 @@ class BroadcastNewsView extends StatelessWidget {
                   SailTextField(
                     controller: viewModel.feeController,
                     hintText: 'Fee (optional)',
+                    textFieldType: viewModel.feeUnit == BitcoinUnit.btc ? TextFieldType.bitcoin : TextFieldType.number,
                     suffixWidget: Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: SailText.secondary12(viewModel.feeUnit.symbol),
@@ -548,7 +549,7 @@ class BroadcastNewsView extends StatelessWidget {
                   SailButton(
                     label: 'Broadcast',
                     onPressed: () async => viewModel.broadcastNews(context),
-                    disabled: viewModel.headline.isEmpty || viewModel.topic == null,
+                    disabled: !viewModel.canBroadcast,
                   ),
                 ],
               ),
@@ -643,12 +644,11 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   String get headline => messageController.text.substring(0, headlineEndIndex(messageController.text));
 
-  /// The text after the headline, without the newline that ends the headline.
-  String get content {
-    final text = messageController.text;
-    final end = headlineEndIndex(text);
-    return text.startsWith('\n', end) ? text.substring(end + 1) : text.substring(end);
-  }
+  /// The text after the headline, without the line break that ends the headline.
+  String get content => storyBody(messageController.text);
+
+  /// True when the headline holds more than white space and a topic is selected.
+  bool get canBroadcast => headline.trim().isNotEmpty && topic != null;
 
   String? broadcastError;
 
@@ -696,7 +696,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   Future<void> broadcastNews(BuildContext context) async {
     final topicId = topic?.topic;
-    if (headline.isEmpty || topicId == null) {
+    if (!canBroadcast || topicId == null) {
       return;
     }
 

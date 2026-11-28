@@ -32,6 +32,22 @@ void main() {
     expect(utf8.decode(utf8.encode(headline)), headline);
   });
 
+  test('a headline never splits a joined emoji or a flag', () {
+    const family = '👨‍👩‍👧';
+    expect(headlineOf('${'a' * 58}$family family\nBody'), 'a' * 58);
+    expect(headlineOf('${'a' * 46}$family\nBody'), '${'a' * 46}$family');
+    expect(headlineOf('${'b' * 58}🇳🇴 flag'), 'b' * 58);
+  });
+
+  test('a Windows line break ends the headline and is not in the body', () {
+    const text = 'Short headline\r\nFirst line\r\nSecond line';
+
+    expect(headlineOf(text), 'Short headline');
+    expect(storyBody(text), 'First line\r\nSecond line');
+    expect(storyBody('Headline\nBody'), 'Body');
+    expect(storyBody('c' * 70), 'c' * 6);
+  });
+
   testWidgets('the counter shows the headline size in bytes', (tester) async {
     final controller = HeadlineHighlightController(text: 'Blåbær\nBody');
     addTearDown(controller.dispose);
