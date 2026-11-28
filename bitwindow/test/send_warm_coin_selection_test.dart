@@ -16,6 +16,7 @@ class _PreviewWallet implements OrchestratorWalletRPC {
     required Map<String, int> destinations,
     required double feeRateSatPerVbyte,
     bool subtractFeeFromAmount = false,
+    String subtractFeeFromAddress = '',
     bool notificationOnly = false,
     List<UnspentOutput>? requiredInputs,
     wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,

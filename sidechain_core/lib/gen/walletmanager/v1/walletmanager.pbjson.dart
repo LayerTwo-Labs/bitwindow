@@ -1329,6 +1329,7 @@ const SendTransactionRequest$json = {
     {'1': 'raw_outputs', '3': 9, '4': 3, '5': 11, '6': '.walletmanager.v1.RawOutput', '10': 'rawOutputs'},
     {'1': 'external_inputs', '3': 10, '4': 3, '5': 11, '6': '.walletmanager.v1.ExternalInput', '10': 'externalInputs'},
     {'1': 'replaceable', '3': 11, '4': 1, '5': 8, '10': 'replaceable'},
+    {'1': 'subtract_fee_from_address', '3': 14, '4': 1, '5': 9, '10': 'subtractFeeFromAddress'},
   ],
   '3': [SendTransactionRequest_DestinationsEntry$json],
   '7': {},
@@ -1361,13 +1362,14 @@ final $typed_data.Uint8List sendTransactionRequestDescriptor =
         'B1dFIRbm90aWZpY2F0aW9uSW5wdXQSPAoLcmF3X291dHB1dHMYCSADKAsyGy53YWxsZXRtYW5h'
         'Z2VyLnYxLlJhd091dHB1dFIKcmF3T3V0cHV0cxJICg9leHRlcm5hbF9pbnB1dHMYCiADKAsyHy'
         '53YWxsZXRtYW5hZ2VyLnYxLkV4dGVybmFsSW5wdXRSDmV4dGVybmFsSW5wdXRzEiAKC3JlcGxh'
-        'Y2VhYmxlGAsgASgIUgtyZXBsYWNlYWJsZRo/ChFEZXN0aW5hdGlvbnNFbnRyeRIQCgNrZXkYAS'
-        'ABKAlSA2tleRIUCgV2YWx1ZRgCIAEoA1IFdmFsdWU6AjgBOpsCukiXAhqTAQoMc2VuZC5vdXRw'
-        'dXRzEix0aGUgcmVxdWVzdCBtdXN0IGluY2x1ZGUgYXQgbGVhc3Qgb25lIG91dHB1dBpVc2l6ZS'
-        'h0aGlzLmRlc3RpbmF0aW9ucykgPiAwIHx8IHRoaXMub3BfcmV0dXJuX2hleCAhPSAnJyB8fCBz'
-        'aXplKHRoaXMucmF3X291dHB1dHMpID4gMBp/CglzZW5kLmZlZXMSMnRoZSByZXF1ZXN0IGNhbm'
-        '5vdCBzZXQgYm90aCBmZWUgcmF0ZSBhbmQgZml4ZWQgZmVlGj50aGlzLmZlZV9yYXRlX3NhdF9w'
-        'ZXJfdmJ5dGUgPD0gMC4wIHx8IHRoaXMuZml4ZWRfZmVlX3NhdHMgPD0gMEoECAgQCQ==');
+        'Y2VhYmxlGAsgASgIUgtyZXBsYWNlYWJsZRI5ChlzdWJ0cmFjdF9mZWVfZnJvbV9hZGRyZXNzGA'
+        '4gASgJUhZzdWJ0cmFjdEZlZUZyb21BZGRyZXNzGj8KEURlc3RpbmF0aW9uc0VudHJ5EhAKA2tl'
+        'eRgBIAEoCVIDa2V5EhQKBXZhbHVlGAIgASgDUgV2YWx1ZToCOAE6mwK6SJcCGpMBCgxzZW5kLm'
+        '91dHB1dHMSLHRoZSByZXF1ZXN0IG11c3QgaW5jbHVkZSBhdCBsZWFzdCBvbmUgb3V0cHV0GlVz'
+        'aXplKHRoaXMuZGVzdGluYXRpb25zKSA+IDAgfHwgdGhpcy5vcF9yZXR1cm5faGV4ICE9ICcnIH'
+        'x8IHNpemUodGhpcy5yYXdfb3V0cHV0cykgPiAwGn8KCXNlbmQuZmVlcxIydGhlIHJlcXVlc3Qg'
+        'Y2Fubm90IHNldCBib3RoIGZlZSByYXRlIGFuZCBmaXhlZCBmZWUaPnRoaXMuZmVlX3JhdGVfc2'
+        'F0X3Blcl92Ynl0ZSA8PSAwLjAgfHwgdGhpcy5maXhlZF9mZWVfc2F0cyA8PSAwSgQICBAJ');
 
 @$core.Deprecated('Use sendTransactionResponseDescriptor instead')
 const SendTransactionResponse$json = {
@@ -1401,6 +1403,7 @@ const PreviewSendRequest$json = {
     {'1': 'notification_only', '3': 7, '4': 1, '5': 8, '10': 'notificationOnly'},
     {'1': 'op_return_hex', '3': 8, '4': 1, '5': 9, '10': 'opReturnHex'},
     {'1': 'coin_order', '3': 9, '4': 1, '5': 14, '6': '.walletmanager.v1.CoinOrder', '10': 'coinOrder'},
+    {'1': 'subtract_fee_from_address', '3': 10, '4': 1, '5': 9, '10': 'subtractFeeFromAddress'},
   ],
   '3': [PreviewSendRequest_DestinationsEntry$json],
 };
@@ -1426,8 +1429,9 @@ final $typed_data.Uint8List previewSendRequestDescriptor =
         'X3JlcGxheRgGIAEoCFILYWxsb3dSZXBsYXkSKwoRbm90aWZpY2F0aW9uX29ubHkYByABKAhSEG'
         '5vdGlmaWNhdGlvbk9ubHkSIgoNb3BfcmV0dXJuX2hleBgIIAEoCVILb3BSZXR1cm5IZXgSOgoK'
         'Y29pbl9vcmRlchgJIAEoDjIbLndhbGxldG1hbmFnZXIudjEuQ29pbk9yZGVyUgljb2luT3JkZX'
-        'IaPwoRRGVzdGluYXRpb25zRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSFAoFdmFsdWUYAiABKANS'
-        'BXZhbHVlOgI4AQ==');
+        'ISOQoZc3VidHJhY3RfZmVlX2Zyb21fYWRkcmVzcxgKIAEoCVIWc3VidHJhY3RGZWVGcm9tQWRk'
+        'cmVzcxo/ChFEZXN0aW5hdGlvbnNFbnRyeRIQCgNrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIA'
+        'EoA1IFdmFsdWU6AjgB');
 
 @$core.Deprecated('Use previewSendResponseDescriptor instead')
 const PreviewSendResponse$json = {
@@ -1551,6 +1555,7 @@ const CreatePsbtRequest$json = {
     {'1': 'external_inputs', '3': 9, '4': 3, '5': 11, '6': '.walletmanager.v1.ExternalInput', '10': 'externalInputs'},
     {'1': 'allow_replay', '3': 11, '4': 1, '5': 8, '10': 'allowReplay'},
     {'1': 'coin_order', '3': 12, '4': 1, '5': 14, '6': '.walletmanager.v1.CoinOrder', '10': 'coinOrder'},
+    {'1': 'subtract_fee_from_address', '3': 13, '4': 1, '5': 9, '10': 'subtractFeeFromAddress'},
   ],
   '3': [CreatePsbtRequest_DestinationsEntry$json],
   '9': [
@@ -1581,8 +1586,9 @@ final $typed_data.Uint8List createPsbtRequestDescriptor =
         'dXRSCnJhd091dHB1dHMSSAoPZXh0ZXJuYWxfaW5wdXRzGAkgAygLMh8ud2FsbGV0bWFuYWdlci'
         '52MS5FeHRlcm5hbElucHV0Ug5leHRlcm5hbElucHV0cxIhCgxhbGxvd19yZXBsYXkYCyABKAhS'
         'C2FsbG93UmVwbGF5EjoKCmNvaW5fb3JkZXIYDCABKA4yGy53YWxsZXRtYW5hZ2VyLnYxLkNvaW'
-        '5PcmRlclIJY29pbk9yZGVyGj8KEURlc3RpbmF0aW9uc0VudHJ5EhAKA2tleRgBIAEoCVIDa2V5'
-        'EhQKBXZhbHVlGAIgASgDUgV2YWx1ZToCOAFKBAgKEAs=');
+        '5PcmRlclIJY29pbk9yZGVyEjkKGXN1YnRyYWN0X2ZlZV9mcm9tX2FkZHJlc3MYDSABKAlSFnN1'
+        'YnRyYWN0RmVlRnJvbUFkZHJlc3MaPwoRRGVzdGluYXRpb25zRW50cnkSEAoDa2V5GAEgASgJUg'
+        'NrZXkSFAoFdmFsdWUYAiABKANSBXZhbHVlOgI4AUoECAoQCw==');
 
 @$core.Deprecated('Use createPsbtResponseDescriptor instead')
 const CreatePsbtResponse$json = {

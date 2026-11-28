@@ -1,5 +1,12 @@
 package wallet
 
+import (
+	"maps"
+	"slices"
+
+	"connectrpc.com/connect/v2"
+)
+
 // Shared types crossing the Backend interface. Field semantics follow
 // Bitcoin Core's wallet RPC conventions and every backend must honor them:
 // amounts are BTC floats, send amounts and fees are negative.
@@ -225,6 +232,9 @@ type SendRequest struct {
 	OpReturnHex           string
 	RequiredInputs        []RequiredInput
 	SubtractFeeFromAmount bool
+	// SubtractFeeFrom names the destination that pays the fee. Empty: the
+	// sole destination pays it.
+	SubtractFeeFrom string
 	// AllowReplay drops the eCash network's magic nLockTime for one send, so
 	// the transaction lands on Bitcoin too.
 	AllowReplay bool
@@ -241,6 +251,51 @@ type SendRequest struct {
 	ExcludedInputs []RequiredInput
 	// CoinOrder selects the coins when no input is pinned.
 	CoinOrder CoinOrder
+}
+
+// FeePayers are the destinations whose amounts pay the fee: the named one,
+// or every destination. Empty for a send that adds the fee on top.
+func (r SendRequest) FeePayers() ([]string, error) {
+	if !r.SubtractFeeFromAmount {
+		return nil, nil
+	}
+	if r.SubtractFeeFrom != "" {
+		if _, ok := r.DestinationsSats[r.SubtractFeeFrom]; !ok {
+			return nil, connect.Errorf(connect.CodeInvalidArgument, "the fee payer %s is not a destination", r.SubtractFeeFrom)
+		}
+		return []string{r.SubtractFeeFrom}, nil
+	}
+	return slices.Sorted(maps.Keys(r.DestinationsSats)), nil
+}
+
+// feePayerIndexes are the indexes in outputs of the outputs that pay the fee.
+func feePayerIndexes(req SendRequest, outputs []TxOutSpec) ([]int, error) {
+	payers, err := req.FeePayers()
+	if err != nil {
+		return nil, err
+	}
+	var indexes []int
+	for i, out := range outputs {
+		if out.OpReturnHex == "" && out.RawScriptHex == "" && slices.Contains(payers, out.Address) {
+			indexes = append(indexes, i)
+		}
+	}
+	return indexes, nil
+}
+
+// singleFeePayerIndex is the index of the one output that pays the fee, or -1
+// for a send that adds the fee on top.
+func singleFeePayerIndex(req SendRequest, outputs []TxOutSpec) (int, error) {
+	indexes, err := feePayerIndexes(req, outputs)
+	switch {
+	case err != nil:
+		return -1, err
+	case !req.SubtractFeeFromAmount:
+		return -1, nil
+	case len(indexes) != 1:
+		return -1, connect.NewError(connect.CodeInvalidArgument, "subtractFeeFromAmount requires a single destination")
+	}
+	return indexes[0], nil
 }
 
 // RequiredInput pins one outpoint that the transaction must spend.

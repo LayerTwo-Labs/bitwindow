@@ -64,7 +64,7 @@ void main() {
     const payments = [(address: 'ecash:a', sats: 25_000_000), (address: 'ecash:b', sats: 10_000_000)];
 
     test('the coins above the payments and the fee go back as change', () {
-      final lines = sendGraphCreates(payments: payments, inputSats: 100_000_000, feeSats: 226, subtractFee: false);
+      final lines = sendGraphCreates(payments: payments, inputSats: 100_000_000, feeSats: 226, feePayer: null);
 
       expect(lines.map((l) => l.kind), [FlowKind.payment, FlowKind.payment, FlowKind.change, FlowKind.fee]);
       expect(lines.map((l) => l.sats), [25_000_000, 10_000_000, 64_999_774, 226]);
@@ -75,7 +75,7 @@ void main() {
         payments: const [(address: 'ecash:a', sats: 99_999_774)],
         inputSats: 100_000_000,
         feeSats: 226,
-        subtractFee: false,
+        feePayer: null,
       );
 
       expect(lines.map((l) => l.kind), [FlowKind.payment, FlowKind.fee]);
@@ -86,7 +86,7 @@ void main() {
         payments: const [(address: 'ecash:a', sats: 99_999_800)],
         inputSats: 100_000_000,
         feeSats: 426,
-        subtractFee: true,
+        feePayer: 'ecash:a',
       );
 
       expect(lines.map((l) => l.kind), [FlowKind.payment, FlowKind.fee]);
@@ -98,11 +98,23 @@ void main() {
         payments: const [(address: 'ecash:a', sats: 99_999_400)],
         inputSats: 100_000_000,
         feeSats: 226,
-        subtractFee: false,
+        feePayer: null,
       );
 
       expect(lines.map((l) => l.kind), [FlowKind.payment, FlowKind.change, FlowKind.fee]);
       expect(lines.map((l) => l.sats), [99_999_400, 374, 226]);
+    });
+
+    test('the fee payer of many recipients alone pays the fee', () {
+      final lines = sendGraphCreates(
+        payments: payments,
+        inputSats: 35_000_000,
+        feeSats: 306,
+        feePayer: 'ecash:b',
+      );
+
+      expect(lines.map((l) => l.kind), [FlowKind.payment, FlowKind.payment, FlowKind.fee]);
+      expect(lines.map((l) => l.sats), [25_000_000, 9_999_694, 306]);
     });
 
     test('a recipient who pays the fee gets the amount less the fee', () {
@@ -110,7 +122,7 @@ void main() {
         payments: const [(address: 'ecash:a', sats: 100_000_000)],
         inputSats: 100_000_000,
         feeSats: 226,
-        subtractFee: true,
+        feePayer: 'ecash:a',
       );
 
       expect(lines.map((l) => l.sats), [99_999_774, 226]);

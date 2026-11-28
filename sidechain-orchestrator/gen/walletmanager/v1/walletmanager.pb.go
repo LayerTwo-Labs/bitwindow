@@ -4846,9 +4846,11 @@ type SendTransactionRequest struct {
 	ExternalInputs []*ExternalInput `protobuf:"bytes,10,rep,name=external_inputs,json=externalInputs,proto3" json:"external_inputs,omitempty"`
 	// Signal BIP125, so a later transaction spending the same inputs replaces
 	// this one. Used to raise a BMM bid.
-	Replaceable   bool `protobuf:"varint,11,opt,name=replaceable,proto3" json:"replaceable,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Replaceable bool `protobuf:"varint,11,opt,name=replaceable,proto3" json:"replaceable,omitempty"`
+	// The destination whose amount pays the fee. Setting it subtracts the fee.
+	SubtractFeeFromAddress string `protobuf:"bytes,14,opt,name=subtract_fee_from_address,json=subtractFeeFromAddress,proto3" json:"subtract_fee_from_address,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *SendTransactionRequest) Reset() {
@@ -4965,6 +4967,13 @@ func (x *SendTransactionRequest) GetReplaceable() bool {
 	return false
 }
 
+func (x *SendTransactionRequest) GetSubtractFeeFromAddress() string {
+	if x != nil {
+		return x.SubtractFeeFromAddress
+	}
+	return ""
+}
+
 type SendTransactionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Txid          string                 `protobuf:"bytes,1,opt,name=txid,proto3" json:"txid,omitempty"`
@@ -5021,10 +5030,12 @@ type PreviewSendRequest struct {
 	NotificationOnly bool `protobuf:"varint,7,opt,name=notification_only,json=notificationOnly,proto3" json:"notification_only,omitempty"`
 	// Raw OP_RETURN payload hex. A preview with no destination can use a zero
 	// rate, which is the send default.
-	OpReturnHex   string    `protobuf:"bytes,8,opt,name=op_return_hex,json=opReturnHex,proto3" json:"op_return_hex,omitempty"`
-	CoinOrder     CoinOrder `protobuf:"varint,9,opt,name=coin_order,json=coinOrder,proto3,enum=walletmanager.v1.CoinOrder" json:"coin_order,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	OpReturnHex string    `protobuf:"bytes,8,opt,name=op_return_hex,json=opReturnHex,proto3" json:"op_return_hex,omitempty"`
+	CoinOrder   CoinOrder `protobuf:"varint,9,opt,name=coin_order,json=coinOrder,proto3,enum=walletmanager.v1.CoinOrder" json:"coin_order,omitempty"`
+	// The destination whose amount pays the fee. Setting it subtracts the fee.
+	SubtractFeeFromAddress string `protobuf:"bytes,10,opt,name=subtract_fee_from_address,json=subtractFeeFromAddress,proto3" json:"subtract_fee_from_address,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *PreviewSendRequest) Reset() {
@@ -5118,6 +5129,13 @@ func (x *PreviewSendRequest) GetCoinOrder() CoinOrder {
 		return x.CoinOrder
 	}
 	return CoinOrder_COIN_ORDER_UNSPECIFIED
+}
+
+func (x *PreviewSendRequest) GetSubtractFeeFromAddress() string {
+	if x != nil {
+		return x.SubtractFeeFromAddress
+	}
+	return ""
 }
 
 type PreviewSendResponse struct {
@@ -5492,10 +5510,12 @@ type CreatePsbtRequest struct {
 	// Build a PSBT that can replay onto Bitcoin. The eCash network stamps the
 	// magic nLockTime (499999999) on every PSBT; this drops that stamp for one
 	// PSBT.
-	AllowReplay   bool      `protobuf:"varint,11,opt,name=allow_replay,json=allowReplay,proto3" json:"allow_replay,omitempty"`
-	CoinOrder     CoinOrder `protobuf:"varint,12,opt,name=coin_order,json=coinOrder,proto3,enum=walletmanager.v1.CoinOrder" json:"coin_order,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AllowReplay bool      `protobuf:"varint,11,opt,name=allow_replay,json=allowReplay,proto3" json:"allow_replay,omitempty"`
+	CoinOrder   CoinOrder `protobuf:"varint,12,opt,name=coin_order,json=coinOrder,proto3,enum=walletmanager.v1.CoinOrder" json:"coin_order,omitempty"`
+	// The destination whose amount pays the fee. Setting it subtracts the fee.
+	SubtractFeeFromAddress string `protobuf:"bytes,13,opt,name=subtract_fee_from_address,json=subtractFeeFromAddress,proto3" json:"subtract_fee_from_address,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *CreatePsbtRequest) Reset() {
@@ -5603,6 +5623,13 @@ func (x *CreatePsbtRequest) GetCoinOrder() CoinOrder {
 		return x.CoinOrder
 	}
 	return CoinOrder_COIN_ORDER_UNSPECIFIED
+}
+
+func (x *CreatePsbtRequest) GetSubtractFeeFromAddress() string {
+	if x != nil {
+		return x.SubtractFeeFromAddress
+	}
+	return ""
 }
 
 type CreatePsbtResponse struct {
@@ -12273,7 +12300,7 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x15GetNewAddressResponse\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12'\n" +
-	"\x0fderivation_path\x18\x03 \x01(\tR\x0ederivationPath\"\x98\b\n" +
+	"\x0fderivation_path\x18\x03 \x01(\tR\x0ederivationPath\"\xd3\b\n" +
 	"\x16SendTransactionRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12^\n" +
 	"\fdestinations\x18\x02 \x03(\v2:.walletmanager.v1.SendTransactionRequest.DestinationsEntryR\fdestinations\x122\n" +
@@ -12288,14 +12315,15 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"rawOutputs\x12H\n" +
 	"\x0fexternal_inputs\x18\n" +
 	" \x03(\v2\x1f.walletmanager.v1.ExternalInputR\x0eexternalInputs\x12 \n" +
-	"\vreplaceable\x18\v \x01(\bR\vreplaceable\x1a?\n" +
+	"\vreplaceable\x18\v \x01(\bR\vreplaceable\x129\n" +
+	"\x19subtract_fee_from_address\x18\x0e \x01(\tR\x16subtractFeeFromAddress\x1a?\n" +
 	"\x11DestinationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01:\x9b\x02\xbaH\x97\x02\x1a\x93\x01\n" +
 	"\fsend.outputs\x12,the request must include at least one output\x1aUsize(this.destinations) > 0 || this.op_return_hex != '' || size(this.raw_outputs) > 0\x1a\x7f\n" +
 	"\tsend.fees\x122the request cannot set both fee rate and fixed fee\x1a>this.fee_rate_sat_per_vbyte <= 0.0 || this.fixed_fee_sats <= 0J\x04\b\b\x10\t\"-\n" +
 	"\x17SendTransactionResponse\x12\x12\n" +
-	"\x04txid\x18\x01 \x01(\tR\x04txid\"\xb5\x04\n" +
+	"\x04txid\x18\x01 \x01(\tR\x04txid\"\xf0\x04\n" +
 	"\x12PreviewSendRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12Z\n" +
 	"\fdestinations\x18\x02 \x03(\v26.walletmanager.v1.PreviewSendRequest.DestinationsEntryR\fdestinations\x122\n" +
@@ -12306,7 +12334,9 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x11notification_only\x18\a \x01(\bR\x10notificationOnly\x12\"\n" +
 	"\rop_return_hex\x18\b \x01(\tR\vopReturnHex\x12:\n" +
 	"\n" +
-	"coin_order\x18\t \x01(\x0e2\x1b.walletmanager.v1.CoinOrderR\tcoinOrder\x1a?\n" +
+	"coin_order\x18\t \x01(\x0e2\x1b.walletmanager.v1.CoinOrderR\tcoinOrder\x129\n" +
+	"\x19subtract_fee_from_address\x18\n" +
+	" \x01(\tR\x16subtractFeeFromAddress\x1a?\n" +
 	"\x11DestinationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"\xb8\x02\n" +
@@ -12334,7 +12364,7 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x04vout\x18\x02 \x01(\x05R\x04vout\x12\x1d\n" +
 	"\n" +
 	"value_sats\x18\x03 \x01(\x03R\tvalueSats\x12*\n" +
-	"\x11script_pubkey_hex\x18\x04 \x01(\tR\x0fscriptPubkeyHex\"\xba\x05\n" +
+	"\x11script_pubkey_hex\x18\x04 \x01(\tR\x0fscriptPubkeyHex\"\xf5\x05\n" +
 	"\x11CreatePsbtRequest\x12\x1b\n" +
 	"\twallet_id\x18\x01 \x01(\tR\bwalletId\x12Y\n" +
 	"\fdestinations\x18\x02 \x03(\v25.walletmanager.v1.CreatePsbtRequest.DestinationsEntryR\fdestinations\x122\n" +
@@ -12348,7 +12378,8 @@ const file_walletmanager_v1_walletmanager_proto_rawDesc = "" +
 	"\x0fexternal_inputs\x18\t \x03(\v2\x1f.walletmanager.v1.ExternalInputR\x0eexternalInputs\x12!\n" +
 	"\fallow_replay\x18\v \x01(\bR\vallowReplay\x12:\n" +
 	"\n" +
-	"coin_order\x18\f \x01(\x0e2\x1b.walletmanager.v1.CoinOrderR\tcoinOrder\x1a?\n" +
+	"coin_order\x18\f \x01(\x0e2\x1b.walletmanager.v1.CoinOrderR\tcoinOrder\x129\n" +
+	"\x19subtract_fee_from_address\x18\r \x01(\tR\x16subtractFeeFromAddress\x1a?\n" +
 	"\x11DestinationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01J\x04\b\n" +

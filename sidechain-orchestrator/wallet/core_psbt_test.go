@@ -166,6 +166,32 @@ func TestCoreBackendCreatePSBTSubtractsTheFeeFromTheDestinations(t *testing.T) {
 	assert.Equal(t, true, call.options["replaceable"])
 }
 
+func TestCoreBackendCreatePSBTSubtractsTheFeeFromTheNamedDestination(t *testing.T) {
+	backend, fake, coreID := newCoreBackendFixture(t)
+	fake.stubEnsureFlow()
+	calls := stubFundedPSBT(t, fake, nil)
+	net := &chaincfg.RegressionNetParams
+	payer := p2wpkhAddr(t, fixedKey(0xBB), net)
+
+	_, err := backend.CreatePSBT(context.Background(), coreID, SendRequest{
+		DestinationsSats: map[string]int64{
+			p2wpkhAddr(t, fixedKey(0xAA), net): 50_000,
+			payer:                              60_000,
+			p2wpkhAddr(t, fixedKey(0xCC), net): 70_000,
+		},
+		FeeRateSatPerVB:       2.501,
+		SubtractFeeFromAmount: true,
+		SubtractFeeFrom:       payer,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, *calls, 1)
+	call := (*calls)[0]
+	indexes := call.options["subtractFeeFromOutputs"].([]any)
+	require.Len(t, indexes, 1)
+	assert.Equal(t, map[string]any{payer: 0.0006}, call.outputs[int(indexes[0].(float64))])
+}
+
 func TestCoreBackendCreatePSBTSpendsOnlyThePinnedInputs(t *testing.T) {
 	backend, fake, coreID := newCoreBackendFixture(t)
 	fake.stubEnsureFlow()

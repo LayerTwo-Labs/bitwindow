@@ -818,6 +818,44 @@ func TestElectrumSendMaxSubtractsFee(t *testing.T) {
 	assert.Equal(t, int64(100_000-220), tx.TxOut[0].Value)
 }
 
+func TestElectrumSendMaxToOneOfManyTakesTheFeeFromIt(t *testing.T) {
+	p, fake, w, addr := newElectrumFixture(t)
+
+	fake.stats[addr] = EsploraAddressStats{
+		Address:    addr,
+		ChainStats: EsploraTxoStats{FundedTxoCount: 1, FundedTxoSum: 100_000, TxCount: 1},
+	}
+	fake.utxos[addr] = []EsploraUTXO{{
+		TxID: "3333333333333333333333333333333333333333333333333333333333333333",
+		Vout: 0, Value: 100_000, Status: EsploraStatus{Confirmed: true, BlockHeight: 100},
+	}}
+
+	other := "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+	payer := "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7"
+	_, err := p.Send(context.Background(), w.ID, SendRequest{
+		DestinationsSats:      map[string]int64{other: 30_000, payer: 70_000},
+		FeeRateSatPerVB:       2,
+		SubtractFeeFromAmount: true,
+		SubtractFeeFrom:       payer,
+	})
+	require.NoError(t, err)
+	require.Len(t, fake.broadcast, 1)
+
+	raw, err := hex.DecodeString(fake.broadcast[0])
+	require.NoError(t, err)
+	var tx wire.MsgTx
+	require.NoError(t, tx.Deserialize(bytes.NewReader(raw)))
+
+	require.Len(t, tx.TxOut, 2, "a send of every coin makes no change")
+	values := map[int]int64{}
+	for _, out := range tx.TxOut {
+		values[len(out.PkScript)] = out.Value
+	}
+	// 1-in 2-out: 11 + 68 + 31 + 43 = 153 vB at 2 sat/vB = 306 fee.
+	assert.Equal(t, int64(30_000), values[22], "the other recipient gets the full amount")
+	assert.Equal(t, int64(70_000-306), values[34], "the payer pays the fee")
+}
+
 // TestElectrumSubtractFeeReturnsChange: a partial subtract-fee send reduces only
 // the recipient by the fee and returns the remainder as change — it must not
 // sweep the whole UTXO to the recipient.

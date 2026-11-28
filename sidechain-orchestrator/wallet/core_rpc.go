@@ -326,15 +326,12 @@ func (c *CoreRPCClient) SendToAddress(ctx context.Context, walletName, address s
 	return txid, nil
 }
 
-// SendMany sends to multiple addresses.
-func (c *CoreRPCClient) SendMany(ctx context.Context, walletName string, amounts map[string]float64, subtractFee bool) (string, error) {
+// SendMany sends to multiple addresses. The feePayers pay the fee out of
+// their amounts.
+func (c *CoreRPCClient) SendMany(ctx context.Context, walletName string, amounts map[string]float64, feePayers []string) (string, error) {
 	params := []any{"", amounts}
-	if subtractFee {
-		addresses := make([]string, 0, len(amounts))
-		for address := range amounts {
-			addresses = append(addresses, address)
-		}
-		params = append(params, 1, "", addresses)
+	if len(feePayers) > 0 {
+		params = append(params, 1, "", feePayers)
 	}
 	result, err := c.call(ctx, walletName, "sendmany", params...)
 	if err != nil {

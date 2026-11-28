@@ -93,6 +93,7 @@ class _FakeWalletRPC implements OrchestratorWalletRPC {
     double? feeRateSatPerVbyte,
     int? fixedFeeSats,
     bool subtractFeeFromAmount = false,
+    String subtractFeeFromAddress = '',
     String? opReturnMessage,
     String? opReturnHex,
     List<UnspentOutput>? requiredInputs,

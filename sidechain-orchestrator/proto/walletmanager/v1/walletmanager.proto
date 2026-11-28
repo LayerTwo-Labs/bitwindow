@@ -790,6 +790,8 @@ message SendTransactionRequest {
   // Signal BIP125, so a later transaction spending the same inputs replaces
   // this one. Used to raise a BMM bid.
   bool replaceable = 11;
+  // The destination whose amount pays the fee. Setting it subtracts the fee.
+  string subtract_fee_from_address = 14;
 }
 
 message SendTransactionResponse {
@@ -809,6 +811,8 @@ message PreviewSendRequest {
   // rate, which is the send default.
   string op_return_hex = 8;
   CoinOrder coin_order = 9;
+  // The destination whose amount pays the fee. Setting it subtracts the fee.
+  string subtract_fee_from_address = 10;
 }
 
 message PreviewSendResponse {
@@ -875,6 +879,8 @@ message CreatePsbtRequest {
   // PSBT.
   bool allow_replay = 11;
   CoinOrder coin_order = 12;
+  // The destination whose amount pays the fee. Setting it subtracts the fee.
+  string subtract_fee_from_address = 13;
 }
 
 message CreatePsbtResponse {

@@ -742,6 +742,39 @@ func TestCoreBackendSendFixedFeeFromTheAmount(t *testing.T) {
 		assert.Empty(t, fake.callsFor("createrawtransaction"))
 	})
 
+	t.Run("the named payment pays the fee", func(t *testing.T) {
+		backend, fake, coreID := newFixture(t)
+		other := p2wpkhAddr(t, fixedKey(0xEE), net)
+
+		_, err := backend.Send(context.Background(), coreID, SendRequest{
+			DestinationsSats:      map[string]int64{dest: 25_000_000, other: 10_000_000},
+			FixedFeeSats:          226,
+			SubtractFeeFromAmount: true,
+			SubtractFeeFrom:       other,
+		})
+		require.NoError(t, err)
+
+		creates := fake.callsFor("createrawtransaction")
+		require.Len(t, creates, 1)
+		var outputs []map[string]any
+		require.NoError(t, json.Unmarshal(creates[0].Params[1], &outputs))
+		assert.ElementsMatch(t, []map[string]any{{dest: 0.25}, {other: 0.09999774}, {change: 0.65}}, outputs)
+	})
+
+	t.Run("refuses a payer that is no destination", func(t *testing.T) {
+		backend, fake, coreID := newFixture(t)
+
+		_, err := backend.Send(context.Background(), coreID, SendRequest{
+			DestinationsSats:      map[string]int64{dest: 50_000},
+			FixedFeeSats:          226,
+			SubtractFeeFromAmount: true,
+			SubtractFeeFrom:       change,
+		})
+		require.Error(t, err)
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+		assert.Empty(t, fake.callsFor("createrawtransaction"))
+	})
+
 	t.Run("refuses more than one destination", func(t *testing.T) {
 		backend, fake, coreID := newFixture(t)
 

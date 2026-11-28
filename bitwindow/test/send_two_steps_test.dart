@@ -64,7 +64,7 @@ class _Drafts extends ChangeNotifier implements PsbtDraftProvider {
 
 class _Settings extends ChangeNotifier implements SettingsProvider {
   @override
-  BitcoinUnit get bitcoinUnit => BitcoinUnit.btc;
+  BitcoinUnit bitcoinUnit = BitcoinUnit.btc;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -85,6 +85,8 @@ class _WalletReader extends ChangeNotifier implements WalletReaderProvider {
 
 class _Wallet implements OrchestratorWalletRPC {
   Map<String, int>? psbtDestinations;
+  bool? psbtSubtractFee;
+  String? psbtFeePayer;
   wmpb.CoinOrder? psbtCoinOrder;
   double? psbtFeeRate;
   double? estimate;
@@ -100,6 +102,7 @@ class _Wallet implements OrchestratorWalletRPC {
     double? feeRateSatPerVbyte,
     int? fixedFeeSats,
     bool subtractFeeFromAmount = false,
+    String subtractFeeFromAddress = '',
     String? opReturnMessage,
     String? opReturnHex,
     List<UnspentOutput>? requiredInputs,
@@ -107,6 +110,8 @@ class _Wallet implements OrchestratorWalletRPC {
     wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
   }) async {
     psbtDestinations = destinations;
+    psbtSubtractFee = subtractFeeFromAmount;
+    psbtFeePayer = subtractFeeFromAddress;
     psbtCoinOrder = coinOrder;
     psbtFeeRate = feeRateSatPerVbyte;
     return 'unsigned';
@@ -118,6 +123,7 @@ class _Wallet implements OrchestratorWalletRPC {
     required Map<String, int> destinations,
     required double feeRateSatPerVbyte,
     bool subtractFeeFromAmount = false,
+    String subtractFeeFromAddress = '',
     bool notificationOnly = false,
     List<UnspentOutput>? requiredInputs,
     wmpb.CoinOrder coinOrder = wmpb.CoinOrder.COIN_ORDER_UNSPECIFIED,
@@ -272,7 +278,7 @@ void main() {
       expect(model.recipients.single.subtractFee, isTrue);
     });
 
-    testWidgets('MAX keeps the total after a custom fee change', (tester) async {
+    testWidgets('MAX to one of many recipients takes the fee from that recipient', (tester) async {
       const first = 'bcrt1qvx7nwqp6cpqgl33m40fmk55zhh29e849f3uv69';
       const second = 'bcrt1qes7qr6phulr0tgmhjkjmvqyz0hqnfrj5pdwyxd';
       model.recipients.single.addressController.text = first;
@@ -282,32 +288,58 @@ void main() {
       recipient.addressController.text = second;
 
       await model.onUseAvailableBalance(1);
-      expect(recipient.amountController.text, '0.00129991');
+      expect(recipient.amountController.text, '0.00139991');
 
-      model.feeController.clear();
       model.feeController.text = '0.00002211';
+      expect(recipient.amountController.text, '0.00139991');
       expect(model.totalSats, 150000);
-      expect(recipient.amountController.text, '0.00137780');
-
-      model.feeController.text = '0.00012500';
-      expect(model.totalSats, 150000);
-      expect(recipient.amountController.text, '0.00127491');
 
       await tester.pumpWidget(const SizedBox());
       final psbt = await model.buildUnsignedPsbtForAirgap(tester.element(find.byType(SizedBox)));
       expect(psbt, 'unsigned');
-      expect(orchestrator.wallet.psbtDestinations, {first: 10009, second: 127491});
+      expect(orchestrator.wallet.psbtDestinations, {first: 10009, second: 139991});
+      expect(orchestrator.wallet.psbtSubtractFee, isTrue);
+      expect(orchestrator.wallet.psbtFeePayer, second);
     });
 
-    test('A manual amount edit cancels the MAX adjustment', () async {
+    test('MAX to one of many counts an unconfirmed coin', () async {
+      balance.balance = 0.001;
+      model.recipients.single.addressController.text = 'bcrt1qvx7nwqp6cpqgl33m40fmk55zhh29e849f3uv69';
+      model.recipients.single.amountController.text = '0.00010000';
+      model.addRecipient();
+      model.recipients.last.addressController.text = 'bcrt1qes7qr6phulr0tgmhjkjmvqyz0hqnfrj5pdwyxd';
+
+      await model.onUseAvailableBalance(1);
+
+      expect(model.recipients.last.amountController.text, '0.00140000');
+    });
+
+    test('a unit change keeps the MAX fee payer', () async {
+      model.recipients.single.addressController.text = 'bcrt1qvx7nwqp6cpqgl33m40fmk55zhh29e849f3uv69';
       model.recipients.single.amountController.text = '0.00010009';
       model.addRecipient();
+      model.recipients.last.addressController.text = 'bcrt1qes7qr6phulr0tgmhjkjmvqyz0hqnfrj5pdwyxd';
+      await model.onUseAvailableBalance(1);
+
+      final settings = GetIt.I<SettingsProvider>() as _Settings;
+      settings.bitcoinUnit = BitcoinUnit.sats;
+      settings.notifyListeners();
+
+      expect(model.recipients.last.amountController.text, '139991');
+      expect(model.recipients.last.subtractFee, isTrue);
+      expect(model.totalSats, 150000);
+    });
+
+    testWidgets('A manual amount edit puts the fee back on top', (tester) async {
+      model.recipients.single.amountController.text = '0.00010009';
+      model.addRecipient();
+      model.recipients.last.addressController.text = 'bcrt1qes7qr6phulr0tgmhjkjmvqyz0hqnfrj5pdwyxd';
       await model.onUseAvailableBalance(1);
 
       model.recipients.last.amountController.text = '0.00030000';
       model.feeController.text = '0.00002211';
 
-      expect(model.recipients.last.amountController.text, '0.00030000');
+      expect(model.recipients.last.subtractFee, isFalse);
       expect(model.totalSats, 42220);
     });
 

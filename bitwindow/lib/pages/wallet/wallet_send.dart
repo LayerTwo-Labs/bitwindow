@@ -364,20 +364,23 @@ String payFromLabel(CoinSelectionStrategy strategy, List<UnspentOutput> selected
   return '${selected.length} ${selected.length == 1 ? 'UTXO' : 'UTXOs'} · ${formatBitcoin(satoshiToBTC(total))}';
 }
 
-/// The outputs and the fee of a send, as graph lines. A recipient who pays
-/// the fee gets the amount less the fee. Change is what the coins hold above
-/// the payments and the fee. A recipient who pays the fee keeps change below
-/// dust. Without that, a priced fee already holds dropped change.
+/// The outputs and the fee of a send, as graph lines. The recipient at
+/// [feePayer] gets the amount less the fee; null adds the fee on top. Change is
+/// what the coins hold above the payments and the fee. The fee payer keeps
+/// change below dust. Without one, a priced fee already holds dropped change.
 List<GraphLine> sendGraphCreates({
   required List<({String address, int sats})> payments,
   required int inputSats,
   required int feeSats,
-  required bool subtractFee,
+  required String? feePayer,
 }) {
-  final amounts = [for (final p in payments) subtractFee ? max(p.sats - feeSats, 0) : p.sats];
+  final payer = payments.indexWhere((p) => p.address == feePayer);
+  final amounts = [
+    for (var i = 0; i < payments.length; i++) i == payer ? max(payments[i].sats - feeSats, 0) : payments[i].sats,
+  ];
   var change = inputSats - amounts.fold<int>(0, (sum, a) => sum + a) - feeSats;
-  if (subtractFee && amounts.length == 1 && change > 0 && change < dustSats) {
-    amounts[0] += change;
+  if (payer >= 0 && change > 0 && change < dustSats) {
+    amounts[payer] += change;
     change = 0;
   }
   return [
@@ -418,7 +421,7 @@ class PayToCard extends ViewModelWidget<SendPageViewModel> {
                 onRemove: canRemove ? () => viewModel.removeRecipient(i) : null,
               ),
             ),
-          // The backend rejects subtract-fee with more than one destination.
+          // With more recipients, only MAX picks the recipient that pays the fee.
           if (viewModel.recipients.length == 1)
             AddFeeOnTopCheckbox(
               subtractFee: viewModel.recipients.first.subtractFee,
@@ -1002,7 +1005,10 @@ class SendPageViewModel extends BaseViewModel {
   CoinSelectionStrategy get coinSelectionStrategy => coinSelectionProvider.strategy;
 
   List<RecipientModel> recipients = [];
-  ({RecipientModel recipient, int budgetSats, int totalSats})? _customMax;
+
+  /// The recipient MAX filled on a form with more recipients, and the total
+  /// of the form then. That recipient pays the fee until the form changes.
+  ({RecipientModel recipient, int totalSats})? _maxPayer;
   BitcoinUnit? _previousUnit;
 
   /// The fee target in blocks. Null when the user types the fee.
@@ -1096,7 +1102,7 @@ class SendPageViewModel extends BaseViewModel {
       payments: [for (final e in payments.entries) (address: e.key, sats: e.value)],
       inputSats: spends.fold(0, (sum, l) => sum + l.sats),
       feeSats: _graphFeeSats,
-      subtractFee: _subtractFeeFromAmount,
+      feePayer: _feePayer?.address,
     );
   }
 
@@ -1108,32 +1114,29 @@ class SendPageViewModel extends BaseViewModel {
   }
 
   void _onFormChanged() {
-    if (_customMax case final payment? when amountSats != payment.totalSats) {
-      _customMax = null;
+    if (_maxPayer case final payment? when amountSats != payment.totalSats) {
+      _dropMaxPayer();
     }
     sendError = null;
     notifyListeners();
   }
 
-  void _onFeeChanged() {
-    final fee = feeSats;
-    if (_customMax case (:final recipient, :final budgetSats, :final totalSats) when customFee && fee > 0) {
-      final previousAmount = parseAmountToSatoshis(recipient.amountController.text, currentUnit);
-      final amount = max(0, budgetSats - fee);
-      if (amount != previousAmount) {
-        _customMax = (recipient: recipient, budgetSats: budgetSats, totalSats: totalSats - previousAmount + amount);
-        recipient.amountController.text = amountTextInUnit(amount, currentUnit);
-        return;
-      }
+  /// Puts the fee back on top of a form with more recipients.
+  void _dropMaxPayer() {
+    if (_maxPayer case (:final recipient, totalSats: _) when recipients.length > 1) {
+      recipient.subtractFee = false;
     }
-    _onFormChanged();
+    _maxPayer = null;
   }
 
   void _onUnitChanged() {
     final newUnit = currentUnit;
     if (_previousUnit != null && _previousUnit != newUnit) {
-      _customMax = null;
+      // The fields change one by one, so a half-converted form must not drop MAX.
+      final maxPayer = _maxPayer;
+      _maxPayer = null;
       _convertAllAmountsToNewUnit(_previousUnit!, newUnit);
+      _maxPayer = maxPayer;
     }
     _previousUnit = newUnit;
     notifyListeners();
@@ -1170,7 +1173,7 @@ class SendPageViewModel extends BaseViewModel {
     } else {
       feeController = TextEditingController(text: '10000');
     }
-    feeController.addListener(_onFeeChanged);
+    feeController.addListener(_onFormChanged);
     addressBookProvider.addListener(notifyListeners);
     transactionsProvider.addListener(_refreshSelectedUtxos);
     coinSelectionProvider.addListener(notifyListeners);
@@ -1257,7 +1260,7 @@ class SendPageViewModel extends BaseViewModel {
     settingsProvider.removeListener(_onUnitChanged);
     draftProvider.removeListener(notifyListeners);
     _walletReader.removeListener(notifyListeners);
-    feeController.removeListener(_onFeeChanged);
+    feeController.removeListener(_onFormChanged);
     _feePreviewErrorTimer?.cancel();
     super.dispose();
   }
@@ -1271,8 +1274,11 @@ class SendPageViewModel extends BaseViewModel {
   Future<void> onUseAvailableBalance(int index) async {
     try {
       final selectedSats = selectedUtxos.fold<int>(0, (sum, utxo) => sum + utxo.valueSats.toInt());
+      // A send to many recipients spends every listed coin, also an unconfirmed one.
       final availableSats = selectedSats > 0
           ? selectedSats
+          : recipients.length > 1
+          ? availableUtxos.fold<int>(0, (sum, u) => sum + u.valueSats.toInt())
           : btcToSatoshi(balanceProvider.balance) - lockedSats(allUtxos, heldOutpoints);
       var otherSats = 0;
       for (var i = 0; i < recipients.length; i++) {
@@ -1285,32 +1291,29 @@ class SendPageViewModel extends BaseViewModel {
       final recipientCount = recipients.length;
       final recipient = recipients[index];
       final selection = selectedUtxos.map((u) => u.output).toList();
-      final maxSend = await _maxSendFee(index, availableSats, otherSats);
+      final keepBackSats = await _notificationKeepBack(index, availableSats, otherSats);
       final formChanged =
           disposed ||
           _walletReader.activeWalletId != walletId ||
           recipients.length != recipientCount ||
           recipients[index] != recipient ||
           !const ListEquality<String>().equals(selectedUtxos.map((u) => u.output).toList(), selection);
-      if (maxSend == null || formChanged) {
+      if (keepBackSats == null || formChanged) {
         return;
       }
-      final plan = maxSendPlan(
-        recipientCount: recipientCount,
-        availableSats: maxSend.availableSats,
+      final amount = maxSendAmountSats(
+        availableSats: availableSats,
         otherRecipientsSats: otherSats,
-        notificationKeepBackSats: maxSend.notificationKeepBackSats,
-        feeOnTopSats: maxSend.feeSats,
+        notificationKeepBackSats: keepBackSats,
       );
-      _customMax = customFee && recipientCount > 1
-          ? (
-              recipient: recipient,
-              budgetSats: maxSend.availableSats - otherSats,
-              totalSats: otherSats + plan.amountSats,
-            )
-          : null;
-      recipient.subtractFee = plan.subtractFee;
-      recipient.amountController.text = amountTextInUnit(plan.amountSats, currentUnit);
+      _dropMaxPayer();
+      for (final r in recipients) {
+        r.subtractFee = r == recipient;
+      }
+      recipient.amountController.text = amountTextInUnit(amount, currentUnit);
+      if (recipientCount > 1) {
+        _maxPayer = (recipient: recipient, totalSats: amountSats);
+      }
       notifyListeners();
     } catch (error) {
       setSendError(error.toString());
@@ -1467,6 +1470,7 @@ class SendPageViewModel extends BaseViewModel {
         feeRateSatPerVbyte: fee.feeRateSatPerVbyte,
         fixedFeeSats: fee.fixedFeeSats,
         subtractFeeFromAmount: _subtractFeeFromAmount,
+        subtractFeeFromAddress: _feePayerAddress,
         requiredInputs: _sendInputs,
         notificationInput: _sendNotificationInput,
         allowReplay: allowReplay,
@@ -1604,6 +1608,7 @@ class SendPageViewModel extends BaseViewModel {
         feeRateSatPerVbyte: fee.feeRateSatPerVbyte,
         fixedFeeSats: fee.fixedFeeSats,
         subtractFeeFromAmount: _subtractFeeFromAmount,
+        subtractFeeFromAddress: _feePayerAddress,
         requiredInputs: _sendInputs,
         allowReplay: allowReplay,
         coinOrder: coinSelectionStrategy.coinOrder,
@@ -1625,7 +1630,7 @@ class SendPageViewModel extends BaseViewModel {
   }
 
   Future<void> clearAll() async {
-    _customMax = null;
+    _maxPayer = null;
     // Remove listeners from all recipients
     for (final recipient in recipients) {
       recipient.removeListener(_onFormChanged);
@@ -1692,7 +1697,7 @@ class SendPageViewModel extends BaseViewModel {
 
   /// Selects the spendable coins of [outpoints] and returns how many it took.
   int selectOutpoints(Iterable<String> outpoints) {
-    _customMax = null;
+    _dropMaxPayer();
     selectedUtxos = coinsAt(availableUtxos, outpoints);
     notifyListeners();
     return selectedUtxos.length;
@@ -1704,18 +1709,25 @@ class SendPageViewModel extends BaseViewModel {
   }
 
   void onSelectionChanged(List<UnspentOutput> selected) {
-    _customMax = null;
+    _dropMaxPayer();
     selectedUtxos = coinsAt(allUtxos, selected.map((u) => u.output));
     notifyListeners();
   }
 
-  /// The backend rejects subtract-fee with more than one destination, so the
-  /// flag only applies to a single-recipient send.
-  bool get _subtractFeeFromAmount => recipients.length == 1 && recipients.first.subtractFee;
+  /// The recipient that pays the fee out of its amount: the sole recipient
+  /// with the box clear, or the recipient MAX filled. Null adds the fee on top.
+  RecipientModel? get _feePayer =>
+      recipients.length == 1 ? (recipients.first.subtractFee ? recipients.first : null) : _maxPayer?.recipient;
+
+  bool get _subtractFeeFromAmount => _feePayer != null;
+
+  /// The address that pays the fee of a send to more recipients. A sole
+  /// recipient needs no name.
+  String get _feePayerAddress => recipients.length > 1 ? _feePayer?.address ?? '' : '';
 
   void addRecipient() {
-    _customMax = null;
-    // Subtract-fee is a single-recipient option; a second recipient voids it.
+    _maxPayer = null;
+    // A new recipient voids MAX, so the fee goes back on top.
     for (final r in recipients) {
       r.subtractFee = false;
     }
@@ -1729,7 +1741,7 @@ class SendPageViewModel extends BaseViewModel {
     if (recipients.length <= 1) {
       return;
     }
-    _customMax = null;
+    _dropMaxPayer();
     recipients[index].removeListener(_onFormChanged);
     recipients.removeAt(index);
     notifyListeners();
@@ -1751,23 +1763,13 @@ class SendPageViewModel extends BaseViewModel {
       ),
   ]);
 
-  /// The fee on top of a send of every coin the recipient at [index] can take,
-  /// the sats those coins hold, and the sats a BIP47 notification keeps back.
-  /// A sole recipient pays the fee out of the amount, so its fee is 0.
-  /// Null after an error the page shows.
-  Future<({int feeSats, int availableSats, int notificationKeepBackSats})?> _maxSendFee(
-    int index,
-    int availableSats,
-    int otherSats,
-  ) async {
+  /// The sats MAX keeps back for a BIP47 notification when the recipient at
+  /// [index] takes every coin. Null after an error the page shows.
+  Future<int?> _notificationKeepBack(int index, int availableSats, int otherSats) async {
     final rate = _feeRateSatPerVbyte;
     final notificationOnly = rate == null && recipients.length == 1 && sendsNow;
     if (rate == null && !notificationOnly) {
-      return (
-        feeSats: feeSats,
-        availableSats: availableSats,
-        notificationKeepBackSats: 0,
-      );
+      return 0;
     }
     final walletId = _walletReader.activeWalletId;
     final destinations = _destinationsWith(index: index, sats: availableSats - otherSats);
@@ -1776,40 +1778,24 @@ class SendPageViewModel extends BaseViewModel {
       return null;
     }
     try {
-      if (recipients.length == 1) {
-        // A first BIP47 payment cannot spend the coin of its notification, so
-        // a small payment finds that coin before MAX fills the amount.
-        final probe = await _orchestratorWallet.previewSend(
-          walletId: walletId,
-          destinations: _destinationsWith(index: index, sats: dustSats)!,
-          feeRateSatPerVbyte: rate ?? 0.0,
-          requiredInputs: selectedUtxos,
-          notificationOnly: notificationOnly,
-        );
-        final notificationFeeSats = probe.notificationFeeSats.toInt();
-        final notificationKeepBackSats = notificationOnly
-            ? (selectedUtxos.isEmpty && notificationFeeSats > 0 ? notificationFeeSats + dustSats : 0)
-            : notificationKeepBack(probe, coinsSelected: selectedUtxos.isNotEmpty);
-        if (notificationKeepBackSats > 0 && availableSats - otherSats - notificationKeepBackSats < dustSats) {
-          setSendError('The wallet has no coins left for the payment after the BIP47 notification.');
-          return null;
-        }
-        return (feeSats: 0, availableSats: availableSats, notificationKeepBackSats: notificationKeepBackSats);
-      }
-      // The electrum backend takes the fee from one destination only, so a send
-      // to several spends every coin with a dust payment and pays the fee on top.
-      final coins = selectedUtxos.isNotEmpty ? selectedUtxos : availableUtxos;
-      final preview = await _orchestratorWallet.previewSend(
+      // A first BIP47 payment cannot spend the coin of its notification, so
+      // a small payment finds that coin before MAX fills the amount.
+      final probe = await _orchestratorWallet.previewSend(
         walletId: walletId,
         destinations: _destinationsWith(index: index, sats: dustSats)!,
-        feeRateSatPerVbyte: rate!,
-        requiredInputs: coins,
+        feeRateSatPerVbyte: rate ?? 0.0,
+        requiredInputs: selectedUtxos,
+        notificationOnly: notificationOnly,
       );
-      return (
-        feeSats: preview.feeSats.toInt(),
-        availableSats: coins.fold(0, (sum, u) => sum + u.valueSats.toInt()),
-        notificationKeepBackSats: 0,
-      );
+      final notificationFeeSats = probe.notificationFeeSats.toInt();
+      final keepBackSats = notificationOnly
+          ? (selectedUtxos.isEmpty && notificationFeeSats > 0 ? notificationFeeSats + dustSats : 0)
+          : notificationKeepBack(probe, coinsSelected: selectedUtxos.isNotEmpty);
+      if (keepBackSats > 0 && availableSats - otherSats - keepBackSats < dustSats) {
+        setSendError('The wallet has no coins left for the payment after the BIP47 notification.');
+        return null;
+      }
+      return keepBackSats;
     } catch (error) {
       setSendError('Could not calculate the fee: $error');
       return null;
@@ -1828,6 +1814,7 @@ class SendPageViewModel extends BaseViewModel {
       destinations: destinations,
       feeRateSatPerVbyte: rate,
       subtractFeeFromAmount: _subtractFeeFromAmount,
+      subtractFeeFrom: _feePayerAddress,
       requiredOutpoints: selectedUtxos.map((u) => u.output),
       frozenOutpoints: heldOutpoints,
       walletOutpoints: allUtxos.map((u) => u.output),
@@ -1879,6 +1866,7 @@ class SendPageViewModel extends BaseViewModel {
         destinations: _destinationsWith()!,
         feeRateSatPerVbyte: _feeRateSatPerVbyte!,
         subtractFeeFromAmount: _subtractFeeFromAmount,
+        subtractFeeFromAddress: _feePayerAddress,
         requiredInputs: selectedUtxos,
         coinOrder: coinSelectionStrategy.coinOrder,
       );
@@ -1956,7 +1944,6 @@ class SendPageViewModel extends BaseViewModel {
       return;
     }
     if (estimate case (confTarget: final target?, satPerVByte: final satPerVByte?, error: _)) {
-      _customMax = null;
       selectedConfTarget = target;
       _setEstimatedFee(satPerVByte);
       notifyListeners();

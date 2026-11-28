@@ -203,78 +203,28 @@ void main() {
   });
 
   group('maxSendAmountSats', () {
-    test('a first BIP47 payment keeps back the payment fee and the notification coin', () {
-      const notificationFee = 520;
-      const notificationCoin = 100_000;
+    test('a first BIP47 payment keeps back the notification coin', () {
       final amount = maxSendAmountSats(
         availableSats: 1_000_000,
         otherRecipientsSats: 50_000,
-        paymentFeeSats: 700,
-        notificationKeepBackSats: notificationCoin,
+        notificationKeepBackSats: 100_000,
       );
-      expect(amount, 849_300);
-      expect(amount + 50_000 + 700 + notificationFee + 2 * dustSats, lessThanOrEqualTo(1_000_000));
+      expect(amount, 850_000);
     });
 
-    test('a send without a notification keeps back the payment fee', () {
+    test('MAX to one of many recipients leaves the fee in the amount', () {
       expect(
         maxSendAmountSats(
-          availableSats: 1_000_000,
-          otherRecipientsSats: 0,
-          paymentFeeSats: 700,
+          availableSats: 504_876_542_858,
+          otherRecipientsSats: 100_000_000,
           notificationKeepBackSats: 0,
         ),
-        999_300,
+        504_776_542_858,
       );
-    });
-  });
-
-  group('maxSendPlan', () {
-    test('a sole recipient sends every sat and pays the fee out of the amount', () {
-      final plan = maxSendPlan(
-        recipientCount: 1,
-        availableSats: 134_849_677_700,
-        otherRecipientsSats: 0,
-        notificationKeepBackSats: 0,
-        feeOnTopSats: 40_004,
-      );
-      expect(plan.amountSats, 134_849_677_700);
-      expect(plan.subtractFee, isTrue);
-    });
-
-    test('a sole BIP47 recipient leaves the notification coin', () {
-      final plan = maxSendPlan(
-        recipientCount: 1,
-        availableSats: 1_000_000,
-        otherRecipientsSats: 0,
-        notificationKeepBackSats: 100_000,
-        feeOnTopSats: 0,
-      );
-      expect(plan.amountSats, 900_000);
-      expect(plan.subtractFee, isTrue);
-    });
-
-    test('more recipients pay the fee on top', () {
-      final plan = maxSendPlan(
-        recipientCount: 2,
-        availableSats: 1_000_000,
-        otherRecipientsSats: 50_000,
-        notificationKeepBackSats: 0,
-        feeOnTopSats: 700,
-      );
-      expect(plan.amountSats, 949_300);
-      expect(plan.subtractFee, isFalse);
     });
 
     test('other recipients above the balance leave 0', () {
-      final plan = maxSendPlan(
-        recipientCount: 2,
-        availableSats: 1_000,
-        otherRecipientsSats: 5_000,
-        notificationKeepBackSats: 0,
-        feeOnTopSats: 700,
-      );
-      expect(plan.amountSats, 0);
+      expect(maxSendAmountSats(availableSats: 1_000, otherRecipientsSats: 5_000, notificationKeepBackSats: 0), 0);
     });
   });
 

@@ -1063,12 +1063,11 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 	if req.FeeRateSatPerVB > 0 && req.FixedFeeSats > 0 {
 		return nil, nil, nil, errors.New("fee rate and fixed fee are mutually exclusive")
 	}
-	// Destinations come from a map, so the first output is not stable; only a
-	// single-recipient subtract-fee send has a well-defined output to reduce.
-	if req.SubtractFeeFromAmount && len(req.DestinationsSats) > 1 {
-		return nil, nil, nil, errors.New("subtractFeeFromAmount requires a single destination")
-	}
 	outputs, totalOutSats := buildSendOutputs(req)
+	payerIndex, err := singleFeePayerIndex(req, outputs)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	pool := p.spendableUTXOs(scan)
 	immature, err := p.immatureCoinbase(ctx, scan)
@@ -1201,7 +1200,7 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 	i := 0
 	for {
 		fee := feeSats(selected)
-		// Subtract-fee sends take the fee out of the first output, so they only
+		// Subtract-fee sends take the fee out of the payer's output, so they only
 		// need to cover the output total; change (if any) returns as normal.
 		target := totalOutSats + fee
 		if req.SubtractFeeFromAmount {
@@ -1234,16 +1233,17 @@ func (p *ElectrumBackend) buildSendPSBT(ctx context.Context, walletID string, sc
 	fee := feeSats(selected)
 	var changeSats int64
 	if req.SubtractFeeFromAmount {
-		if len(outputs) == 0 || outputs[0].OpReturnHex != "" {
-			return nil, nil, nil, errors.New("subtractFeeFromAmount requires a payable first output")
+		if payerIndex < 0 {
+			return nil, nil, nil, errors.New("subtractFeeFromAmount requires a payable destination")
 		}
-		// Take the fee out of the first output; the rest of the selected value
+		// Take the fee out of the payer's output; the rest of the selected value
 		// returns as change, matching Bitcoin Core's subtract-fee semantics.
-		reduced := int64(math.Round(outputs[0].AmountBTC*1e8)) - fee
-		if reduced < dustForOutput(outputs[0], net) {
-			return nil, nil, nil, fmt.Errorf("fee %d sats exceeds first output", fee)
+		payer := &outputs[payerIndex]
+		reduced := int64(math.Round(payer.AmountBTC*1e8)) - fee
+		if reduced < dustForOutput(*payer, net) {
+			return nil, nil, nil, fmt.Errorf("fee %d sats exceeds the output to %s", fee, payer.Address)
 		}
-		outputs[0].AmountBTC = float64(reduced) / 1e8
+		payer.AmountBTC = float64(reduced) / 1e8
 		changeSats = selectedSats - totalOutSats
 	} else {
 		changeSats = selectedSats - totalOutSats - fee
