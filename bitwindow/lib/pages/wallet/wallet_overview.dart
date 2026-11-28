@@ -312,6 +312,43 @@ List<WalletTransaction> withBookLabels(List<WalletTransaction> rows, Map<String,
     },
 ];
 
+/// The note editor of [tx]. It closes after [save] completes, and shows the error of a failed [save].
+Future<void> showTransactionNoteDialog(
+  BuildContext context,
+  WalletTransaction tx,
+  Future<void> Function(String note) save,
+) {
+  return showThemedDialog(
+    context: context,
+    builder: (dialogContext) => SailModal(
+      constraints: const BoxConstraints(maxWidth: 400),
+      child: SailCardEditValues(
+        title: tx.note.isEmpty ? 'Add Note' : 'Edit Note',
+        subtitle: "${tx.note.isEmpty ? "Set a" : "Update the"} note and click Save when you're done",
+        fields: [
+          EditField(name: 'Note', currentValue: tx.note),
+        ],
+        onSave: (updatedFields) async {
+          final note = updatedFields.firstWhere((f) => f.name == 'Note').currentValue;
+          try {
+            await save(note);
+          } catch (e) {
+            GetIt.I<Logger>().e('failed to save the note of ${tx.txid}: $e');
+            if (isExpectedBootError(e)) {
+              return 'Could not save the note. Check Daemon Status, then try again.';
+            }
+            return 'Failed to save the note: $e';
+          }
+          if (dialogContext.mounted) {
+            Navigator.of(dialogContext).pop();
+          }
+          return null;
+        },
+      ),
+    ),
+  );
+}
+
 class TransactionTable extends StatefulWidget {
   final Widget searchWidget;
   final OverviewViewModel model;
@@ -612,30 +649,9 @@ class _TransactionTableState extends State<TransactionTable> {
                                 SailMenuItem(
                                   onSelected: () async {
                                     await Future.microtask(() async {
-                                      if (!context.mounted) {
-                                        return;
+                                      if (context.mounted) {
+                                        await widget.model.editNote(context, entry);
                                       }
-                                      await showThemedDialog(
-                                        context: context,
-                                        builder: (context) => SailModal(
-                                          constraints: const BoxConstraints(maxWidth: 400),
-                                          child: SailCardEditValues(
-                                            title: entry.note.isEmpty ? 'Add Note' : 'Edit Note',
-                                            subtitle:
-                                                "${entry.note.isEmpty ? "Set a" : "Update the"} note and click Save when you're done",
-                                            fields: [
-                                              EditField(name: 'Note', currentValue: entry.note),
-                                            ],
-                                            onSave: (updatedFields) async {
-                                              final newNote = updatedFields
-                                                  .firstWhere((f) => f.name == 'Note')
-                                                  .currentValue;
-                                              await widget.model.saveNote(context, entry.txid, newNote);
-                                              return null;
-                                            },
-                                          ),
-                                        ),
-                                      );
                                     });
                                   },
                                   child: SailText.primary12(entry.note.isEmpty ? 'Add Note' : 'Update Note'),
@@ -697,7 +713,7 @@ class _TransactionTableState extends State<TransactionTable> {
 /// - Transactions: routed via TransactionProvider (already on orchestrator)
 /// - getStats: STAYS on bitwindowd — BW-only aggregate stats from SQLite
 /// - bumpFee: routed via orchestrator
-/// - saveNote: STAYS on bitwindowd — transaction notes live in BW SQLite
+/// - editNote: STAYS on bitwindowd — transaction notes live in BW SQLite
 class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
   final TransactionProvider _txProvider = GetIt.I<TransactionProvider>();
   final BitwindowRPC _bitwindowRPC = GetIt.I<BitwindowRPC>();
@@ -779,8 +795,6 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
   bool sortAscending = true;
   GetStatsResponse? stats;
 
-  @override
-  String? modelError;
   String? transactionsError;
 
   /// The last stats read failed, so the tiles show no numbers.
@@ -884,23 +898,9 @@ class OverviewViewModel extends BaseViewModel with ChangeTrackingMixin {
     }
   }
 
-  Future<void> saveNote(BuildContext context, String txid, String note) async {
-    try {
-      setBusy(true);
-      await _txProvider.saveNote(txid, note);
-
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-    } catch (error) {
-      if (error.toString() != modelError) {
-        modelError = error.toString();
-        notifyListeners();
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
+  /// Opens the note editor of [tx].
+  Future<void> editNote(BuildContext context, WalletTransaction tx) =>
+      showTransactionNoteDialog(context, tx, (note) => _txProvider.saveNote(tx.txid, note));
 
   Future<void> exportTransactionsToCSV(BuildContext context, List<WalletTransaction> transactions) async {
     transactionsError = null;
