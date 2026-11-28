@@ -1026,16 +1026,20 @@ func (p *CoreBackend) Send(ctx context.Context, walletID string, req SendRequest
 		return "", errors.New("external inputs require a fixed fee")
 	}
 
+	payers, err := req.FeePayers()
+	if err != nil {
+		return "", err
+	}
 	if !needsRawPath {
 		destinations := lo.MapValues(req.DestinationsSats, func(sats int64, _ string) float64 {
 			return float64(sats) / 1e8
 		})
 		if len(destinations) == 1 {
 			for addr, amount := range destinations {
-				return p.rpc.SendToAddress(ctx, name, addr, amount, req.SubtractFeeFromAmount)
+				return p.rpc.SendToAddress(ctx, name, addr, amount, len(payers) > 0)
 			}
 		}
-		return p.rpc.SendMany(ctx, name, destinations, req.SubtractFeeFromAmount)
+		return p.rpc.SendMany(ctx, name, destinations, payers)
 	}
 
 	// Replay protection stamps a magic locktime; Core lowers the inputs it is
@@ -1088,12 +1092,13 @@ func (p *CoreBackend) fixedFeeRawTx(
 	totalDestinationSats, externalSats int64, locktime uint32,
 ) (string, error) {
 	feeOnTopSats := req.FixedFeeSats
-	if req.SubtractFeeFromAmount {
-		if len(req.DestinationsSats) != 1 {
-			return "", connect.NewError(connect.CodeInvalidArgument, "subtractFeeFromAmount requires a single destination")
-		}
+	payerIndex, err := singleFeePayerIndex(req, outputs)
+	if err != nil {
+		return "", err
+	}
+	if payerIndex >= 0 {
 		outputs = slices.Clone(outputs)
-		payment := &outputs[len(req.RawOutputs)]
+		payment := &outputs[payerIndex]
 		paymentSats := req.DestinationsSats[payment.Address] - req.FixedFeeSats
 		if minimumSats := dustForOutput(*payment, p.net()); paymentSats < minimumSats {
 			return "", connect.Errorf(connect.CodeInvalidArgument, "payment after the fee must be at least %d sats", minimumSats)
@@ -1171,8 +1176,12 @@ func (p *CoreBackend) fundWithCoreSelection(
 	if req.FeeRateSatPerVB > 0 {
 		options["fee_rate"] = coreFeeRate(req.FeeRateSatPerVB)
 	}
-	if req.SubtractFeeFromAmount && len(req.DestinationsSats) > 0 {
-		options["subtractFeeFromOutputs"] = lo.Range(len(req.DestinationsSats))
+	payerIndexes, err := feePayerIndexes(req, outputs)
+	if err != nil {
+		return nil, err
+	}
+	if len(payerIndexes) > 0 {
+		options["subtractFeeFromOutputs"] = payerIndexes
 	}
 	if protect || req.Replaceable {
 		// Inputs Core selects during funding must also be non-final, else the
@@ -1439,9 +1448,6 @@ func (p *CoreBackend) CreatePSBT(ctx context.Context, walletID string, req SendR
 	if req.FeeRateSatPerVB > 0 {
 		options["fee_rate"] = coreFeeRate(req.FeeRateSatPerVB)
 	}
-	if req.SubtractFeeFromAmount && len(req.DestinationsSats) > 0 {
-		options["subtractFeeFromOutputs"] = lo.Range(len(req.DestinationsSats))
-	}
 	locktime := uint32(0)
 	protect := ReplayProtect(p.svc.Network(), req.AllowReplay)
 	if protect {
@@ -1456,6 +1462,13 @@ func (p *CoreBackend) CreatePSBT(ctx context.Context, walletID string, req SendR
 	}
 
 	outputs, totalDestinationSats := buildSendOutputs(req)
+	payerIndexes, err := feePayerIndexes(req, outputs)
+	if err != nil {
+		return "", err
+	}
+	if len(payerIndexes) > 0 {
+		options["subtractFeeFromOutputs"] = payerIndexes
+	}
 	if req.FixedFeeSats > 0 {
 		rawHex, err := p.fixedFeeRawTx(ctx, walletID, name, req, inputs, outputs, totalDestinationSats, 0, locktime)
 		if err != nil {

@@ -1043,6 +1043,7 @@ func (h *WalletHandler) SendTransaction(ctx context.Context, req *pb.SendTransac
 	if err != nil {
 		return nil, err
 	}
+	requested := req.Destinations
 	if expansion.notificationTxHex != "" || !destinationsEqual(expansion.destinations, req.Destinations) {
 		req = applyDestinationsToRequest(req, expansion.destinations)
 	}
@@ -1050,6 +1051,7 @@ func (h *WalletHandler) SendTransaction(ctx context.Context, req *pb.SendTransac
 	// happens before the payment goes out. A broadcast that times out may
 	// still have published the payment, and reusing that address would defeat
 	// the address isolation BIP47 exists for.
+	subtractFee := req.SubtractFeeFromAmount || req.SubtractFeeFromAddress != ""
 	const dustLimitSats int64 = 546
 	for address, sats := range req.Destinations {
 		if sats < dustLimitSats {
@@ -1059,7 +1061,7 @@ func (h *WalletHandler) SendTransaction(ctx context.Context, req *pb.SendTransac
 				"amount to %s is below dust limit (%d sats)", address, dustLimitSats,
 			)
 		}
-		if expansion.notificationTxHex != "" && req.SubtractFeeFromAmount && req.FixedFeeSats > 0 && sats-req.FixedFeeSats < dustLimitSats {
+		if expansion.notificationTxHex != "" && subtractFee && req.FixedFeeSats > 0 && sats-req.FixedFeeSats < dustLimitSats {
 			h.releaseBip47Index(walletID, expansion)
 			return nil, connect.Errorf(connect.CodeInvalidArgument, "fee %d sats exceeds the payment", req.FixedFeeSats)
 		}
@@ -1070,7 +1072,8 @@ func (h *WalletHandler) SendTransaction(ctx context.Context, req *pb.SendTransac
 		FeeRateSatPerVB:       req.FeeRateSatPerVbyte,
 		FixedFeeSats:          req.FixedFeeSats,
 		OpReturnHex:           req.OpReturnHex,
-		SubtractFeeFromAmount: req.SubtractFeeFromAmount,
+		SubtractFeeFromAmount: subtractFee,
+		SubtractFeeFrom:       feePayerAfter(req.SubtractFeeFromAddress, requested, req.Destinations),
 		AllowReplay:           req.AllowReplay,
 		Replaceable:           req.Replaceable,
 	}
@@ -1113,6 +1116,23 @@ func (h *WalletHandler) SendTransaction(ctx context.Context, req *pb.SendTransac
 	return &pb.SendTransactionResponse{
 		Txid: txid,
 	}, nil
+}
+
+// feePayerAfter is the address that pays the fee after a BIP47 payment code
+// in before became its payment address in after.
+func feePayerAfter(payer string, before, after map[string]int64) string {
+	if _, ok := after[payer]; ok || payer == "" {
+		return payer
+	}
+	if _, ok := before[payer]; !ok {
+		return payer
+	}
+	for address := range after {
+		if _, ok := before[address]; !ok {
+			return address
+		}
+	}
+	return payer
 }
 
 func mapRequiredInputs(inputs []*pb.UnspentOutput) []wallet.RequiredInput {
@@ -1171,11 +1191,13 @@ func (h *WalletHandler) PreviewSend(ctx context.Context, req *pb.PreviewSendRequ
 	if req.NotificationOnly {
 		return resp, nil
 	}
+	subtractFee := req.SubtractFeeFromAmount || req.SubtractFeeFromAddress != ""
 	preview, err := h.engine.Backend().PreviewSend(ctx, walletID, wallet.SendRequest{
 		DestinationsSats:      destinations,
 		FeeRateSatPerVB:       req.FeeRateSatPerVbyte,
 		OpReturnHex:           req.OpReturnHex,
-		SubtractFeeFromAmount: req.SubtractFeeFromAmount,
+		SubtractFeeFromAmount: subtractFee,
+		SubtractFeeFrom:       feePayerAfter(req.SubtractFeeFromAddress, req.Destinations, destinations),
 		AllowReplay:           req.AllowReplay,
 		RequiredInputs:        requiredInputs,
 		ExcludedInputs:        excluded,
@@ -1191,7 +1213,7 @@ func (h *WalletHandler) PreviewSend(ctx context.Context, req *pb.PreviewSendRequ
 	if resp.FeeIsEstimate {
 		changeSats := notificationCoinSats - resp.NotificationFeeSats - bip47NotificationDustSats
 		needSats := lo.Sum(lo.Values(destinations))
-		if !req.SubtractFeeFromAmount {
+		if !subtractFee {
 			needSats += preview.FeeSats
 		}
 		if needSats > changeSats {
@@ -2599,7 +2621,8 @@ func (h *WalletHandler) CreatePsbt(ctx context.Context, req *pb.CreatePsbtReques
 		FeeRateSatPerVB:       req.FeeRateSatPerVbyte,
 		FixedFeeSats:          req.FixedFeeSats,
 		OpReturnHex:           req.OpReturnHex,
-		SubtractFeeFromAmount: req.SubtractFeeFromAmount,
+		SubtractFeeFromAmount: req.SubtractFeeFromAmount || req.SubtractFeeFromAddress != "",
+		SubtractFeeFrom:       req.SubtractFeeFromAddress,
 		AllowReplay:           req.AllowReplay,
 		CoinOrder:             wallet.CoinOrder(req.CoinOrder),
 	}
