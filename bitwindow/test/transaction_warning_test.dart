@@ -225,7 +225,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Confirmed'), findsOneWidget);
-      expect(tester.widgetList<SailTableHeaderCell>(find.byType(SailTableHeaderCell)), hasLength(7));
+      expect(
+        tester.widgetList<SailTableHeaderCell>(find.byType(SailTableHeaderCell)),
+        hasLength(desktopTransactionColumns.length),
+      );
       final warnings = tester
           .widgetList<SailTooltip>(find.byType(SailTooltip))
           .where((tooltip) => tooltip.message == message.value);
@@ -257,12 +260,15 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  String rowValue(WidgetTester tester, String label) {
-    final row = tester.widget<DetailRow>(
-      find.byWidgetPredicate((widget) => widget is DetailRow && widget.label == label),
-    );
-    return row.value;
-  }
+  Finder rowFinder(String label) => find.byWidgetPredicate(
+    (widget) => (widget is DetailRow && widget.label == label) || (widget is SailDetailLine && widget.label == label),
+  );
+
+  String rowValue(WidgetTester tester, String label) => switch (tester.widget(rowFinder(label))) {
+    final DetailRow row => row.value,
+    final SailDetailLine row => row.value!,
+    final other => throw StateError('not a detail row: $other'),
+  };
 
   testWidgets('the details of a wallet transaction show what it did to the wallet', (tester) async {
     final time = DateTime(2026, 11, 27, 7, 13);
@@ -306,7 +312,7 @@ void main() {
     expect(rowValue(tester, 'Status'), 'Unconfirmed');
     expect(rowValue(tester, 'Amount'), '+${GetIt.I<FormatterProvider>().formatSats(50000000)}');
     expect(rowValue(tester, 'Address'), 'bcrt1qown');
-    expect(find.byWidgetPredicate((widget) => widget is DetailRow && widget.label == 'Note'), findsNothing);
+    expect(rowFinder('Note'), findsNothing);
 
     transactions.walletTransactions = [row.deepCopy()..confirmations = 1];
     transactions.notifyListeners();

@@ -58,7 +58,8 @@ class CreateTimestampViewModel extends BaseViewModel {
     }
   }
 
-  Future<void> timestampFile(BuildContext context) async {
+  /// [onCreated] gets the new timestamp. Null opens its details page.
+  Future<void> timestampFile(BuildContext context, {void Function(FileTimestamp timestamp)? onCreated}) async {
     if (selectedFile == null) {
       modelError = 'Please select a file first';
       notifyListeners();
@@ -76,10 +77,10 @@ class CreateTimestampViewModel extends BaseViewModel {
         bytes,
       );
 
-      if (timestamp != null && context.mounted) {
-        await GetIt.I.get<AppRouter>().replace(
-          TimestampDetailRoute(timestampId: timestamp.id.toInt()),
-        );
+      if (timestamp != null && context.mounted && onCreated != null) {
+        onCreated(timestamp);
+      } else if (timestamp != null && context.mounted) {
+        await GetIt.I.get<AppRouter>().replace(TimestampDetailRoute(timestampId: timestamp.id.toInt()));
       } else {
         modelError = _timestampProvider.modelError ?? 'Failed to timestamp file';
       }
@@ -195,6 +196,84 @@ class CreateTimestampPage extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Opens "Timestamp a File" as a dialog. Returns the new timestamp, or null.
+Future<FileTimestamp?> showCreateTimestampDialog(BuildContext context) {
+  return showThemedDialog<FileTimestamp>(context: context, builder: (context) => const CreateTimestampDialog());
+}
+
+class CreateTimestampDialog extends StatelessWidget {
+  const CreateTimestampDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ViewModelBuilder<CreateTimestampViewModel>.reactive(
+      viewModelBuilder: () => CreateTimestampViewModel(),
+      builder: (context, model, child) {
+        final theme = SailTheme.of(context);
+        final chosen = model.selectedFile != null;
+        return SailDialog(
+          title: 'Timestamp a File',
+          withCloseButton: true,
+          maxWidth: 480,
+          child: SailColumn(
+            spacing: SailStyleValues.padding12,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SailText.secondary13(
+                'Upload a file (max 1MB) to timestamp on the Bitcoin blockchain. '
+                'This will create a permanent, verifiable proof that the file existed at this time.',
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+                  child: Row(
+                    children: [
+                      SailSVG.fromAsset(
+                        SailSVGAsset.fileText,
+                        width: 14,
+                        height: 14,
+                        color: theme.colors.textSecondary,
+                      ),
+                      const SizedBox(width: SailStyleValues.padding08),
+                      Expanded(
+                        child: chosen
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SailText.primary13(model.selectedFilename ?? 'Unknown'),
+                                  SailText.secondary12('Size: ${model.fileSizeFormatted}'),
+                                ],
+                              )
+                            : SailText.primary13('No file selected', color: theme.colors.textHint),
+                      ),
+                      SailButton(
+                        label: chosen ? 'Change File' : 'Choose File',
+                        variant: ButtonVariant.ghost,
+                        onPressed: () async => model.pickFile(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (model.modelError != null) SailText.primary12(model.modelError!, color: theme.colors.error),
+              SailButton(
+                label: 'Timestamp File',
+                loading: model.isCreating,
+                disabled: !chosen,
+                onPressed: () async =>
+                    model.timestampFile(context, onCreated: (timestamp) => Navigator.of(context).pop(timestamp)),
+              ),
+            ],
           ),
         );
       },

@@ -24,8 +24,6 @@ class _HashCalculatorState extends State<HashCalculator> {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-    final phone = SailStyleValues.phoneLayout(context);
-    final inputLabel = SailText.primary13('Input');
     final hexBox = SailCheckbox(
       value: _isHexMode,
       onChanged: (value) {
@@ -46,137 +44,95 @@ class _HashCalculatorState extends State<HashCalculator> {
       },
       label: 'HMAC',
     );
-    final hexError = _isHexMode && _hexValidationError.isNotEmpty
-        ? SailText.primary13(
-            _hexValidationError,
-            color: theme.colors.error,
-          )
-        : null;
-    final clearButton = SailButton(
-      label: 'Clear',
-      onPressed: () async {
-        _inputController.clear();
-        _hmacKeyController.clear();
-      },
-      variant: ButtonVariant.secondary,
-    );
-    final pasteButton = SailButton(
-      label: 'Paste',
-      onPressed: () async {
-        final data = await Clipboard.getData(Clipboard.kTextPlain);
-        final text = data?.text;
-        if (text != null) {
-          _inputController.text = text;
-        }
-      },
-      variant: ButtonVariant.secondary,
-    );
-    final flipButton = _isHexMode
-        ? SailButton(
-            label: 'Flip Bytes',
-            onPressed: () async {
+    final menu = SailRowMenuButton(
+      items: () => [
+        SailMenuItem(
+          onSelected: () {
+            _inputController.clear();
+            _hmacKeyController.clear();
+          },
+          child: SailText.primary12('Clear'),
+        ),
+        SailMenuItem(
+          onSelected: () async {
+            final data = await Clipboard.getData(Clipboard.kTextPlain);
+            final text = data?.text;
+            if (text != null) {
+              _inputController.text = text;
+            }
+          },
+          child: SailText.primary12('Paste'),
+        ),
+        if (_isHexMode)
+          SailMenuItem(
+            onSelected: () {
               if (_isValidHex(_inputController.text)) {
                 final bytes = _getInputBytes().toList().reversed.toList();
                 _inputController.text = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
               }
             },
-            variant: ButtonVariant.secondary,
-          )
-        : null;
+            child: SailText.primary12('Flip Bytes'),
+          ),
+      ],
+    );
+    final help = SailIconBoxButton(
+      icon: SailSVGAsset.circleHelp,
+      tooltip: 'Help',
+      onPressed: () async => _showHelpDialog(context),
+    );
+    final results = _useHmac ? _hmacResults() : _hashResults();
 
-    return SailCard(
-      title: phone ? 'Hash Calculator' : null,
-      padding: true,
-      widgetHeaderEnd: SailButton(
-        label: '?',
-        onPressed: () async => _showHelpDialog(context),
-        variant: ButtonVariant.ghost,
-      ),
-      withCloseButton: false,
-      child: Padding(
-        padding: phone ? EdgeInsets.zero : const EdgeInsets.all(SailStyleValues.padding16),
-        child: SailColumn(
-          spacing: SailStyleValues.padding12,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Input controls
-            SailCard(
-              padding: true,
-              secondary: true,
-              child: SailColumn(
-                spacing: SailStyleValues.padding12,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (phone) ...[
-                    Wrap(
-                      spacing: SailStyleValues.padding08,
-                      runSpacing: SailStyleValues.padding08,
-                      alignment: WrapAlignment.spaceBetween,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SailRow(
-                          spacing: SailStyleValues.padding08,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [inputLabel, hexBox, hmacBox],
-                        ),
-                        SailRow(
-                          spacing: SailStyleValues.padding08,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [clearButton, pasteButton, ?flipButton],
-                        ),
-                      ],
-                    ),
-                    ?hexError,
-                  ] else
-                    SailRow(
-                      spacing: SailStyleValues.padding08,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        inputLabel,
-                        hexBox,
-                        hmacBox,
-                        ?hexError,
-                        const Spacer(),
-                        clearButton,
-                        pasteButton,
-                        ?flipButton,
-                      ],
-                    ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(SailStyleValues.padding12),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SailCard(
+            title: 'Input',
+            widgetHeaderEnd: SailRow(
+              spacing: SailStyleValues.padding12,
+              children: [hexBox, hmacBox, menu, help],
+            ),
+            child: SailColumn(
+              spacing: SailStyleValues.padding12,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SailTextField(
+                  controller: _inputController,
+                  hintText: _isHexMode ? 'Enter hex without spaces or 0x prefix' : 'Enter text to hash',
+                  textFieldType: TextFieldType.text,
+                  maxLines: 1,
+                ),
+                if (_useHmac)
                   SailTextField(
-                    controller: _inputController,
-                    hintText: _isHexMode ? 'Enter hex without spaces or 0x prefix' : 'Enter text to hash',
+                    controller: _hmacKeyController,
+                    hintText: _isHexMode ? 'Enter key hex' : 'Enter key text',
                     textFieldType: TextFieldType.text,
-                    size: TextFieldSize.small,
                     maxLines: 1,
                   ),
-                  if (_useHmac)
-                    SailTextField(
-                      controller: _hmacKeyController,
-                      hintText: _isHexMode ? 'Enter key hex' : 'Enter key text',
-                      textFieldType: TextFieldType.text,
-                      size: TextFieldSize.small,
-                      maxLines: 1,
-                    ),
+                if (_isHexMode && _hexValidationError.isNotEmpty)
+                  SailText.primary12(_hexValidationError, color: theme.colors.error),
+              ],
+            ),
+          ),
+          SailCard(
+            padding: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (index, result) in results.indexed)
+                    _ResultRow(result: result, last: index == results.length - 1),
                 ],
               ),
             ),
-
-            // Result section
-            Expanded(
-              child: SingleChildScrollView(
-                child: SailCard(
-                  padding: true,
-                  secondary: true,
-                  child: SailColumn(
-                    spacing: 4,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: _useHmac ? _buildHMACResults(theme) : _buildHashResults(theme),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -414,255 +370,74 @@ class _HashCalculatorState extends State<HashCalculator> {
     }
   }
 
-  List<Widget> _buildHashResults(SailThemeData theme) {
-    final results = <Widget>[];
+  /// The value captured by [pattern] in [output], or null when [output] is empty.
+  String? _field(String output, String pattern) =>
+      output.isEmpty ? null : RegExp(pattern).firstMatch(output)?.group(1) ?? '';
 
-    // SHA256D
-    results.add(
-      _ResultRow(
-        label: 'SHA256D',
-        value: _output.isNotEmpty
-            ? RegExp(r'<b>SHA256D:</b> ([a-fA-F0-9]+)').firstMatch(_output)?.group(1) ?? ''
-            : null,
-      ),
-    );
-    if (_output.isNotEmpty) {
-      final sha256dMatch = RegExp(r'<b>SHA256D:</b> ([a-fA-F0-9]+)').firstMatch(_output);
-      if (sha256dMatch != null) {
-        results.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: SailText.primary10(
-              _hexToBin(sha256dMatch.group(1)!),
-              color: theme.colors.textTertiary,
-            ),
-          ),
-        );
-      }
-    }
+  _HashResult _withBinary(String label, String? value) =>
+      _HashResult(label: label, value: value, binary: value == null || value.isEmpty ? null : _hexToBin(value));
 
-    // Hash160
-    results.add(
-      _ResultRow(
-        label: 'Hash160 - RIPEMD160(SHA256)',
-        value: _output.isNotEmpty
-            ? RegExp(r'<b>Hash160.*?:</b> ([a-fA-F0-9]+)').firstMatch(_output)?.group(1) ?? ''
-            : null,
-      ),
-    );
-    if (_output.isNotEmpty) {
-      final hash160Match = RegExp(r'<b>Hash160.*?:</b> ([a-fA-F0-9]+)').firstMatch(_output);
-      if (hash160Match != null) {
-        results.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: SailText.primary10(
-              _hexToBin(hash160Match.group(1)!),
-              color: theme.colors.textTertiary,
-            ),
-          ),
-        );
-      }
-    }
-
-    // RIPEMD160
-    results.add(
-      _ResultRow(
-        label: 'RIPEMD160',
-        value: _output.isNotEmpty
-            ? RegExp(r'<b>RIPEMD160:</b> ([a-fA-F0-9]+)').firstMatch(_output)?.group(1) ?? ''
-            : null,
-      ),
-    );
-    if (_output.isNotEmpty) {
-      final ripemd160Match = RegExp(r'<b>RIPEMD160:</b> ([a-fA-F0-9]+)').firstMatch(_output);
-      if (ripemd160Match != null) {
-        results.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: SailText.primary10(
-              _hexToBin(ripemd160Match.group(1)!),
-              color: theme.colors.textTertiary,
-            ),
-          ),
-        );
-      }
-    }
-
-    // SHA256
-    results.add(
-      _ResultRow(
-        label: 'SHA256',
-        value: _output.isNotEmpty ? RegExp(r'<b>SHA256:</b> ([a-fA-F0-9]+)').firstMatch(_output)?.group(1) ?? '' : null,
-      ),
-    );
-    if (_output.isNotEmpty) {
-      final sha256Match = RegExp(r'<b>SHA256:</b> ([a-fA-F0-9]+)').firstMatch(_output);
-      if (sha256Match != null) {
-        results.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: SailText.primary10(
-              _hexToBin(sha256Match.group(1)!),
-              color: theme.colors.textTertiary,
-            ),
-          ),
-        );
-      }
-    }
-
-    // SHA512
-    results.add(
-      _ResultRow(
-        label: 'SHA512',
-        value: _output.isNotEmpty ? RegExp(r'<b>SHA512:</b> ([a-fA-F0-9]+)').firstMatch(_output)?.group(1) ?? '' : null,
-      ),
-    );
-    if (_output.isNotEmpty) {
-      final sha512Match = RegExp(r'<b>SHA512:</b> ([a-fA-F0-9]+)').firstMatch(_output);
-      if (sha512Match != null) {
-        results.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: SailText.primary10(
-              _hexToBin(sha512Match.group(1)!),
-              color: theme.colors.textTertiary,
-            ),
-          ),
-        );
-      }
-    }
-
-    // Decode
-    results.add(
-      _ResultRow(
-        label: 'Decode',
-        value: _output.isNotEmpty ? RegExp(r'<b>Decode:</b> (.+)').firstMatch(_output)?.group(1) ?? '' : null,
-      ),
-    );
-
-    // Hex
-    results.add(
-      _ResultRow(
-        label: 'Hex',
-        value: _output.isNotEmpty ? RegExp(r'<b>Hex:</b> ([a-fA-F0-9]+)').firstMatch(_output)?.group(1) ?? '' : null,
-      ),
-    );
-
-    // Binary
-    results.add(
-      _ResultRow(
-        label: 'Bin',
-        value: _output.isNotEmpty ? RegExp(r'<b>Bin:</b> ([01]+)').firstMatch(_output)?.group(1) ?? '' : null,
-      ),
-    );
-
-    return results;
+  List<_HashResult> _hashResults() {
+    return [
+      _withBinary('SHA256D', _field(_output, r'<b>SHA256D:</b> ([a-fA-F0-9]+)')),
+      _withBinary('Hash160 - RIPEMD160(SHA256)', _field(_output, r'<b>Hash160.*?:</b> ([a-fA-F0-9]+)')),
+      _withBinary('RIPEMD160', _field(_output, r'<b>RIPEMD160:</b> ([a-fA-F0-9]+)')),
+      _withBinary('SHA256', _field(_output, r'<b>SHA256:</b> ([a-fA-F0-9]+)')),
+      _withBinary('SHA512', _field(_output, r'<b>SHA512:</b> ([a-fA-F0-9]+)')),
+      _HashResult(label: 'Decode', value: _field(_output, r'<b>Decode:</b> (.+)')),
+      _HashResult(label: 'Hex', value: _field(_output, r'<b>Hex:</b> ([a-fA-F0-9]+)')),
+      _HashResult(label: 'Bin', value: _field(_output, r'<b>Bin:</b> ([01]+)')),
+    ];
   }
 
-  List<Widget> _buildHMACResults(SailThemeData theme) {
-    final results = <Widget>[];
-
-    // HMAC-SHA256
-    results.add(
-      _ResultRow(
-        label: 'HMAC-SHA256',
-        value: _hmacKeyController.text.isNotEmpty && _inputController.text.isNotEmpty
-            ? RegExp(r'<b>HMAC-SHA256:</b> ([a-fA-F0-9]+)').firstMatch(_generateHMACOutput())?.group(1) ?? ''
-            : null,
-      ),
-    );
-    if (_hmacKeyController.text.isNotEmpty && _inputController.text.isNotEmpty) {
-      final hmacOutput = _generateHMACOutput();
-      final hmacSha256Match = RegExp(r'<b>HMAC-SHA256:</b> ([a-fA-F0-9]+)').firstMatch(hmacOutput);
-      if (hmacSha256Match != null) {
-        results.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: SailText.primary10(
-              _hexToBin(hmacSha256Match.group(1)!),
-              color: theme.colors.textTertiary,
-            ),
-          ),
-        );
-      }
-    }
-
-    // HMAC-SHA512
-    results.add(
-      _ResultRow(
-        label: 'HMAC-SHA512',
-        value: _hmacKeyController.text.isNotEmpty && _inputController.text.isNotEmpty
-            ? RegExp(r'<b>HMAC-SHA512:</b> ([a-fA-F0-9]+)').firstMatch(_generateHMACOutput())?.group(1) ?? ''
-            : null,
-      ),
-    );
-    if (_hmacKeyController.text.isNotEmpty && _inputController.text.isNotEmpty) {
-      final hmacOutput = _generateHMACOutput();
-      final hmacSha512Match = RegExp(r'<b>HMAC-SHA512:</b> ([a-fA-F0-9]+)').firstMatch(hmacOutput);
-      if (hmacSha512Match != null) {
-        results.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: SailText.primary10(
-              _hexToBin(hmacSha512Match.group(1)!),
-              color: theme.colors.textTertiary,
-            ),
-          ),
-        );
-      }
-    }
-
-    return results;
+  List<_HashResult> _hmacResults() {
+    final ready = _hmacKeyController.text.isNotEmpty && _inputController.text.isNotEmpty;
+    final output = ready ? _generateHMACOutput() : '';
+    String? field(String pattern) => ready ? RegExp(pattern).firstMatch(output)?.group(1) ?? '' : null;
+    return [
+      _withBinary('HMAC-SHA256', field(r'<b>HMAC-SHA256:</b> ([a-fA-F0-9]+)')),
+      _withBinary('HMAC-SHA512', field(r'<b>HMAC-SHA512:</b> ([a-fA-F0-9]+)')),
+    ];
   }
 
   void _showHelpDialog(BuildContext context) {
-    final theme = SailTheme.of(context);
-    showThemedDialog(
+    widgetDialog(
       context: context,
-      builder: (context) => SailModal(
-        backgroundColor: theme.colors.backgroundSecondary,
-        child: SailCard(
-          width: 600,
-          title: 'Hash Calculator Help',
-          subtitle: '',
-          padding: true,
-          withCloseButton: true,
-          child: SailColumn(
-            spacing: SailStyleValues.padding08,
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SailText.primary13(
-                "SHA256D: 256 bit output from Bitcoin's SHA-256D [sha256(sha256())] hash function. Outputs in Little-Endian byte order.",
-              ),
-              SailText.primary13(
-                "Hash160: 160 bit output from Bitcoin's Hash160 [RIPEMD160(sha256())] hash function. Outputs in Little-Endian byte order.",
-              ),
-              SailText.primary13(
-                'RIPEMD160: 160 bit RIPE Message Digest.',
-              ),
-              SailText.primary13(
-                'SHA256: 256 bit output from the Secure Hash Algorithm 2 hash function.',
-              ),
-              SailText.primary13(
-                'SHA512: 512 bit output from the Secure Hash Algorithm 2 hash function.',
-              ),
-              SailText.primary13(
-                'Decode: Shows the input text or decoded hex bytes as text.',
-              ),
-              SailText.primary13(
-                'Hex: The hexadecimal (base 16) representation.',
-              ),
-              SailText.primary13(
-                'Bin: The binary (base 2) representation.',
-              ),
-              SailText.primary13(
-                'HMAC: Hash-based Message Authentication Code using SHA256 or SHA512 with a provided key.',
-              ),
-            ],
+      title: 'Hash Calculator Help',
+      maxWidth: 560,
+      child: SailColumn(
+        spacing: SailStyleValues.padding08,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SailText.primary13(
+            "SHA256D: 256 bit output from Bitcoin's SHA-256D [sha256(sha256())] hash function. Outputs in Little-Endian byte order.",
           ),
-        ),
+          SailText.primary13(
+            "Hash160: 160 bit output from Bitcoin's Hash160 [RIPEMD160(sha256())] hash function. Outputs in Little-Endian byte order.",
+          ),
+          SailText.primary13(
+            'RIPEMD160: 160 bit RIPE Message Digest.',
+          ),
+          SailText.primary13(
+            'SHA256: 256 bit output from the Secure Hash Algorithm 2 hash function.',
+          ),
+          SailText.primary13(
+            'SHA512: 512 bit output from the Secure Hash Algorithm 2 hash function.',
+          ),
+          SailText.primary13(
+            'Decode: Shows the input text or decoded hex bytes as text.',
+          ),
+          SailText.primary13(
+            'Hex: The hexadecimal (base 16) representation.',
+          ),
+          SailText.primary13(
+            'Bin: The binary (base 2) representation.',
+          ),
+          SailText.primary13(
+            'HMAC: Hash-based Message Authentication Code using SHA256 or SHA512 with a provided key.',
+          ),
+        ],
       ),
     );
   }
@@ -684,46 +459,60 @@ class _HashCalculatorState extends State<HashCalculator> {
   }
 }
 
-class _ResultRow extends StatelessWidget {
+class _HashResult {
   final String label;
+
+  /// Null before there is input.
   final String? value;
 
-  const _ResultRow({required this.label, required this.value});
+  /// The value in base 2, under the value in grey.
+  final String? binary;
+
+  const _HashResult({required this.label, required this.value, this.binary});
+}
+
+/// A result: grey label, value under it, a copy icon at the right and a hairline under it.
+class _ResultRow extends StatelessWidget {
+  final _HashResult result;
+  final bool last;
+
+  const _ResultRow({required this.result, required this.last});
 
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-    final value = this.value;
-    if (SailStyleValues.phoneLayout(context)) {
-      return Row(
+    final value = result.value;
+    final binary = result.binary;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding12),
+      decoration: last
+          ? null
+          : BoxDecoration(
+              border: Border(bottom: BorderSide(color: theme.colors.divider)),
+            ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                SailText.primary13('$label:'),
-                if (value != null) SailText.primary13(value, color: theme.colors.textSecondary),
+                SailText.secondary12('${result.label}:'),
+                if (value != null && value.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  SailText.primary13(value),
+                ],
+                if (binary != null) ...[
+                  const SizedBox(height: 2),
+                  SailText.primary10(binary, color: theme.colors.textTertiary),
+                ],
               ],
             ),
           ),
           if (value != null && value.isNotEmpty) CopyButton(text: value),
         ],
-      );
-    }
-    return SailRow(
-      spacing: SailStyleValues.padding08,
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        SailText.primary13('$label: ', color: theme.colors.text),
-        if (value != null)
-          Expanded(
-            child: SailText.primary13(
-              value,
-              color: theme.colors.textSecondary,
-            ),
-          ),
-      ],
+      ),
     );
   }
 }

@@ -103,6 +103,16 @@ class TopicAPI extends MockAPI {
   TopicAPI() : super(binaryType: BinaryType.BINARY_TYPE_BITWINDOWD);
 }
 
+Finder rowMenu() => find.descendant(of: find.byType(SailTable), matching: find.byType(SailRowMenuButton));
+
+/// Opens the "…" menu of the first table row and taps [item].
+Future<void> tapRowMenu(WidgetTester tester, String item) async {
+  await tester.tap(rowMenu().first);
+  await tester.pump(kDoubleTapTimeout);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(item).last);
+}
+
 Finder button(String label) =>
     find.byWidgetPredicate((widget) => widget is SailButton && widget.label == label).hitTestable();
 
@@ -324,7 +334,10 @@ void main() {
 
   testWidgets('Restore Defaults asks first and shows a failed create', (tester) async {
     final api = await open(tester);
-    await tester.tap(button('Restore Defaults'));
+    await tester.tap(find.byType(SailRowMenuButton).first);
+    await settle(tester);
+    expect(find.text('Export'), findsOneWidget);
+    await tester.tap(find.text('Restore Defaults'));
     await openDialog(tester);
 
     expect(find.textContaining('Japan Weekly (a2a2a2a2), 7 days'), findsOneWidget);
@@ -362,7 +375,7 @@ void main() {
     expect(find.text('Saved Topic'), findsOneWidget);
     expect(find.text('Other Topic'), findsNothing);
 
-    await tester.tap(button('Leave').first);
+    await tapRowMenu(tester, 'Leave');
     await tester.pump(kDoubleTapTimeout);
     await tester.pumpAndSettle();
 
@@ -377,7 +390,7 @@ void main() {
     final api = await open(tester);
     api.failSubscribe = true;
 
-    await tester.tap(button('Leave').first);
+    await tapRowMenu(tester, 'Leave');
     await tester.pump(kDoubleTapTimeout);
     await tester.pumpAndSettle();
 
@@ -404,7 +417,7 @@ void main() {
     expect(find.text('Other topics on the chain:'), findsNothing);
   });
 
-  testWidgets('Subscribe lists the other topics on the chain, each with Subscribe', (tester) async {
+  testWidgets('Subscribe lists the other topics on the chain, each with Subscribe in its menu', (tester) async {
     final api = await open(tester);
     await tester.tap(find.text('Subscribe'));
     await tester.pumpAndSettle();
@@ -413,7 +426,8 @@ void main() {
     expect(find.text('Other Topic'), findsOneWidget);
     expect(find.text('Saved Topic'), findsNothing);
 
-    await tester.tap(button('Subscribe').last);
+    expect(button('Subscribe'), findsNothing);
+    await tapRowMenu(tester, 'Subscribe');
     await settle(tester);
 
     expect(api.subscriptions, [('c3c3c3c3', true)]);

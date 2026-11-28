@@ -1384,94 +1384,102 @@ class AboutBitwindowDialog extends StatelessWidget {
     final theme = SailTheme.of(context);
     return SailModal(
       child: Container(
-        width: 800,
-        padding: const EdgeInsets.all(24),
+        width: 520,
+        padding: const EdgeInsets.all(SailStyleValues.padding16),
         decoration: BoxDecoration(
           color: theme.colors.backgroundSecondary,
-          borderRadius: context.sailTheme.chrome.radiusSmall,
-          border: Border.all(color: theme.colors.border, width: 1),
+          borderRadius: theme.chrome.radiusLarge,
+          border: Border.all(color: theme.colors.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SailText.primary20('About Drivechain'),
-            const SizedBox(height: 16),
-            SailSelectableText.rich(
-              TextSpan(
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colors.text,
-                  fontFamily: theme.chrome.textFamily(),
-                  height: 1.5,
+            Row(
+              children: [
+                Expanded(child: SailText.primary15('About Drivechain', bold: true)),
+                SailIconBoxButton(
+                  icon: SailSVGAsset.x,
+                  tooltip: 'Close',
+                  onPressed: () async => Navigator.of(context).pop(),
                 ),
-                children: [
-                  const TextSpan(text: 'BitWindow — GUI for the BIP300/301 sidechain enforcer.\n\n'),
-                  const TextSpan(text: 'Copyright (C) 2009-2026 The Drivechain developers\n'),
-                  const TextSpan(text: 'Copyright (C) 2009-2026 The Bitcoin Core developers\n\n'),
-                  const TextSpan(text: 'Please contribute if you find Drivechain useful. Visit '),
-                  TextSpan(
-                    text: 'https://drivechain.info',
-                    style: TextStyle(color: theme.colors.primary, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () async {
-                        await openUrl(Uri.parse('https://drivechain.info'));
-                      },
-                  ),
-                  const TextSpan(text: ' for further information about the software.\n'),
-                  const TextSpan(text: 'The source code for this application is available from '),
-                  TextSpan(
-                    text: 'https://github.com/LayerTwo-Labs/drivechain-frontends',
-                    style: TextStyle(color: theme.colors.primary, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () async {
-                        await openUrl(Uri.parse('https://github.com/LayerTwo-Labs/drivechain-frontends'));
-                      },
-                  ),
-                  const TextSpan(text: '. The source code for the underlying enforcer is available from '),
-                  TextSpan(
-                    text: 'https://github.com/LayerTwo-Labs/bip300301_enforcer',
-                    style: TextStyle(color: theme.colors.primary, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () async {
-                        await openUrl(Uri.parse('https://github.com/LayerTwo-Labs/bip300301_enforcer'));
-                      },
-                  ),
-                  const TextSpan(text: '.\n\n'),
-                  const TextSpan(text: 'This is experimental software.\n'),
-                  const TextSpan(
-                    text: 'Distributed under the MIT software license, see the accompanying file COPYING or ',
-                  ),
-                  TextSpan(
-                    text: 'https://opensource.org/licenses/MIT',
-                    style: TextStyle(color: theme.colors.primary, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () async {
-                        await openUrl(Uri.parse('https://opensource.org/licenses/MIT'));
-                      },
-                  ),
-                  const TextSpan(text: '\n\n'),
-                  const TextSpan(
-                    text: 'This product includes software developed by the OpenSSL Project for use in the OpenSSL Toolkit ',
-                  ),
-                  TextSpan(
-                    text: 'https://www.openssl.org',
-                    style: TextStyle(color: theme.colors.primary, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () async {
-                        await openUrl(Uri.parse('https://www.openssl.org'));
-                      },
-                  ),
-                  const TextSpan(
-                    text: ' and cryptographic software written by Eric Young and UPnP software written by Thomas Bernard.',
-                  ),
-                ],
-              ),
+              ],
             ),
-            const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.centerRight,
-              child: SailButton(onPressed: () async => Navigator.of(context).pop(), label: 'OK'),
+            const SizedBox(height: SailStyleValues.padding16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: SailSelectableText.rich(
+                  TextSpan(
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.colors.text,
+                      fontFamily: theme.chrome.textFamily(),
+                      height: 1.5,
+                    ),
+                    children: [
+                      const TextSpan(text: 'BitWindow — GUI for the BIP300/301 sidechain enforcer.\n\n'),
+                      const TextSpan(text: 'Copyright (C) 2009-2026 The Drivechain developers\n'),
+                      const TextSpan(text: 'Copyright (C) 2009-2026 The Bitcoin Core developers\n\n'),
+                      const TextSpan(text: 'Please contribute if you find Drivechain useful. Visit '),
+                      TextSpan(
+                        text: 'https://drivechain.info',
+                        style: TextStyle(color: theme.colors.primary),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await openUrl(Uri.parse('https://drivechain.info'));
+                          },
+                      ),
+                      const TextSpan(text: ' for further information about the software.\n'),
+                      const TextSpan(text: 'The source code for this application is available from '),
+                      TextSpan(
+                        text: 'https://github.com/LayerTwo-Labs/drivechain-frontends',
+                        style: TextStyle(color: theme.colors.primary),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await openUrl(Uri.parse('https://github.com/LayerTwo-Labs/drivechain-frontends'));
+                          },
+                      ),
+                      const TextSpan(text: '. The source code for the underlying enforcer is available from '),
+                      TextSpan(
+                        text: 'https://github.com/LayerTwo-Labs/bip300301_enforcer',
+                        style: TextStyle(color: theme.colors.primary),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await openUrl(Uri.parse('https://github.com/LayerTwo-Labs/bip300301_enforcer'));
+                          },
+                      ),
+                      const TextSpan(text: '.\n\n'),
+                      const TextSpan(text: 'This is experimental software.\n'),
+                      const TextSpan(
+                        text: 'Distributed under the MIT software license, see the accompanying file COPYING or ',
+                      ),
+                      TextSpan(
+                        text: 'https://opensource.org/licenses/MIT',
+                        style: TextStyle(color: theme.colors.primary),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await openUrl(Uri.parse('https://opensource.org/licenses/MIT'));
+                          },
+                      ),
+                      const TextSpan(text: '\n\n'),
+                      const TextSpan(
+                        text: 'This product includes software developed by the OpenSSL Project for use in the OpenSSL Toolkit ',
+                      ),
+                      TextSpan(
+                        text: 'https://www.openssl.org',
+                        style: TextStyle(color: theme.colors.primary),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await openUrl(Uri.parse('https://www.openssl.org'));
+                          },
+                      ),
+                      const TextSpan(
+                        text: ' and cryptographic software written by Eric Young and UPnP software written by Thomas Bernard.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),

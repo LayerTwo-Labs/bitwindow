@@ -1,3 +1,5 @@
+import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
+
 import 'dart:io';
 
 import 'package:bitwindow/pages/wallet/wallet_hd.dart';
@@ -126,6 +128,8 @@ void main() {
         ),
       ),
     );
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
     for (final label in ['Use Wallet', 'Derive Addresses', 'Show Private Keys']) {
       await tester.ensureVisible(find.text(label));
       await tester.tap(find.text(label));
@@ -146,23 +150,32 @@ void main() {
         expect(cell.right, lessThanOrEqualTo(right), reason: '$header ends past the window');
         expect(cutShort(tester, header), isFalse, reason: '$header is cut short');
       }
-      expect(find.text(_publicKey), findsOneWidget);
+      expect(find.text(middleEllipsis(_publicKey, keep: 7)), findsOneWidget);
       expect(find.text(_wif), findsOneWidget);
     });
   }
 
-  testWidgets('a 1280 wide window shows the full address', (tester) async {
-    await showKeys(tester, 1280);
+  testWidgets('the address and the public key keep both ends, next to a 480 wide seed panel', (tester) async {
+    await showKeys(tester, 1920);
 
-    expect(cutShort(tester, _taprootAddress), isFalse);
+    expect(tester.getSize(find.byType(SailSidePanel)).width, 480);
+    expect(find.text(_taprootAddress), findsNothing);
+    expect(find.text(_publicKey), findsNothing);
+    for (final key in [_taprootAddress, _publicKey]) {
+      final cut = middleEllipsis(key, keep: 7);
+      expect(cut, startsWith(key.substring(0, 7)));
+      expect(cut, endsWith(key.substring(key.length - 7)));
+      expect(cutShort(tester, cut), isFalse);
+    }
   });
 
-  testWidgets('a copy of a cut address gives the full address', (tester) async {
+  testWidgets('a copy of a cut address or public key gives the full value', (tester) async {
     await showKeys(tester, 1024);
-    final cell = tester.widget<SailTableCell>(
-      find.ancestor(of: find.text(_taprootAddress), matching: find.byType(SailTableCell)),
-    );
-
-    expect(cell.copyValue, _taprootAddress);
+    for (final key in [_taprootAddress, _publicKey]) {
+      final cell = tester.widget<SailTableCell>(
+        find.ancestor(of: find.text(middleEllipsis(key, keep: 7)), matching: find.byType(SailTableCell)),
+      );
+      expect(cell.copyValue, key);
+    }
   });
 }

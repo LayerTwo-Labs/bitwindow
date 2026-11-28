@@ -58,6 +58,18 @@ List<SailDropdownItem<String>> topicDropdownItems(List<Topic> topics) {
   ];
 }
 
+/// The items of the "…" menu in the head of a Coin News card.
+List<SailMenuEntity> coinNewsMenuItems(BuildContext context) => [
+  SailMenuItem(
+    onSelected: () => displayCreateTopicDialog(context),
+    child: SailText.primary12('Manage Topics'),
+  ),
+  SailMenuItem(
+    onSelected: () => displayGraffitiExplorerDialog(context),
+    child: SailText.primary12('Graffiti Explorer'),
+  ),
+];
+
 class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
   const CoinNewsView({super.key});
 
@@ -68,21 +80,7 @@ class CoinNewsView extends ViewModelWidget<CoinNewsViewModel> {
       title: 'Coin News',
       titleTooltip: 'Stay up-to-date on the latest world developments',
       error: viewModel.readError,
-      widgetHeaderEnd: ExtraActionsDropdown(
-        title: 'Extra Coin News Actions',
-        items: [
-          ExtraActionItem(
-            label: 'Manage Topics',
-            icon: SailSVGAsset.newspaper,
-            onSelect: () => displayCreateTopicDialog(context),
-          ),
-          ExtraActionItem(
-            label: 'Graffiti Explorer',
-            icon: SailSVGAsset.sprayCan,
-            onSelect: () => displayGraffitiExplorerDialog(context),
-          ),
-        ],
-      ),
+      widgetHeaderEnd: SailRowMenuButton(items: () => coinNewsMenuItems(context)),
       child: SailRow(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: SailStyleValues.padding16,

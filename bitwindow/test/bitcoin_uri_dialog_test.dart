@@ -78,4 +78,17 @@ void main() {
     expect(tester.widget<SailButton>(use).disabled, isTrue);
     expect(find.textContaining('Invalid amount format'), findsOneWidget);
   });
+
+  testWidgets('the parsed fields sit in a grey box over one full-width Use button', (tester) async {
+    await tester.pumpSailPage(const Center(child: BitcoinURIDialog()));
+    await tester.enterText(find.byType(EditableText), 'bitcoin:$_address?amount=1.23&label=Rent');
+    await tester.pump();
+
+    final box = find.byKey(const Key('bitcoin-uri-parsed'));
+    expect(find.descendant(of: box, matching: find.text('Label: Rent')), findsOneWidget);
+    final use = tester.getRect(find.widgetWithText(SailButton, 'Use'));
+    expect(use.top, greaterThan(tester.getRect(box).bottom));
+    expect(use.width, closeTo(tester.getRect(box).width, 1));
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x), findsOneWidget);
+  });
 }

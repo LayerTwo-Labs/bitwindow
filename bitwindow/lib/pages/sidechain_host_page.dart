@@ -53,7 +53,7 @@ class HostChainNavigator implements ChainNavigator {
   Future<void> pop() => _router.maybePop();
 }
 
-/// One sidechain inside BitWindow: the chain list on the left, the chain and its tabs on the right.
+/// One sidechain inside BitWindow.
 @RoutePage()
 class SidechainHostPage extends StatelessWidget {
   final String chain;
@@ -63,40 +63,14 @@ class SidechainHostPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final module = hostedModuleByKey(chain);
-    final colors = SailTheme.of(context).colors;
-
-    final chainView = module == null
-        ? Center(child: SailText.secondary13('BitWindow cannot open $chain here.'))
-        : KeyedSubtree(
-            key: ValueKey(module.chain.registryKey),
-            child: SidechainScopeHost(
-              module: module,
-              child: _ShownWithSidechainsTab(child: HostedChainView(module: module)),
-            ),
-          );
-    // A phone has no room for the sidebar. The sidechains page lists the chains.
-    if (SailStyleValues.phoneLayout(context)) {
-      return chainView;
+    if (module == null) {
+      return Center(child: SailText.secondary13('BitWindow cannot open $chain here.'));
     }
-
-    return ViewModelBuilder<SidechainSidebarViewModel>.reactive(
-      viewModelBuilder: () => SidechainSidebarViewModel(),
-      builder: (context, model, child) => Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SidechainSidebar(
-            entries: model.entries(open: module),
-            selected: module?.chain.registryKey,
-            total: model.total,
-            onSelect: (entry) => openSidechainHere(entry.module.chain),
-            onAllSlots: () => context.router.navigate(const SidechainSlotsRoute()),
-            onAddRemove: model.sidechainManagementUnavailable
-                ? null
-                : () => showSidechainActivationManagementModal(context),
-          ),
-          Container(width: 1, color: colors.divider),
-          Expanded(child: chainView),
-        ],
+    return KeyedSubtree(
+      key: ValueKey(module.chain.registryKey),
+      child: SidechainScopeHost(
+        module: module,
+        child: _ShownWithSidechainsTab(child: HostedChainView(module: module)),
       ),
     );
   }
@@ -159,7 +133,7 @@ class _SidechainScopeHostState extends State<SidechainScopeHost> {
   }
 }
 
-/// The header of the open chain, its tabs, and the page of the active tab.
+/// The tabs of the open chain, its strip, and the page of the active tab.
 class HostedChainView extends StatelessWidget {
   final SidechainModule module;
 
@@ -167,38 +141,46 @@ class HostedChainView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SailTheme.of(context).colors;
     final labels = shellTabLabels(module);
+    final phone = SailStyleValues.phoneLayout(context);
 
     return AutoTabsRouter(
       homeIndex: ShellTabIndex.of(module).homepage,
       routes: shellTabRoutes(module),
       builder: (context, child) {
         final tabsRouter = AutoTabsRouter.of(context);
+        // The Parent Chain page holds its own Deposit card.
+        final showDeposit = tabsRouter.activeIndex != ShellTabIndex.of(module).parentChain;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                SailStyleValues.padding16,
                 SailStyleValues.padding12,
-                SailStyleValues.padding16,
+                SailStyleValues.padding12,
+                SailStyleValues.padding12,
                 0,
               ),
-              child: ViewModelBuilder<HostedChainViewModel>.reactive(
-                viewModelBuilder: () => HostedChainViewModel(module),
-                builder: (context, model, _) => HostedChainHeader(model: model),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding16),
               child: ChainTabRow(
                 labels: labels,
                 activeIndex: tabsRouter.activeIndex,
                 onSelect: tabsRouter.setActiveIndex,
               ),
             ),
-            Container(height: 1, color: colors.divider),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SailStyleValues.padding12,
+                SailStyleValues.padding12,
+                SailStyleValues.padding12,
+                0,
+              ),
+              child: ViewModelBuilder<HostedChainViewModel>.reactive(
+                viewModelBuilder: () => HostedChainViewModel(module),
+                builder: (context, model, _) => phone
+                    ? HostedChainHeader(model: model, showDeposit: showDeposit)
+                    : HostedChainStrip(model: model, showDeposit: showDeposit),
+              ),
+            ),
             Expanded(child: child),
           ],
         );
@@ -207,7 +189,7 @@ class HostedChainView extends StatelessWidget {
   }
 }
 
-/// Underline tabs: the active tab carries an orange line.
+/// The tabs of a chain as one segmented control.
 class ChainTabRow extends StatelessWidget {
   final List<String> labels;
   final int activeIndex;
@@ -217,32 +199,154 @@ class ChainTabRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SailTheme.of(context).colors;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SidechainSegments(labels: labels, activeIndex: activeIndex, onSelect: onSelect),
+      ),
+    );
+  }
+}
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SailRow(
-        spacing: SailStyleValues.padding25,
+/// The top strip of the open chain: the chain dropdown, the balances, the state, Deposit and the chain menu.
+class HostedChainStrip extends StatelessWidget {
+  final HostedChainViewModel model;
+  final bool showDeposit;
+
+  const HostedChainStrip({super.key, required this.model, required this.showDeposit});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final slotBalance = model.slotBalance;
+
+    return SailStrip(
+      lead: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (final (index, label) in labels.indexed)
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onSelect(index),
-                child: Container(
-                  padding: const EdgeInsets.only(top: SailStyleValues.padding08, bottom: SailStyleValues.padding08),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: index == activeIndex ? colors.orange : const Color(0x00000000),
-                        width: 2,
-                      ),
-                    ),
+          SidechainIconTile(chain: model.chain),
+          const SizedBox(width: SailStyleValues.padding08),
+          ChainDropdown(module: model.module),
+        ],
+      ),
+      stats: [
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SailText.primary12('Balance', bold: true, color: theme.colors.textSecondary),
+            SailText.primary24(model.running ? model.balance : '—', bold: true),
+          ],
+        ),
+        if (slotBalance != null) SailStat(label: 'Sidechain balance', value: slotBalance),
+      ],
+      status: SailStatusPill(label: model.stateLabel, tone: model.stateTone),
+      actions: [
+        if (showDeposit)
+          SailButton(
+            label: 'Deposit',
+            onPressed: () => showDepositModal(context, model.chain.slot, model.chain.name),
+          ),
+        SailRowMenuButton(items: () => chainMenuItems(context, model)),
+      ],
+    );
+  }
+}
+
+/// The actions of the chain menu in the strip.
+/// False leaves out the window, Start and Stop items, for a head that shows them as buttons.
+List<SailMenuEntity> chainMenuItems(BuildContext context, HostedChainViewModel model, {bool nodeItems = true}) {
+  SailMenuItem item(String label, VoidCallback run) => SailMenuItem(onSelected: run, child: SailText.primary13(label));
+  return [
+    if (nodeItems) ...[
+      if (model.hasWindow) item('Open in separate window', () => unawaited(model.openWindow())),
+      if (model.running || model.starting)
+        item('Stop', () => unawaited(model.stop()))
+      else
+        item('Start', () => unawaited(model.start())),
+      const SailMenuItemDivider(),
+    ],
+    item('Edit homepage', () {
+      AutoTabsRouter.of(context).setActiveIndex(ShellTabIndex.of(model.module).homepage);
+      model.editHomepage();
+    }),
+    if (model.module.hasConfEditor) item('Edit configuration', model.editConf),
+    item('View logs', model.viewLogs),
+    item('Debug window', () => unawaited(model.openDebugWindow(context))),
+    item('Node settings', () => unawaited(model.openNodeSettings(context))),
+  ];
+}
+
+/// The name of the open chain. A tap lists the other chains, All slots and Add or remove.
+class ChainDropdown extends StatelessWidget {
+  final SidechainModule module;
+
+  const ChainDropdown({super.key, required this.module});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return ViewModelBuilder<SidechainSidebarViewModel>.reactive(
+      viewModelBuilder: () => SidechainSidebarViewModel(),
+      builder: (context, model, _) => DecoratedBox(
+        decoration: BoxDecoration(color: theme.colors.formField, borderRadius: theme.chrome.radius),
+        child: SailTappable(
+          key: const ValueKey('chain_dropdown'),
+          borderRadius: theme.chrome.radius,
+          onTap: () => _open(context, model),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SailText.primary15(module.chain.name, bold: true),
+                const SizedBox(width: SailStyleValues.padding08),
+                SailSVG.fromAsset(SailSVGAsset.chevronDown, width: 12, height: 12, color: theme.colors.textSecondary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context, SidechainSidebarViewModel model) async {
+    final box = context.findRenderObject()! as RenderBox;
+    final overlay = Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
+    final anchor = box.localToGlobal(box.size.bottomLeft(const Offset(0, 4)), ancestor: overlay);
+    await showSailMenu(
+      context: context,
+      preferredAnchorPoint: anchor,
+      menu: SailMenu(
+        title: 'Sidechain balance ${model.total}',
+        items: [
+          for (final entry in model.entries(open: module))
+            SailMenuItem(
+              onSelected: () => unawaited(openSidechainHere(entry.module.chain)),
+              child: Row(
+                key: ValueKey('chain_entry_${entry.module.chain.registryKey}'),
+                children: [
+                  SidechainIconTile(chain: entry.module.chain, size: 18),
+                  const SizedBox(width: SailStyleValues.padding08),
+                  Expanded(
+                    child: SailText.primary13(entry.module.chain.name, bold: entry.module == module),
                   ),
-                  child: SailText.primary13(label, color: index == activeIndex ? colors.text : colors.textSecondary),
-                ),
+                  const SizedBox(width: SailStyleValues.padding12),
+                  SailText.secondary12(entry.trailing),
+                ],
               ),
+            ),
+          const SailMenuItemDivider(),
+          SailMenuItem(
+            onSelected: () =>
+                unawaited(GetIt.I.get<AppRouter>().navigate(SidechainsRoute(children: [const SidechainSlotsRoute()]))),
+            child: SailText.primary13('All slots'),
+          ),
+          if (!model.sidechainManagementUnavailable)
+            SailMenuItem(
+              onSelected: () => unawaited(showSidechainActivationManagementModal(context)),
+              child: SailText.primary13('Add or remove'),
             ),
         ],
       ),
@@ -250,74 +354,67 @@ class ChainTabRow extends StatelessWidget {
   }
 }
 
+/// The phone head of the open chain: the title line, and the buttons on a line under it.
 class HostedChainHeader extends StatelessWidget {
   final HostedChainViewModel model;
+  final bool showDeposit;
 
-  const HostedChainHeader({super.key, required this.model});
+  const HostedChainHeader({super.key, required this.model, this.showDeposit = true});
 
   @override
   Widget build(BuildContext context) {
-    final title = [
-      SailText.primary15(model.chain.name, bold: true),
-      const SizedBox(width: SailStyleValues.padding12),
-      SailBadge(model.stateLabel, tone: model.stateTone),
-      const SizedBox(width: SailStyleValues.padding12),
-      if (model.running) SailText.secondary13(model.balance),
-    ];
-    // A phone puts the buttons on a line of their own, under the title.
-    if (SailStyleValues.phoneLayout(context)) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(children: title),
-          const SizedBox(height: SailStyleValues.padding08),
-          Wrap(
-            spacing: SailStyleValues.padding08,
-            runSpacing: SailStyleValues.padding08,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: _buttons(context),
-          ),
-        ],
-      );
-    }
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        ...title,
-        const Spacer(),
-        SailRow(spacing: SailStyleValues.padding08, children: _buttons(context)),
+        Row(
+          children: [
+            SailText.primary15(model.chain.name, bold: true),
+            const SizedBox(width: SailStyleValues.padding12),
+            SailBadge(
+              model.stateLabel,
+              tone: model.stateTone == SailStatusTone.success
+                  ? SailBadgeTone.success
+                  : model.stateTone == SailStatusTone.warning
+                  ? SailBadgeTone.warning
+                  : SailBadgeTone.neutral,
+            ),
+            const SizedBox(width: SailStyleValues.padding12),
+            if (model.running) SailText.secondary13(model.balance),
+          ],
+        ),
+        const SizedBox(height: SailStyleValues.padding08),
+        Wrap(
+          spacing: SailStyleValues.padding08,
+          runSpacing: SailStyleValues.padding08,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (showDeposit)
+              SailButton(
+                label: 'Deposit',
+                variant: ButtonVariant.outline,
+                onPressed: () => showDepositModal(context, model.chain.slot, model.chain.name),
+              ),
+            if (model.hasWindow)
+              SailButton(label: 'Open in separate window', variant: ButtonVariant.outline, onPressed: model.openWindow),
+            if (model.running || model.starting)
+              SailButton(label: 'Stop', variant: ButtonVariant.outline, onPressed: model.stop)
+            else
+              SailButton(label: 'Start', variant: ButtonVariant.primary, onPressed: model.start),
+            Builder(
+              builder: (context) => SailButton(
+                variant: ButtonVariant.icon,
+                icon: SailSVGAsset.ellipsisVertical,
+                // The icon is tall and thin, so a width alone makes it taller than the buttons beside it.
+                iconHeight: 14,
+                small: true,
+                onPressed: () => _showChainMenu(context),
+              ),
+            ),
+          ],
+        ),
       ],
     );
-  }
-
-  List<Widget> _buttons(BuildContext context) {
-    return [
-      SailButton(
-        label: 'Deposit',
-        variant: ButtonVariant.outline,
-        onPressed: () => showDepositModal(context, model.chain.slot, model.chain.name),
-      ),
-      if (model.hasWindow)
-        SailButton(
-          label: 'Open in separate window',
-          variant: ButtonVariant.outline,
-          onPressed: model.openWindow,
-        ),
-      if (model.running || model.starting)
-        SailButton(label: 'Stop', variant: ButtonVariant.outline, onPressed: model.stop)
-      else
-        SailButton(label: 'Start', variant: ButtonVariant.primary, onPressed: model.start),
-      Builder(
-        builder: (context) => SailButton(
-          variant: ButtonVariant.icon,
-          icon: SailSVGAsset.ellipsisVertical,
-          // The icon is tall and thin, so a width alone makes it taller than the buttons beside it.
-          iconHeight: SailStyleValues.phoneLayout(context) ? 14 : 16,
-          small: SailStyleValues.phoneLayout(context),
-          onPressed: () => _showChainMenu(context),
-        ),
-      ),
-    ];
   }
 
   Future<void> _showChainMenu(BuildContext context) async {
@@ -326,28 +423,7 @@ class HostedChainHeader extends StatelessWidget {
       context: context,
       preferredAnchorPoint: bounds.bottomRight,
       alignment: Alignment.topRight,
-      menu: SailMenu(
-        items: [
-          SailMenuItem(
-            onSelected: () {
-              AutoTabsRouter.of(context).setActiveIndex(ShellTabIndex.of(model.module).homepage);
-              model.editHomepage();
-            },
-            child: SailText.primary13('Edit homepage'),
-          ),
-          if (model.module.hasConfEditor)
-            SailMenuItem(onSelected: model.editConf, child: SailText.primary13('Edit configuration')),
-          SailMenuItem(onSelected: model.viewLogs, child: SailText.primary13('View logs')),
-          SailMenuItem(
-            onSelected: () => unawaited(model.openDebugWindow(context)),
-            child: SailText.primary13('Debug window'),
-          ),
-          SailMenuItem(
-            onSelected: () => unawaited(model.openNodeSettings(context)),
-            child: SailText.primary13('Node settings'),
-          ),
-        ],
-      ),
+      menu: SailMenu(items: chainMenuItems(context, model, nodeItems: false)),
     );
   }
 }
@@ -357,11 +433,13 @@ class HostedChainViewModel extends BaseViewModel {
   final BinaryProvider _binaries = GetIt.I.get<BinaryProvider>();
   final SidechainBalanceProvider _balance = GetIt.I.get<SidechainBalanceProvider>();
   final FormatterProvider _formatter = GetIt.I.get<FormatterProvider>();
+  final SidechainProvider _slots = GetIt.I.get<SidechainProvider>();
 
   HostedChainViewModel(this.module) {
     _binaries.addListener(notifyListeners);
     _balance.addListener(notifyListeners);
     _formatter.addListener(notifyListeners);
+    _slots.addListener(notifyListeners);
   }
 
   Sidechain get chain =>
@@ -377,13 +455,19 @@ class HostedChainViewModel extends BaseViewModel {
       ? 'Starting'
       : 'Stopped';
 
-  SailBadgeTone get stateTone => running
-      ? SailBadgeTone.success
+  SailStatusTone get stateTone => running
+      ? SailStatusTone.success
       : starting
-      ? SailBadgeTone.warning
-      : SailBadgeTone.neutral;
+      ? SailStatusTone.warning
+      : SailStatusTone.neutral;
 
   String get balance => _formatter.formatBTC(_balance.balance);
+
+  /// The coins in the slot of the chain, or null before the slot list loads.
+  String? get slotBalance {
+    final sats = _slots.sidechains[chain.slot]?.info.balanceSatoshi.toInt();
+    return sats == null ? null : _formatter.formatSats(sats);
+  }
 
   Future<void> start() => _binaries.start(chain, background: true);
   Future<void> stop() => _binaries.stop(chain);
@@ -420,14 +504,14 @@ class HostedChainViewModel extends BaseViewModel {
     _binaries.removeListener(notifyListeners);
     _balance.removeListener(notifyListeners);
     _formatter.removeListener(notifyListeners);
+    _slots.removeListener(notifyListeners);
     super.dispose();
   }
 }
 
-/// One chain in the sidebar.
+/// One chain in the chain dropdown.
 class SidechainSidebarEntry {
   final SidechainModule module;
-  final Color color;
   final bool running;
 
   /// The balance of a running chain, else its state.
@@ -435,164 +519,12 @@ class SidechainSidebarEntry {
 
   const SidechainSidebarEntry({
     required this.module,
-    required this.color,
     required this.running,
     required this.trailing,
   });
 }
 
-/// The hosted chains, grouped by state, with the total of the running balances.
-class SidechainSidebar extends StatelessWidget {
-  final List<SidechainSidebarEntry> entries;
-  final String? selected;
-  final String total;
-  final void Function(SidechainSidebarEntry entry) onSelect;
-  final VoidCallback onAllSlots;
-  final VoidCallback? onAddRemove;
-
-  const SidechainSidebar({
-    super.key,
-    required this.entries,
-    required this.selected,
-    required this.total,
-    required this.onSelect,
-    required this.onAllSlots,
-    required this.onAddRemove,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final running = entries.where((e) => e.running).toList();
-    final stopped = entries.where((e) => !e.running).toList();
-
-    return SizedBox(
-      width: 240,
-      child: Padding(
-        padding: const EdgeInsets.all(SailStyleValues.padding12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding08),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SailText.secondary12('Sidechain balance'),
-                  const SizedBox(height: SailStyleValues.padding04),
-                  SailText.primary20(total),
-                ],
-              ),
-            ),
-            const SizedBox(height: SailStyleValues.padding20),
-            Expanded(
-              child: ListView(
-                children: [
-                  if (running.isNotEmpty) ...[
-                    _GroupTitle('Running'),
-                    for (final entry in running) _row(entry),
-                    const SizedBox(height: SailStyleValues.padding12),
-                  ],
-                  if (stopped.isNotEmpty) ...[_GroupTitle('Stopped'), for (final entry in stopped) _row(entry)],
-                ],
-              ),
-            ),
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onAllSlots,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: SailStyleValues.padding08,
-                    vertical: SailStyleValues.padding08,
-                  ),
-                  child: SailText.secondary13('All slots'),
-                ),
-              ),
-            ),
-            SailButton(
-              label: 'Add / Remove',
-              variant: ButtonVariant.outline,
-              onPressed: onAddRemove == null ? null : () async => onAddRemove!(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _row(SidechainSidebarEntry entry) =>
-      _SidebarRow(entry: entry, selected: entry.module.chain.registryKey == selected, onTap: () => onSelect(entry));
-}
-
-class _GroupTitle extends StatelessWidget {
-  final String title;
-
-  const _GroupTitle(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding08, vertical: SailStyleValues.padding04),
-      child: SailText.secondary12(title),
-    );
-  }
-}
-
-class _SidebarRow extends StatelessWidget {
-  final SidechainSidebarEntry entry;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _SidebarRow({required this.entry, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = SailTheme.of(context).colors;
-    final name = entry.module.chain.name;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          key: ValueKey('sidebar_${entry.module.chain.registryKey}'),
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding08),
-          decoration: BoxDecoration(
-            color: selected ? colors.backgroundSecondary : null,
-            borderRadius: context.sailTheme.chrome.radius,
-          ),
-          child: Row(
-            children: [
-              Opacity(
-                opacity: entry.running ? 1 : 0.45,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: entry.color, borderRadius: BorderRadius.circular(4)),
-                  child: SailText.primary10(name.substring(0, 1).toUpperCase(), color: const Color(0xFFFFFFFF)),
-                ),
-              ),
-              const SizedBox(width: SailStyleValues.padding08),
-              Expanded(
-                child: SailText.primary13(
-                  name,
-                  bold: selected,
-                  color: entry.running ? colors.text : colors.textSecondary,
-                ),
-              ),
-              SailText.secondary12(entry.trailing),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
+/// The chains of the chain dropdown.
 class SidechainSidebarViewModel extends BaseViewModel {
   final BinaryProvider _binaries = GetIt.I.get<BinaryProvider>();
   final HostedChains _hosted = GetIt.I.get<HostedChains>();
@@ -638,7 +570,6 @@ class SidechainSidebarViewModel extends BaseViewModel {
       if (module == open || _slots.sidechains[module.chain.slot] != null)
         SidechainSidebarEntry(
           module: module,
-          color: _binary(module).color,
           running: _running(module),
           trailing: _trailing(module),
         ),

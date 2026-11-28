@@ -18,32 +18,124 @@ class TransactionCensorshipPage extends StatelessWidget {
       backgroundColor: theme.colors.background,
       appBar: SailAppBar.build(context, title: SailText.primary20('Transaction Censorship')),
       body: Padding(
-        padding: const EdgeInsets.all(SailStyleValues.padding16),
+        padding: const EdgeInsets.all(SailStyleValues.padding12),
         child: ViewModelBuilder<TransactionCensorshipViewModel>.reactive(
           viewModelBuilder: () => TransactionCensorshipViewModel(),
           builder: (context, model, child) {
             final provider = model.provider;
-            return SailCard(
-              title: 'Transaction Censorship',
-              subtitle: 'Every transaction in the mempool and how long it has waited to be mined.',
-              error: provider.error,
-              bottomPadding: false,
-              child: model.isLight
-                  ? SailText.secondary13('Transaction Censorship needs a full node.')
-                  : SailColumn(
-                      spacing: SailStyleValues.padding16,
-                      children: [
-                        _Header(model: model),
-                        if (provider.alarm) _AlarmBanner(count: provider.alarmCount),
-                        if (provider.truncated)
-                          SailText.secondary13('Showing the first $maxPendingRows of ${provider.total} candidates'),
-                        Expanded(child: _Table(model: model)),
-                      ],
-                    ),
-            );
+            if (SailStyleValues.phoneLayout(context)) {
+              return SailCard(
+                title: 'Transaction Censorship',
+                subtitle: 'Every transaction in the mempool and how long it has waited to be mined.',
+                error: provider.error,
+                bottomPadding: false,
+                child: model.isLight
+                    ? SailText.secondary13('Transaction Censorship needs a full node.')
+                    : SailColumn(
+                        spacing: SailStyleValues.padding16,
+                        children: [
+                          _Header(model: model),
+                          if (provider.alarm) _AlarmBanner(count: provider.alarmCount),
+                          if (provider.truncated)
+                            SailText.secondary13('Showing the first $maxPendingRows of ${provider.total} candidates'),
+                          Expanded(child: _Table(model: model)),
+                        ],
+                      ),
+              );
+            }
+            return _DesktopBody(model: model);
           },
         ),
       ),
+    );
+  }
+}
+
+class _DesktopBody extends StatelessWidget {
+  final TransactionCensorshipViewModel model;
+
+  const _DesktopBody({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final provider = model.provider;
+    final status = provider.status;
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SailColumn(
+          spacing: 2,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SailText.primary20('Transaction Censorship', bold: true),
+            SailText.secondary13('Every transaction in the mempool and how long it has waited to be mined.'),
+            if (provider.error != null) SailText.primary12(provider.error!, color: theme.colors.error),
+          ],
+        ),
+        if (model.isLight)
+          Expanded(child: SailCard(child: SailText.secondary13('Transaction Censorship needs a full node.')))
+        else ...[
+          SailSkeletonizer(
+            enabled: model.loading,
+            description: 'Reading the watch status',
+            child: SailStrip(
+              lead: SailRow(
+                spacing: SailStyleValues.padding12,
+                children: [
+                  SailStatusDot(tone: status.enabled ? SailStatusTone.success : SailStatusTone.neutral),
+                  SailText.primary13(model.statusText),
+                ],
+              ),
+              actions: [
+                SailButton(
+                  label: status.enabled ? 'Stop watching' : 'Start watching',
+                  disabled: model.loading,
+                  onPressed: model.toggle,
+                ),
+                SailRowMenuButton(
+                  items: () => [
+                    if (!model.loading)
+                      SailMenuItem(
+                        onSelected: () => unawaited(provider.reset()),
+                        child: SailText.primary12('Reset tracker'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (provider.alarm) _AlarmBanner(count: provider.alarmCount),
+          Expanded(
+            child: SailCard(
+              bottomPadding: false,
+              child: SailColumn(
+                spacing: SailStyleValues.padding12,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 280,
+                        child: SailTextField(
+                          controller: model.searchController,
+                          hintText: 'Search txid',
+                          onChanged: (_) => model.onSearchChanged(),
+                        ),
+                      ),
+                      const Spacer(),
+                      if (provider.truncated)
+                        SailText.secondary12('Showing the first $maxPendingRows of ${provider.total} candidates'),
+                    ],
+                  ),
+                  Expanded(child: _Table(model: model)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -58,70 +150,37 @@ class _Header extends StatelessWidget {
     final provider = model.provider;
     final status = provider.status;
 
-    if (SailStyleValues.phoneLayout(context)) {
-      return SailSkeletonizer(
-        enabled: model.loading,
-        description: 'Reading the watch status',
-        child: SailColumn(
-          spacing: SailStyleValues.padding08,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SailRow(
-              spacing: SailStyleValues.padding08,
-              children: [
-                SailButton(
-                  label: status.enabled ? 'Stop watching' : 'Start watching',
-                  variant: status.enabled ? ButtonVariant.outline : ButtonVariant.primary,
-                  small: true,
-                  disabled: model.loading,
-                  onPressed: model.toggle,
-                ),
-                SailButton(
-                  label: 'Reset tracker',
-                  variant: ButtonVariant.outline,
-                  small: true,
-                  disabled: model.loading,
-                  onPressed: provider.reset,
-                ),
-              ],
-            ),
-            SailText.secondary13(model.statusText),
-            SailTextField(
-              controller: model.searchController,
-              hintText: 'Search txid',
-              onChanged: (_) => model.onSearchChanged(),
-            ),
-          ],
-        ),
-      );
-    }
-
     return SailSkeletonizer(
       enabled: model.loading,
       description: 'Reading the watch status',
-      child: SailRow(
-        spacing: SailStyleValues.padding16,
+      child: SailColumn(
+        spacing: SailStyleValues.padding08,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SailButton(
-            label: status.enabled ? 'Stop watching' : 'Start watching',
-            variant: status.enabled ? ButtonVariant.secondary : ButtonVariant.primary,
-            disabled: model.loading,
-            onPressed: model.toggle,
+          SailRow(
+            spacing: SailStyleValues.padding08,
+            children: [
+              SailButton(
+                label: status.enabled ? 'Stop watching' : 'Start watching',
+                variant: status.enabled ? ButtonVariant.outline : ButtonVariant.primary,
+                small: true,
+                disabled: model.loading,
+                onPressed: model.toggle,
+              ),
+              SailButton(
+                label: 'Reset tracker',
+                variant: ButtonVariant.outline,
+                small: true,
+                disabled: model.loading,
+                onPressed: provider.reset,
+              ),
+            ],
           ),
-          SailButton(
-            label: 'Reset tracker',
-            variant: ButtonVariant.secondary,
-            disabled: model.loading,
-            onPressed: provider.reset,
-          ),
-          Expanded(child: SailText.secondary13(model.statusText)),
-          SizedBox(
-            width: 280,
-            child: SailTextField(
-              controller: model.searchController,
-              hintText: 'Search txid',
-              onChanged: (_) => model.onSearchChanged(),
-            ),
+          SailText.secondary13(model.statusText),
+          SailTextField(
+            controller: model.searchController,
+            hintText: 'Search txid',
+            onChanged: (_) => model.onSearchChanged(),
           ),
         ],
       ),
@@ -137,12 +196,28 @@ class _AlarmBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = SailTheme.of(context);
-    return SailAlert(
-      variant: SailAlertVariant.destructive,
-      icon: SailSVG.fromAsset(SailSVGAsset.triangleAlert, width: 18, color: theme.colors.error),
-      padding: const EdgeInsets.all(SailStyleValues.padding12),
-      title:
-          'Censorship alarm: $count pending ${count == 1 ? 'transaction scores' : 'transactions score'} above ${alarmScore.toInt()}',
+    final textColor = theme.colors.destructiveButtonText;
+    return Container(
+      key: const Key('censorship-alarm'),
+      padding: const EdgeInsets.symmetric(horizontal: SailStyleValues.padding12, vertical: 10),
+      decoration: BoxDecoration(color: theme.colors.destructiveButtonBackground, borderRadius: theme.chrome.radius),
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: textColor),
+          ),
+          const SizedBox(width: SailStyleValues.padding08),
+          Expanded(
+            child: SailText.primary13(
+              'Censorship alarm: $count pending ${count == 1 ? 'transaction scores' : 'transactions score'} above ${alarmScore.toInt()}',
+              color: textColor,
+              bold: true,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

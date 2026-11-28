@@ -13,6 +13,7 @@ import 'package:bitwindow/widgets/import_txid_modal.dart';
 import 'package:bitwindow/widgets/multisig_key_modal.dart';
 import 'package:bitwindow/widgets/psbt_coordinator_modal.dart';
 import 'package:bitwindow/widgets/sign_preview_modal.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -74,19 +75,29 @@ class _MultisigLoungeTabState extends State<MultisigLoungeTab> with WidgetsBindi
           );
         }
 
+        if (!SailStyleValues.phoneLayout(context)) {
+          return SailPageWithPanel(
+            panel: viewModel.hasPanel ? _MultisigPanel(viewModel: viewModel) : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _GroupsSection(viewModel: viewModel)),
+                const SizedBox(height: SailStyleValues.padding12),
+                Expanded(child: _TransactionsSection(viewModel: viewModel)),
+              ],
+            ),
+          );
+        }
+
         return SailPage(
           body: SingleChildScrollView(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SailColumn(
-                  spacing: SailStyleValues.padding16,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _GroupsSection(viewModel: viewModel),
-                    _TransactionsSection(viewModel: viewModel),
-                  ],
-                );
-              },
+            child: SailColumn(
+              spacing: SailStyleValues.padding16,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _GroupsSection(viewModel: viewModel),
+                _TransactionsSection(viewModel: viewModel),
+              ],
             ),
           ),
         );
@@ -156,75 +167,29 @@ class _GroupsSection extends StatelessWidget {
         ],
       );
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: SailCard(
-            title: 'Multisig Groups',
-            subtitle: '${viewModel.multisigGroups.length} group(s)',
-            bottomPadding: false,
-            child: SizedBox(
-              height: kTableHeight,
-              child: MultisigGroupsTable(
-                groups: viewModel.multisigGroups,
-                selectedGroup: viewModel.selectedGroup,
-                onSelectGroup: viewModel._stateManager.setSelectedGroup,
-                isLoading: viewModel.isLoadingGroups,
-              ),
-            ),
+    return SailCard(
+      title: 'Multisig Groups',
+      subtitle: '${viewModel.multisigGroups.length} group(s)',
+      error: viewModel.groupToolsError,
+      bottomPadding: false,
+      widgetHeaderEnd: SailRow(
+        spacing: SailStyleValues.padding08,
+        children: [
+          SailButton(
+            label: 'Create New Group',
+            onPressed: () => viewModel.createNewGroup(context),
+            variant: ButtonVariant.primary,
           ),
-        ),
-        const SizedBox(width: SailStyleValues.padding16),
-        SizedBox(
-          width: 240,
-          child: SailCard(
-            title: 'Group Tools',
-            subtitle: 'Manage multisig groups',
-            error: viewModel.groupToolsError,
-            bottomPadding: false,
-            child: SizedBox(
-              height: kTableHeight,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SailButton(
-                        label: 'Create New Group',
-                        onPressed: () => viewModel.createNewGroup(context),
-                        variant: ButtonVariant.primary,
-                      ),
-                      const SizedBox(height: SailStyleValues.padding08),
-                      SailButton(
-                        label: 'Fund Group',
-                        onPressed: viewModel.multisigGroups.isNotEmpty
-                            ? () => viewModel.fundGroupWithSelection(context)
-                            : null,
-                        variant: ButtonVariant.secondary,
-                      ),
-                      const SizedBox(height: SailStyleValues.padding08),
-                      SailButton(
-                        label: 'Import from TXID',
-                        onPressed: () => viewModel.importFromTxid(context),
-                        variant: ButtonVariant.secondary,
-                      ),
-                      const SizedBox(height: SailStyleValues.padding08),
-                      SailButton(
-                        label: 'Get Key',
-                        onPressed: () => viewModel.getMultisigKey(context),
-                        variant: ButtonVariant.secondary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+          SailRowMenuButton(items: () => viewModel.groupToolsMenu(context)),
+        ],
+      ),
+      child: MultisigGroupsTable(
+        groups: viewModel.multisigGroups,
+        selectedGroup: viewModel.panelGroup,
+        onSelectGroup: viewModel.selectGroupPanel,
+        isLoading: viewModel.isLoadingGroups,
+        rowMenu: (group) => viewModel.groupRowMenu(context, group),
+      ),
     );
   }
 }
@@ -289,73 +254,36 @@ class _TransactionsSection extends StatelessWidget {
         ],
       );
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: SailCard(
-            title: 'Multisig Transactions',
-            subtitle: '${viewModel.transactionRows.length} transaction(s)',
-            error: viewModel.transactionsError,
-            bottomPadding: false,
-            child: SizedBox(
-              height: kTableHeight,
-              child: MultisigTransactionsTable(
-                transactionRows: viewModel.transactionRows,
-                groups: viewModel.multisigGroups,
-                onAction: (tx, group) => viewModel.handleTransactionAction(context, tx, group),
-                onBroadcast: () => viewModel.openCombineAndBroadcastModal(context),
-                onView: (tx) => viewModel.openTransactionModal(context, tx),
-                onSign: (tx, group) => viewModel.showSignPreview(context, tx, group),
-                isLoading: viewModel.isLoadingTransactions,
-              ),
-            ),
+    return SailCard(
+      title: 'Multisig Transactions',
+      subtitle: '${viewModel.transactionRows.length} transaction(s)',
+      error: viewModel.transactionsError ?? viewModel.transactionToolsError,
+      bottomPadding: false,
+      widgetHeaderEnd: SailRow(
+        spacing: SailStyleValues.padding08,
+        children: [
+          SailButton(
+            label: 'Create Transaction',
+            onPressed: viewModel.multisigGroups.any((g) => g.balance > 0)
+                ? () => viewModel.createTransaction(context, null)
+                : null,
+            variant: ButtonVariant.primary,
           ),
-        ),
-        const SizedBox(width: SailStyleValues.padding16),
-        SizedBox(
-          width: 240,
-          child: SailCard(
-            title: 'Transaction Tools',
-            subtitle: 'Create and manage transactions',
-            error: viewModel.transactionToolsError,
-            bottomPadding: false,
-            child: SizedBox(
-              height: kTableHeight,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SailButton(
-                        label: 'Create Transaction',
-                        onPressed: viewModel.multisigGroups.any((g) => g.balance > 0)
-                            ? () => viewModel.createTransaction(context, null)
-                            : null,
-                        variant: ButtonVariant.primary,
-                      ),
-                      const SizedBox(height: SailStyleValues.padding08),
-                      SailButton(
-                        label: 'Import PSBT',
-                        onPressed: () => viewModel.importPSBT(context),
-                        variant: ButtonVariant.secondary,
-                      ),
-                      const SizedBox(height: SailStyleValues.padding08),
-                      SailButton(
-                        label: 'Combine & Broadcast',
-                        onPressed: () => viewModel.openCombineAndBroadcastModal(context),
-                        variant: ButtonVariant.secondary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+          SailRowMenuButton(items: () => viewModel.transactionToolsMenu(context)),
+        ],
+      ),
+      child: MultisigTransactionsTable(
+        transactionRows: viewModel.transactionRows,
+        groups: viewModel.multisigGroups,
+        onAction: (tx, group) => viewModel.handleTransactionAction(context, tx, group),
+        onBroadcast: () => viewModel.openCombineAndBroadcastModal(context),
+        onView: (tx) => viewModel.openTransactionModal(context, tx),
+        onSign: (tx, group) => viewModel.showSignPreview(context, tx, group),
+        isLoading: viewModel.isLoadingTransactions,
+        selectedTransactionId: viewModel.panelTransactionId,
+        onSelectTransaction: viewModel.selectTransactionPanel,
+        rowMenu: (txRow, group) => viewModel.transactionRowMenu(context, txRow, group),
+      ),
     );
   }
 }
@@ -390,17 +318,23 @@ class MultisigGroupsTable extends StatefulWidget {
   final Function(MultisigGroup?) onSelectGroup;
   final bool isLoading;
 
+  /// The row "…" of a group. Null keeps the phone row with its Copy button.
+  final List<SailMenuEntity> Function(MultisigGroup group)? rowMenu;
+
   const MultisigGroupsTable({
     super.key,
     required this.groups,
     required this.selectedGroup,
     required this.onSelectGroup,
     this.isLoading = false,
+    this.rowMenu,
   });
 
   @override
   State<MultisigGroupsTable> createState() => _MultisigGroupsTableState();
 }
+
+const _groupColumns = ['name', 'id', 'required', 'total', 'type', 'utxos', 'txid', 'balance'];
 
 class _MultisigGroupsTableState extends State<MultisigGroupsTable> {
   String sortColumn = 'name';
@@ -430,6 +364,8 @@ class _MultisigGroupsTableState extends State<MultisigGroupsTable> {
     }
     _updateSortedGroups();
   }
+
+  MultisigGroup _byId(String id) => _sortedGroups.firstWhere((g) => g.id == id, orElse: () => _sortedGroups.first);
 
   void _updateSortedGroups() {
     _sortedGroups = List<MultisigGroup>.from(widget.groups);
@@ -476,59 +412,40 @@ class _MultisigGroupsTableState extends State<MultisigGroupsTable> {
         enabled: true,
         description: 'Loading multisig groups...',
         child: SailTable(
-          phoneColumns: const [0, 2, 6],
+          phoneColumns: const [0, 7, 4],
           shrinkWrap: SailStyleValues.phoneLayout(context),
           getRowId: (index) => 'skeleton$index',
           headerBuilder: (context) => [
             SailTableHeaderCell(name: 'Name', onSort: () => onSort('name')),
             const SailTableHeaderCell(name: 'ID'),
+            SailTableHeaderCell(name: 'Keys Required', onSort: () => onSort('required')),
+            SailTableHeaderCell(name: 'Total Keys', onSort: () => onSort('total')),
+            const SailTableHeaderCell(name: 'Type'),
+            SailTableHeaderCell(name: 'UTXOs', onSort: () => onSort('utxos')),
+            const SailTableHeaderCell(name: 'TXID (If Broadcasted)'),
             SailTableHeaderCell(
               name: 'Balance (BTC)',
+              alignment: Alignment.centerRight,
               onSort: () => onSort('balance'),
             ),
-            SailTableHeaderCell(name: 'UTXOs', onSort: () => onSort('utxos')),
-            SailTableHeaderCell(name: 'Total Keys', onSort: () => onSort('total')),
-            SailTableHeaderCell(
-              name: 'Keys Required',
-              onSort: () => onSort('required'),
-            ),
-            const SailTableHeaderCell(name: 'Type'),
-            const SailTableHeaderCell(name: 'TXID (If Broadcasted)'),
           ],
           rowBuilder: (context, row, selected) => [
             const SailTableCell(value: 'Loading Group Name'),
             const SailTableCell(value: 'LOADING123'),
-            const SailTableCell(value: '0.00000000'),
-            const SailTableCell(value: '0'),
-            const SailTableCell(value: '3'),
             const SailTableCell(value: '2'),
+            const SailTableCell(value: '3'),
             const SailTableCell(value: 'xPub'),
+            const SailTableCell(value: '0'),
             const SailTableCell(value: 'Loading...'),
+            const SailTableCell(value: '0.00000000', alignment: Alignment.centerRight),
           ],
           rowCount: 3,
           drawGrid: true,
-          sortColumnIndex: [
-            'name',
-            'id',
-            'balance',
-            'utxos',
-            'total',
-            'required',
-            'type',
-          ].indexOf(sortColumn),
+          sortColumnIndex: _groupColumns.indexOf(sortColumn),
           sortAscending: sortAscending,
           onSort: (columnIndex, ascending) {
             onSort(
-              [
-                'name',
-                'id',
-                'balance',
-                'utxos',
-                'total',
-                'required',
-                'type',
-                'txid',
-              ][columnIndex],
+              _groupColumns[columnIndex],
             );
           },
         ),
@@ -536,45 +453,44 @@ class _MultisigGroupsTableState extends State<MultisigGroupsTable> {
     }
 
     return SailTable(
-      phoneColumns: const [0, 2, 6],
+      phoneColumns: const [0, 7, 4],
       shrinkWrap: SailStyleValues.phoneLayout(context),
       getRowId: (index) => _sortedGroups.isNotEmpty ? _sortedGroups[index].id : 'empty$index',
+      selectedRowId: widget.rowMenu == null ? null : widget.selectedGroup?.id,
       onSelectedRow: (rowId) {
+        if (widget.rowMenu != null) {
+          widget.onSelectGroup(rowId == null ? null : _byId(rowId));
+          return;
+        }
         if (rowId != null && _sortedGroups.isNotEmpty) {
-          final group = _sortedGroups.firstWhere(
-            (g) => g.id == rowId,
-            orElse: () => _sortedGroups.first,
-          );
-          widget.onSelectGroup(group);
+          widget.onSelectGroup(_byId(rowId));
         }
       },
+      contextMenuItems: widget.rowMenu == null ? null : (rowId) => widget.rowMenu!(_byId(rowId)),
       headerBuilder: (context) => [
         SailTableHeaderCell(name: 'Name', onSort: () => onSort('name')),
         const SailTableHeaderCell(name: 'ID'),
-        SailTableHeaderCell(
-          name: 'Balance (BTC)',
-          onSort: () => onSort('balance'),
-        ),
-        SailTableHeaderCell(name: 'UTXOs', onSort: () => onSort('utxos')),
+        SailTableHeaderCell(name: 'Keys Required', onSort: () => onSort('required')),
         SailTableHeaderCell(name: 'Total Keys', onSort: () => onSort('total')),
-        SailTableHeaderCell(
-          name: 'Keys Required',
-          onSort: () => onSort('required'),
-        ),
         const SailTableHeaderCell(name: 'Type'),
+        SailTableHeaderCell(name: 'UTXOs', onSort: () => onSort('utxos')),
         const SailTableHeaderCell(name: 'TXID (If Broadcasted)'),
+        SailTableHeaderCell(name: 'Balance (BTC)', alignment: Alignment.centerRight, onSort: () => onSort('balance')),
       ],
       rowBuilder: (context, row, selected) {
         final group = _sortedGroups[row];
+        final txid = group.txid;
+        final hasTxid = txid != null && txid.isNotEmpty;
         return [
           SailTableCell(value: group.name),
           SailTableCell(value: group.id.toUpperCase()),
-          SailTableCell(value: group.balance.toStringAsFixed(8)),
-          SailTableCell(value: group.utxos.toString()),
-          SailTableCell(value: group.n.toString()),
           SailTableCell(value: group.m.toString()),
+          SailTableCell(value: group.n.toString()),
           SailTableCell(value: 'xPub'),
-          if (group.txid != null && group.txid!.isNotEmpty)
+          SailTableCell(value: group.utxos.toString()),
+          if (widget.rowMenu != null)
+            SailTableCell(value: hasTxid ? shortHash(txid) : '-')
+          else if (hasTxid)
             SailTableCell(
               value: 'Copy TXID',
               alignment: Alignment.center,
@@ -583,50 +499,23 @@ class _MultisigGroupsTableState extends State<MultisigGroupsTable> {
                   label: 'Copy',
                   variant: ButtonVariant.secondary,
                   insideTable: true,
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: group.txid!));
-                    if (context.mounted) {
-                      showSailToast(
-                        context,
-                        'TXID copied to clipboard',
-                        variant: SailToastVariant.success,
-                        duration: const Duration(seconds: 2),
-                      );
-                    }
-                  },
+                  onPressed: () async => copyGroupTxid(context, txid),
                 ),
               ),
             )
           else
             const SailTableCell(value: ''),
+          SailTableCell(value: group.balance.toStringAsFixed(8), alignment: Alignment.centerRight),
         ];
       },
       rowCount: _sortedGroups.length,
       emptyPlaceholder: 'No multisig groups yet',
       drawGrid: true,
-      sortColumnIndex: [
-        'name',
-        'id',
-        'balance',
-        'utxos',
-        'total',
-        'required',
-        'type',
-        'txid',
-      ].indexOf(sortColumn),
+      sortColumnIndex: _groupColumns.indexOf(sortColumn),
       sortAscending: sortAscending,
       onSort: (columnIndex, ascending) {
         onSort(
-          [
-            'name',
-            'id',
-            'balance',
-            'utxos',
-            'total',
-            'required',
-            'type',
-            'txid',
-          ][columnIndex],
+          _groupColumns[columnIndex],
         );
       },
     );
@@ -642,6 +531,13 @@ class MultisigTransactionsTable extends StatefulWidget {
   final Function(MultisigTransaction, MultisigGroup) onSign;
   final bool isLoading;
 
+  /// The transaction in the side panel.
+  final String? selectedTransactionId;
+  final ValueChanged<String?>? onSelectTransaction;
+
+  /// The row "…" of a transaction. Null keeps the phone Action column.
+  final List<SailMenuEntity> Function(TransactionRow row, MultisigGroup group)? rowMenu;
+
   const MultisigTransactionsTable({
     super.key,
     required this.transactionRows,
@@ -651,13 +547,89 @@ class MultisigTransactionsTable extends StatefulWidget {
     required this.onView,
     required this.onSign,
     this.isLoading = false,
+    this.selectedTransactionId,
+    this.onSelectTransaction,
+    this.rowMenu,
   });
 
   @override
   State<MultisigTransactionsTable> createState() => _MultisigTransactionsTableState();
 }
 
+const _transactionColumns = [
+  'group',
+  'id',
+  'status',
+  'signatures',
+  'type',
+  'txid',
+  'confirmations',
+  'amount',
+  'action',
+];
+
 class _MultisigTransactionsTableState extends State<MultisigTransactionsTable> {
+  SailTableCell _phoneAction(TransactionRow txRow, MultisigTransaction tx, MultisigGroup group) {
+    if (txRow.hasWalletKeys &&
+        !txRow.walletHasSigned &&
+        (tx.status == TxStatus.needsSignatures || tx.status == TxStatus.awaitingSignedPSBTs)) {
+      return SailTableCell(
+        value: 'Sign Button',
+        alignment: Alignment.center,
+        child: Center(
+          child: SailButton(
+            label: 'Sign',
+            variant: ButtonVariant.primary,
+            insideTable: true,
+            onPressed: () => widget.onSign(tx, group),
+          ),
+        ),
+      );
+    }
+    if (tx.status == TxStatus.readyForBroadcast) {
+      return SailTableCell(
+        value: 'Broadcast Button',
+        alignment: Alignment.center,
+        child: Center(
+          child: SailButton(
+            label: 'Broadcast',
+            variant: ButtonVariant.secondary,
+            insideTable: true,
+            onPressed: () async => widget.onBroadcast(),
+          ),
+        ),
+      );
+    }
+    return SailTableCell(
+      value: 'View Button',
+      alignment: Alignment.center,
+      child: Center(
+        child: SailButton(
+          label: 'View',
+          variant: ButtonVariant.secondary,
+          insideTable: true,
+          onPressed: () => widget.onView(tx),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _headers() => [
+    SailTableHeaderCell(name: 'Group', onSort: () => onSort('group')),
+    const SailTableHeaderCell(name: 'MuSIG ID'),
+    SailTableHeaderCell(name: 'Status', onSort: () => onSort('status')),
+    SailTableHeaderCell(name: 'Signatures', onSort: () => onSort('signatures')),
+    SailTableHeaderCell(name: 'Type', onSort: () => onSort('type')),
+    const SailTableHeaderCell(name: 'TXID'),
+    SailTableHeaderCell(name: 'Confirmations', onSort: () => onSort('confirmations')),
+    SailTableHeaderCell(name: 'Amount (BTC)', alignment: Alignment.centerRight, onSort: () => onSort('amount')),
+  ];
+
+  MultisigGroup _groupOf(MultisigTransaction tx) => widget.groups.firstWhere(
+    (g) => g.id == tx.groupId,
+    orElse: () => MultisigGroup(id: tx.groupId, name: 'Unknown', n: 0, m: 0, keys: [], created: 0),
+  );
+
   String sortColumn = 'group';
   bool sortAscending = true;
   List<TransactionRow> _sortedTransactionRows = [];
@@ -773,78 +745,43 @@ class _MultisigTransactionsTableState extends State<MultisigTransactionsTable> {
         enabled: true,
         description: 'Loading multisig transactions...',
         child: SailTable(
-          phoneColumns: const [0, 2, 8],
+          phoneColumns: const [0, 7, 8],
           shrinkWrap: SailStyleValues.phoneLayout(context),
           getRowId: (index) => 'skeleton$index',
           headerBuilder: (context) => [
-            SailTableHeaderCell(name: 'Group', onSort: () => onSort('group')),
-            const SailTableHeaderCell(name: 'MuSIG ID'),
-            SailTableHeaderCell(
-              name: 'Amount (BTC)',
-              onSort: () => onSort('amount'),
-            ),
-            SailTableHeaderCell(
-              name: 'Signatures',
-              onSort: () => onSort('signatures'),
-            ),
-            SailTableHeaderCell(name: 'Status', onSort: () => onSort('status')),
-            SailTableHeaderCell(name: 'Type', onSort: () => onSort('type')),
-            const SailTableHeaderCell(name: 'TXID'),
-            SailTableHeaderCell(
-              name: 'Confirmations',
-              onSort: () => onSort('confirmations'),
-            ),
-            const SailTableHeaderCell(name: 'Action'),
+            ..._headers(),
+            if (widget.rowMenu == null) const SailTableHeaderCell(name: 'Action'),
           ],
           rowBuilder: (context, row, selected) => [
             const SailTableCell(value: 'Loading Group'),
             const SailTableCell(value: 'abc123'),
-            const SailTableCell(value: '0.00100000'),
-            const SailTableCell(value: '1/2'),
             const SailTableCell(value: 'Needs Signatures'),
+            const SailTableCell(value: '1/2'),
             const SailTableCell(value: 'Withdrawal'),
             const SailTableCell(value: 'abc123...'),
             const SailTableCell(value: '-'),
-            SailTableCell(
-              value: 'Action Button',
-              alignment: Alignment.center,
-              child: Center(
-                child: SailButton(
-                  label: 'Loading',
-                  variant: ButtonVariant.secondary,
-                  insideTable: true,
-                  onPressed: null,
+            const SailTableCell(value: '0.00100000', alignment: Alignment.centerRight),
+            if (widget.rowMenu == null)
+              SailTableCell(
+                value: 'Action Button',
+                alignment: Alignment.center,
+                child: Center(
+                  child: SailButton(
+                    label: 'Loading',
+                    variant: ButtonVariant.secondary,
+                    insideTable: true,
+                    onPressed: null,
+                  ),
                 ),
               ),
-            ),
           ],
           rowCount: 3,
           drawGrid: true,
-          sortColumnIndex: [
-            'group',
-            'id',
-            'amount',
-            'signatures',
-            'status',
-            'type',
-            'txid',
-            'confirmations',
-            'action',
-          ].indexOf(sortColumn),
+          sortColumnIndex: _transactionColumns.indexOf(sortColumn),
           sortAscending: sortAscending,
           onSort: (columnIndex, ascending) {
             onSort(
-              [
-                'group',
-                'id',
-                'amount',
-                'signatures',
-                'status',
-                'type',
-                'txid',
-                'confirmations',
-                'action',
-              ][columnIndex],
+              _transactionColumns[columnIndex],
             );
           },
         ),
@@ -852,29 +789,21 @@ class _MultisigTransactionsTableState extends State<MultisigTransactionsTable> {
     }
 
     return SailTable(
-      phoneColumns: const [0, 2, 8],
+      phoneColumns: const [0, 7, 8],
       shrinkWrap: SailStyleValues.phoneLayout(context),
       getRowId: (index) =>
-          widget.transactionRows.isNotEmpty ? widget.transactionRows[index].transaction.id : 'empty$index',
+          _sortedTransactionRows.isNotEmpty ? _sortedTransactionRows[index].transaction.id : 'empty$index',
+      selectedRowId: widget.selectedTransactionId,
+      onSelectedRow: widget.onSelectTransaction,
+      contextMenuItems: widget.rowMenu == null
+          ? null
+          : (rowId) {
+              final txRow = _sortedTransactionRows.firstWhere((r) => r.transaction.id == rowId);
+              return widget.rowMenu!(txRow, _groupOf(txRow.transaction));
+            },
       headerBuilder: (context) => [
-        SailTableHeaderCell(name: 'Group', onSort: () => onSort('group')),
-        const SailTableHeaderCell(name: 'MuSIG ID'),
-        SailTableHeaderCell(
-          name: 'Amount (BTC)',
-          onSort: () => onSort('amount'),
-        ),
-        SailTableHeaderCell(
-          name: 'Signatures',
-          onSort: () => onSort('signatures'),
-        ),
-        SailTableHeaderCell(name: 'Status', onSort: () => onSort('status')),
-        SailTableHeaderCell(name: 'Type', onSort: () => onSort('type')),
-        const SailTableHeaderCell(name: 'TXID'),
-        SailTableHeaderCell(
-          name: 'Confirmations',
-          onSort: () => onSort('confirmations'),
-        ),
-        const SailTableHeaderCell(name: 'Action'),
+        ..._headers(),
+        if (widget.rowMenu == null) const SailTableHeaderCell(name: 'Action'),
       ],
       rowBuilder: (context, row, selected) {
         final txRow = _sortedTransactionRows[row];
@@ -894,89 +823,32 @@ class _MultisigTransactionsTableState extends State<MultisigTransactionsTable> {
         return [
           SailTableCell(value: group.name),
           SailTableCell(value: tx.shortId),
-          SailTableCell(value: tx.amount.toStringAsFixed(8)),
+          SailTableCell(
+            value: tx.status.displayName,
+            child: StatusDotLabel(label: tx.status.displayName, tone: multisigStatusTone(tx.status)),
+          ),
           SailTableCell(
             value: tx.type == TxType.deposit
                 ? '-'
                 : '${tx.signatureCount > group.m ? group.m : tx.signatureCount}/${group.m}',
           ),
-          SailTableCell(value: tx.status.displayName),
           SailTableCell(value: tx.type.displayName),
           SailTableCell(value: tx.shortTxid ?? '-'),
           SailTableCell(
             value: tx.confirmations > 0 ? tx.confirmations.toString() : '-',
           ),
-          if (txRow.hasWalletKeys &&
-              !txRow.walletHasSigned &&
-              (tx.status == TxStatus.needsSignatures || tx.status == TxStatus.awaitingSignedPSBTs))
-            SailTableCell(
-              value: 'Sign Button',
-              alignment: Alignment.center,
-              child: Center(
-                child: SailButton(
-                  label: 'Sign',
-                  variant: ButtonVariant.primary,
-                  insideTable: true,
-                  onPressed: () => widget.onSign(tx, group),
-                ),
-              ),
-            )
-          else if (tx.status == TxStatus.readyForBroadcast)
-            SailTableCell(
-              value: 'Broadcast Button',
-              alignment: Alignment.center,
-              child: Center(
-                child: SailButton(
-                  label: 'Broadcast',
-                  variant: ButtonVariant.secondary,
-                  insideTable: true,
-                  onPressed: () async => widget.onBroadcast(),
-                ),
-              ),
-            )
-          else
-            SailTableCell(
-              value: 'View Button',
-              alignment: Alignment.center,
-              child: Center(
-                child: SailButton(
-                  label: 'View',
-                  variant: ButtonVariant.secondary,
-                  insideTable: true,
-                  onPressed: () => widget.onView(tx),
-                ),
-              ),
-            ),
+          SailTableCell(value: tx.amount.toStringAsFixed(8), alignment: Alignment.centerRight),
+          if (widget.rowMenu == null) _phoneAction(txRow, tx, group),
         ];
       },
       rowCount: _sortedTransactionRows.length,
       emptyPlaceholder: 'No transactions yet',
       drawGrid: true,
-      sortColumnIndex: [
-        'group',
-        'id',
-        'amount',
-        'signatures',
-        'status',
-        'type',
-        'txid',
-        'confirmations',
-        'action',
-      ].indexOf(sortColumn),
+      sortColumnIndex: _transactionColumns.indexOf(sortColumn),
       sortAscending: sortAscending,
       onSort: (columnIndex, ascending) {
         onSort(
-          [
-            'group',
-            'id',
-            'amount',
-            'signatures',
-            'status',
-            'type',
-            'txid',
-            'confirmations',
-            'action',
-          ][columnIndex],
+          _transactionColumns[columnIndex],
         );
       },
     );
@@ -1091,6 +963,110 @@ class MultisigLoungeViewModel extends BaseViewModel {
     }
 
     return rows;
+  }
+
+  /// The group in the side panel. Null when a transaction or nothing is open.
+  MultisigGroup? get panelGroup {
+    final id = _panelGroupId;
+    return id == null ? null : _stateManager.findGroupById(id);
+  }
+
+  String? _panelGroupId;
+
+  /// The id of the transaction in the side panel.
+  String? panelTransactionId;
+
+  MultisigTransaction? get panelTransaction {
+    final id = panelTransactionId;
+    if (id == null) {
+      return null;
+    }
+    for (final tx in transactions) {
+      if (tx.id == id) {
+        return tx;
+      }
+    }
+    return null;
+  }
+
+  bool get hasPanel {
+    if (panelGroup != null) {
+      return true;
+    }
+    final tx = panelTransaction;
+    return tx != null && _stateManager.findGroupById(tx.groupId) != null;
+  }
+
+  void selectGroupPanel(MultisigGroup? group) {
+    _stateManager.setSelectedGroup(group);
+    _panelGroupId = group?.id;
+    panelTransactionId = null;
+    notifyListeners();
+  }
+
+  void selectTransactionPanel(String? id) {
+    panelTransactionId = id;
+    _panelGroupId = null;
+    exportError = null;
+    notifyListeners();
+  }
+
+  void closePanel() {
+    _panelGroupId = null;
+    panelTransactionId = null;
+    notifyListeners();
+  }
+
+  /// True when a key of this wallet can still sign [tx].
+  bool canSign(MultisigTransaction tx, MultisigGroup group) {
+    if (tx.status != TxStatus.needsSignatures && tx.status != TxStatus.awaitingSignedPSBTs) {
+      return false;
+    }
+    final walletKeys = group.keys.where((k) => k.isWallet).toList();
+    return walletKeys.isNotEmpty &&
+        tx.keyPSBTs.any((kp) => !kp.isSigned && kp.psbt != null && walletKeys.any((wk) => wk.xpub == kp.keyId));
+  }
+
+  List<SailMenuEntity> groupToolsMenu(BuildContext context) => [
+    if (multisigGroups.isNotEmpty)
+      SailMenuItem(onSelected: () => fundGroupWithSelection(context), child: SailText.primary12('Fund Group')),
+    SailMenuItem(onSelected: () => importFromTxid(context), child: SailText.primary12('Import from TXID')),
+    SailMenuItem(onSelected: () => getMultisigKey(context), child: SailText.primary12('Get Key')),
+  ];
+
+  List<SailMenuEntity> transactionToolsMenu(BuildContext context) => [
+    SailMenuItem(onSelected: () => importPSBT(context), child: SailText.primary12('Import PSBT')),
+    SailMenuItem(
+      onSelected: () => openCombineAndBroadcastModal(context),
+      child: SailText.primary12('Combine & Broadcast'),
+    ),
+  ];
+
+  List<SailMenuEntity> groupRowMenu(BuildContext context, MultisigGroup group) {
+    final txid = group.txid;
+    return [
+      SailMenuItem(onSelected: () => fundGroup(context, group), child: SailText.primary12('Fund This Group')),
+      if (txid != null && txid.isNotEmpty)
+        SailMenuItem(onSelected: () => copyGroupTxid(context, txid), child: SailText.primary12('Copy TXID')),
+      SailMenuItem(onSelected: () => selectGroupPanel(group), child: SailText.primary12('Show Details')),
+    ];
+  }
+
+  List<SailMenuEntity> transactionRowMenu(BuildContext context, TransactionRow txRow, MultisigGroup group) {
+    final tx = txRow.transaction;
+    final sign =
+        txRow.hasWalletKeys &&
+        !txRow.walletHasSigned &&
+        (tx.status == TxStatus.needsSignatures || tx.status == TxStatus.awaitingSignedPSBTs);
+    return [
+      if (sign) SailMenuItem(onSelected: () => showSignPreview(context, tx, group), child: SailText.primary12('Sign')),
+      if (tx.status == TxStatus.readyForBroadcast)
+        SailMenuItem(
+          onSelected: () => openCombineAndBroadcastModal(context),
+          child: SailText.primary12('Broadcast'),
+        ),
+      SailMenuItem(onSelected: () => selectTransactionPanel(tx.id), child: SailText.primary12('Show Details')),
+    ];
   }
 
   bool get hasReadyTransactions => transactions.any((tx) => tx.status == TxStatus.readyForBroadcast);
@@ -1765,5 +1741,187 @@ class MultisigLoungeViewModel extends BaseViewModel {
     _blockchainProvider.recentChanged.removeListener(_blockchainListener);
 
     super.dispose();
+  }
+}
+
+/// Copies the funding txid of a group.
+Future<void> copyGroupTxid(BuildContext context, String txid) async {
+  await Clipboard.setData(ClipboardData(text: txid));
+  if (context.mounted) {
+    showSailToast(
+      context,
+      'TXID copied to clipboard',
+      variant: SailToastVariant.success,
+      duration: const Duration(seconds: 2),
+    );
+  }
+}
+
+SailStatusTone multisigStatusTone(TxStatus status) => switch (status) {
+  TxStatus.needsSignatures || TxStatus.awaitingSignedPSBTs => SailStatusTone.warning,
+  TxStatus.readyToCombine || TxStatus.readyForBroadcast || TxStatus.broadcasted => SailStatusTone.info,
+  TxStatus.confirmed || TxStatus.completed => SailStatusTone.success,
+  TxStatus.voided => SailStatusTone.error,
+};
+
+/// The side panel of the selected group or transaction.
+class _MultisigPanel extends StatelessWidget {
+  final MultisigLoungeViewModel viewModel;
+
+  const _MultisigPanel({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final group = viewModel.panelGroup;
+    if (group != null) {
+      final txid = group.txid;
+      return SailSidePanel(
+        title: group.name,
+        onClose: () async => viewModel.closePanel(),
+        menuItems: () => [
+          if (group.balance > 0)
+            SailMenuItem(
+              onSelected: () => viewModel.createTransaction(context, group),
+              child: SailText.primary12('Create Transaction'),
+            ),
+          if (txid != null && txid.isNotEmpty)
+            SailMenuItem(onSelected: () => copyGroupTxid(context, txid), child: SailText.primary12('Copy TXID')),
+        ],
+        child: SailColumn(
+          spacing: SailStyleValues.padding12,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PanelHeadline(value: group.balance.toStringAsFixed(8), caption: 'Balance (BTC)'),
+            SailButton(label: 'Fund This Group', onPressed: () => viewModel.fundGroup(context, group)),
+            if (viewModel.groupToolsError != null) SailInlineError(viewModel.groupToolsError!),
+            const SailDetailHeading('Details'),
+            SailDetailGroup(
+              fill: SailDetailFill.canvas,
+              children: [
+                SailDetailLine(wrap: true, label: 'Name', value: group.name),
+                SailDetailLine(wrap: true, label: 'ID', value: group.id.toUpperCase()),
+                SailDetailLine(wrap: true, label: 'Balance (BTC)', value: group.balance.toStringAsFixed(8)),
+                SailDetailLine(wrap: true, label: 'UTXOs', value: group.utxos.toString()),
+                SailDetailLine(wrap: true, label: 'Total Keys', value: group.n.toString()),
+                SailDetailLine(wrap: true, label: 'Keys Required', value: group.m.toString()),
+                const SailDetailLine(wrap: true, label: 'Type', value: 'xPub'),
+                if (txid != null && txid.isNotEmpty)
+                  SailStackedDetail(monospace: false, label: 'TXID (If Broadcasted)', value: txid),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+    final tx = viewModel.panelTransaction!;
+    final txGroup = viewModel._stateManager.findGroupById(tx.groupId)!;
+    String keyName(String keyId) => txGroup.keys
+        .firstWhere(
+          (k) => k.xpub == keyId,
+          orElse: () => MultisigKey(xpub: keyId, owner: 'Unknown', derivationPath: '', isWallet: false),
+        )
+        .owner;
+    final canSign = viewModel.canSign(tx, txGroup);
+    return SailSidePanel(
+      title: 'Transaction Details',
+      onClose: () async => viewModel.closePanel(),
+      menuItems: () => [
+        SailMenuItem(
+          onSelected: () => viewModel._exportPSBTToFile(
+            context,
+            tx.initialPSBT,
+            tx,
+            txGroup,
+            'Initial',
+            false,
+            isInitial: true,
+          ),
+          child: SailText.primary12('Export Initial PSBT'),
+        ),
+        for (final keyPSBT in tx.keyPSBTs)
+          if (keyPSBT.psbt?.isNotEmpty ?? false)
+            SailMenuItem(
+              onSelected: () => viewModel._exportPSBTToFile(
+                context,
+                keyPSBT.psbt!,
+                tx,
+                txGroup,
+                keyName(keyPSBT.keyId),
+                keyPSBT.isSigned,
+              ),
+              child: SailText.primary12('Export ${keyName(keyPSBT.keyId)} PSBT'),
+            ),
+      ],
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PanelHeadline(
+            value: '${tx.amount.toStringAsFixed(8)} ${activeTicker.symbol}',
+            caption: 'ID: ${tx.id}',
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SailStatusPill(label: tx.status.displayName, tone: multisigStatusTone(tx.status)),
+          ),
+          if (canSign)
+            SailButton(label: 'Sign', onPressed: () => viewModel.showSignPreview(context, tx, txGroup))
+          else if (tx.status == TxStatus.readyForBroadcast)
+            SailButton(label: 'Broadcast', onPressed: () => viewModel.openCombineAndBroadcastModal(context)),
+          if (viewModel.exportError != null) SailInlineError(viewModel.exportError!),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(wrap: true, label: 'Status:', value: tx.status.displayName),
+              SailDetailLine(wrap: true, label: 'Group:', value: txGroup.name),
+              SailDetailLine(
+                wrap: true,
+                label: 'Amount:',
+                value: '${tx.amount.toStringAsFixed(8)} ${activeTicker.symbol}',
+              ),
+              SailDetailLine(wrap: true, label: 'Fee:', value: '${tx.fee.toStringAsFixed(8)} ${activeTicker.symbol}'),
+              SailDetailLine(wrap: true, label: 'Destination:', value: tx.destination),
+              SailDetailLine(wrap: true, label: 'Created:', value: viewModel._formatDateTime(tx.created)),
+              if (tx.txid != null) SailStackedDetail(monospace: false, label: 'Transaction ID:', value: tx.txid!),
+              if (tx.confirmations > 0)
+                SailDetailLine(wrap: true, label: 'Confirmations:', value: tx.confirmations.toString()),
+              if (tx.broadcastTime != null)
+                SailDetailLine(wrap: true, label: 'Broadcasted:', value: viewModel._formatDateTime(tx.broadcastTime!)),
+            ],
+          ),
+          const SailDetailHeading('Signing Status:'),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(wrap: true, label: 'Required signatures:', value: '${tx.requiredSignatures}'),
+              SailDetailLine(
+                wrap: true,
+                label: 'Current signatures:',
+                value: '${tx.keyPSBTs.where((k) => k.isSigned).length}',
+              ),
+              for (final keyPSBT in tx.keyPSBTs)
+                SailDetailLine(
+                  wrap: true,
+                  label: keyName(keyPSBT.keyId),
+                  value: keyPSBT.isSigned ? 'Signed' : 'Pending',
+                ),
+            ],
+          ),
+          const SailDetailHeading('Export PSBTs:'),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              const SailDetailLine(wrap: true, label: 'Initial PSBT (unsigned)', value: 'Unsigned'),
+              for (final keyPSBT in tx.keyPSBTs)
+                SailDetailLine(
+                  wrap: true,
+                  label: '${keyName(keyPSBT.keyId)} PSBT',
+                  value: keyPSBT.isSigned ? 'Signed' : 'Unsigned',
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

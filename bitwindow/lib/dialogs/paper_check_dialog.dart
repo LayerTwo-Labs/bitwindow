@@ -201,7 +201,7 @@ class _PaperCheckDialogState extends State<PaperCheckDialog> {
                     borderRadius: context.sailTheme.chrome.radiusSmall,
                     child: Padding(
                       padding: const EdgeInsets.all(6),
-                      child: SailSVG.fromAsset(SailSVGAsset.x, color: theme.colors.text),
+                      child: SailSVG.fromAsset(SailSVGAsset.x, width: 14, height: 14, color: theme.colors.text),
                     ),
                   ),
                 ],
@@ -250,7 +250,12 @@ class _PaperCheckDialogState extends State<PaperCheckDialog> {
                         monospace: true,
                         prefixIcon: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: SailSVG.fromAsset(SailSVGAsset.landmark, color: theme.colors.primary),
+                          child: SailSVG.fromAsset(
+                            SailSVGAsset.landmark,
+                            width: 20,
+                            height: 22,
+                            color: theme.colors.primary,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),

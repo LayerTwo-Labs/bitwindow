@@ -1,4 +1,5 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:bitwindow/widgets/node_mode_chip.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/pages/router.gr.dart';
@@ -64,7 +65,9 @@ class _SettingsNodeModeState extends State<SettingsNodeMode> {
         final conf = GetIt.I.get<BitcoinConfProvider>();
         await conf.loadConfig();
         if (fullModeNeedsDataDir(conf)) {
-          final selected = await router.push<bool>(DataDirSetupRoute(network: conf.network));
+          final selected = mounted && SailTheme.of(context).isBitwindowV2
+              ? await showDataDirDialog(context, conf.network)
+              : await router.push<bool>(DataDirSetupRoute(network: conf.network));
           await conf.loadConfig();
           if (selected != true || !conf.hasDataDirFor(conf.network)) {
             return;
@@ -115,17 +118,9 @@ class _SettingsNodeModeState extends State<SettingsNodeMode> {
                             'Your Bitcoin wallet uses Electrum. Your chain data stays on disk.',
                 ),
                 SailText.secondary13('No wallet and no key is deleted.'),
-                SailRow(
-                  spacing: SailStyleValues.padding08,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    SailButton(
-                      label: 'Cancel',
-                      variant: ButtonVariant.ghost,
-                      onPressed: () async => Navigator.of(ctx).pop(false),
-                    ),
-                    SailButton(label: 'Switch', onPressed: () async => Navigator.of(ctx).pop(true)),
-                  ],
+                SizedBox(
+                  width: double.infinity,
+                  child: SailButton(label: 'Switch', onPressed: () async => Navigator.of(ctx).pop(true)),
                 ),
               ],
             ),
@@ -203,6 +198,102 @@ class _ModeToggle extends StatelessWidget {
         ignoring: !enabled,
         child: SailToggle(value: value, onChanged: onChanged),
       ),
+    );
+  }
+}
+
+/// Asks for the data directory of [network] in a dialog. True once it is saved.
+Future<bool?> showDataDirDialog(BuildContext context, BitcoinNetwork network) => widgetDialog<bool>(
+  context: context,
+  title: 'Configure Data Directory',
+  maxWidth: 440,
+  child: DataDirDialogBody(network: network),
+);
+
+/// The body of [showDataDirDialog]: the field, Browse, and Continue.
+class DataDirDialogBody extends StatefulWidget {
+  final BitcoinNetwork network;
+
+  const DataDirDialogBody({super.key, required this.network});
+
+  @override
+  State<DataDirDialogBody> createState() => _DataDirDialogBodyState();
+}
+
+class _DataDirDialogBodyState extends State<DataDirDialogBody> {
+  final DataDirSelection _selection = DataDirSelection();
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selection.addListener(_onChange);
+  }
+
+  @override
+  void dispose() {
+    _selection.removeListener(_onChange);
+    _selection.dispose();
+    super.dispose();
+  }
+
+  void _onChange() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _continue() async {
+    setState(() => _saving = true);
+    final saved = await _selection.save(widget.network);
+    if (!mounted) {
+      return;
+    }
+    setState(() => _saving = false);
+    if (saved) {
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return SailColumn(
+      spacing: SailStyleValues.padding16,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SailText.secondary13(
+          '${widget.network.toDisplayName()} requires a data directory to store blockchain data.\n'
+          'This will require significant disk space (700GB+ for mainnet).',
+        ),
+        SailColumn(
+          spacing: SailStyleValues.padding12,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(child: DataDirField(path: _selection.selectedPath)),
+                const SizedBox(width: 8),
+                SailButton(
+                  label: 'Browse',
+                  variant: ButtonVariant.secondary,
+                  loading: _selection.selecting,
+                  disabled: _saving,
+                  onPressed: _selection.browse,
+                ),
+              ],
+            ),
+            if (_selection.error != null) SailText.secondary12(_selection.error!, color: theme.colors.error),
+          ],
+        ),
+        SailButton(
+          label: 'Continue',
+          loading: _saving,
+          onPressed: _continue,
+        ),
+      ],
     );
   }
 }

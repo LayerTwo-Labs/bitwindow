@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:bitwindow/pages/settings/network_swap_page.dart';
 import 'package:bitwindow/routing/router.dart';
 import 'package:bitwindow/widgets/ecash_migration_dialog.dart';
 import 'package:bitwindow/widgets/ecash_upgrade_banner.dart';
+import 'package:bitwindow/widgets/node_mode_chip.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -310,14 +313,8 @@ class _SettingsNetworkState extends State<SettingsNetwork> {
       context: context,
       builder: (ctx) => SailDialog(
         title: 'Switch Bitcoin Core variant?',
-        actions: [
-          SailButton(
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            onPressed: () async => Navigator.of(ctx).pop(false),
-          ),
-          SailButton(label: 'Switch', onPressed: () async => Navigator.of(ctx).pop(true)),
-        ],
+        withCloseButton: true,
+        action: SailDialogAction(label: 'Switch', onPressed: () async => Navigator.of(ctx).pop(true)),
         child: SailText.secondary13(
           'Bitcoin Core will be stopped, the new build downloaded if needed, and then restarted.',
         ),
@@ -346,6 +343,7 @@ class _SettingsNetworkState extends State<SettingsNetwork> {
         _confProvider.network == BitcoinNetwork.BITCOIN_NETWORK_ECASH ||
         _confProvider.detectedDataDir != null;
     final canEditDataDir = !_confProvider.hasPrivateBitcoinConf;
+    final v2 = theme.isBitwindowV2;
 
     return SailSettingsBody(
       children: [
@@ -395,7 +393,7 @@ class _SettingsNetworkState extends State<SettingsNetwork> {
                 description: canEditDataDir
                     ? 'Where Bitcoin Core writes chain data (2.5TB+ on mainnet)'
                     : 'Your own bitcoin.conf file controls the data directory',
-                trailing: canEditDataDir
+                trailing: canEditDataDir && !v2
                     ? SailRow(
                         spacing: SailStyleValues.padding08,
                         children: [
@@ -417,19 +415,46 @@ class _SettingsNetworkState extends State<SettingsNetwork> {
                       )
                     : null,
                 child: _withError(
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: SailStyleValues.padding08,
-                      vertical: SailStyleValues.padding04,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: theme.colors.border),
-                      borderRadius: theme.chrome.radiusSmall,
-                      color: theme.colors.backgroundSecondary,
-                    ),
-                    child: SailText.secondary12(_confProvider.detectedDataDir ?? 'Default directory'),
-                  ),
+                  v2
+                      ? Row(
+                          children: [
+                            Expanded(child: DataDirField(path: _confProvider.detectedDataDir ?? 'Default directory')),
+                            if (canEditDataDir) ...[
+                              const SizedBox(width: 8),
+                              SailButton(
+                                label: 'Browse',
+                                variant: ButtonVariant.secondary,
+                                loading: _isSelectingDataDir,
+                                onPressed: () async => await _selectDataDirectory(),
+                              ),
+                              if (_confProvider.detectedDataDir != null) ...[
+                                const SizedBox(width: 8),
+                                SailRowMenuButton(
+                                  size: 36,
+                                  items: () => [
+                                    SailMenuItem(
+                                      onSelected: () => unawaited(_clearDataDir()),
+                                      child: SailText.primary13('Clear'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ],
+                        )
+                      : Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: SailStyleValues.padding08,
+                            vertical: SailStyleValues.padding04,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: theme.colors.border),
+                            borderRadius: theme.chrome.radiusSmall,
+                            color: theme.colors.backgroundSecondary,
+                          ),
+                          child: SailText.secondary12(_confProvider.detectedDataDir ?? 'Default directory'),
+                        ),
                   _dataDirError,
                 ),
               ),

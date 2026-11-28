@@ -252,8 +252,10 @@ void main() {
 
       expect(walletApi.sweptTo, _walletAddress);
       expect(find.text('ECX claimed'), findsOneWidget);
-      expect(find.text('Claim another key'), findsWidgets);
-      expect(find.text('View on explorer'), findsWidgets);
+      expect(find.widgetWithText(SailButton, 'View on explorer'), findsOneWidget);
+      await tester.tap(find.byType(SailRowMenuButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Claim another key'), findsOneWidget);
     });
 
     testWidgets('keeps a failure on screen with its reason', (tester) async {
@@ -268,8 +270,10 @@ void main() {
 
       expect(find.text('Claim failed'), findsOneWidget);
       expect(find.textContaining('fee below the minimum relay fee'), findsOneWidget);
-      expect(find.text('Try again'), findsWidgets);
-      expect(find.text('Use a different key'), findsWidgets);
+      expect(find.widgetWithText(SailButton, 'Try again'), findsOneWidget);
+      await tester.tap(find.byType(SailRowMenuButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Use a different key'), findsOneWidget);
     });
 
     testWidgets('claiming another key clears the form', (tester) async {
@@ -281,7 +285,9 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      await tester.tap(find.text('Claim another key').first);
+      await tester.tap(find.byType(SailRowMenuButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Claim another key'));
       await tester.pump();
       await tester.pump();
 

@@ -411,6 +411,7 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
       return SailModal(
         constraints: const BoxConstraints(maxWidth: 600, maxHeight: 600),
         child: SailCard(
+          withCloseButton: true,
           title: 'Import PSBT',
           subtitle: 'Import a partially signed Bitcoin transaction for ${selectedGroup.name}',
           error: _modalError,
@@ -542,15 +543,6 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
                   spacing: SailStyleValues.padding08,
                   children: [
                     SailButton(
-                      label: 'Cancel',
-                      onPressed: _isImporting
-                          ? null
-                          : () async {
-                              Navigator.of(context).pop(false);
-                            },
-                      variant: ButtonVariant.ghost,
-                    ),
-                    SailButton(
                       label: 'Import',
                       onPressed: _isImporting || _importedData == null ? null : _importPSBT,
                       loading: _isImporting,
@@ -568,6 +560,7 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
     return SailModal(
       constraints: const BoxConstraints(maxWidth: 600, maxHeight: 500),
       child: SailCard(
+        withCloseButton: true,
         title: 'Select Multisig Group',
         subtitle: 'Choose which group this PSBT belongs to',
         error: _modalError,
@@ -610,13 +603,6 @@ class _ImportPSBTModalState extends State<ImportPSBTModal> {
                     ),
                   ),
                 ),
-              SailButton(
-                label: 'Cancel',
-                onPressed: () async {
-                  Navigator.of(context).pop(false);
-                },
-                variant: ButtonVariant.ghost,
-              ),
             ],
           ),
         ),

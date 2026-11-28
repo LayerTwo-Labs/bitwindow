@@ -128,6 +128,8 @@ void main() {
   testWidgets('the keys of the wallet show the use that the wallet reports', (tester) async {
     await pumpExplorer(tester);
 
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
     await tap(tester, 'Use Wallet');
     await tap(tester, 'Derive Addresses');
 

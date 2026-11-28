@@ -7,6 +7,10 @@ import 'package:bitwindow/utils/explorer_url.dart';
 import 'package:bitwindow/widgets/burn_ecx_card.dart';
 import 'package:bitwindow/widgets/claim_ecx_card.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
+import 'package:bitwindow/pages/wallet/widgets/wallet_v2_parts.dart';
+import 'package:collection/collection.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -32,6 +36,9 @@ class ReceiveTab extends StatelessWidget {
       viewModelBuilder: () => ReceivePageViewModel(),
       onViewModelReady: (model) => model.init(),
       builder: (context, model, child) {
+        if (!SailStyleValues.phoneLayout(context)) {
+          return ReceiveDesktop(model: model);
+        }
         return SingleChildScrollView(
           child: SailColumn(
             spacing: 16,
@@ -184,6 +191,224 @@ class ReceiveTab extends StatelessWidget {
   }
 }
 
+/// The claim card, and the Betanet burn card on a network that burns.
+class ReceiveActionCards extends StatelessWidget {
+  const ReceiveActionCards({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final conf = GetIt.I.get<BitcoinConfProvider>();
+    return ListenableBuilder(
+      listenable: conf,
+      builder: (context, child) => SailColumn(
+        spacing: walletGap,
+        children: [
+          const ClaimEcxCard(),
+          if (conf.network == BitcoinNetwork.BITCOIN_NETWORK_ECASH &&
+              burnEcxNetworks.containsKey(
+                conf.ecashNetworkId.isNotEmpty ? conf.ecashNetworkId : conf.currentNetworkOptionId,
+              ))
+            const BurnEcxCard(),
+        ],
+      ),
+    );
+  }
+}
+
+/// The desktop Receive tab: the address strip over the addresses, with claim and burn at the right.
+class ReceiveDesktop extends StatelessWidget {
+  final ReceivePageViewModel model;
+
+  const ReceiveDesktop({super.key, required this.model});
+
+  static const double _narrowTableHeight = 420;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final strip = WalletStripScroll(minWidth: 760, child: ReceiveAddressStrip(model: model));
+        if (constraints.maxWidth < walletNarrowWidth) {
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                strip,
+                const SizedBox(height: walletGap),
+                SizedBox(
+                  height: _narrowTableHeight,
+                  child: ReceiveAddressesTable(model: model),
+                ),
+                const SizedBox(height: walletGap),
+                const ReceiveActionCards(),
+              ],
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            strip,
+            const SizedBox(height: walletGap),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: ReceiveAddressesTable(model: model)),
+                  const SizedBox(width: walletGap),
+                  const SizedBox(
+                    width: SailSidePanel.width,
+                    child: SingleChildScrollView(child: ReceiveActionCards()),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+const double _requestFieldsWidth = 640;
+
+/// The top strip of the Receive tab: QR code, address type, address, path, payment code, and Copy and New address.
+class ReceiveAddressStrip extends StatelessWidget {
+  final ReceivePageViewModel model;
+
+  const ReceiveAddressStrip({super.key, required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    final waiting = model.address.isEmpty && model.addressError == null;
+    final used = model.receiveAddresses.firstWhereOrNull((a) => a.address == model.address);
+    final pathLine = [
+      if (model.addressDerivationPath.isNotEmpty) model.addressDerivationPath,
+      if (used != null && used.lastUsedAt.seconds == 0) 'never used',
+    ].join(' \u00b7 ');
+
+    return DecoratedBox(
+      decoration: theme.chrome.panel(theme.colors),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Opacity(
+              opacity: model.address.isEmpty ? 0.15 : 1,
+              child: SizedBox(
+                width: 100,
+                height: 100,
+                child: model.address.isEmpty
+                    ? const SizedBox.shrink()
+                    : QrImageView(
+                        key: ValueKey(model.paymentRequest),
+                        padding: EdgeInsets.zero,
+                        eyeStyle: QrEyeStyle(color: theme.colors.text, eyeShape: QrEyeShape.square),
+                        dataModuleStyle: QrDataModuleStyle(color: theme.colors.text),
+                        data: model.paymentRequest,
+                        version: QrVersions.auto,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      SailText.primary13('Your address', color: theme.colors.textSecondary),
+                      // A wallet that derives one kind has nothing to choose.
+                      if (model.addressTypes.length > 1) ...[
+                        const SizedBox(width: 8),
+                        SailDropdownButton<wmpb.AddressType>(
+                          value: model.addressType,
+                          onChanged: (type) {
+                            if (type != null) {
+                              model.setAddressType(type);
+                            }
+                          },
+                          items: model.addressTypes
+                              .map(
+                                (type) =>
+                                    SailDropdownItem<wmpb.AddressType>(value: type, label: addressTypeLabel(type)),
+                              )
+                              .toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (model.addressError case final error?)
+                    SailText.primary13(error, color: theme.colors.error, overflow: TextOverflow.visible),
+                  if (model.address.isNotEmpty || waiting)
+                    SelectionArea(
+                      child: Text(
+                        waiting ? 'Waiting for enforcer to start and wallet to sync..' : model.address,
+                        style: walletTextStyle(
+                          context,
+                          SailStyleValues.eighteen,
+                          color: waiting ? theme.colors.textHint : null,
+                        ),
+                      ),
+                    ),
+                  if (pathLine.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    SailText.secondary12(pathLine),
+                  ],
+                  if (!model.hideBip47) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        SailText.secondary12('BIP47 payment code'),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: SailText.primary12(
+                            model.bip47PaymentCode.isEmpty
+                                ? 'Waiting for wallet to sync..'
+                                : middleEllipsis(model.bip47PaymentCode, keep: 12),
+                            color: model.bip47PaymentCode.isEmpty ? theme.colors.textHint : null,
+                          ),
+                        ),
+                        if (model.bip47PaymentCode.isNotEmpty) CopyButton(text: model.bip47PaymentCode),
+                      ],
+                    ),
+                  ],
+                  if (model.address.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: _requestFieldsWidth),
+                      child: PaymentRequestFields(model: model),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            if (model.address.isEmpty)
+              SailButton(label: 'Generate new address', onPressed: model.generateNewAddress)
+            else ...[
+              SailButton(
+                label: 'Copy',
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: model.paymentRequest));
+                  if (context.mounted) {
+                    showSailToast(context, 'Address copied to clipboard');
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              SailButton(label: 'New address', variant: ButtonVariant.secondary, onPressed: model.generateNewAddress),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Amount, label and message of a payment request, and the request with a copy button.
 class PaymentRequestFields extends StatelessWidget {
   final ReceivePageViewModel model;
@@ -274,6 +499,23 @@ class PaymentCodeField extends StatelessWidget {
   }
 }
 
+/// The address filter of the Addresses table.
+enum ReceiveAddressKind {
+  all('All types'),
+  receive('Receive'),
+  change('Change');
+
+  final String label;
+
+  const ReceiveAddressKind(this.label);
+
+  bool matches(ReceiveAddress address) => switch (this) {
+    ReceiveAddressKind.all => true,
+    ReceiveAddressKind.receive => !address.isChange,
+    ReceiveAddressKind.change => address.isChange,
+  };
+}
+
 class ReceiveAddressesTable extends StatefulWidget {
   final ReceivePageViewModel model;
 
@@ -319,11 +561,34 @@ class _ReceiveAddressesTableState extends State<ReceiveAddressesTable> {
   // the sort lookups.
   static const _columns = ['last_used_at', 'address', 'path', 'type', 'chain', 'label', 'current_balance_sat'];
 
+  static const _desktopColumns = ['address', 'path', 'type', 'last_used_at', 'current_balance_sat'];
+
   String sortColumn = 'last_used_at';
   bool sortAscending = false;
+  final TextEditingController _search = TextEditingController();
+
+  ReceiveAddressKind _kind = ReceiveAddressKind.all;
+
+  @override
+  void initState() {
+    super.initState();
+    _search.addListener(_onSearch);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _onSearch() => setState(() {});
 
   List<ReceiveAddress> get sortedEntries {
-    final entries = List<ReceiveAddress>.from(widget.model.receiveAddresses);
+    final query = _search.text.trim().toLowerCase();
+    final entries = widget.model.receiveAddresses
+        .where((a) => _kind.matches(a))
+        .where((a) => query.isEmpty || a.address.toLowerCase().contains(query) || a.label.toLowerCase().contains(query))
+        .toList();
     entries.sort((a, b) {
       dynamic aValue, bValue;
       switch (sortColumn) {
@@ -383,8 +648,114 @@ class _ReceiveAddressesTableState extends State<ReceiveAddressesTable> {
     });
   }
 
+  List<SailMenuEntity> _menuItems(BuildContext context, ReceiveAddress entry) {
+    final network = GetIt.I.get<BitcoinConfProvider>().network;
+    return [
+      SailMenuItem(
+        onSelected: () {
+          showThemedDialog(
+            context: context,
+            builder: (context) => SailModal(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: SailCardEditValues(
+                title: entry.label.isEmpty ? 'Add Label' : 'Edit Label',
+                subtitle: "${entry.label.isEmpty ? "Set a" : "Update the"} label and click Save when you're done",
+                fields: [EditField(name: 'Label', currentValue: entry.label)],
+                onSave: (updatedFields) async {
+                  final newLabel = updatedFields.firstWhere((f) => f.name == 'Label').currentValue;
+                  return widget.model.saveLabel(context, entry.address, newLabel);
+                },
+              ),
+            ),
+          );
+        },
+        child: SailText.primary12(entry.label.isEmpty ? 'Add Label' : 'Update Label'),
+      ),
+      SailMenuItem(
+        onSelected: () => openUrl(Uri.parse(mempoolAddressUrl(entry.address, network))),
+        child: SailText.primary12('View on mempool.space'),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!SailStyleValues.phoneLayout(context)) {
+      final theme = SailTheme.of(context);
+      final entries = sortedEntries;
+      return WalletTableCard(
+        title: 'Addresses',
+        error: widget.model.listError,
+        toolbar: [
+          WalletSearchField(controller: _search, hintText: 'Search address or label'),
+          SizedBox(
+            width: 130,
+            child: SailDropdownButton<ReceiveAddressKind>(
+              value: _kind,
+              onChanged: (value) => setState(() => _kind = value ?? ReceiveAddressKind.all),
+              items: [
+                for (final kind in ReceiveAddressKind.values) SailDropdownItem(value: kind, label: kind.label),
+              ],
+            ),
+          ),
+        ],
+        child: SailSkeletonizer(
+          description: 'Waiting for enforcer to start and wallet to sync..',
+          enabled: widget.model.receiveAddresses.isEmpty && widget.model.listError == null,
+          child: SailTable(
+            getRowId: (index) => entries[index].address,
+            cellHeight: 52,
+            headerBuilder: (context) => [
+              SailTableHeaderCell(name: 'Address', onSort: () => onSort('address')),
+              SailTableHeaderCell(name: 'Path', onSort: () => onSort('path')),
+              SailTableHeaderCell(name: 'Type', onSort: () => onSort('type')),
+              SailTableHeaderCell(name: 'Last used', onSort: () => onSort('last_used_at')),
+              SailTableHeaderCell(
+                name: 'Balance',
+                alignment: Alignment.centerRight,
+                onSort: () => onSort('current_balance_sat'),
+              ),
+            ],
+            rowBuilder: (context, row, selected) {
+              final entry = entries[row];
+              final used = entry.lastUsedAt.seconds == 0 ? null : entry.lastUsedAt.toDateTime().toLocal();
+              return [
+                SailTableCell(
+                  value: entry.address,
+                  secondaryValue: entry.label.isEmpty ? 'No label' : entry.label,
+                  copyValue: entry.address,
+                ),
+                SailTableCell(
+                  value: entry.derivationPath.isEmpty ? '—' : entry.derivationPath,
+                  copyValue: entry.derivationPath,
+                  monospace: true,
+                ),
+                SailTableCell(
+                  value: receiveAddressType(entry.address).isEmpty ? '—' : receiveAddressType(entry.address),
+                  secondaryValue: entry.isChange ? 'Change' : 'Receive',
+                ),
+                SailTableCell(
+                  value: used == null ? 'Never' : walletRowDate(used),
+                  secondaryValue: used == null ? null : walletRowTime(used),
+                ),
+                SailTableCell(
+                  value: walletAmountText(entry.currentBalanceSat.toInt()),
+                  secondaryValue: walletUnitText(),
+                  alignment: Alignment.centerRight,
+                  textColor: entry.currentBalanceSat == 0 ? theme.colors.textSecondary : null,
+                ),
+              ];
+            },
+            rowCount: entries.length,
+            emptyPlaceholder: 'No receive addresses yet',
+            sortColumnIndex: _desktopColumns.indexOf(sortColumn),
+            sortAscending: sortAscending,
+            onSort: (columnIndex, ascending) => onSort(_desktopColumns[columnIndex]),
+            contextMenuItems: (rowId) => _menuItems(context, entries.firstWhere((e) => e.address == rowId)),
+          ),
+        ),
+      );
+    }
     final formatter = GetIt.I<FormatterProvider>();
     final entries = sortedEntries;
 
@@ -450,38 +821,7 @@ class _ReceiveAddressesTableState extends State<ReceiveAddressesTable> {
                   sortColumnIndex: _columns.indexOf(sortColumn),
                   sortAscending: sortAscending,
                   onSort: (columnIndex, ascending) => onSort(_columns[columnIndex]),
-                  contextMenuItems: (rowId) {
-                    final entry = entries.firstWhere((e) => e.address == rowId);
-                    final network = GetIt.I.get<BitcoinConfProvider>().network;
-
-                    return [
-                      SailMenuItem(
-                        onSelected: () {
-                          showThemedDialog(
-                            context: context,
-                            builder: (context) => SailModal(
-                              constraints: const BoxConstraints(maxWidth: 400),
-                              child: SailCardEditValues(
-                                title: entry.label.isEmpty ? 'Add Label' : 'Edit Label',
-                                subtitle:
-                                    "${entry.label.isEmpty ? "Set a" : "Update the"} label and click Save when you're done",
-                                fields: [EditField(name: 'Label', currentValue: entry.label)],
-                                onSave: (updatedFields) async {
-                                  final newLabel = updatedFields.firstWhere((f) => f.name == 'Label').currentValue;
-                                  return widget.model.saveLabel(context, entry.address, newLabel);
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                        child: SailText.primary12(entry.label.isEmpty ? 'Add Label' : 'Update Label'),
-                      ),
-                      SailMenuItem(
-                        onSelected: () => openUrl(Uri.parse(mempoolAddressUrl(entry.address, network))),
-                        child: SailText.primary12('View on mempool.space'),
-                      ),
-                    ];
-                  },
+                  contextMenuItems: (rowId) => _menuItems(context, entries.firstWhere((e) => e.address == rowId)),
                 ),
               ),
             ),

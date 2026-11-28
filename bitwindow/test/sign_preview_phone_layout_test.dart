@@ -61,42 +61,53 @@ void main() {
     await GetIt.I.reset();
   });
 
-  testWidgets('on a phone the details are label and value rows, with the destination under its label', (
-    tester,
-  ) async {
-    await _pump(tester, phone: true);
+  Finder button(String label) => find.byWidgetPredicate((w) => w is SailButton && w.label == label);
 
-    expect(tester.takeException(), isNull);
-    expect(find.byType(SailStatList), findsNWidgets(3));
-    final label = tester.getRect(find.text('Group'));
-    final value = tester.getRect(find.text('Cold storage'));
-    expect(value.left, greaterThan(label.right));
-    expect(value.center.dy, closeTo(label.center.dy, 1));
+  for (final phone in [true, false]) {
+    final layout = phone ? 'a phone' : 'a desktop';
 
-    final destinationLabel = tester.getRect(find.text('Destination'));
-    final destination = tester.getRect(find.text(_destination));
-    expect(destination.top, greaterThan(destinationLabel.bottom));
-    expect(destination.left, destinationLabel.left);
-    expect(find.text('Keys to be signed'), findsOneWidget);
-  });
+    testWidgets('on $layout the details are grey label and value rows, the destination under its label', (
+      tester,
+    ) async {
+      await _pump(tester, phone: phone);
 
-  testWidgets('on a phone the key status is one box with a row per key', (tester) async {
-    await _pump(tester, phone: true);
+      expect(tester.takeException(), isNull);
+      for (final title in ['Transaction Details', 'Signing Information', 'Key Status']) {
+        expect(find.text(title), findsOneWidget, reason: title);
+      }
+      final label = tester.getRect(find.text('Group'));
+      final value = tester.getRect(find.text('Cold storage'));
+      expect(value.left, greaterThan(label.right));
+      expect(value.center.dy, closeTo(label.center.dy, 1));
 
-    final box = find.ancestor(of: find.text('Alice'), matching: find.byType(SailStatList));
-    for (final owner in ['MyKey0', 'Alice', 'Bob']) {
-      expect(find.descendant(of: box, matching: find.text(owner)), findsOneWidget);
-    }
-    expect(find.descendant(of: box, matching: find.text('Ready to sign')), findsOneWidget);
-    expect(find.descendant(of: box, matching: find.text('Signed')), findsOneWidget);
-    expect(find.descendant(of: box, matching: find.text('Awaiting external signature')), findsOneWidget);
-    expect(find.descendant(of: box, matching: find.text('Wallet Key')), findsOneWidget);
-  });
+      final destinationLabel = tester.getRect(find.text('Destination'));
+      final destination = tester.getRect(find.text(_destination));
+      expect(destination.top, greaterThan(destinationLabel.bottom));
+      expect(destination.left, destinationLabel.left);
+      expect(find.text('Keys to be signed'), findsOneWidget);
+    });
 
-  testWidgets('the desktop keeps the colon labels', (tester) async {
+    testWidgets('on $layout one key status row per key, with a dot', (tester) async {
+      await _pump(tester, phone: phone);
+
+      final box = find.widgetWithText(SailDetailGroup, 'Key Status');
+      for (final owner in ['MyKey0', 'Alice', 'Bob']) {
+        expect(find.descendant(of: box, matching: find.text(owner)), findsOneWidget);
+      }
+      expect(find.text('Ready to sign'), findsOneWidget);
+      expect(find.text('Signed'), findsOneWidget);
+      expect(find.text('Awaiting external signature'), findsOneWidget);
+      expect(find.text('Wallet Key'), findsOneWidget);
+      expect(find.byType(SailStatusDot), findsNWidgets(3));
+    });
+  }
+
+  testWidgets('Sign Transaction is the one button and the × replaces Cancel', (tester) async {
     await _pump(tester, phone: false);
 
-    expect(find.byType(SailStatList), findsNothing);
-    expect(find.text('Destination:'), findsOneWidget);
+    expect(find.byType(SailButton), findsOneWidget);
+    expect(tester.widget<SailButton>(button('Sign Transaction')).onPressed, isNotNull);
+    expect(button('Cancel'), findsNothing);
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x), findsOneWidget);
   });
 }

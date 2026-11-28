@@ -156,6 +156,7 @@ class _CombineBroadcastModalState extends State<CombineBroadcastModal> {
     return SailModal(
       constraints: const BoxConstraints(maxWidth: 600, maxHeight: 500),
       child: SailCard(
+        withCloseButton: true,
         title: 'Combine & Broadcast',
         subtitle: _isLoading
             ? 'Loading transactions...'
@@ -261,11 +262,6 @@ class _CombineBroadcastModalState extends State<CombineBroadcastModal> {
                   SailRow(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      SailButton(
-                        label: 'Cancel',
-                        onPressed: _isProcessing ? null : () async => Navigator.of(context).pop(),
-                        variant: ButtonVariant.secondary,
-                      ),
                       if (_eligibleTransactions.isNotEmpty)
                         SailButton(
                           label: _actionButtonLabel,

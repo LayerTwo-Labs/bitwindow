@@ -9,14 +9,86 @@ import 'package:sail_ui/sail_ui.dart';
 const _checkDebounce = Duration(milliseconds: 400);
 
 @RoutePage()
-class CashCheckPage extends StatefulWidget {
+class CashCheckPage extends StatelessWidget {
   const CashCheckPage({super.key});
 
   @override
-  State<CashCheckPage> createState() => _CashCheckPageState();
+  Widget build(BuildContext context) {
+    final phone = SailStyleValues.phoneLayout(context);
+    return SailScaffold(
+      backgroundColor: SailTheme.of(context).colors.background,
+      appBar: SailAppBar.build(context, title: SailText.primary20('Cash Check')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 600),
+              padding: EdgeInsets.all(phone ? SailStyleValues.padding16 : SailStyleValues.padding20),
+              child: _PhonePanel(phone: phone, child: const _CashCheckForm()),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _CashCheckPageState extends State<CashCheckPage> {
+/// Opens Cash Check as a dialog, then "Your Check was Cashed" after the sweep.
+Future<void> showCashCheckDialog(BuildContext context) async {
+  final cashed = await showThemedDialog<(String, int)>(
+    context: context,
+    builder: (context) => SailDialog(
+      title: 'Cash Check',
+      withCloseButton: true,
+      maxWidth: 480,
+      child: _CashCheckForm(onCashed: (txid, amountSats) => Navigator.of(context).pop((txid, amountSats))),
+    ),
+  );
+  if (cashed == null || !context.mounted) {
+    return;
+  }
+  final (txid, amountSats) = cashed;
+  await showThemedDialog<void>(
+    context: context,
+    builder: (context) => SailDialog(
+      title: 'Your Check was Cashed',
+      maxWidth: 480,
+      action: SailDialogAction(label: 'Done', onPressed: () async => Navigator.of(context).pop()),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SailText.secondary13('Funds are on their way to your wallet'),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailDetailLine(wrap: true, label: 'Amount:', value: _formatSats(amountSats)),
+              SailDetailLine(
+                wrap: true,
+                label: 'Transaction:',
+                value: '${txid.substring(0, 10)}...${txid.substring(txid.length - 10)}',
+                trailing: CopyButton(text: txid),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _CashCheckForm extends StatefulWidget {
+  /// Gets the sweep txid and the amount. Null opens the success page in place of this page.
+  final void Function(String txid, int amountSats)? onCashed;
+
+  const _CashCheckForm({this.onCashed});
+
+  @override
+  State<_CashCheckForm> createState() => _CashCheckFormState();
+}
+
+class _CashCheckFormState extends State<_CashCheckForm> {
   final BitwindowRPC _bitwindowRPC = GetIt.I.get<BitwindowRPC>();
   final OrchestratorWalletRPC _orchestratorWallet = GetIt.I.get<OrchestratorRPC>().wallet;
   final WalletReaderProvider _walletReader = GetIt.I.get<WalletReaderProvider>();
@@ -83,61 +155,67 @@ class _CashCheckPageState extends State<CashCheckPage> {
   @override
   Widget build(BuildContext context) {
     final phone = SailStyleValues.phoneLayout(context);
-    return SailScaffold(
-      backgroundColor: SailTheme.of(context).colors.background,
-      appBar: SailAppBar.build(context, title: SailText.primary20('Cash Check')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 600),
-              padding: EdgeInsets.all(phone ? SailStyleValues.padding16 : SailStyleValues.padding20),
-              child: _PhonePanel(
-                phone: phone,
-                child: SailColumn(
-                  spacing: phone ? SailStyleValues.padding16 : SailStyleValues.padding32,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    phone
-                        ? SailText.primary15('Enter the private key (WIF)', bold: true)
-                        : SailText.primary24('Enter the private key (WIF)'),
-                    SailText.secondary13(
-                      'Paste the private key from the check you received. The funds will be swept to your wallet.',
-                      textAlign: phone ? TextAlign.start : TextAlign.center,
-                    ),
-                    SailTextField(
-                      controller: _wifController,
-                      hintText: 'Private key (WIF format)',
-                      textFieldType: TextFieldType.text,
-                      maxLines: 3,
-                      onChanged: _onKeyChanged,
-                    ),
-                    if (_preview case final preview?) _SweepPreviewRows(preview: preview, phone: phone),
-                    SailRow(
-                      spacing: SailStyleValues.padding08,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        SailButton(
-                          label: 'Cancel',
-                          variant: ButtonVariant.ghost,
-                          onPressed: () async => context.router.maybePop(),
-                        ),
-                        SailButton(
-                          label: 'Cash Check',
-                          loading: _isCashing || _isChecking,
-                          disabled: _preview == null,
-                          onPressed: () async => _cashCheck(),
-                        ),
-                      ],
-                    ),
-                    if (_error != null) SailInlineError(_error!),
-                  ],
-                ),
-              ),
-            ),
+    final field = SailTextField(
+      controller: _wifController,
+      hintText: 'Private key (WIF format)',
+      textFieldType: TextFieldType.text,
+      maxLines: 3,
+      onChanged: _onKeyChanged,
+    );
+    if (widget.onCashed != null) {
+      return SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SailText.primary13('Enter the private key (WIF)', bold: true),
+          SailText.secondary13(
+            'Paste the private key from the check you received. The funds will be swept to your wallet.',
           ),
+          field,
+          if (_preview case final preview?) _SweepPreviewRows(preview: preview, phone: false),
+          if (_error != null) SailInlineError(_error!),
+          SailButton(
+            label: 'Cash Check',
+            loading: _isCashing || _isChecking,
+            disabled: _preview == null,
+            onPressed: () async => _cashCheck(),
+          ),
+        ],
+      );
+    }
+    return SailColumn(
+      spacing: phone ? SailStyleValues.padding16 : SailStyleValues.padding32,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        phone
+            ? SailText.primary15('Enter the private key (WIF)', bold: true)
+            : SailText.primary24('Enter the private key (WIF)'),
+        SailText.secondary13(
+          'Paste the private key from the check you received. The funds will be swept to your wallet.',
+          textAlign: phone ? TextAlign.start : TextAlign.center,
         ),
-      ),
+        field,
+        if (_preview case final preview?) _SweepPreviewRows(preview: preview, phone: phone),
+        SailRow(
+          spacing: SailStyleValues.padding08,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            SailButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              onPressed: () async => context.router.maybePop(),
+            ),
+            SailButton(
+              label: 'Cash Check',
+              loading: _isCashing || _isChecking,
+              disabled: _preview == null,
+              onPressed: () async => _cashCheck(),
+            ),
+          ],
+        ),
+        if (_error != null) SailInlineError(_error!),
+      ],
     );
   }
 
@@ -171,6 +249,11 @@ class _CashCheckPageState extends State<CashCheckPage> {
         return;
       }
 
+      final onCashed = widget.onCashed;
+      if (onCashed != null) {
+        onCashed(result.txid, result.receiveSats);
+        return;
+      }
       await context.router.replace(
         CashCheckSuccessRoute(
           txid: result.txid,

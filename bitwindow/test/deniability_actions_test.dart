@@ -66,38 +66,139 @@ void main() {
     expect(model.utxosWithoutDenial, [free, cancelled, change, completed]);
   });
 
-  testWidgets('the Pause and Cancel buttons fit in the Actions column', (tester) async {
+  Future<List<String>> pumpTable(WidgetTester tester) async {
+    final calls = <String>[];
+    final theme = SailThemeData.lightTheme(
+      SailColorScheme.orange,
+      false,
+      SailFontValues.inter,
+      SailThemeStyle.bitwindowV2,
+    );
     await tester.pumpSailPage(
-      SizedBox(
-        width: 1100,
-        height: 600,
-        child: DeniabilityTable(
-          newWindowButton: null,
-          error: null,
-          utxos: [
-            UnspentOutput(
-              output: '${'a' * 64}:0',
-              valueSats: Int64(1000),
-              denialInfo: DenialInfo(
-                id: Int64(1),
-                numHops: 3,
-                nextExecutionTime: Timestamp.fromDateTime(DateTime.utc(2030)),
+      SailTheme(
+        data: theme,
+        child: SizedBox(
+          width: 1100,
+          height: 600,
+          child: DeniabilityTable(
+            newWindowButton: null,
+            error: null,
+            utxos: [
+              UnspentOutput(
+                output: '${'a' * 64}:0',
+                valueSats: Int64(1000),
+                denialInfo: DenialInfo(
+                  id: Int64(1),
+                  numHops: 3,
+                  nextExecutionTime: Timestamp.fromDateTime(DateTime.utc(2030)),
+                ),
               ),
+              UnspentOutput(output: '${'b' * 64}:0', valueSats: Int64(2000)),
+            ],
+            model: DeniabilityViewModel(),
+            onDeny: (output, _) => calls.add('deny $output'),
+            onCancel: (id) => calls.add('cancel $id'),
+            onPause: (id) => calls.add('pause $id'),
+            onResume: (id) => calls.add('resume $id'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return calls;
+  }
+
+  Future<void> openMenu(WidgetTester tester, int row) async {
+    await tester.tap(find.byType(SailRowMenuButton).at(row));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('the rows hold no buttons; each row has one "…"', (tester) async {
+    await pumpTable(tester);
+
+    expect(find.byType(SailButton), findsNothing);
+    expect(find.byType(SailRowMenuButton), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the "…" of a running denial holds Pause, Cancel and Show Details', (tester) async {
+    final calls = await pumpTable(tester);
+
+    await openMenu(tester, 0);
+    expect(find.text('Pause'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Show Details'), findsOneWidget);
+    expect(find.text('Deny'), findsNothing);
+
+    await tester.tap(find.text('Pause'));
+    await tester.pumpAndSettle();
+    expect(calls, ['pause 1']);
+  });
+
+  testWidgets('the "…" of a UTXO with no denial holds Deny and Show Details', (tester) async {
+    final calls = await pumpTable(tester);
+
+    await openMenu(tester, 1);
+    expect(find.text('Deny'), findsOneWidget);
+    expect(find.text('Show Details'), findsOneWidget);
+    expect(find.text('Pause'), findsNothing);
+    expect(find.text('Cancel'), findsNothing);
+
+    await tester.tap(find.text('Deny'));
+    await tester.pumpAndSettle();
+    expect(calls, ['deny ${'b' * 64}:0']);
+  });
+
+  testWidgets('the UTXO panel has the first row action as its one button and Cancel in its "…"', (tester) async {
+    final calls = <String>[];
+    final theme = SailThemeData.lightTheme(
+      SailColorScheme.orange,
+      false,
+      SailFontValues.inter,
+      SailThemeStyle.bitwindowV2,
+    );
+    final utxo = UnspentOutput(
+      output: '${'a' * 64}:0',
+      valueSats: Int64(1000),
+      denialInfo: DenialInfo(
+        id: Int64(4),
+        numHops: 3,
+        pausedAt: Timestamp.fromDateTime(DateTime.utc(2026)),
+        nextExecutionTime: Timestamp.fromDateTime(DateTime.utc(2030)),
+      ),
+    );
+    await tester.pumpSailPage(
+      SailTheme(
+        data: theme,
+        child: Align(
+          alignment: Alignment.topRight,
+          child: SizedBox(
+            height: 700,
+            child: DenialUtxoPanel(
+              utxo: utxo,
+              onClose: () async {},
+              onDeny: (output, _) => calls.add('deny'),
+              onCancel: (id) => calls.add('cancel $id'),
+              onPause: (id) => calls.add('pause $id'),
+              onResume: (id) => calls.add('resume $id'),
             ),
-            UnspentOutput(output: '${'b' * 64}:0', valueSats: Int64(2000)),
-          ],
-          model: DeniabilityViewModel(),
-          onDeny: (_, _) {},
-          onCancel: (_) {},
-          onPause: (_) {},
-          onResume: (_) {},
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Pause'), findsWidgets);
-    expect(find.text('Cancel'), findsWidgets);
-    expect(tester.takeException(), isNull);
+    expect(find.widgetWithText(SailButton, 'Resume'), findsOneWidget);
+    expect(find.widgetWithText(SailStatusPill, 'Paused'), findsOneWidget);
+    expect(find.text('a' * 64), findsOneWidget);
+
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SailButton, 'Resume'));
+    await tester.pumpAndSettle();
+    expect(calls, ['cancel 4', 'resume 4']);
   });
 }

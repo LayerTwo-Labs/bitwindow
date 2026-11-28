@@ -79,7 +79,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('Could not read the mempool. Check Daemon Status, then try again.'), findsOneWidget);
-    expect(find.text('Replace transaction'), findsNothing);
+    expect(find.byType(LoadingIndicator), findsNothing);
+    final replace = tester.widget<SailButton>(
+      find.byWidgetPredicate((w) => w is SailButton && w.label == 'Replace transaction'),
+    );
+    expect(replace.disabled, isTrue);
   });
 
   testWidgets('a typed rate asks for its preview at once', (tester) async {
@@ -117,5 +121,52 @@ void main() {
     await tester.pump();
 
     expect(wallet.rates, [null, 9, 8, 9]);
+  });
+
+  testWidgets('a typed rate shows a spinner under the plan while its preview loads', (tester) async {
+    final orchestrator = _FakeOrchestrator();
+    final wallet = orchestrator.wallet as _FakeWallet;
+    GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
+    GetIt.I.registerSingleton<TransactionProvider>(_FakeTransactions());
+    GetIt.I.registerSingleton<WalletReaderProvider>(_FakeWalletReader());
+
+    await tester.pumpSailPage(const BumpFeeDialog(txid: 'aa'));
+    wallet.replies.single.complete(_preview());
+    await tester.pump();
+    expect(find.byType(LoadingIndicator), findsNothing);
+
+    await tester.enterText(find.byType(TextField), '9');
+    await tester.pump();
+    expect(find.byType(LoadingIndicator), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+
+    wallet.replies.last.complete(_preview());
+    await tester.pump();
+    expect(find.byType(LoadingIndicator), findsNothing);
+  });
+
+  testWidgets('the reason no replacement works reads as an inline error', (tester) async {
+    final orchestrator = _FakeOrchestrator();
+    final wallet = orchestrator.wallet as _FakeWallet;
+    GetIt.I.registerSingleton<OrchestratorRPC>(orchestrator);
+    GetIt.I.registerSingleton<TransactionProvider>(_FakeTransactions());
+    GetIt.I.registerSingleton<WalletReaderProvider>(_FakeWalletReader());
+
+    await tester.pumpSailPage(const BumpFeeDialog(txid: 'aa'));
+    wallet.replies.single.complete(
+      wmpb.PreviewBumpFeeResponse(
+        suggestedFeeRate: Int64(5),
+        reason: 'this transaction does not signal replacement, so no replacement can follow it',
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byType(SailInlineError),
+        matching: find.textContaining('this transaction does not signal replacement'),
+      ),
+      findsOneWidget,
+    );
   });
 }

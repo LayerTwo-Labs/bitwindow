@@ -1,3 +1,4 @@
+import 'package:bitwindow/widgets/send_panel_parts.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -15,76 +16,36 @@ Future<ReplayChoice> askReplayProtection(
 }) async {
   final choice = await showThemedDialog<ReplayChoice>(
     context: context,
-    builder: (context) => SailModal(
-      constraints: const BoxConstraints(maxWidth: 560),
-      child: SailCard(
-        title: coinsKnown && coins.length == 1 ? 'This coin exists on both chains' : 'These coins exist on both chains',
-        subtitle: coinsKnown
-            ? 'Spending them makes the same transaction on the other chain.'
-            : 'The wallet did not report its coins yet, so this send can spend one that exists on both chains.',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (coinsKnown) ...[
-              _CoinList(coins: coins),
-              const SizedBox(height: SailStyleValues.padding16),
-            ],
-            SailText.secondary13(
-              'Replay protection keeps this transaction on this chain only. The other chain rejects it.',
-            ),
+    builder: (context) => SignDialog(
+      title: coinsKnown && coins.length == 1 ? 'This coin exists on both chains' : 'These coins exist on both chains',
+      subtitle: coinsKnown
+          ? 'Spending them makes the same transaction on the other chain.'
+          : 'The wallet did not report its coins yet, so this send can spend one that exists on both chains.',
+      onClose: () async => Navigator.of(context).pop(ReplayChoice.cancel),
+      menuItems: () => [
+        sendMenuItem(context, 'Send without protection', () => Navigator.of(context).pop(ReplayChoice.sendPlain)),
+      ],
+      button: SailButton(
+        label: 'Enable replay protection',
+        onPressed: () async => Navigator.of(context).pop(ReplayChoice.sendProtected),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (coinsKnown) ...[
+            _CoinList(coins: coins),
             const SizedBox(height: SailStyleValues.padding16),
-            _ReplayActions(onChoice: (choice) => Navigator.of(context).pop(choice)),
           ],
-        ),
+          SailText.primary13(
+            'Replay protection keeps this transaction on this chain only. The other chain rejects it.',
+            overflow: TextOverflow.visible,
+          ),
+        ],
       ),
     ),
   );
   return choice ?? ReplayChoice.cancel;
-}
-
-/// The three answers to the prompt. A phone stacks them.
-class _ReplayActions extends StatelessWidget {
-  final void Function(ReplayChoice choice) onChoice;
-
-  const _ReplayActions({required this.onChoice});
-
-  @override
-  Widget build(BuildContext context) {
-    final cancel = SailButton(
-      label: 'Cancel',
-      variant: ButtonVariant.ghost,
-      onPressed: () async => onChoice(ReplayChoice.cancel),
-    );
-    final plain = SailButton(
-      label: 'Send without protection',
-      variant: ButtonVariant.secondary,
-      onPressed: () async => onChoice(ReplayChoice.sendPlain),
-    );
-    final protect = SailButton(
-      label: 'Enable replay protection',
-      onPressed: () async => onChoice(ReplayChoice.sendProtected),
-    );
-
-    if (SailStyleValues.phoneLayout(context)) {
-      return SailColumn(
-        spacing: SailStyleValues.padding08,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          protect,
-          plain,
-          Center(child: cancel),
-        ],
-      );
-    }
-
-    return Wrap(
-      alignment: WrapAlignment.end,
-      spacing: SailStyleValues.padding08,
-      runSpacing: SailStyleValues.padding08,
-      children: [cancel, plain, protect],
-    );
-  }
 }
 
 /// The coins of the send, with their count and total on top. Scrolls once the
@@ -99,36 +60,39 @@ class _CoinList extends StatelessWidget {
     final formatter = GetIt.I.get<FormatterProvider>();
     final total = coins.fold<int>(0, (sum, c) => sum + c.valueSats.toInt());
 
-    return SailCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _Row(
-            left: coins.length == 1 ? '1 coin' : '${coins.length} coins',
-            right: formatter.formatSats(total),
-            muted: true,
-          ),
-          const SizedBox(height: SailStyleValues.padding08),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 110),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: coins
-                    .map(
-                      (c) => _Row(
-                        left: formatter.formatSats(c.valueSats.toInt()),
-                        right: _shortAddress(c.address),
-                      ),
-                    )
-                    .toList(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _Row(
+          left: coins.length == 1 ? '1 coin' : '${coins.length} coins',
+          right: formatter.formatSats(total),
+          muted: true,
+        ),
+        const SizedBox(height: SailStyleValues.padding08),
+        SailDetailGroup(
+          fill: SailDetailFill.canvas,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 110),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: coins
+                      .map(
+                        (c) => _Row(
+                          left: formatter.formatSats(c.valueSats.toInt()),
+                          right: _shortAddress(c.address),
+                        ),
+                      )
+                      .toList(),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }

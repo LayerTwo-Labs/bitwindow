@@ -2,7 +2,7 @@ import 'package:bitwindow/pages/root_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sail_ui/sail_ui.dart' show openLogsMenuItem;
+import 'package:sail_ui/sail_ui.dart' show openLogsMenuItem, SailButton, SailIconBoxButton, SailSVGAsset;
 
 import 'test_utils.dart';
 
@@ -18,6 +18,14 @@ void main() {
 
     expect(find.textContaining('Drivechain version v0.47.00.0-unk (64-bit)'), findsNothing);
     expect(find.textContaining('2009-2024'), findsNothing);
+  });
+
+  testWidgets('About dialog closes with a × in the head and has no OK button', (tester) async {
+    await tester.pumpSailPage(const AboutBitwindowDialog());
+
+    expect(find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.x), findsOneWidget);
+    expect(find.byType(SailButton), findsNothing);
+    expect(find.text('OK'), findsNothing);
   });
 
   group('encryptionMenuGroups', () {

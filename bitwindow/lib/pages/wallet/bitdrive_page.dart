@@ -20,6 +20,9 @@ class BitDriveTab extends StatelessWidget {
     return ViewModelBuilder<BitDriveViewModel>.reactive(
       viewModelBuilder: () => BitDriveViewModel(),
       builder: (context, model, child) {
+        if (!SailStyleValues.phoneLayout(context)) {
+          return _DesktopBitDrive(model: model);
+        }
         return SailCard(
           title: 'Store Data on ${activeTicker.name} Forever',
           subtitle:
@@ -51,6 +54,7 @@ class BitDriveTab extends StatelessWidget {
   }
 }
 
+/// The phone Store tab: the steps above the form.
 class _StoreTab extends StatelessWidget {
   final BitDriveViewModel model;
 
@@ -58,12 +62,78 @@ class _StoreTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final phone = SailStyleValues.phoneLayout(context);
-    final intro = Column(
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(SailStyleValues.padding20),
+        child: SailColumn(
+          spacing: SailStyleValues.padding20,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _StoreIntro(),
+            _StoreForm(model: model),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdvancedToggle extends StatelessWidget {
+  final BitDriveViewModel model;
+
+  const _AdvancedToggle({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => model.toggleAdvancedSettings(),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: SailRow(
+          spacing: SailStyleValues.padding04,
+          children: [
+            SailSVG.fromAsset(
+              model.showAdvancedSettings ? SailSVGAsset.chevronDown : SailSVGAsset.chevronRight,
+              width: 16,
+              color: context.sailTheme.colors.textSecondary,
+            ),
+            SailText.secondary12('Advanced settings'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StoreButton extends StatelessWidget {
+  final BitDriveViewModel model;
+
+  const _StoreButton({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailButton(
+      label: 'Store on ${activeTicker.name}',
+      variant: model.canStore ? ButtonVariant.primary : ButtonVariant.secondary,
+      disabled: !model.canStore,
+      loading: model.isBusy,
+      loadingLabel: 'Storing...',
+      onPressed: () async => model.store(context),
+    );
+  }
+}
+
+class _StoreIntro extends StatelessWidget {
+  final bool showTitle;
+
+  const _StoreIntro({this.showTitle = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SailText.primary15('How It Works'),
-        const SailSpacing(SailStyleValues.padding08),
+        if (showTitle) ...[SailText.primary15('How It Works'), const SailSpacing(SailStyleValues.padding08)],
         SailText.secondary13(
           '1. Enter text or choose a file (max 1 MB)\n'
           '2. Optionally encrypt with your wallet key\n'
@@ -81,12 +151,26 @@ class _StoreTab extends StatelessWidget {
         ),
       ],
     );
-    final form = SailColumn(
+  }
+}
+
+class _StoreForm extends StatelessWidget {
+  final BitDriveViewModel model;
+  final bool showTitle;
+
+  /// Puts "Store on" as a full-width button under the inputs.
+  final bool fullWidthStore;
+
+  const _StoreForm({required this.model, this.showTitle = true, this.fullWidthStore = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailColumn(
       spacing: SailStyleValues.padding16,
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SailText.primary15('What do you want to store?', bold: true),
+        if (showTitle) SailText.primary15('What do you want to store?', bold: true),
         SailTextField(
           controller: model.textController,
           maxLines: 4,
@@ -124,37 +208,17 @@ class _StoreTab extends StatelessWidget {
           ],
         ),
         if (model.fileError != null) SailInlineError(model.fileError!),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            GestureDetector(
-              onTap: () => model.toggleAdvancedSettings(),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: SailRow(
-                  spacing: SailStyleValues.padding04,
-                  children: [
-                    SailSVG.fromAsset(
-                      model.showAdvancedSettings ? SailSVGAsset.chevronDown : SailSVGAsset.chevronRight,
-                      width: 16,
-                      color: context.sailTheme.colors.textSecondary,
-                    ),
-                    SailText.secondary12('Advanced settings'),
-                  ],
-                ),
-              ),
-            ),
-            SailButton(
-              label: 'Store on ${activeTicker.name}',
-              variant: model.canStore ? ButtonVariant.primary : ButtonVariant.secondary,
-              disabled: !model.canStore,
-              loading: model.isBusy,
-              loadingLabel: 'Storing...',
-              onPressed: () async => model.store(context),
-            ),
-          ],
-        ),
-        if (model.storeError != null) SailInlineError(model.storeError!),
+        if (fullWidthStore)
+          _AdvancedToggle(model: model)
+        else
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _AdvancedToggle(model: model),
+              _StoreButton(model: model),
+            ],
+          ),
+        if (!fullWidthStore && model.storeError != null) SailInlineError(model.storeError!),
         if (model.showAdvancedSettings)
           SailCard(
             padding: true,
@@ -195,25 +259,89 @@ class _StoreTab extends StatelessWidget {
               ],
             ),
           ),
+        if (fullWidthStore) ...[
+          SizedBox(
+            width: double.infinity,
+            child: _StoreButton(model: model),
+          ),
+          if (model.storeError != null) SailInlineError(model.storeError!),
+        ],
       ],
     );
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(SailStyleValues.padding20),
-        child: phone
-            ? SailColumn(
-                spacing: SailStyleValues.padding20,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [intro, form],
-              )
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: intro),
-                  const SizedBox(width: SailStyleValues.padding32),
-                  Expanded(child: form),
-                ],
+  }
+}
+
+/// The desktop page: a top strip, then Store and My Files under one segmented control.
+class _DesktopBitDrive extends StatelessWidget {
+  final BitDriveViewModel model;
+
+  const _DesktopBitDrive({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SailStrip(
+          stats: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SailText.primary15('Store Data on ${activeTicker.name} Forever', bold: true),
+                SailText.secondary13(
+                  'BitDrive lets you permanently store files and text on the ${activeTicker.name} blockchain. Your data becomes part of ${activeTicker.name} history.',
+                ),
+              ],
+            ),
+          ],
+          actions: [
+            if (model.bitdriveDir != null)
+              SailButton(
+                label: 'Open Folder',
+                variant: ButtonVariant.outline,
+                icon: SailSVGAsset.folderOpen,
+                onPressed: () async => model.openBitdriveDir(),
               ),
+          ],
+        ),
+        const SizedBox(height: SailStyleValues.padding12),
+        Expanded(
+          child: InlineTabBar(
+            tabs: [
+              SingleTabItem(
+                label: 'Store',
+                child: _DesktopStore(model: model),
+              ),
+              SingleTabItem(
+                label: 'My Files',
+                child: _MyFilesTab(model: model),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopStore extends StatelessWidget {
+  final BitDriveViewModel model;
+
+  const _DesktopStore({required this.model});
+
+  @override
+  Widget build(BuildContext context) {
+    return SailPageWithPanel(
+      panel: SailSidePanel(
+        title: 'How It Works',
+        child: const _StoreIntro(showTitle: false),
+      ),
+      child: SingleChildScrollView(
+        child: SailCard(
+          title: 'What do you want to store?',
+          child: _StoreForm(model: model, showTitle: false, fullWidthStore: true),
+        ),
       ),
     );
   }
@@ -229,102 +357,67 @@ class _MyFilesTab extends StatelessWidget {
     if (SailStyleValues.phoneLayout(context)) {
       return _PhoneMyFiles(model: model);
     }
-    return SailColumn(
-      spacing: SailStyleValues.padding16,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SailRow(
-          spacing: SailStyleValues.padding16,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SailColumn(
-              spacing: SailStyleValues.padding04,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SailText.primary15('Your files stored on ${activeTicker.name}', bold: true),
-                SailText.secondary12(
-                  '${model.downloadedFiles.length} files downloaded${model.pendingDownloadsCount > 0 ? ', ${model.pendingDownloadsCount} pending' : ''}',
+    final pending = model.pendingDownloadsCount;
+    return SailCard(
+      title: 'Your files stored on ${activeTicker.name}',
+      subtitle: '${model.downloadedFiles.length} files downloaded${pending > 0 ? ', $pending pending' : ''}',
+      bottomPadding: false,
+      widgetHeaderEnd: SailRow(
+        spacing: SailStyleValues.padding08,
+        children: [
+          SailButton(
+            label: 'Scan for new',
+            variant: ButtonVariant.secondary,
+            loading: model.isScanning,
+            loadingLabel: 'Scanning...',
+            onPressed: () async => model.scanFiles(),
+          ),
+          SailRowMenuButton(
+            items: () => [
+              SailMenuItem(
+                onSelected: pending == 0 || model.isDownloading ? null : () => model.downloadFiles(),
+                child: SailText.primary12(
+                  model.isDownloading ? 'Downloading...' : 'Download all',
+                  color: pending == 0 ? context.sailTheme.colors.textTertiary : null,
                 ),
-              ],
-            ),
-            SailRow(
-              spacing: SailStyleValues.padding08,
-              children: [
-                SailButton(
-                  label: 'Scan for new',
-                  variant: model.pendingDownloadsCount > 0 ? ButtonVariant.secondary : ButtonVariant.primary,
-                  loading: model.isScanning,
-                  loadingLabel: 'Scanning...',
-                  onPressed: () async => model.scanFiles(),
-                ),
-                SailButton(
-                  label: 'Download all',
-                  variant: model.pendingDownloadsCount > 0 ? ButtonVariant.primary : ButtonVariant.secondary,
-                  disabled: model.pendingDownloadsCount == 0,
-                  loading: model.isDownloading,
-                  loadingLabel: 'Downloading...',
-                  onPressed: () async => model.downloadFiles(),
-                ),
-              ],
-            ),
-          ],
-        ),
-        Expanded(
-          child: model.downloadedFiles.isEmpty
-              ? Center(
-                  child: SailColumn(
-                    spacing: SailStyleValues.padding16,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SailSVG.fromAsset(
-                        SailSVGAsset.folder,
-                        color: context.sailTheme.colors.textTertiary,
-                        width: 48,
-                      ),
-                      SailText.secondary13('No files downloaded yet'),
-                      SailText.secondary12(
-                        'Click "Scan for new" to find files stored on ${activeTicker.name}',
-                        color: context.sailTheme.colors.textTertiary,
-                      ),
-                    ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      child: model.downloadedFiles.isEmpty
+          ? Center(
+              child: SailColumn(
+                spacing: SailStyleValues.padding16,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SailSVG.fromAsset(SailSVGAsset.folder, color: context.sailTheme.colors.textTertiary, width: 48),
+                  SailText.secondary13('No files downloaded yet'),
+                  SailText.secondary12(
+                    'Click "Scan for new" to find files stored on ${activeTicker.name}',
+                    color: context.sailTheme.colors.textTertiary,
                   ),
-                )
-              : SizedBox(
-                  height: 300,
-                  child: SailTable(
-                    getRowId: (index) => model.downloadedFiles[index].txid,
-                    headerBuilder: (context) => [
-                      const SailTableHeaderCell(name: 'Date', alignment: Alignment.centerLeft),
-                      const SailTableHeaderCell(name: 'Name', alignment: Alignment.centerLeft),
-                      const SailTableHeaderCell(name: 'Size', alignment: Alignment.centerLeft),
-                    ],
-                    rowBuilder: (context, row, selected) {
-                      final file = model.downloadedFiles[row];
-                      final date = file.hasCreatedAt()
-                          ? file.createdAt.toDateTime()
-                          : DateTime.fromMillisecondsSinceEpoch(file.timestamp * 1000);
-                      return [
-                        SailTableCell(
-                          value: DateFormat('MMM d, yyyy').format(date),
-                          alignment: Alignment.centerLeft,
-                        ),
-                        SailTableCell(
-                          value: file.filename,
-                          alignment: Alignment.centerLeft,
-                        ),
-                        SailTableCell(
-                          value: _formatFileSize(file.sizeBytes.toInt()),
-                          alignment: Alignment.centerLeft,
-                        ),
-                      ];
-                    },
-                    rowCount: model.downloadedFiles.length,
-                    emptyPlaceholder: 'No files downloaded yet',
-                    drawGrid: true,
-                  ),
-                ),
-        ),
-      ],
+                ],
+              ),
+            )
+          : SailTable(
+              getRowId: (index) => model.downloadedFiles[index].txid,
+              headerBuilder: (context) => [
+                const SailTableHeaderCell(name: 'Date'),
+                const SailTableHeaderCell(name: 'Name'),
+                const SailTableHeaderCell(name: 'Size', alignment: Alignment.centerRight),
+              ],
+              rowBuilder: (context, row, selected) {
+                final file = model.downloadedFiles[row];
+                return [
+                  SailTableCell(value: DateFormat('MMM d, yyyy').format(_fileDate(file))),
+                  SailTableCell(value: file.filename),
+                  SailTableCell(value: _formatFileSize(file.sizeBytes.toInt()), alignment: Alignment.centerRight),
+                ];
+              },
+              rowCount: model.downloadedFiles.length,
+              emptyPlaceholder: 'No files downloaded yet',
+            ),
     );
   }
 }

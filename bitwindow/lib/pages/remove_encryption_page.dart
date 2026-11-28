@@ -86,6 +86,8 @@ class _RemoveEncryptionPageState extends State<RemoveEncryptionPage> {
           onTap: () => setState(() => _obscurePassword = !_obscurePassword),
           child: SailSVG.fromAsset(
             _obscurePassword ? SailSVGAsset.eye : SailSVGAsset.eyeOff,
+            width: 22,
+            height: 22,
             color: theme.colors.text,
           ),
         ),

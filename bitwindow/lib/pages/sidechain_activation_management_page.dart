@@ -90,7 +90,7 @@ class SidechainActivationManagementView extends StatelessWidget {
     return ViewModelBuilder<SidechainActivationManagementViewModel>.reactive(
       viewModelBuilder: () => SidechainActivationManagementViewModel(),
       builder: (context, model, child) => Padding(
-        padding: const EdgeInsets.all(SailStyleValues.padding16),
+        padding: const EdgeInsets.all(SailStyleValues.padding12),
         child: Column(
           children: [
             Expanded(
@@ -119,7 +119,7 @@ class SidechainActivationManagementView extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: SailStyleValues.padding16),
+                  const SizedBox(width: SailStyleValues.padding12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,7 +149,7 @@ class SidechainActivationManagementView extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: SailStyleValues.padding16),
+            const SizedBox(height: SailStyleValues.padding12),
             SailButton(
               label: 'Propose New Sidechain',
               onPressed: () async => await showSidechainProposalModal(context),

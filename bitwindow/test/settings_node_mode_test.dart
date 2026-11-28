@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:bitwindow/pages/settings/settings_node_mode.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -41,6 +44,20 @@ class _FakeConf extends ChangeNotifier implements BitcoinConfProvider {
     directoryLoaded = directorySaved;
   }
 
+  bool persists = true;
+
+  @override
+  Future<void> updateDataDir(String? dataDir, {required BitcoinNetwork forNetwork}) async {
+    events.add('save');
+    if (persists) {
+      directorySaved = true;
+      directoryLoaded = true;
+    }
+  }
+
+  @override
+  Future<void> commitNetworkChange(BitcoinNetwork newNetwork) async {}
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -65,6 +82,22 @@ class _FakeRouter implements StackRouter {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakePicker extends FilePickerPlatform {
+  _FakePicker(this.path);
+
+  final String path;
+
+  @override
+  Future<Uri?> pickDirectory({
+    String? dialogTitle,
+    String? initialDirectory,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async => Uri.directory(path);
 }
 
 class _FakeWallet implements OrchestratorWalletRPC {
@@ -136,9 +169,12 @@ void main() {
 
   tearDown(() async => GetIt.I.reset());
 
-  Future<void> selectFullMode(WidgetTester tester) async {
+  Future<void> selectFullMode(WidgetTester tester, {SailThemeStyle style = SailThemeStyle.sail}) async {
     await tester.pumpSailPage(
-      StackRouterScope(controller: router, stateHash: 0, child: const SettingsNodeMode()),
+      SailTheme(
+        data: SailThemeData.lightTheme(SailColorScheme.orange, false, SailFontValues.inter, style),
+        child: StackRouterScope(controller: router, stateHash: 0, child: const SettingsNodeMode()),
+      ),
     );
     await tester.tap(find.byType(SailToggle));
     await tester.pumpAndSettle();
@@ -214,5 +250,83 @@ void main() {
     expect(router.routes, isEmpty);
     expect(nodeMode.isFull, isTrue);
     expect(orchestrator.starts, ['enforcer']);
+  });
+
+  group('v2', () {
+    late Directory dir;
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('settings-node-mode-dir');
+      final previous = FilePickerPlatform.instance;
+      FilePickerPlatform.instance = _FakePicker(dir.path);
+      addTearDown(() {
+        FilePickerPlatform.instance = previous;
+        dir.deleteSync(recursive: true);
+      });
+    });
+
+    Future<void> browse(WidgetTester tester) async {
+      await tester.runAsync(() async {
+        await tester.tap(find.widgetWithText(SailButton, 'Browse'));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pump();
+    }
+
+    Future<void> tapContinue(WidgetTester tester) async {
+      await tester.tap(find.widgetWithText(SailButton, 'Continue'));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+    }
+
+    testWidgets('asks for the data directory in a kit dialog, then switches', (tester) async {
+      conf.network = BitcoinNetwork.BITCOIN_NETWORK_MAINNET;
+      await selectFullMode(tester, style: SailThemeStyle.bitwindowV2);
+
+      expect(router.routes, isEmpty);
+      expect(find.text('Configure Data Directory'), findsOneWidget);
+      expect(find.byType(SailIconBoxButton), findsOneWidget);
+      expect(find.widgetWithText(SailButton, 'Cancel'), findsNothing);
+
+      await browse(tester);
+      expect(find.text(dir.path), findsOneWidget);
+      await tapContinue(tester);
+
+      expect(find.text('Configure Data Directory'), findsNothing);
+      expect(events, ['load', 'save', 'load', 'select', 'load', 'start']);
+      expect(nodeMode.isFull, isTrue);
+    });
+
+    testWidgets('Continue with no directory asks for one', (tester) async {
+      await selectFullMode(tester, style: SailThemeStyle.bitwindowV2);
+
+      await tapContinue(tester);
+
+      expect(find.text('Please select a directory'), findsOneWidget);
+      expect(orchestrator.wallet.selections, isEmpty);
+    });
+
+    testWidgets('the × keeps light mode', (tester) async {
+      await selectFullMode(tester, style: SailThemeStyle.bitwindowV2);
+
+      await tester.tap(find.byType(SailIconBoxButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Configure Data Directory'), findsNothing);
+      expect(orchestrator.wallet.selections, isEmpty);
+      expect(nodeMode.isLight, isTrue);
+    });
+
+    testWidgets('a directory that does not save keeps the dialog open with the error', (tester) async {
+      conf.persists = false;
+      await selectFullMode(tester, style: SailThemeStyle.bitwindowV2);
+
+      await browse(tester);
+      await tapContinue(tester);
+
+      expect(find.text('Could not save the data directory — check the BitWindow log'), findsOneWidget);
+      expect(orchestrator.wallet.selections, isEmpty);
+    });
   });
 }

@@ -322,3 +322,102 @@ class StatusRow extends StatelessWidget {
     );
   }
 }
+
+/// The side panel of one timestamp, opened from a row of the timestamps table.
+class TimestampDetailPanel extends StatelessWidget {
+  final int timestampId;
+  final Future<void> Function() onClose;
+
+  const TimestampDetailPanel({super.key, required this.timestampId, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return ViewModelBuilder<TimestampDetailViewModel>.reactive(
+      key: ValueKey(timestampId),
+      viewModelBuilder: () => TimestampDetailViewModel(timestampId),
+      builder: (context, model, child) {
+        final ts = model.timestamp;
+        return SailSidePanel(
+          title: 'Timestamp Details',
+          onClose: onClose,
+          child: model.isLoading
+              ? const Center(child: LoadingIndicator())
+              : ts == null
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding32),
+                  child: Center(child: SailText.primary13(model.modelError ?? 'Timestamp not found')),
+                )
+              : _TimestampPanelBody(model: model, ts: ts),
+        );
+      },
+    );
+  }
+}
+
+class _TimestampPanelBody extends StatelessWidget {
+  final TimestampDetailViewModel model;
+  final FileTimestamp ts;
+
+  const _TimestampPanelBody({required this.model, required this.ts});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = SailTheme.of(context);
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SailText.primary12('Filename', color: theme.colors.textSecondary),
+            SailText.primary24(ts.filename, bold: true),
+          ],
+        ),
+        Row(
+          children: [
+            SailText.primary12('Status', color: theme.colors.textSecondary),
+            const SizedBox(width: SailStyleValues.padding08),
+            SailStatusPill(label: ts.status.toUpperCase(), tone: timestampStatusTone(ts.status)),
+          ],
+        ),
+        const SailDetailHeading('Details'),
+        SailDetailGroup(
+          fill: SailDetailFill.canvas,
+          children: [
+            SailStackedDetail(
+              monospace: false,
+              label: 'File Hash',
+              value: ts.fileHash,
+              onCopy: () => model.copyHash(context),
+            ),
+            SailStackedDetail(
+              monospace: false,
+              label: 'Timestamped',
+              value: formatConfirmedAt(ts, 'MMM d, yyyy HH:mm:ss'),
+            ),
+            if (ts.status == 'confirming' || ts.status == 'confirmed')
+              SailStackedDetail(monospace: false, label: 'Confirmations', value: ts.confirmations.toString()),
+            if (ts.hasTxid())
+              SailStackedDetail(
+                monospace: false,
+                label: 'Transaction ID',
+                value: ts.txid,
+                onCopy: () => model.copyTxid(context),
+              ),
+            if (ts.hasBlockHeight())
+              SailStackedDetail(monospace: false, label: 'Block Height', value: ts.blockHeight.toString()),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+SailStatusTone timestampStatusTone(String status) => switch (status) {
+  'pending' => SailStatusTone.warning,
+  'confirming' => SailStatusTone.info,
+  'confirmed' => SailStatusTone.success,
+  'failed' => SailStatusTone.error,
+  _ => SailStatusTone.neutral,
+};

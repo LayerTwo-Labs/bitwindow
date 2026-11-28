@@ -90,6 +90,20 @@ Future<_FakeStratum> _register({
 
 Finder _button(String label) => find.byWidgetPredicate((w) => w is SailButton && w.label == label);
 
+Finder _rowMenus() => find.byWidgetPredicate((w) => w is SailRowMenuButton && !w.filled);
+
+Future<void> _openRowMenu(WidgetTester tester, String poolName) async {
+  final y = tester.getCenter(find.text(poolName).last).dy;
+  final menu = _rowMenus().evaluate().firstWhere((e) {
+    final box = e.renderObject! as RenderBox;
+    return (box.localToGlobal(box.size.center(Offset.zero)).dy - y).abs() < 10;
+  });
+  await tester.ensureVisible(find.byWidget(menu.widget));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byWidget(menu.widget));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   tearDown(() async {
     MiningPage.requestedPoolUrl.value = null;
@@ -148,8 +162,13 @@ void main() {
     expect(find.text('Network hashrate'), findsOneWidget);
     expect(find.text('42.4%'), findsNWidgets(2));
     expect(find.text('Mining here'), findsOneWidget);
-    expect(_button('Mine here'), findsOneWidget);
+    expect(_button('Mine here'), findsNothing);
     expect(find.text('0.5%'), findsOneWidget);
+
+    await _openRowMenu(tester, 'bip300.xyz');
+    expect(find.text('Mine here'), findsNothing);
+    await _openRowMenu(tester, 'eCPool.tech');
+    expect(find.text('Mine here'), findsOneWidget);
   });
 
   testWidgets('a stopped server shows its pool as selected', (tester) async {
@@ -163,7 +182,6 @@ void main() {
 
     expect(find.text('Selected'), findsOneWidget);
     expect(find.text('Mining here'), findsNothing);
-    expect(_button('Mine here'), findsOneWidget);
   });
 
   testWidgets('mine here sets a catalog pool as the target', (tester) async {
@@ -171,9 +189,8 @@ void main() {
     await tester.pumpSailPage(const PoolsTab());
     await tester.pump();
 
-    expect(_button('Mine here'), findsNWidgets(2));
-
-    await tester.tap(_button('Mine here').first);
+    await _openRowMenu(tester, 'bip300.xyz');
+    await tester.tap(find.text('Mine here'));
     await tester.pumpAndSettle();
 
     expect(stratum.targets, [Target(kind: TargetKind.TARGET_KIND_POOL, poolId: 'bip300')]);
@@ -186,7 +203,8 @@ void main() {
     await tester.pumpSailPage(const PoolsTab());
     await tester.pump();
 
-    await tester.tap(_button('Mine here').last);
+    await _openRowMenu(tester, 'eCPool.tech');
+    await tester.tap(find.text('Mine here'));
     await tester.pump();
 
     expect(stratum.targets, isEmpty);
@@ -200,6 +218,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('bip300.xyz'), findsWidgets);
+    expect(_rowMenus(), findsNothing);
+
+    await tester.tap(find.text('bip300.xyz').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(PoolPanel), findsOneWidget);
     expect(_button('Mine here'), findsNothing);
   });
 
@@ -217,6 +240,36 @@ void main() {
 
     expect(find.text(MiningPage.miningSubtabLabel), findsNothing);
     expect(find.text('Pools on the network'), findsOneWidget);
+  });
+
+  testWidgets('a row click opens the pool panel with one Mine here', (tester) async {
+    final stratum = await _register();
+    await tester.pumpSailPage(const PoolsTab());
+    await tester.pump();
+
+    expect(find.byType(PoolPanel), findsNothing);
+
+    await tester.tap(find.text('bip300.xyz').last);
+    await tester.pumpAndSettle();
+
+    final panel = find.byType(PoolPanel);
+    expect(panel, findsOneWidget);
+    expect(find.descendant(of: panel, matching: find.text('Details')), findsOneWidget);
+    expect(find.descendant(of: panel, matching: find.text(_bip300)), findsOneWidget);
+    final mine = find.descendant(of: panel, matching: find.byType(SailButton));
+    expect(mine, findsOneWidget);
+    expect(tester.widget<SailButton>(mine).label, 'Mine here');
+
+    await tester.tap(mine);
+    await tester.pumpAndSettle();
+
+    expect(stratum.targets, [Target(kind: TargetKind.TARGET_KIND_POOL, poolId: 'bip300')]);
+    expect(find.descendant(of: panel, matching: find.byType(SailButton)), findsNothing);
+    expect(find.descendant(of: panel, matching: find.text('Selected')), findsOneWidget);
+
+    await tester.tap(find.descendant(of: panel, matching: find.byType(SailIconBoxButton)));
+    await tester.pumpAndSettle();
+    expect(find.byType(PoolPanel), findsNothing);
   });
 
   test('two stratum URLs match apart from case and a trailing slash', () {

@@ -103,14 +103,19 @@ void main() {
     expect(find.text(_hash), findsWidgets);
   });
 
-  testWidgets('the desktop keeps the search row and the side-by-side blocks', (tester) async {
+  testWidgets('the desktop strip holds the search, and Load transaction sits in its "…"', (tester) async {
     await _pump(tester, phone: false);
 
     final field = tester.getRect(find.byType(SailTextField));
     final search = tester.getRect(find.widgetWithText(SailButton, 'Search'));
     expect(search.left, greaterThan(field.right));
+    expect(find.widgetWithText(SailButton, 'Load transaction'), findsNothing);
     final newest = tester.getRect(find.text('921847'));
     final older = tester.getRect(find.text('921846'));
-    expect(older.right, lessThan(newest.left));
+    expect(older.top, greaterThan(newest.bottom));
+
+    await tester.tap(find.byType(SailRowMenuButton).first);
+    await tester.pumpAndSettle();
+    expect(find.text('Load transaction'), findsOneWidget);
   });
 }

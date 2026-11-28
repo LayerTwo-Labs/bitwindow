@@ -83,6 +83,7 @@ class _ImportDescriptorDialogState extends State<ImportDescriptorDialog> {
       constraints: const BoxConstraints(maxWidth: 560),
       child: SailCard(
         title: 'Import descriptor',
+        withCloseButton: !_importing,
         subtitle:
             'Paste an output descriptor. A descriptor with private keys can spend. One with public keys only watches.',
         error: _error,
@@ -98,31 +99,22 @@ class _ImportDescriptorDialogState extends State<ImportDescriptorDialog> {
               monospace: true,
               minLines: 3,
               maxLines: 6,
+              suffixWidget: SailButton(
+                label: 'Import file',
+                variant: ButtonVariant.ghost,
+                small: true,
+                disabled: _importing,
+                onPressed: _importFile,
+              ),
             ),
-            SailButton(
-              label: 'Import file',
-              variant: ButtonVariant.secondary,
-              small: true,
-              disabled: _importing,
-              onPressed: _importFile,
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                SailButton(
-                  label: 'Cancel',
-                  variant: ButtonVariant.ghost,
-                  disabled: _importing,
-                  onPressed: () async => Navigator.of(context).pop(),
-                ),
-                const SizedBox(width: 8),
-                SailButton(
-                  label: 'Import',
-                  loading: _importing,
-                  disabled: _descriptor.text.trim().isEmpty,
-                  onPressed: _import,
-                ),
-              ],
+            SizedBox(
+              width: double.infinity,
+              child: SailButton(
+                label: 'Import',
+                loading: _importing,
+                disabled: _descriptor.text.trim().isEmpty,
+                onPressed: _import,
+              ),
             ),
           ],
         ),

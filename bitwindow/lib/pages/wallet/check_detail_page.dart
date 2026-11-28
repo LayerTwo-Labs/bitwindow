@@ -1,7 +1,9 @@
 import 'package:auto_route/auto_route.dart' hide AutoRouterX;
+import 'package:bitwindow/pages/wallet/wallet_checks.dart';
 import 'package:bitwindow/providers/check_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -76,7 +78,8 @@ class CheckDetailViewModel extends BaseViewModel {
     showSailToast(context, 'Transaction ID copied to clipboard');
   }
 
-  Future<void> fundWithWallet(BuildContext context) async {
+  /// [onDone] runs after the funding transaction is sent.
+  Future<void> fundWithWallet(BuildContext context, {required VoidCallback onDone}) async {
     if (_check == null || _funding) {
       return;
     }
@@ -110,7 +113,7 @@ class CheckDetailViewModel extends BaseViewModel {
       if (!context.mounted) {
         return;
       }
-      Navigator.of(context).pop();
+      onDone();
     } catch (e) {
       _setActionError('Failed to fund check: $e');
     } finally {
@@ -123,20 +126,21 @@ class CheckDetailViewModel extends BaseViewModel {
     notifyListeners();
   }
 
-  Future<void> sweepCheck(BuildContext context) async {
+  /// [onDone] runs after the sweep transaction is sent.
+  Future<void> sweepCheck(BuildContext context, {required VoidCallback onDone}) async {
     if (_sweeping) {
       return;
     }
 
     _sweeping = true;
     try {
-      await _sweepOnce(context);
+      await _sweepOnce(context, onDone);
     } finally {
       _sweeping = false;
     }
   }
 
-  Future<void> _sweepOnce(BuildContext context) async {
+  Future<void> _sweepOnce(BuildContext context, VoidCallback onDone) async {
     if (_check == null || _check!.fundedTxids.isEmpty) {
       return;
     }
@@ -163,7 +167,7 @@ class CheckDetailViewModel extends BaseViewModel {
 
       showSailToast(context, 'Check swept! TXID: ${txid.substring(0, 10)}...');
 
-      Navigator.of(context).pop();
+      onDone();
     } catch (e) {
       if (!context.mounted) {
         return;
@@ -180,7 +184,7 @@ class CheckDetailViewModel extends BaseViewModel {
             return;
           }
           if (_walletReader.isWalletUnlocked) {
-            await _sweepOnce(context);
+            await _sweepOnce(context, onDone);
           }
         } else {
           _setActionError('Backend wallet not initialized. Please restart the app.');
@@ -396,7 +400,8 @@ class CheckDetailPage extends StatelessWidget {
                                 width: buttonWidth,
                                 child: SailButton(
                                   label: 'Fund with Wallet',
-                                  onPressed: () async => model.fundWithWallet(context),
+                                  onPressed: () async =>
+                                      model.fundWithWallet(context, onDone: () => Navigator.of(context).pop()),
                                 ),
                               ),
                             if (partlyFunded)
@@ -405,7 +410,8 @@ class CheckDetailPage extends StatelessWidget {
                                 child: SailButton(
                                   label: 'Fund the Rest with Wallet',
                                   variant: ButtonVariant.secondary,
-                                  onPressed: () async => model.fundWithWallet(context),
+                                  onPressed: () async =>
+                                      model.fundWithWallet(context, onDone: () => Navigator.of(context).pop()),
                                 ),
                               ),
                             if (!swept && check.fundedTxids.isNotEmpty)
@@ -413,7 +419,8 @@ class CheckDetailPage extends StatelessWidget {
                                 width: buttonWidth,
                                 child: SailButton(
                                   label: 'Sweep Check to Wallet',
-                                  onPressed: () async => model.sweepCheck(context),
+                                  onPressed: () async =>
+                                      model.sweepCheck(context, onDone: () => Navigator.of(context).pop()),
                                 ),
                               ),
                             if (model.actionError != null)
@@ -516,4 +523,262 @@ class _PhonePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => phone ? SailCard(child: child) : child;
+}
+
+/// The side panel of one check, opened from a row of the checks table.
+class CheckDetailPanel extends StatelessWidget {
+  final int checkId;
+  final Future<void> Function() onClose;
+
+  const CheckDetailPanel({super.key, required this.checkId, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return ViewModelBuilder<CheckDetailViewModel>.reactive(
+      key: ValueKey(checkId),
+      viewModelBuilder: () => CheckDetailViewModel(checkId),
+      builder: (context, model, child) {
+        final check = model.check;
+        final title = check == null ? 'Check' : 'Check for ${formatCheckSats(check.expectedAmountSats.toInt())}';
+        if (model.isLoading) {
+          return SailSidePanel(
+            title: title,
+            onClose: onClose,
+            child: const Center(child: LoadingIndicator()),
+          );
+        }
+        if (model.modelError != null || check == null) {
+          return SailSidePanel(
+            title: title,
+            onClose: onClose,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding32),
+              child: SailColumn(
+                spacing: SailStyleValues.padding12,
+                children: [
+                  SailText.primary13(model.modelError ?? 'Check not found'),
+                  SailButton(label: 'Go Back', variant: ButtonVariant.secondary, onPressed: onClose),
+                ],
+              ),
+            ),
+          );
+        }
+        return SailSidePanel(
+          title: title,
+          onClose: onClose,
+          menuItems: () => _menu(context, model, check),
+          child: _CheckPanelBody(model: model, check: check, onClose: onClose),
+        );
+      },
+    );
+  }
+
+  List<SailMenuEntity> _menu(BuildContext context, CheckDetailViewModel model, Cheque check) {
+    final swept = check.sweptTxid.isNotEmpty;
+    return [
+      if (!swept && check.fundedTxids.isNotEmpty && !check.funded)
+        SailMenuItem(
+          onSelected: () => model.fundWithWallet(context, onDone: onClose),
+          child: SailText.primary12('Fund the Rest with Wallet'),
+        ),
+      SailMenuItem(
+        onSelected: () =>
+            openUrl(Uri.parse(mempoolAddressUrl(check.address, GetIt.I.get<BitcoinConfProvider>().network))),
+        child: SailText.primary12('View on mempool.space'),
+      ),
+      SailMenuItem(
+        onSelected: () => confirmDeleteCheck(context, check, onDeleted: onClose),
+        child: SailText.primary12('Delete', color: SailTheme.of(context).colors.error),
+      ),
+    ];
+  }
+}
+
+class _CheckPanelBody extends StatelessWidget {
+  final CheckDetailViewModel model;
+  final Cheque check;
+  final Future<void> Function() onClose;
+
+  const _CheckPanelBody({required this.model, required this.check, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = SailTheme.of(context).colors;
+    final swept = check.sweptTxid.isNotEmpty;
+    final awaitingFunding = !swept && check.fundedTxids.isEmpty;
+    final onCheck = check.hasActualAmountSats() ? check.actualAmountSats.toInt() : 0;
+    final missing = checkMissingSats(check);
+    final showKey =
+        !swept && check.fundedTxids.isNotEmpty && check.hasPrivateKeyWif() && check.privateKeyWif.isNotEmpty;
+
+    return SailColumn(
+      spacing: SailStyleValues.padding12,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PanelHeadline(value: formatCheckSats(check.expectedAmountSats.toInt())),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SailStatusPill(label: checkStatusLabel(check), tone: checkStatusTone(check)),
+        ),
+        if (awaitingFunding)
+          SailButton(
+            label: 'Fund with Wallet',
+            onPressed: () async => model.fundWithWallet(context, onDone: onClose),
+          ),
+        if (!swept && check.fundedTxids.isNotEmpty)
+          SailButton(
+            label: 'Sweep Check to Wallet',
+            onPressed: () async => model.sweepCheck(context, onDone: () => onClose()),
+          ),
+        if (model.actionError != null) SailInlineError(model.actionError!),
+        if (awaitingFunding) ...[
+          const SailDetailHeading('Address'),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              Center(
+                child: QrImageView(
+                  data: check.address,
+                  version: QrVersions.auto,
+                  size: 200,
+                  backgroundColor: colors.background,
+                  eyeStyle: QrEyeStyle(color: colors.text, eyeShape: QrEyeShape.square),
+                  dataModuleStyle: QrDataModuleStyle(color: colors.text, dataModuleShape: QrDataModuleShape.square),
+                ),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: SailText.primary13(check.address, overflow: null)),
+                  const SizedBox(width: SailStyleValues.padding08),
+                  CopyButton(text: check.address),
+                ],
+              ),
+            ],
+          ),
+        ],
+        if (showKey) ...[
+          Row(
+            children: [
+              SailSVG.fromAsset(SailSVGAsset.circleAlert, width: 14, height: 14, color: colors.orange),
+              const SizedBox(width: SailStyleValues.padding08),
+              SailText.primary13('Private Key (WIF)', bold: true),
+            ],
+          ),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailText.secondary12(
+                'Share this private key with the recipient. They can import it into most Bitcoin wallets to access the funds.',
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: SailSelectableText(
+                      check.privateKeyWif,
+                      style: TextStyle(fontFamily: SailFonts.mono, fontSize: 12, color: colors.text),
+                    ),
+                  ),
+                  const SizedBox(width: SailStyleValues.padding08),
+                  CopyButton(secret: true, text: check.privateKeyWif),
+                ],
+              ),
+            ],
+          ),
+        ],
+        const SailDetailHeading('Details'),
+        SailDetailGroup(
+          fill: SailDetailFill.canvas,
+          children: [
+            SailDetailLine(wrap: true, label: 'Created', value: formatCheckDate(check)),
+            SailDetailLine(wrap: true, label: 'Address', value: shortHash(check.address)),
+            SailDetailLine(
+              wrap: true,
+              label: 'Expected Amount',
+              value: formatCheckSats(check.expectedAmountSats.toInt()),
+            ),
+            SailDetailLine(
+              wrap: true,
+              label: 'Funded Amount',
+              value: check.fundedTxids.isNotEmpty && check.hasActualAmountSats() ? formatCheckSats(onCheck) : '-',
+            ),
+            if (!swept && check.fundedTxids.isNotEmpty && missing > 0)
+              SailDetailLine(wrap: true, label: 'Still to fund', value: formatCheckSats(missing)),
+            if (swept && check.sweptTxid == sweptOutsideTxid)
+              const SailDetailLine(wrap: true, label: 'Sweep transaction', value: 'Cashed outside this wallet'),
+            if (swept && check.sweptTxid != sweptOutsideTxid)
+              SailDetailLine(
+                wrap: true,
+                label: 'Sweep transaction',
+                value: shortHash(check.sweptTxid),
+                trailing: CopyButton(text: check.sweptTxid),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+String checkStatusLabel(Cheque check) => check.sweptTxid.isNotEmpty ? 'Swept' : _statusLabel(check);
+
+SailStatusTone checkStatusTone(Cheque check) {
+  if (check.sweptTxid.isNotEmpty) {
+    return SailStatusTone.neutral;
+  }
+  return check.funded ? SailStatusTone.success : SailStatusTone.warning;
+}
+
+String formatCheckDate(Cheque check) => formatChequeDate(check.createdAt);
+
+/// Asks to delete [check], then deletes it. A funded check that is not swept shows a toast and stays.
+Future<void> confirmDeleteCheck(BuildContext context, Cheque check, {Future<void> Function()? onDeleted}) async {
+  if (check.fundedTxids.isNotEmpty && !check.hasSweptTxid()) {
+    showSailToast(context, 'Cannot delete funded check. Sweep the funds first.');
+    return;
+  }
+
+  final confirmed = await showThemedDialog<bool>(
+    context: context,
+    builder: (context) => SailDialog(
+      title: 'Delete Check',
+      withCloseButton: true,
+      action: SailDialogAction(
+        label: 'Delete',
+        variant: ButtonVariant.destructive,
+        onPressed: () async => Navigator.of(context).pop(true),
+      ),
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SailText.secondary13('Are you sure you want to delete this check?'),
+          if (check.fundedTxids.isEmpty || check.hasSweptTxid())
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(SailStyleValues.padding12),
+              decoration: BoxDecoration(
+                color: context.sailTheme.colors.background,
+                borderRadius: context.sailTheme.chrome.radius,
+              ),
+              child: SailText.primary13(
+                'Make sure you have backed up the private key if funds were sent to this address.',
+                overflow: null,
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  if (confirmed != true || !context.mounted) {
+    return;
+  }
+  final success = await GetIt.I.get<CheckProvider>().deleteCheck(check.id.toInt());
+  if (!context.mounted || !success) {
+    return;
+  }
+  showSailToast(context, 'Check deleted successfully');
+  await onDeleted?.call();
 }

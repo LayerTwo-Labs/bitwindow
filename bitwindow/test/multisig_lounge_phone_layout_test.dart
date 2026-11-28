@@ -79,11 +79,34 @@ void main() {
     expect(tester.getRect(find.text('Group Tools')).left, tester.getRect(find.text('Multisig Groups')).left);
   });
 
-  testWidgets('the desktop keeps the tools beside the tables', (tester) async {
+  testWidgets('on the desktop each card holds its one primary and a "…" with the other tools', (tester) async {
     await _pump(tester, phone: false);
 
-    final groups = tester.getRect(find.text('Multisig Groups'));
-    final tools = tester.getRect(find.text('Group Tools'));
-    expect(tools.left, greaterThan(groups.right));
+    expect(find.text('Group Tools'), findsNothing);
+    expect(find.text('Transaction Tools'), findsNothing);
+    final groupsCard = find.ancestor(of: find.text('Multisig Groups'), matching: find.byType(SailCard)).first;
+    final txCard = find.ancestor(of: find.text('Multisig Transactions'), matching: find.byType(SailCard)).first;
+    expect(
+      find.descendant(of: groupsCard, matching: find.widgetWithText(SailButton, 'Create New Group')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: txCard, matching: find.widgetWithText(SailButton, 'Create Transaction')),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(SailButton, 'Import from TXID'), findsNothing);
+    expect(find.widgetWithText(SailButton, 'Import PSBT'), findsNothing);
+
+    await tester.tap(find.descendant(of: groupsCard, matching: find.byType(SailRowMenuButton)));
+    await tester.pumpAndSettle();
+    expect(find.text('Import from TXID'), findsOneWidget);
+    expect(find.text('Get Key'), findsOneWidget);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.descendant(of: txCard, matching: find.byType(SailRowMenuButton)));
+    await tester.pumpAndSettle();
+    expect(find.text('Import PSBT'), findsOneWidget);
+    expect(find.text('Combine & Broadcast'), findsOneWidget);
   });
 }

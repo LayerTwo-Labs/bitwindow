@@ -20,6 +20,7 @@ class ImportTxidModal extends StatelessWidget {
         return SailModal(
           constraints: const BoxConstraints(maxWidth: 600, maxHeight: 400),
           child: SailCard(
+            withCloseButton: true,
             title: 'Import Multisig from TXID',
             subtitle: 'Import multisig group data from transaction OP_RETURN',
             error: viewModel.modalError,
@@ -109,11 +110,6 @@ class ImportTxidModal extends StatelessWidget {
                               },
                         variant: ButtonVariant.primary,
                         loading: viewModel.isBusy,
-                      ),
-                      SailButton(
-                        label: 'Cancel',
-                        onPressed: viewModel.isBusy ? null : () async => Navigator.of(context).pop(),
-                        variant: ButtonVariant.secondary,
                       ),
                     ],
                   ),

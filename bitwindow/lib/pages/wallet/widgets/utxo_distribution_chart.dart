@@ -51,7 +51,16 @@ class UTXOBars extends StatelessWidget {
   final void Function(UtxoBucket bucket, Offset position)? onBucketContextMenu;
   final VoidCallback? onConsolidate;
 
-  const UTXOBars({super.key, required this.utxos, this.onBucketContextMenu, this.onConsolidate});
+  /// The small bars of the v2 strip. A click on a bar also opens its menu.
+  final bool compact;
+
+  const UTXOBars({
+    super.key,
+    required this.utxos,
+    this.onBucketContextMenu,
+    this.onConsolidate,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -59,17 +68,25 @@ class UTXOBars extends StatelessWidget {
     final phone = SailStyleValues.phoneLayout(context);
     final buckets = utxoBuckets(utxos, labels: phone ? phoneUtxoBucketLabels : utxoBucketLabels);
     final most = buckets.fold<int>(0, (most, b) => b.count > most ? b.count : most);
-    final barWidth = phone ? 38.0 : 160.0;
-    final maxBarHeight = phone ? 100.0 : 120.0;
+    final barWidth = compact ? 64.0 : (phone ? 38.0 : 160.0);
+    final maxBarHeight = compact ? 24.0 : (phone ? 100.0 : 120.0);
+
+    Widget slot(Widget child) => compact
+        ? Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: SizedBox(width: barWidth, child: child),
+          )
+        : Expanded(child: child);
 
     final bars = SizedBox(
-      height: phone ? 150 : 180,
+      height: compact ? 66 : (phone ? 150 : 180),
       child: Row(
+        mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           for (var i = 0; i < buckets.length; i++)
-            Expanded(
-              child: GestureDetector(
+            slot(
+              GestureDetector(
                 key: ValueKey('utxo_bar_$i'),
                 behavior: HitTestBehavior.opaque,
                 onLongPressStart: buckets[i].count == 0
@@ -78,11 +95,17 @@ class UTXOBars extends StatelessWidget {
                 onSecondaryTapUp: buckets[i].count == 0
                     ? null
                     : (details) => onBucketContextMenu?.call(buckets[i], details.globalPosition),
+                onTapUp: !compact || buckets[i].count == 0
+                    ? null
+                    : (details) => onBucketContextMenu?.call(buckets[i], details.globalPosition),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    if (buckets[i].count > 0) ...[
-                      SailText.primary12('${buckets[i].count}'),
+                    if (buckets[i].count > 0 || compact) ...[
+                      SailText.primary12(
+                        '${buckets[i].count}',
+                        color: buckets[i].count == 0 ? theme.colors.textSecondary : null,
+                      ),
                       const SizedBox(height: SailStyleValues.padding04),
                     ],
                     Container(
@@ -90,7 +113,7 @@ class UTXOBars extends StatelessWidget {
                       height: buckets[i].count == 0 ? 1 : maxBarHeight * buckets[i].count / most,
                       color: buckets[i].count == 0 ? theme.colors.divider : theme.colors.orange,
                     ),
-                    const SizedBox(height: SailStyleValues.padding08),
+                    SizedBox(height: compact ? 4 : SailStyleValues.padding08),
                     SailText.secondary12(buckets[i].label),
                   ],
                 ),

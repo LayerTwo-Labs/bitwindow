@@ -519,14 +519,8 @@ class _WalletBackupPageState extends State<WalletBackupPage> {
       backgroundColor: theme.colors.background,
       appBar: SailAppBar.build(
         context,
-        leading: SailButton(
-          variant: ButtonVariant.icon,
-          icon: SailSVGAsset.chevronLeft,
-          onPressed: () async => _back(),
-          iconHeight: 14,
-          iconWidth: 14,
-          small: true,
-        ),
+        // "← Back" in the bottom bar goes back.
+        leading: const SizedBox.shrink(),
         automaticallyImplyLeading: false,
       ),
       body: SafeArea(

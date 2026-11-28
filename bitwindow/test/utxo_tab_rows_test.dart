@@ -1,4 +1,5 @@
 import 'package:bitwindow/pages/wallet/wallet_utxos.dart';
+import 'package:bitwindow/pages/wallet/widgets/wallet_v2_parts.dart';
 import 'package:bitwindow/pages/wallet/widgets/utxo_distribution_chart.dart';
 import 'package:bitwindow/providers/coin_selection_provider.dart';
 import 'package:bitwindow/providers/consolidation_provider.dart';
@@ -178,7 +179,7 @@ void main() {
     expect(find.text('Consolidate Small UTXOs'), findsOneWidget);
   });
 
-  testWidgets('a long label ends in its column and the path column stays in the card', (tester) async {
+  testWidgets('a long label ends in its column and the path line stays in the card', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final label = 'Salary ${'x' * 80}';
@@ -187,7 +188,9 @@ void main() {
     await tester.pumpSailPage(const Column(children: [Expanded(child: UTXOsTab())]));
     await tester.pumpAndSettle();
 
-    final card = tester.getRect(find.ancestor(of: find.text('Your UTXOs'), matching: find.byType(SailCard)).first);
+    final card = tester.getRect(
+      find.ancestor(of: find.text('Your UTXOs'), matching: find.byType(WalletTableCard)).first,
+    );
     expect(tester.getRect(find.text("m/84'/1'/0'/0/1")).right, lessThanOrEqualTo(card.right));
     expect(find.text(label), findsOneWidget);
   });

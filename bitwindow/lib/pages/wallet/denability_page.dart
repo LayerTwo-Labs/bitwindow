@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
 import 'package:bitwindow/pages/wallet/denial_dialog.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
@@ -104,6 +105,9 @@ class DeniabilityTab extends StatelessWidget {
 
   const DeniabilityTab({super.key, required this.newWindowButton});
 
+  /// Narrower pages show the UTXO details in a dialog, not in the side panel.
+  static const double panelMinWidth = 900;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -114,9 +118,11 @@ class DeniabilityTab extends StatelessWidget {
           builder: (context, model, child) {
             final error = model.actionError ?? model.error('deniability');
             final phone = SailStyleValues.phoneLayout(context);
+            final withPanel = !phone && constraints.maxWidth >= panelMinWidth;
+            final selected = withPanel ? model.selectedUtxo : null;
 
             return SailColumn(
-              spacing: SailStyleValues.padding16,
+              spacing: SailStyleValues.padding12,
               children: [
                 if (!phone)
                   DenyAllButton(
@@ -124,17 +130,31 @@ class DeniabilityTab extends StatelessWidget {
                     utxoCount: model.utxosWithoutDenial.length,
                   ),
                 Expanded(
-                  child: DeniabilityTable(
-                    newWindowButton: newWindowButton,
-                    error: error,
-                    utxos: model.utxos,
-                    model: model,
-                    onDenyAll: phone ? () => model.showDenyAllDialog(context) : null,
-                    denyAllCount: model.utxosWithoutDenial.length,
-                    onDeny: (output, valueSats) => model.showDenyDialog(context, output, valueSats),
-                    onCancel: model.cancelDenial,
-                    onPause: model.pauseDenial,
-                    onResume: model.resumeDenial,
+                  child: SailPageWithPanel(
+                    panel: selected == null
+                        ? null
+                        : DenialUtxoPanel(
+                            utxo: selected,
+                            onClose: () async => model.selectUtxo(null),
+                            onDeny: (output, valueSats) => model.showDenyDialog(context, output, valueSats),
+                            onCancel: model.cancelDenial,
+                            onPause: model.pauseDenial,
+                            onResume: model.resumeDenial,
+                          ),
+                    child: DeniabilityTable(
+                      newWindowButton: newWindowButton,
+                      error: error,
+                      utxos: model.utxos,
+                      model: model,
+                      onDenyAll: phone ? () => model.showDenyAllDialog(context) : null,
+                      denyAllCount: model.utxosWithoutDenial.length,
+                      onDeny: (output, valueSats) => model.showDenyDialog(context, output, valueSats),
+                      onCancel: model.cancelDenial,
+                      onPause: model.pauseDenial,
+                      onResume: model.resumeDenial,
+                      selectedOutput: selected?.output,
+                      onSelect: withPanel ? model.selectUtxo : null,
+                    ),
                   ),
                 ),
               ],
@@ -146,6 +166,7 @@ class DeniabilityTab extends StatelessWidget {
   }
 }
 
+/// The top strip with the one Deny All button.
 class DenyAllButton extends StatelessWidget {
   final VoidCallback onPressed;
   final int utxoCount;
@@ -154,49 +175,22 @@ class DenyAllButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SailTheme.of(context);
-
-    return SailTappable(
-      onTap: utxoCount > 0 ? () async => onPressed() : null,
-      borderRadius: context.sailTheme.chrome.radius,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        decoration: BoxDecoration(
-          borderRadius: context.sailTheme.chrome.radius,
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [
-              theme.colors.orange.withValues(alpha: utxoCount > 0 ? 0.25 : 0.1),
-              theme.colors.orangeLight.withValues(alpha: utxoCount > 0 ? 0.25 : 0.1),
-            ],
-          ),
-          border: Border.all(color: utxoCount > 0 ? theme.colors.orange : theme.colors.divider, width: 1.0),
+    return SailStrip(
+      stats: [
+        SailText.primary13(
+          utxoCount > 0
+              ? 'Click here to start deniability on all $utxoCount UTXOs'
+              : 'All UTXOs already have active deniability',
+          bold: true,
         ),
-        child: Column(
-          children: [
-            SailRow(
-              mainAxisAlignment: MainAxisAlignment.center,
-              spacing: SailStyleValues.padding08,
-              children: [
-                SailSVG.icon(
-                  SailSVGAsset.iconSend,
-                  color: utxoCount > 0 ? theme.colors.text : theme.colors.textTertiary,
-                  height: 24,
-                ),
-                SailText.primary24('Deny All', bold: true, color: utxoCount > 0 ? null : theme.colors.textTertiary),
-              ],
-            ),
-            SailText.secondary13(
-              utxoCount > 0
-                  ? 'Click here to start deniability on all $utxoCount UTXOs'
-                  : 'All UTXOs already have active deniability',
-              color: theme.colors.textSecondary,
-            ),
-          ],
+      ],
+      actions: [
+        SailButton(
+          label: 'Deny All',
+          disabled: utxoCount == 0,
+          onPressed: () async => onPressed(),
         ),
-      ),
+      ],
     );
   }
 }
@@ -215,6 +209,12 @@ class DeniabilityTable extends StatefulWidget {
   final VoidCallback? onDenyAll;
   final int denyAllCount;
 
+  /// The output of the UTXO in the side panel.
+  final String? selectedOutput;
+
+  /// Opens a UTXO in the side panel, or closes it with null. Null opens the details in a dialog.
+  final ValueChanged<UnspentOutput?>? onSelect;
+
   const DeniabilityTable({
     super.key,
     required this.error,
@@ -227,6 +227,8 @@ class DeniabilityTable extends StatefulWidget {
     required this.newWindowButton,
     this.onDenyAll,
     this.denyAllCount = 0,
+    this.selectedOutput,
+    this.onSelect,
   });
 
   @override
@@ -234,7 +236,7 @@ class DeniabilityTable extends StatefulWidget {
 }
 
 class _DeniabilityTableState extends State<DeniabilityTable> {
-  static const _sortColumns = ['id', 'hops', 'txid', 'amount', 'next', 'status', 'timestamp'];
+  static const _sortColumns = ['txid', 'id', 'status', 'hops', 'next', 'timestamp', 'amount'];
 
   String sortColumn = 'txid';
   bool sortAscending = true;
@@ -295,17 +297,20 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
                     )
                   : SailTable(
                       getRowId: (index) => utxos.isEmpty ? '0' : _rowId(utxos[index]),
+                      selectedRowId: _selectedRowId(utxos),
+                      onSelectedRow: widget.onSelect == null
+                          ? null
+                          : (rowId) => widget.onSelect!(rowId == null ? null : _byRowId(utxos, rowId)),
                       headerBuilder: (context) => [
-                        const SailTableHeaderCell(name: 'Denial ID'),
-                        const SailTableHeaderCell(name: 'Hops'),
                         const SailTableHeaderCell(name: 'UTXO'),
-                        const SailTableHeaderCell(name: 'Amount'),
-                        const SailTableHeaderCell(name: 'Next Execution'),
+                        const SailTableHeaderCell(name: 'Denial ID'),
                         const SailTableHeaderCell(name: 'Status'),
+                        const SailTableHeaderCell(name: 'Hops'),
+                        const SailTableHeaderCell(name: 'Next Execution'),
                         const SailTableHeaderCell(name: 'Timestamp'),
-                        const SailTableHeaderCell(name: 'Actions', sortable: false),
+                        const SailTableHeaderCell(name: 'Amount', alignment: Alignment.centerRight),
                       ],
-                      cellHeight: 36.0,
+                      cellHeight: 48.0,
                       rowBuilder: (context, row, selected) {
                         final utxo = utxos[row];
                         final hasDenialInfo = utxo.hasDenialInfo();
@@ -314,81 +319,53 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
                         final nextExecution = hasDenialInfo
                             ? denialNextExecutionLabel(utxo.denialInfo, DateTime.now())
                             : '-';
-                        final canControl = denialCanControl(utxo);
-                        final isPaused = status == DenialStatus.paused;
+                        final (amount, unit) = splitAmountUnit(formatter.formatSats(utxo.valueSats.toInt()));
 
                         return [
-                          SailTableCell(
-                            value: '${utxo.denialInfo.id == 0 ? '-' : utxo.denialInfo.id}',
-                            copyValue: utxo.denialInfo.id.toString(),
-                          ),
-                          SailTableCell(value: denialHopsLabel(utxo)),
                           SailTableCell(
                             value: '${utxo.output.substring(0, 6)}..:${utxo.output.split(':').last}',
                             copyValue: utxo.output,
                           ),
-                          SailTableCell(value: formatter.formatSats(utxo.valueSats.toInt()), monospace: true),
+                          SailTableCell(
+                            value: '${utxo.denialInfo.id == 0 ? '-' : utxo.denialInfo.id}',
+                            copyValue: utxo.denialInfo.id.toString(),
+                          ),
+                          SailTableCell(
+                            value: status.label,
+                            child: SailTooltip(
+                              message: utxo.denialInfo.cancelReason,
+                              child: StatusDotLabel(label: status.label, tone: denialStatusTone(status)),
+                            ),
+                          ),
+                          SailTableCell(value: denialHopsLabel(utxo)),
                           SailTableCell(
                             value: nextExecution,
                             copyValue: denialHasScheduledNextExecution(utxo.denialInfo)
                                 ? formatDate(utxo.denialInfo.nextExecutionTime.toDateTime())
                                 : null,
                           ),
-                          SailTableCell(
-                            value: status.label,
-                            child: SailTooltip(
-                              message: utxo.denialInfo.cancelReason,
-                              child: SailText.primary13(status.label),
-                            ),
-                          ),
                           SailTableCell(value: utxo.hasReceivedAt() ? formatDate(utxo.receivedAt.toDateTime()) : '—'),
                           SailTableCell(
-                            value: canControl ? (isPaused ? 'Resume' : 'Pause') : 'Deny',
-                            width: 160,
-                            child: canControl
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SailButton(
-                                        label: isPaused ? 'Resume' : 'Pause',
-                                        onPressed: () async => isPaused
-                                            ? widget.onResume(utxo.denialInfo.id)
-                                            : widget.onPause(utxo.denialInfo.id),
-                                        insideTable: true,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      SailButton(
-                                        label: 'Cancel',
-                                        onPressed: () async => widget.onCancel(utxo.denialInfo.id),
-                                        insideTable: true,
-                                        variant: ButtonVariant.secondary,
-                                      ),
-                                    ],
-                                  )
-                                : Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SailButton(
-                                        label: 'Deny',
-                                        onPressed: () async => widget.onDeny(utxo.output, utxo.valueSats.toInt()),
-                                        insideTable: true,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Opacity(
-                                        opacity: 0.0,
-                                        child: IgnorePointer(
-                                          child: SailButton(
-                                            label: 'Cancel',
-                                            onPressed: () async {},
-                                            insideTable: true,
-                                            variant: ButtonVariant.secondary,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                            value: amount,
+                            secondaryValue: unit,
+                            monospace: true,
+                            alignment: Alignment.centerRight,
                           ),
                         ];
+                      },
+                      contextMenuItems: (rowId) {
+                        if (utxos.isEmpty) {
+                          return [];
+                        }
+                        return denialMenuItems(
+                          context,
+                          _byRowId(utxos, rowId),
+                          onDeny: widget.onDeny,
+                          onCancel: widget.onCancel,
+                          onPause: widget.onPause,
+                          onResume: widget.onResume,
+                          onShowDetails: (utxo) => _openDetails(context, utxo),
+                        );
                       },
                       rowCount: utxos.length,
                       emptyPlaceholder: 'No UTXOs available',
@@ -403,8 +380,7 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
                         if (utxos.isEmpty) {
                           return;
                         }
-                        final utxo = utxos.firstWhere((u) => _rowId(u) == rowId);
-                        _showUtxoDetails(context, utxo);
+                        _openDetails(context, _byRowId(utxos, rowId));
                       },
                     ),
             ),
@@ -413,6 +389,30 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
         ],
       ),
     );
+  }
+
+  UnspentOutput _byRowId(List<UnspentOutput> utxos, String rowId) => utxos.firstWhere((u) => _rowId(u) == rowId);
+
+  String? _selectedRowId(List<UnspentOutput> utxos) {
+    final output = widget.selectedOutput;
+    if (output == null) {
+      return null;
+    }
+    for (final utxo in utxos) {
+      if (utxo.output == output) {
+        return _rowId(utxo);
+      }
+    }
+    return null;
+  }
+
+  void _openDetails(BuildContext context, UnspentOutput utxo) {
+    final select = widget.onSelect;
+    if (select != null) {
+      select(utxo);
+      return;
+    }
+    _showUtxoDetails(context, utxo);
   }
 
   int _compare(UnspentOutput a, UnspentOutput b) {
@@ -523,13 +523,156 @@ class _DeniabilityTableState extends State<DeniabilityTable> {
     );
   }
 
-  String _getDeniabilityStatus(UnspentOutput utxo) {
-    final status = denialStatus(utxo);
-    return switch (status) {
-      DenialStatus.none => 'No deniability',
-      DenialStatus.ongoing => 'Ongoing (${utxo.denialInfo.executions.length}/${utxo.denialInfo.numHops} hops)',
-      _ => status.label,
-    };
+  String _getDeniabilityStatus(UnspentOutput utxo) => denialDetailStatus(utxo);
+}
+
+/// The status line of the UTXO details, such as "Ongoing (1/3 hops)".
+String denialDetailStatus(UnspentOutput utxo) {
+  final status = denialStatus(utxo);
+  return switch (status) {
+    DenialStatus.none => 'No deniability',
+    DenialStatus.ongoing => 'Ongoing (${utxo.denialInfo.executions.length}/${utxo.denialInfo.numHops} hops)',
+    _ => status.label,
+  };
+}
+
+SailStatusTone denialStatusTone(DenialStatus status) => switch (status) {
+  DenialStatus.none => SailStatusTone.neutral,
+  DenialStatus.ongoing => SailStatusTone.info,
+  DenialStatus.paused => SailStatusTone.warning,
+  DenialStatus.completed => SailStatusTone.success,
+  DenialStatus.cancelled => SailStatusTone.error,
+};
+
+/// The first action of a UTXO: Pause, Resume or Deny.
+({String label, Future<void> Function() run}) denialPrimaryAction(
+  UnspentOutput utxo, {
+  required void Function(String output, int valueSats) onDeny,
+  required void Function(Int64) onPause,
+  required void Function(Int64) onResume,
+}) {
+  if (!denialCanControl(utxo)) {
+    return (label: 'Deny', run: () async => onDeny(utxo.output, utxo.valueSats.toInt()));
+  }
+  if (denialStatus(utxo) == DenialStatus.paused) {
+    return (label: 'Resume', run: () async => onResume(utxo.denialInfo.id));
+  }
+  return (label: 'Pause', run: () async => onPause(utxo.denialInfo.id));
+}
+
+/// The row "…" of a UTXO: its first action, Cancel when the denial runs, and Show Details.
+List<SailMenuEntity> denialMenuItems(
+  BuildContext context,
+  UnspentOutput utxo, {
+  required void Function(String output, int valueSats) onDeny,
+  required void Function(Int64) onCancel,
+  required void Function(Int64) onPause,
+  required void Function(Int64) onResume,
+  required void Function(UnspentOutput utxo) onShowDetails,
+}) {
+  final primary = denialPrimaryAction(utxo, onDeny: onDeny, onPause: onPause, onResume: onResume);
+  return [
+    SailMenuItem(onSelected: primary.run, child: SailText.primary12(primary.label)),
+    if (denialCanControl(utxo))
+      SailMenuItem(
+        onSelected: () => onCancel(utxo.denialInfo.id),
+        child: SailText.primary12('Cancel'),
+      ),
+    SailMenuItem(onSelected: () => onShowDetails(utxo), child: SailText.primary12('Show Details')),
+  ];
+}
+
+/// The side panel of one UTXO and its denial.
+class DenialUtxoPanel extends StatelessWidget {
+  final UnspentOutput utxo;
+  final Future<void> Function() onClose;
+  final void Function(String output, int valueSats) onDeny;
+  final void Function(Int64) onCancel;
+  final void Function(Int64) onPause;
+  final void Function(Int64) onResume;
+
+  const DenialUtxoPanel({
+    super.key,
+    required this.utxo,
+    required this.onClose,
+    required this.onDeny,
+    required this.onCancel,
+    required this.onPause,
+    required this.onResume,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = GetIt.I<FormatterProvider>();
+    final theme = SailTheme.of(context);
+    final primary = denialPrimaryAction(utxo, onDeny: onDeny, onPause: onPause, onResume: onResume);
+    final info = utxo.denialInfo;
+    final txids = info.executions.map((e) => e.fromTxid).where((txid) => txid.isNotEmpty).toList();
+
+    return SailSidePanel(
+      title: 'UTXO Details',
+      onClose: onClose,
+      menuItems: denialCanControl(utxo)
+          ? () => [
+              SailMenuItem(onSelected: () => onCancel(info.id), child: SailText.primary12('Cancel')),
+            ]
+          : null,
+      child: SailColumn(
+        spacing: SailStyleValues.padding12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SailText.primary13('UTXO and Deniability Information', color: theme.colors.textSecondary),
+          PanelHeadline(value: formatter.formatSats(utxo.valueSats.toInt())),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SailStatusPill(label: denialDetailStatus(utxo), tone: denialStatusTone(denialStatus(utxo))),
+          ),
+          SailButton(label: primary.label, onPressed: primary.run),
+          SailDetailGroup(
+            fill: SailDetailFill.canvas,
+            children: [
+              SailStackedDetail(monospace: false, label: 'TxID', value: utxo.output.split(':').first),
+              SailDetailLine(wrap: true, label: 'Output Index', value: utxo.output.split(':').last),
+              SailDetailLine(wrap: true, label: 'Amount', value: formatter.formatSats(utxo.valueSats.toInt())),
+            ],
+          ),
+          if (utxo.hasDenialInfo()) ...[
+            const SailDetailHeading('Deniability Info'),
+            SailDetailGroup(
+              fill: SailDetailFill.canvas,
+              children: [
+                SailDetailLine(wrap: true, label: 'Status', value: denialDetailStatus(utxo)),
+                SailDetailLine(wrap: true, label: 'Completed Hops', value: '${info.executions.length}'),
+                SailDetailLine(wrap: true, label: 'Total Hops', value: '${info.numHops}'),
+                if (denialHasScheduledNextExecution(info))
+                  SailDetailLine(
+                    wrap: true,
+                    label: 'Next Execution',
+                    value: formatDate(info.nextExecutionTime.toDateTime()),
+                  ),
+                if (info.hasCancelTime()) SailDetailLine(wrap: true, label: 'Cancel Reason', value: info.cancelReason),
+              ],
+            ),
+            if (txids.isNotEmpty) ...[
+              const SailDetailHeading('Deniability Transactions:'),
+              SailDetailGroup(
+                fill: SailDetailFill.canvas,
+                children: [
+                  for (final txid in txids)
+                    SailTappable(
+                      onTap: () async => showThemedDialog(
+                        context: context,
+                        builder: (context) => TransactionDetailsDialog(txid: txid),
+                      ),
+                      child: SailText.primary13(shortHash(txid), color: theme.colors.textSecondary),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -607,6 +750,27 @@ class DeniabilityViewModel extends BaseViewModel {
     final info = u.denialInfo;
     return info.hasCancelTime() || (!denialHasScheduledNextExecution(info) && (info.isChange || !info.hasPausedAt()));
   }).toList();
+
+  String? _selectedOutput;
+
+  /// The UTXO in the side panel, or null when it is gone from the wallet.
+  UnspentOutput? get selectedUtxo {
+    final output = _selectedOutput;
+    if (output == null) {
+      return null;
+    }
+    for (final utxo in utxos) {
+      if (utxo.output == output) {
+        return utxo;
+      }
+    }
+    return null;
+  }
+
+  void selectUtxo(UnspentOutput? utxo) {
+    _selectedOutput = utxo?.output;
+    notifyListeners();
+  }
 
   DeniabilityViewModel() {
     transactionProvider.addListener(notifyListeners);

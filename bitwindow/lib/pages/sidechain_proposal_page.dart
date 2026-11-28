@@ -368,8 +368,9 @@ class _OptionalSection extends StatelessWidget {
             errorText: model.commitHashError,
             size: TextFieldSize.small,
           ),
-          const SizedBox(height: SailStyleValues.padding25),
-          Center(
+          const SizedBox(height: SailStyleValues.padding16),
+          SizedBox(
+            width: double.infinity,
             child: SailButton(
               label: 'Propose Sidechain',
               loading: model.isProposing,

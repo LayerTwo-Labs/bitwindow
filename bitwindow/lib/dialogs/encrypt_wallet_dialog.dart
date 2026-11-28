@@ -80,18 +80,12 @@ class _EncryptWalletDialogState extends State<EncryptWalletDialog> {
       title: 'Encrypt Wallet',
       subtitle: 'Protect your wallet with a password',
       error: _errorMessage,
-      actions: [
-        SailButton(
-          label: 'Cancel',
-          variant: ButtonVariant.secondary,
-          onPressed: _isEncrypting ? null : () async => Navigator.of(context).pop(false),
-        ),
-        SailButton(
-          label: 'Encrypt Wallet',
-          loading: _isEncrypting,
-          onPressed: () async => _encrypt(),
-        ),
-      ],
+      withCloseButton: !_isEncrypting,
+      action: SailDialogAction(
+        label: 'Encrypt Wallet',
+        loadingLabel: _isEncrypting ? 'Encrypt Wallet' : null,
+        onPressed: () async => _encrypt(),
+      ),
       child: SailColumn(
         spacing: SailStyleValues.padding16,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,6 +126,8 @@ class _EncryptWalletDialogState extends State<EncryptWalletDialog> {
               onTap: () => setState(() => _obscurePassword = !_obscurePassword),
               child: SailSVG.fromAsset(
                 _obscurePassword ? SailSVGAsset.eye : SailSVGAsset.eyeOff,
+                width: 22,
+                height: 22,
                 color: theme.colors.text,
               ),
             ),
@@ -149,6 +145,8 @@ class _EncryptWalletDialogState extends State<EncryptWalletDialog> {
               onTap: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
               child: SailSVG.fromAsset(
                 _obscureConfirmPassword ? SailSVGAsset.eye : SailSVGAsset.eyeOff,
+                width: 22,
+                height: 22,
                 color: theme.colors.text,
               ),
             ),

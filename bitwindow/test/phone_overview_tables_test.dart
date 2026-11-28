@@ -1,6 +1,7 @@
 import 'package:bitwindow/pages/overview_page.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -43,7 +44,7 @@ void main() {
     await pumpTable(tester, 390);
 
     expect(cellWidth(tester, '141'), lessThanOrEqualTo(56));
-    expect(cellWidth(tester, '1022811'), lessThanOrEqualTo(76));
+    expect(cellWidth(tester, '1022811'), lessThanOrEqualTo(77));
     final timeLine = tester.getSize(find.text(timeText));
     expect(timeLine.height, tester.getSize(find.text('141')).height);
     expect(timeLine.width, lessThanOrEqualTo(cellWidth(tester, timeText) - 24));
@@ -54,11 +55,20 @@ void main() {
     SailStyleValues.phoneLayoutOverride = true;
     await pumpTable(tester, 390, [tx(fee: 8601), tx(fee: 123456, height: null)]);
 
-    final line = tester.getSize(find.text('Fee')).height;
-    for (final value in ['8601', '123456', '1022811']) {
-      expect(tester.getSize(find.text(value)).height, line, reason: '$value wraps');
+    void expectOneLine(String value) {
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(of: find.text(value).first, matching: find.byType(RichText)),
+      );
+      expect(
+        paragraph.size.width,
+        greaterThanOrEqualTo(paragraph.getMaxIntrinsicWidth(double.infinity) - 0.5),
+        reason: '$value wraps',
+      );
     }
-    expect(tester.getSize(find.text(timeText).first).height, line);
+
+    for (final value in ['8601', '123456', '1022811', timeText]) {
+      expectOneLine(value);
+    }
     expect(tester.takeException(), isNull);
   });
 

@@ -1,6 +1,10 @@
+import 'package:bitwindow/pages/wallet/cash_check_page.dart';
+import 'package:bitwindow/pages/wallet/check_detail_page.dart';
+import 'package:bitwindow/pages/wallet/create_check_page.dart';
 import 'package:bitwindow/providers/check_provider.dart';
 import 'package:bitwindow/routing/router.dart';
 import 'package:bitwindow/utils/explorer_url.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:intl/intl.dart';
@@ -31,6 +35,9 @@ class ChecksTabViewModel extends BaseViewModel {
   @override
   String? get modelError => _checkProvider.modelError;
 
+  /// The check in the side panel.
+  int? selectedCheckId;
+
   ChecksTabViewModel() {
     _checkProvider.addListener(_onCheckProviderChanged);
   }
@@ -43,12 +50,28 @@ class ChecksTabViewModel extends BaseViewModel {
     await _checkProvider.fetch();
   }
 
-  void createNewCheck(BuildContext context) {
-    GetIt.I.get<AppRouter>().push(const CreateCheckRoute());
+  void selectCheck(int? id) {
+    selectedCheckId = id;
+    notifyListeners();
   }
 
-  void cashCheck(BuildContext context) {
-    GetIt.I.get<AppRouter>().push(const CashCheckRoute());
+  Future<void> createNewCheck(BuildContext context) async {
+    if (SailStyleValues.phoneLayout(context)) {
+      await GetIt.I.get<AppRouter>().push(const CreateCheckRoute());
+      return;
+    }
+    final checkId = await showCreateCheckDialog(context);
+    if (checkId != null) {
+      selectCheck(checkId);
+    }
+  }
+
+  Future<void> cashCheck(BuildContext context) async {
+    if (SailStyleValues.phoneLayout(context)) {
+      await GetIt.I.get<AppRouter>().push(const CashCheckRoute());
+      return;
+    }
+    await showCashCheckDialog(context);
   }
 
   @override
@@ -82,7 +105,8 @@ class ChecksTab extends StatelessWidget {
             ),
           ],
         );
-        return SailCard(
+        final selectedId = model.selectedCheckId;
+        final card = SailCard(
           title: model.checks.isEmpty ? 'Send ${activeTicker.name} Without an Internet Connection' : 'Your Checks',
           subtitle: model.checks.isEmpty
               ? "Checks let you transfer ${activeTicker.name} to anyone. Create a check with a specific amount, and the recipient can cash it later when they're ready to claim the ${activeTicker.name}."
@@ -104,7 +128,16 @@ class ChecksTab extends StatelessWidget {
                     Expanded(child: ChecksTable(checks: model.checks)),
                   ],
                 )
-              : ChecksTable(checks: model.checks),
+              : ChecksTable(checks: model.checks, selectedCheckId: selectedId, onSelectCheck: model.selectCheck),
+        );
+        if (phone) {
+          return card;
+        }
+        return SailPageWithPanel(
+          panel: selectedId == null
+              ? null
+              : CheckDetailPanel(checkId: selectedId, onClose: () async => model.selectCheck(null)),
+          child: card,
         );
       },
     );
@@ -172,10 +205,13 @@ class ChecksEmptyState extends StatelessWidget {
 class ChecksTable extends StatelessWidget {
   final List<Cheque> checks;
 
-  const ChecksTable({
-    super.key,
-    required this.checks,
-  });
+  /// The check in the side panel. Desktop only.
+  final int? selectedCheckId;
+
+  /// Opens a check in the side panel, or closes it with null. Desktop only.
+  final ValueChanged<int?>? onSelectCheck;
+
+  const ChecksTable({super.key, required this.checks, this.selectedCheckId, this.onSelectCheck});
 
   @override
   Widget build(BuildContext context) {
@@ -185,178 +221,88 @@ class ChecksTable extends StatelessWidget {
         itemBuilder: (context, index) {
           final check = checks[index];
           return SailListRow(
-            title: _formatDate(check.createdAt),
+            title: formatChequeDate(check.createdAt),
             subtitle: check.fundedTxids.isEmpty
                 ? 'Awaiting funding'
-                : _formatSats(
+                : formatCheckSats(
                     check.hasActualAmountSats() ? check.actualAmountSats.toInt() : check.expectedAmountSats.toInt(),
                   ),
             trailing: _CheckActions(
               check: check,
-              onView: () => _viewCheck(context, check),
-              onDelete: () => _deleteCheck(context, check),
+              onView: () => _pushCheck(check),
+              onDelete: () => confirmDeleteCheck(context, check),
             ),
           );
         },
       );
     }
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SailTable(
-        drawGrid: true,
-        getRowId: (index) => checks[index].id.toString(),
-        headerBuilder: (context) => [
-          SailTableHeaderCell(name: 'Created'),
-          SailTableHeaderCell(name: 'Address'),
-          SailTableHeaderCell(name: 'Expected Amount'),
-          SailTableHeaderCell(name: 'Status'),
-          SailTableHeaderCell(name: 'Funded Amount'),
-          SailTableHeaderCell(name: 'Actions'),
-        ],
-        rowBuilder: (context, row, selected) {
-          final check = checks[row];
-          return [
-            SailTableCell(value: _formatDate(check.createdAt)),
-            SailTableCell(
-              value: _truncateAddress(check.address),
-              copyValue: check.address,
+    return SailTable(
+      getRowId: (index) => checks[index].id.toString(),
+      selectedRowId: selectedCheckId?.toString(),
+      onSelectedRow: (rowId) => onSelectCheck?.call(rowId == null ? null : int.parse(rowId)),
+      headerBuilder: (context) => [
+        SailTableHeaderCell(name: 'Created'),
+        SailTableHeaderCell(name: 'Address'),
+        SailTableHeaderCell(name: 'Expected Amount', alignment: Alignment.centerRight),
+        SailTableHeaderCell(name: 'Status'),
+        SailTableHeaderCell(name: 'Funded Amount', alignment: Alignment.centerRight),
+      ],
+      rowBuilder: (context, row, selected) {
+        final check = checks[row];
+        final swept = check.hasSweptTxid() && check.sweptTxid.isNotEmpty;
+        return [
+          SailTableCell(value: formatChequeDate(check.createdAt)),
+          SailTableCell(value: shortHash(check.address), copyValue: check.address),
+          SailTableCell(value: formatCheckSats(check.expectedAmountSats.toInt()), alignment: Alignment.centerRight),
+          SailTableCell(
+            value: checkStatusLabel(check),
+            child: StatusDotLabel(
+              label: checkStatusLabel(check) == 'Awaiting funding' ? 'Unfunded' : checkStatusLabel(check),
+              tone: checkStatusTone(check),
+              textColor: swept ? context.sailTheme.colors.textSecondary : null,
             ),
-            SailTableCell(value: _formatSats(check.expectedAmountSats.toInt())),
-            SailTableCell(
-              value: check.hasSweptTxid() && check.sweptTxid.isNotEmpty
-                  ? 'Swept'
-                  : check.funded
-                  ? 'Funded'
-                  : check.fundedTxids.isNotEmpty
-                  ? 'Partially Funded'
-                  : 'Unfunded',
-              textColor: check.hasSweptTxid() && check.sweptTxid.isNotEmpty
-                  ? context.sailTheme.colors.text.withValues(alpha: 0.5)
-                  : check.funded
-                  ? context.sailTheme.colors.success
-                  : check.fundedTxids.isNotEmpty
-                  ? context.sailTheme.colors.orange
-                  : context.sailTheme.colors.orange,
+          ),
+          SailTableCell(
+            value: check.fundedTxids.isNotEmpty && check.hasActualAmountSats()
+                ? formatCheckSats(check.actualAmountSats.toInt())
+                : '-',
+            alignment: Alignment.centerRight,
+          ),
+        ];
+      },
+      rowCount: checks.length,
+      onDoubleTap: (rowId) => onSelectCheck?.call(int.parse(rowId)),
+      contextMenuItems: (rowId) {
+        final check = checks.firstWhere((c) => c.id.toString() == rowId);
+        return [
+          SailMenuItem(
+            onSelected: () => onSelectCheck?.call(check.id.toInt()),
+            child: SailText.primary12(check.fundedTxids.isEmpty ? 'Fund Check' : 'View Details'),
+          ),
+          SailMenuItem(
+            onSelected: () =>
+                openUrl(Uri.parse(mempoolAddressUrl(check.address, GetIt.I.get<BitcoinConfProvider>().network))),
+            child: SailText.primary12('View on mempool.space'),
+          ),
+          SailMenuItem(
+            onSelected: () => confirmDeleteCheck(
+              context,
+              check,
+              onDeleted: () async {
+                if (selectedCheckId == check.id.toInt()) {
+                  onSelectCheck?.call(null);
+                }
+              },
             ),
-            SailTableCell(
-              value: check.fundedTxids.isNotEmpty && check.hasActualAmountSats()
-                  ? _formatSats(check.actualAmountSats.toInt())
-                  : '-',
-            ),
-            SailTableCell(
-              value: 'Fund Check / View Details         ',
-              child: _CheckActions(
-                check: check,
-                onView: () => _viewCheck(context, check),
-                onDelete: () => _deleteCheck(context, check),
-              ),
-            ),
-          ];
-        },
-        rowCount: checks.length,
-        onDoubleTap: (rowId) {
-          final check = checks.firstWhere((c) => c.id.toString() == rowId);
-          _viewCheck(context, check);
-        },
-        contextMenuItems: (rowId) {
-          final check = checks.firstWhere((c) => c.id.toString() == rowId);
-          final network = GetIt.I.get<BitcoinConfProvider>().network;
-          return [
-            SailMenuItem(
-              onSelected: () => openUrl(Uri.parse(mempoolAddressUrl(check.address, network))),
-              child: SailText.primary12('View on mempool.space'),
-            ),
-          ];
-        },
-      ),
+            child: SailText.primary12('Delete', color: context.sailTheme.colors.error),
+          ),
+        ];
+      },
     );
   }
 
-  String _formatDate(Timestamp? timestamp) => formatChequeDate(timestamp);
-
-  String _truncateAddress(String address) {
-    if (address.length <= 20) {
-      return address;
-    }
-    return '${address.substring(0, 10)}...${address.substring(address.length - 10)}';
-  }
-
-  String _formatSats(int sats) {
-    final btc = sats / 100000000;
-    return '${btc.toStringAsFixed(8)} ${activeTicker.symbol}';
-  }
-
-  void _viewCheck(BuildContext context, Cheque check) {
+  void _pushCheck(Cheque check) {
     GetIt.I.get<AppRouter>().push(CheckDetailRoute(checkId: check.id.toInt()));
-  }
-
-  Future<void> _deleteCheck(BuildContext context, Cheque check) async {
-    if (check.fundedTxids.isNotEmpty && !check.hasSweptTxid()) {
-      showSailToast(context, 'Cannot delete funded check. Sweep the funds first.');
-      return;
-    }
-
-    final confirmed = await showThemedDialog<bool>(
-      context: context,
-      builder: (context) => SailDialog(
-        title: 'Delete Check',
-        actions: [
-          SailButton(
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            onPressed: () async => Navigator.of(context).pop(false),
-          ),
-          SailButton(
-            label: 'Delete',
-            variant: ButtonVariant.destructive,
-            onPressed: () async => Navigator.of(context).pop(true),
-          ),
-        ],
-        child: SailColumn(
-          spacing: SailStyleValues.padding12,
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SailText.secondary13('Are you sure you want to delete this check?'),
-            if (check.fundedTxids.isEmpty || check.hasSweptTxid())
-              Container(
-                padding: const EdgeInsets.all(SailStyleValues.padding12),
-                decoration: BoxDecoration(
-                  color: context.sailTheme.colors.orange.withValues(alpha: 0.1),
-                  borderRadius: context.sailTheme.chrome.radiusSmall,
-                  border: Border.all(
-                    color: context.sailTheme.colors.orange.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    SailSVG.icon(SailSVGAsset.iconWarning, width: 16),
-                    const SizedBox(width: SailStyleValues.padding08),
-                    Flexible(
-                      child: SailText.secondary12(
-                        'Make sure you have backed up the private key if funds were sent to this address.',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      final checkProvider = GetIt.I.get<CheckProvider>();
-      final success = await checkProvider.deleteCheck(check.id.toInt());
-
-      if (!context.mounted) {
-        return;
-      }
-
-      if (success) {
-        showSailToast(context, 'Check deleted successfully');
-      }
-    }
   }
 }
 

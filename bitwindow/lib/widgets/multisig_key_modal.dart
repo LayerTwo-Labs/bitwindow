@@ -22,6 +22,7 @@ class MultisigKeyModal extends StatelessWidget {
         return SailModal(
           constraints: const BoxConstraints(maxWidth: 600, maxHeight: 500),
           child: SailCard(
+            withCloseButton: true,
             title: 'Get Multisig Key',
             subtitle: 'Your next available key for multisig wallet creation',
             error: viewModel.modalError,
@@ -126,11 +127,6 @@ class MultisigKeyModal extends StatelessWidget {
                         )
                       else
                         const SizedBox(),
-                      SailButton(
-                        label: 'Close',
-                        onPressed: () async => Navigator.of(context).pop(),
-                        variant: ButtonVariant.secondary,
-                      ),
                     ],
                   ),
                   if (viewModel.saveError != null) ...[

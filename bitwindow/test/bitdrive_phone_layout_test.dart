@@ -162,4 +162,28 @@ void main() {
 
     expect(find.text('Open Folder'), findsOneWidget);
   });
+
+  testWidgets('the desktop puts Store and My Files in a segmented control under the strip', (tester) async {
+    SailStyleValues.phoneLayoutOverride = false;
+    addTearDown(() => tester.pumpWidget(const SizedBox()));
+    await tester.pumpSailPage(const BitDriveTab());
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    await tester.pump();
+
+    final tabs = find.byType(InlineTabBar);
+    expect(find.ancestor(of: tabs, matching: find.byType(SailCard)), findsNothing);
+    expect(tester.getRect(find.text('Store')).top, greaterThan(tester.getRect(find.text('Open Folder')).bottom));
+    expect(find.widgetWithText(SailSidePanel, 'How It Works'), findsOneWidget);
+    expect(find.widgetWithText(SailButton, 'Store on ${activeTicker.name}'), findsOneWidget);
+  });
+
+  testWidgets('on the desktop Download all sits in the "…" menu of My Files', (tester) async {
+    await _pumpMyFiles(tester, phone: false);
+
+    expect(find.widgetWithText(SailButton, 'Scan for new'), findsOneWidget);
+    expect(find.text('Download all'), findsNothing);
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Download all'), findsOneWidget);
+  });
 }

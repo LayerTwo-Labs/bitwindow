@@ -143,7 +143,7 @@ void main() {
     final pathField = find.widgetWithText(SailTextField, _defaultPath);
     await tester.enterText(find.descendant(of: pathField, matching: find.byType(EditableText)), _secondAccount);
     await tester.pumpAndSettle();
-    final addKey = find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.plus);
+    final addKey = find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.plus);
     await tester.tap(addKey.hitTestable().first);
     await tester.pumpAndSettle();
 
@@ -162,7 +162,7 @@ void main() {
     await tester.pumpSailPage(MultisigConfigStep(onConfigured: (_) async {}));
     await tester.pumpAndSettle();
 
-    final addKey = find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.plus);
+    final addKey = find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.plus);
     await tester.tap(addKey.hitTestable().first);
     await tester.pumpAndSettle();
     await tester.tap(addKey.hitTestable().first);
@@ -180,7 +180,7 @@ void main() {
     await tester.pumpSailPage(MultisigConfigStep(onConfigured: (_) async {}));
     await tester.pumpAndSettle();
 
-    final addKey = find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.plus);
+    final addKey = find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.plus);
     await tester.tap(addKey.hitTestable().first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Key 1').hitTestable().first);
@@ -235,5 +235,65 @@ void main() {
 
     expect(single.provider, 'electrum');
     expect(single.hardwareDeviceType, 'trezor');
+  });
+
+  const pastedKey =
+      '[73c5da0a/84h/1h/0h]tpubDC8msFGeGuwnKG9Upg7DM2b4DaRqg3CUZa5g8v2SRQ6K4NSkxUgd7HsL2XVWbVm39yBA4LAxysQAm397zwQSQoQgewGiYZqrA9DsP4zbQ1M';
+  final addKeyBox = find.byWidgetPredicate((w) => w is SailIconBoxButton && w.icon == SailSVGAsset.plus);
+
+  Future<void> pasteKey(WidgetTester tester) async {
+    await tester.tap(find.text('xPub/ Watch Only').hitTestable().first);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.enterText(find.byType(EditableText).last, pastedKey);
+    await tester.tap(find.text('Add'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('an empty key offers Delete key in a "…" next to "+"', (tester) async {
+    addTearDown(() => tester.pumpWidget(const SizedBox()));
+    await tester.pumpSailPage(MultisigConfigStep(onConfigured: (_) async {}));
+    await tester.pumpAndSettle();
+    expect(find.byType(SailRowMenuButton), findsNothing, reason: 'the last key cannot be deleted');
+
+    await tester.tap(addKeyBox.hitTestable().first);
+    await tester.pumpAndSettle();
+    expect(find.text('Key 2'), findsOneWidget);
+    expect(tester.widgetList<SailTabItem>(find.byType(SailTabItem)).where((t) => t.trailing != null), isEmpty);
+
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Rename key'), findsNothing);
+    await tester.tap(find.text('Delete key'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Key 2'), findsNothing);
+    expect(find.text('Key 1'), findsOneWidget);
+  });
+
+  testWidgets('a filled key has a green check on its tab and Rename key in the details "…"', (tester) async {
+    addTearDown(() => tester.pumpWidget(const SizedBox()));
+    await tester.pumpSailPage(MultisigConfigStep(onConfigured: (_) async {}));
+    await tester.pumpAndSettle();
+    await pasteKey(tester);
+
+    final tab = find.ancestor(of: find.text('Key 1'), matching: find.byType(SailTabItem));
+    expect(tester.widget<SailTabItem>(tab).leading, isNotNull);
+    expect(tester.widget<SailTabItem>(tab).onLabelChanged, isNull);
+    expect(find.byType(SailStatusPill), findsOneWidget);
+
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete key'), findsNothing, reason: 'the last key cannot be deleted');
+    await tester.tap(find.text('Rename key'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rename key'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).last, 'Cold key');
+    await tester.tap(find.widgetWithText(SailButton, 'Rename'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cold key'), findsOneWidget);
+    expect(find.text('Cold key Details'), findsOneWidget);
   });
 }

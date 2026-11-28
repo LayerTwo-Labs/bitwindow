@@ -93,8 +93,8 @@ class _FakeOrchestrator implements OrchestratorRPC {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Widget _host(Widget child) => SailTheme(
-  data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter),
+Widget _host(Widget child, {SailThemeStyle style = SailThemeStyle.sail}) => SailTheme(
+  data: SailThemeData.lightTheme(SailColorScheme.orange, true, SailFontValues.inter, style),
   child: MaterialApp(
     home: Scaffold(body: Center(child: child)),
   ),
@@ -120,10 +120,10 @@ void main() {
 
   tearDown(() async => GetIt.I.reset());
 
-  Future<void> pump(WidgetTester tester, Widget child) async {
+  Future<void> pump(WidgetTester tester, Widget child, {SailThemeStyle style = SailThemeStyle.sail}) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(_host(child));
+    await tester.pumpWidget(_host(child, style: style));
     await tester.pump();
   }
 
@@ -325,5 +325,48 @@ void main() {
     conf.dataDir = false;
     conf.notifyListeners();
     expect(opens, 2, reason: 'a directory that goes away asks again');
+  });
+
+  testWidgets('in v2 the mode cards carry a radio dot and the one button is full width', (tester) async {
+    await pump(tester, NodeModePopover(onDone: () {}), style: SailThemeStyle.bitwindowV2);
+
+    await tester.tap(find.text('Full node'));
+    await tester.pump();
+
+    final card = tester.getRect(find.widgetWithText(NodeModeCard, 'Full node'));
+    final button = tester.getRect(find.widgetWithText(SailButton, 'Confirm node mode').first);
+    expect(button.width, closeTo(card.width, 1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('in v2 the data directory page has a back box, a 40 px field with Browse, and a full-width Continue', (
+    tester,
+  ) async {
+    final dir = Directory.systemTemp.createTempSync('node-mode-v2-dir');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final previous = FilePickerPlatform.instance;
+    FilePickerPlatform.instance = _FakePicker(dir.path);
+    addTearDown(() => FilePickerPlatform.instance = previous);
+
+    nodeMode.mode = wmpb.NodeMode.NODE_MODE_FULL;
+    await pump(tester, NodeModePopover(onDone: () {}, dataDirFirst: true), style: SailThemeStyle.bitwindowV2);
+
+    final field = find.byType(DataDirField);
+    expect(tester.getSize(field).height, 40);
+    expect(find.descendant(of: field, matching: find.widgetWithText(SailButton, 'Browse')), findsOneWidget);
+    final continueButton = tester.getRect(find.widgetWithText(SailButton, 'Continue').first);
+    expect(continueButton.width, closeTo(tester.getSize(field).width, 1));
+
+    await tester.runAsync(() async {
+      await tester.tap(find.widgetWithText(SailButton, 'Browse').first);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pump();
+    expect(find.descendant(of: field, matching: find.text(dir.path)), findsOneWidget);
+    expect(tester.widgetList<SailButton>(find.widgetWithText(SailButton, 'Continue')).first.disabled, isFalse);
+
+    await tester.tap(find.byType(SailIconBoxButton));
+    await tester.pump();
+    expect(find.text('Node mode'), findsOneWidget);
   });
 }

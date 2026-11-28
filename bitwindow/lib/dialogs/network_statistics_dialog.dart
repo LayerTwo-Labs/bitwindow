@@ -48,8 +48,9 @@ class _NetworkStatisticsPageState extends State<NetworkStatisticsPage> {
 
     return SailDialog(
       title: 'Network Statistics',
+      withCloseButton: true,
       subtitle: 'Real-time Bitcoin network metrics with bandwidth graph',
-      maxWidth: 900,
+      maxWidth: phone ? 900 : 760,
       maxHeight: 700,
       child: isLoading && stats == null
           ? const Center(
@@ -80,6 +81,109 @@ class _NetworkStatisticsPageState extends State<NetworkStatisticsPage> {
                   ],
                 ),
               ),
+            )
+          : stats != null && !phone
+          ? Builder(
+              builder: (_) {
+                final stats = this.stats!;
+                Widget group(String title, List<(String, String)> rows) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SailDetailHeading(title),
+                    const SizedBox(height: SailStyleValues.padding08),
+                    SailDetailGroup(
+                      fill: SailDetailFill.canvas,
+                      children: [
+                        for (final (label, value) in rows) SailDetailLine(wrap: true, label: label, value: value),
+                      ],
+                    ),
+                  ],
+                );
+                const gap = SizedBox(height: SailStyleValues.padding12);
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.only(top: SailStyleValues.padding04),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                group('Blockchain', [
+                                  ('Block Height', stats.blockHeight.toString()),
+                                  ('Average Block Time', '${stats.avgBlockTime.toStringAsFixed(1)}s'),
+                                  ('Difficulty', stats.difficulty > 0 ? stats.difficulty.toString() : 'N/A'),
+                                  (
+                                    'Network Hashrate',
+                                    stats.networkHashrate > 0 ? _formatHashrate(stats.networkHashrate) : 'N/A',
+                                  ),
+                                ]),
+                                gap,
+                                group('Network', [
+                                  ('Total Peers', stats.peerCount.toString()),
+                                  ('Inbound Connections', stats.connectionsIn.toString()),
+                                  ('Outbound Connections', stats.connectionsOut.toString()),
+                                  (
+                                    'Network Version',
+                                    stats.networkVersion > 0 ? stats.networkVersion.toString() : 'N/A',
+                                  ),
+                                  if (stats.subversion.isNotEmpty) ('Subversion', stats.subversion),
+                                ]),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: SailStyleValues.padding12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                group('Data Transfer', [
+                                  (
+                                    'Total Received',
+                                    stats.totalBytesReceived > 0
+                                        ? _formatBytes(stats.totalBytesReceived.toInt())
+                                        : 'N/A',
+                                  ),
+                                  (
+                                    'Total Sent',
+                                    stats.totalBytesSent > 0 ? _formatBytes(stats.totalBytesSent.toInt()) : 'N/A',
+                                  ),
+                                ]),
+                                if (stats.hasBitcoindBandwidth() || stats.hasEnforcerBandwidth()) ...[
+                                  gap,
+                                  group('Processes', [
+                                    if (stats.hasBitcoindBandwidth()) ...[
+                                      ('bitcoind PID', stats.bitcoindBandwidth.pid.toString()),
+                                      ('bitcoind Connections', stats.bitcoindBandwidth.connectionCount.toString()),
+                                    ],
+                                    if (stats.hasEnforcerBandwidth()) ...[
+                                      ('enforcer PID', stats.enforcerBandwidth.pid.toString()),
+                                      ('enforcer Connections', stats.enforcerBandwidth.connectionCount.toString()),
+                                    ],
+                                  ]),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      gap,
+                      if (bandwidthHistory.length > 1)
+                        _BandwidthGraph(bandwidthHistory: bandwidthHistory, formatBandwidth: _formatBandwidth)
+                      else
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: SailText.secondary12('Auto-refreshing every 5 seconds'),
+                        ),
+                    ],
+                  ),
+                );
+              },
             )
           : stats != null
           ? SingleChildScrollView(
@@ -261,14 +365,39 @@ class _BandwidthGraph extends StatelessWidget {
 
     final maxY = bandwidthGraphMaxY([...rxSpots, ...txSpots]);
 
+    LineChartBarData line(List<FlSpot> spots, Color color) => LineChartBarData(
+      spots: spots,
+      color: color,
+      barWidth: 2,
+      dotData: const FlDotData(show: false),
+    );
+    LineChartData chart({required FlBorderData border}) => LineChartData(
+      gridData: const FlGridData(show: false),
+      titlesData: const FlTitlesData(show: false),
+      borderData: border,
+      minX: 1,
+      maxX: bandwidthHistory.length.toDouble(),
+      minY: 0,
+      maxY: maxY,
+      lineBarsData: [line(rxSpots, theme.colors.orange), line(txSpots, theme.colors.info)],
+      lineTouchData: SailStyleValues.phoneLayout(context)
+          ? const LineTouchData(enabled: false)
+          : LineTouchData(
+              touchTooltipData: LineTouchTooltipData(
+                getTooltipItems: (touchedSpots) => touchedSpots
+                    .map(
+                      (spot) => LineTooltipItem(
+                        '${spot.barIndex == 0 ? 'RX' : 'TX'}: ${formatBandwidth(spot.y)}',
+                        TextStyle(color: theme.colors.text, fontWeight: FontWeight.bold),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+    );
+
     if (SailStyleValues.phoneLayout(context)) {
       final axis = BorderSide(color: theme.colors.divider);
-      LineChartBarData line(List<FlSpot> spots, Color color) => LineChartBarData(
-        spots: spots,
-        color: color,
-        barWidth: 2,
-        dotData: const FlDotData(show: false),
-      );
       return StatSection(
         title: 'Bandwidth Graph',
         children: [
@@ -277,19 +406,11 @@ class _BandwidthGraph extends StatelessWidget {
           SizedBox(
             height: 180,
             child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(show: false),
-                borderData: FlBorderData(
+              chart(
+                border: FlBorderData(
                   show: true,
                   border: Border(left: axis, bottom: axis),
                 ),
-                minX: 1,
-                maxX: bandwidthHistory.length.toDouble(),
-                minY: 0,
-                maxY: maxY,
-                lineBarsData: [line(rxSpots, theme.colors.orange), line(txSpots, theme.colors.info)],
-                lineTouchData: const LineTouchData(enabled: false),
               ),
             ),
           ),
@@ -309,144 +430,61 @@ class _BandwidthGraph extends StatelessWidget {
       );
     }
 
-    final body = [
-      SailText.secondary13('Last ${bandwidthHistory.length * 5} seconds'),
-      const SizedBox(height: 16),
-      SizedBox(
-        height: 200,
-        child: LineChart(
-          LineChartData(
-            gridData: FlGridData(
-              show: true,
-              drawVerticalLine: true,
-              horizontalInterval: maxY / 5,
-              getDrawingHorizontalLine: (value) {
-                return FlLine(
-                  color: theme.colors.backgroundSecondary,
-                  strokeWidth: 1,
-                );
-              },
-              getDrawingVerticalLine: (value) {
-                return FlLine(
-                  color: theme.colors.backgroundSecondary,
-                  strokeWidth: 1,
-                );
-              },
-            ),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 60,
-                  getTitlesWidget: (value, meta) {
-                    return SailText.secondary12(formatBandwidth(value));
-                  },
-                ),
-              ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 30,
-                  interval: 10,
-                  getTitlesWidget: (value, meta) {
-                    final seconds = (bandwidthHistory.length - value.toInt()) * 5;
-                    return SailText.secondary12('-${seconds}s');
-                  },
-                ),
-              ),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-            borderData: FlBorderData(
-              show: true,
-              border: Border.all(color: theme.colors.backgroundSecondary),
-            ),
-            minX: 1,
-            maxX: bandwidthHistory.length.toDouble(),
-            minY: 0,
-            maxY: maxY,
-            lineBarsData: [
-              // Received (green)
-              LineChartBarData(
-                spots: rxSpots,
-                isCurved: true,
-                color: theme.colors.success,
-                barWidth: 2,
-                dotData: const FlDotData(show: false),
-                belowBarData: BarAreaData(
-                  show: true,
-                  color: theme.colors.success.withValues(alpha: 0.1),
-                ),
-              ),
-              // Sent (orange)
-              LineChartBarData(
-                spots: txSpots,
-                isCurved: true,
-                color: theme.colors.orange,
-                barWidth: 2,
-                dotData: const FlDotData(show: false),
-                belowBarData: BarAreaData(
-                  show: true,
-                  color: theme.colors.orange.withValues(alpha: 0.1),
-                ),
-              ),
-            ],
-            lineTouchData: LineTouchData(
-              enabled: true,
-              touchTooltipData: LineTouchTooltipData(
-                getTooltipItems: (touchedSpots) {
-                  return touchedSpots.map((spot) {
-                    final label = spot.barIndex == 0 ? 'RX' : 'TX';
-                    return LineTooltipItem(
-                      '$label: ${formatBandwidth(spot.y)}',
-                      TextStyle(
-                        color: theme.colors.text,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    );
-                  }).toList();
-                },
-              ),
-            ),
-          ),
-        ),
+    return Container(
+      padding: const EdgeInsets.all(SailStyleValues.padding16),
+      decoration: BoxDecoration(
+        borderRadius: theme.chrome.radiusLarge,
+        border: Border.all(color: theme.colors.border),
       ),
-      const SizedBox(height: 16),
-      Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(
-              color: theme.colors.success,
-              borderRadius: BorderRadius.circular(2),
+          Row(
+            children: [
+              Expanded(child: SailText.primary13('Bandwidth Graph', bold: true)),
+              SailText.secondary12('Last ${bandwidthHistory.length * 5} seconds'),
+            ],
+          ),
+          const SizedBox(height: SailStyleValues.padding16),
+          SizedBox(
+            height: 120,
+            child: LineChart(
+              chart(
+                border: FlBorderData(
+                  show: true,
+                  border: Border(bottom: BorderSide(color: theme.colors.divider)),
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          SailText.secondary13('Received'),
-          const SizedBox(width: 24),
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(
-              color: theme.colors.orange,
-              borderRadius: BorderRadius.circular(2),
-            ),
+          const SizedBox(height: SailStyleValues.padding12),
+          Row(
+            children: [
+              _LegendDash(color: theme.colors.orange),
+              const SizedBox(width: SailStyleValues.padding12),
+              SailText.secondary12('Received'),
+              const SizedBox(width: SailStyleValues.padding16),
+              _LegendDash(color: theme.colors.info),
+              const SizedBox(width: SailStyleValues.padding12),
+              SailText.secondary12('Sent'),
+              const Spacer(),
+              SailText.secondary12('Auto-refreshing every 5 seconds'),
+            ],
           ),
-          const SizedBox(width: 8),
-          SailText.secondary13('Sent'),
         ],
       ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SailText.primary20('Bandwidth Graph'),
-        const SizedBox(height: 8),
-        ...body,
-      ],
     );
+  }
+}
+
+class _LegendDash extends StatelessWidget {
+  final Color color;
+
+  const _LegendDash({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(key: const ValueKey('bandwidth-legend-dash'), width: 12, height: 2, color: color);
   }
 }
 

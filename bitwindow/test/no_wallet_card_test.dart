@@ -217,6 +217,15 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets('Import file sits inside the descriptor field and the dialog has no Cancel', (tester) async {
+    await pumpLarge(tester, const ImportDescriptorDialog());
+
+    final field = tester.getRect(find.byType(SailTextField));
+    final importFile = tester.getRect(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Import file'));
+    expect(field.contains(importFile.topLeft) && field.contains(importFile.bottomRight), isTrue);
+    expect(find.byWidgetPredicate((w) => w is SailButton && w.label == 'Cancel'), findsNothing);
+  });
+
   testWidgets('a single-sig descriptor makes a Core watch-only wallet on a full node', (tester) async {
     const descriptor = "wpkh([d34db33f/84'/0'/0']xpub6CUGRUo/0/*)";
     rpc.policy = wmpb.ValidateDescriptorResponse(scriptType: 'wpkh', m: 1, n: 1, descriptor: descriptor);

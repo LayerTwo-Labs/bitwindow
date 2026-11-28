@@ -13,8 +13,9 @@ class ProofOfFundsModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SailModal(
-      constraints: const BoxConstraints(maxWidth: 800, maxHeight: 700),
+      constraints: const BoxConstraints(maxWidth: 760, maxHeight: 700),
       child: SailCard(
+        withCloseButton: true,
         title: 'Proof of Funds',
         subtitle: 'Generate or verify cryptographically signed reports proving ownership of UTXOs',
         child: SingleChildScrollView(
@@ -22,16 +23,8 @@ class ProofOfFundsModal extends StatelessWidget {
             height: 600,
             child: InlineTabBar(
               tabs: const [
-                TabItem(
-                  label: 'Generate Report',
-                  icon: SailSVGAsset.iconPen,
-                  child: GenerateReportTab(),
-                ),
-                TabItem(
-                  label: 'Verify Report',
-                  icon: SailSVGAsset.iconCheck,
-                  child: VerifyReportTab(),
-                ),
+                TabItem(label: 'Generate Report', child: GenerateReportTab()),
+                TabItem(label: 'Verify Report', child: VerifyReportTab()),
               ],
               initialIndex: 0,
             ),
@@ -154,63 +147,51 @@ class _GenerateReportTabState extends State<GenerateReportTab> {
 
     return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.all(SailStyleValues.padding16),
+        padding: const EdgeInsets.only(top: SailStyleValues.padding12),
         child: SailColumn(
-          spacing: SailStyleValues.padding20,
+          spacing: SailStyleValues.padding16,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SailColumn(
               spacing: SailStyleValues.padding12,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SailText.primary15('Message Configuration', bold: true),
-                SailCard(
-                  child: SailColumn(
-                    spacing: SailStyleValues.padding16,
-                    children: [
+                SailText.primary13('Message Configuration', bold: true),
+                SailColumn(
+                  spacing: SailStyleValues.padding12,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SailCheckbox(
+                          value: _useRandomMessage,
+                          label: 'Use random message',
+                          onChanged: (value) => setState(() => _useRandomMessage = value),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 32, top: 2),
+                          child: SailText.secondary12('Generates a secure 16-character hex string for signing'),
+                        ),
+                      ],
+                    ),
+                    if (!_useRandomMessage) ...[
+                      SailTextField(
+                        controller: _messageController,
+                        label: 'Custom Message',
+                        hintText: 'Enter your message to sign with each UTXO (max 1000 chars)',
+                        maxLines: 3,
+                      ),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          SailSwitch(
-                            value: _useRandomMessage,
-                            onChanged: (value) {
-                              setState(() {
-                                _useRandomMessage = value;
-                              });
-                            },
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SailText.primary13('Use random message'),
-                                const SizedBox(height: 4),
-                                SailText.secondary12(
-                                  'Generates a secure 16-character hex string for signing',
-                                ),
-                              ],
-                            ),
+                          SailText.secondary12(
+                            '${_messageController.text.length}/1000',
                           ),
                         ],
                       ),
-                      if (!_useRandomMessage) ...[
-                        SailTextField(
-                          controller: _messageController,
-                          label: 'Custom Message',
-                          hintText: 'Enter your message to sign with each UTXO (max 1000 chars)',
-                          maxLines: 3,
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            SailText.secondary12(
-                              '${_messageController.text.length}/1000',
-                            ),
-                          ],
-                        ),
-                      ],
                     ],
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -218,7 +199,7 @@ class _GenerateReportTabState extends State<GenerateReportTab> {
               spacing: SailStyleValues.padding12,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SailText.primary15('Output Configuration', bold: true),
+                SailText.primary13('Output Configuration', bold: true),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -236,7 +217,7 @@ class _GenerateReportTabState extends State<GenerateReportTab> {
                       child: SailButton(
                         onPressed: _selectFile,
                         label: 'Browse',
-                        icon: SailSVGAsset.iconSearch,
+                        variant: ButtonVariant.secondary,
                       ),
                     ),
                   ],
@@ -248,7 +229,7 @@ class _GenerateReportTabState extends State<GenerateReportTab> {
                 spacing: SailStyleValues.padding12,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SailText.primary15('Progress', bold: true),
+                  SailText.primary13('Progress', bold: true),
                   SailCard(
                     child: SailColumn(
                       spacing: SailStyleValues.padding12,
@@ -266,12 +247,12 @@ class _GenerateReportTabState extends State<GenerateReportTab> {
                 ],
               ),
             ],
-            Center(
+            SizedBox(
+              width: double.infinity,
               child: SailButton(
                 onPressed: _isGenerating ? null : _generateReport,
                 label: 'Generate Proof of Funds Report',
                 loadingLabel: 'Generating report',
-                icon: SailSVGAsset.iconPen,
                 loading: _isGenerating,
               ),
             ),
@@ -413,16 +394,16 @@ class _VerifyReportTabState extends State<VerifyReportTab> {
       listenable: formatter,
       builder: (context, child) => SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(SailStyleValues.padding16),
+          padding: const EdgeInsets.only(top: SailStyleValues.padding12),
           child: SailColumn(
-            spacing: SailStyleValues.padding20,
+            spacing: SailStyleValues.padding16,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SailColumn(
                 spacing: SailStyleValues.padding12,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SailText.primary15('Input Configuration', bold: true),
+                  SailText.primary13('Input Configuration', bold: true),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -440,7 +421,7 @@ class _VerifyReportTabState extends State<VerifyReportTab> {
                         child: SailButton(
                           onPressed: _selectFile,
                           label: 'Browse',
-                          icon: SailSVGAsset.iconSearch,
+                          variant: ButtonVariant.secondary,
                         ),
                       ),
                     ],
@@ -452,7 +433,7 @@ class _VerifyReportTabState extends State<VerifyReportTab> {
                   spacing: SailStyleValues.padding12,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SailText.primary15('Progress', bold: true),
+                    SailText.primary13('Progress', bold: true),
                     SailCard(
                       child: SailColumn(
                         spacing: SailStyleValues.padding12,
@@ -470,12 +451,12 @@ class _VerifyReportTabState extends State<VerifyReportTab> {
                   ],
                 ),
               ],
-              Center(
+              SizedBox(
+                width: double.infinity,
                 child: SailButton(
                   onPressed: _isVerifying ? null : _verifyReport,
                   label: 'Verify Proof of Funds Report',
                   loadingLabel: 'Verifying Signatures',
-                  icon: SailSVGAsset.iconCheck,
                   loading: _isVerifying,
                 ),
               ),

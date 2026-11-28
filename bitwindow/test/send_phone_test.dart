@@ -30,19 +30,29 @@ Future<void> _pumpRow(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _pumpActions(WidgetTester tester) async {
+Future<void> _pumpSummary(WidgetTester tester) async {
   await tester.pumpSailPage(
     SizedBox(
       width: double.infinity,
-      child: SendActions(
-        creating: false,
-        sendsNow: false,
-        onCreate: () async {},
-        onCancel: () {},
-        onClear: () async {},
-        onAirgap: () async {},
-        deviceType: null,
-        onDevice: () async {},
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SendSummaryPanel(
+            total: '0.1000,0000 BTC',
+            totalOtherUnit: '10 000 000 sats',
+            details: const [],
+            creating: false,
+            sendsNow: false,
+            onCreate: () async {},
+            onCancel: () {},
+            onClear: () async {},
+            onAirgap: () async {},
+            deviceType: null,
+            onDevice: () async {},
+            showGraph: false,
+            onToggleGraph: () {},
+          ),
+        ],
       ),
     ),
   );
@@ -130,25 +140,17 @@ void main() {
     );
   });
 
-  testWidgets('on a phone External signer and Clear All sit side by side', (tester) async {
+  testWidgets('on a phone the summary fills the width under the form, with one button', (tester) async {
     SailStyleValues.phoneLayoutOverride = true;
-    await _pumpActions(tester);
+    await _pumpSummary(tester);
 
-    final create = tester.getRect(_button('Create Transaction'));
-    final airgap = tester.getRect(_button('External signer (airgap)'));
-    final clear = tester.getRect(_button('Clear All'));
-    expect(airgap.center.dy, closeTo(clear.center.dy, 1));
-    expect(clear.left, greaterThan(airgap.right - 1));
-    expect(airgap.top, greaterThan(create.bottom - 1));
-    expect(airgap.width, closeTo(clear.width, 1));
-  });
-
-  testWidgets('on a desktop External signer and Clear All stack', (tester) async {
-    SailStyleValues.phoneLayoutOverride = false;
-    await _pumpActions(tester);
-
-    final airgap = tester.getRect(_button('External signer (airgap)'));
-    final clear = tester.getRect(_button('Clear All'));
-    expect(clear.top, greaterThan(airgap.bottom - 1));
+    final column = tester.getSize(
+      find.ancestor(of: find.byType(SendSummaryPanel), matching: find.byType(Column)).first,
+    );
+    expect(tester.getSize(find.byType(SailSidePanel)).width, column.width);
+    expect(column.width, greaterThan(SailSidePanel.width));
+    expect(tester.getSize(_button('Create Transaction')).width, closeTo(column.width - 32, 1));
+    expect(find.byType(SailButton), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

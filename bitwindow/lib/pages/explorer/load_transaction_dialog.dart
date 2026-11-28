@@ -111,6 +111,49 @@ class _LoadTransactionDialogState extends State<LoadTransactionDialog> {
   @override
   Widget build(BuildContext context) {
     final fixed = widget.txid != null;
+    if (!fixed && !SailStyleValues.phoneLayout(context)) {
+      final decoded = _decoded;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SailStrip(
+            lead: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SailText.primary13('Load Transaction', bold: true),
+                SailText.secondary12('Paste a txid, raw transaction hex, or base64 PSBT'),
+              ],
+            ),
+            stats: [
+              SailTextField(
+                controller: _controller,
+                hintText: 'txid / transaction hex / base64 PSBT',
+                maxLines: 1,
+              ),
+            ],
+            actions: [
+              SailButton(
+                onPressed: _isLoading ? null : _decode,
+                label: 'Decode',
+                variant: ButtonVariant.primary,
+                loading: _isLoading,
+              ),
+            ],
+          ),
+          if (_error != null) ...[const SizedBox(height: SailStyleValues.padding08), SailInlineError(_error!)],
+          if (decoded != null) ...[
+            const SizedBox(height: SailStyleValues.padding12),
+            Expanded(
+              child: SailCard(
+                bottomPadding: false,
+                child: _DecodedView(decoded: decoded),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
     return SailCard(
       title: fixed ? 'Transaction' : 'Load Transaction',
       subtitle: fixed ? widget.txid! : 'Paste a txid, raw transaction hex, or base64 PSBT',
@@ -177,47 +220,65 @@ class _DecodedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = decoded.details;
+    final head = Row(
+      children: [
+        Flexible(child: SailText.primary15(_formLabel, bold: true)),
+        const SizedBox(width: SailStyleValues.padding08),
+        if (decoded.isPsbt)
+          SailStatusPill(
+            label: '${decoded.signedInputs}/${details.inputs.length} inputs signed',
+            tone: decoded.signedInputs >= details.inputs.length ? SailStatusTone.success : SailStatusTone.warning,
+          ),
+      ],
+    );
+    final warning = details.warningMessage.trim().isEmpty
+        ? null
+        : SailAlert(variant: SailAlertVariant.warning, description: details.warningMessage);
+    // With the tabs in the head, the warning heads each tab instead.
+    final tabsInHead = !SailStyleValues.phoneLayout(context);
+    Widget tab(Widget child) => !tabsInHead || warning == null
+        ? child
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              warning,
+              const SailSpacing(SailStyleValues.padding08),
+              Expanded(child: child),
+            ],
+          );
+
+    final tabs = InlineTabBar(
+      leading: tabsInHead ? head : null,
+      tabs: [
+        TabItem(
+          label: 'Overview',
+          child: tab(_Overview(decoded: decoded)),
+        ),
+        TabItem(
+          label: 'Inputs (${details.inputs.length})',
+          child: tab(_InputsTable(decoded: decoded)),
+        ),
+        TabItem(
+          label: 'Outputs (${details.outputs.length})',
+          child: tab(_OutputsTable(decoded: decoded)),
+        ),
+        TabItem(
+          label: 'Bytes',
+          child: tab(TransactionByteView(rawHex: details.hex)),
+        ),
+      ],
+      initialIndex: 0,
+    );
+    if (tabsInHead) {
+      return tabs;
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            SailText.primary13(_formLabel),
-            const SailSpacing(SailStyleValues.padding08),
-            if (decoded.isPsbt)
-              SailText.secondary13(
-                '${decoded.signedInputs}/${details.inputs.length} inputs signed',
-              ),
-          ],
-        ),
+        head,
         const SailSpacing(SailStyleValues.padding08),
-        if (details.warningMessage.trim().isNotEmpty) ...[
-          SailAlert(variant: SailAlertVariant.warning, description: details.warningMessage),
-          const SailSpacing(SailStyleValues.padding08),
-        ],
-        Expanded(
-          child: InlineTabBar(
-            tabs: [
-              TabItem(
-                label: 'Overview',
-                child: _Overview(decoded: decoded),
-              ),
-              TabItem(
-                label: 'Inputs (${details.inputs.length})',
-                child: _InputsTable(decoded: decoded),
-              ),
-              TabItem(
-                label: 'Outputs (${details.outputs.length})',
-                child: _OutputsTable(decoded: decoded),
-              ),
-              TabItem(
-                label: 'Bytes',
-                child: TransactionByteView(rawHex: details.hex),
-              ),
-            ],
-            initialIndex: 0,
-          ),
-        ),
+        if (warning != null) ...[warning, const SailSpacing(SailStyleValues.padding08)],
+        Expanded(child: tabs),
       ],
     );
   }
@@ -234,40 +295,74 @@ class _Overview extends StatelessWidget {
     final formatter = GetIt.I<FormatterProvider>();
     final sized = details.vsizeVbytes > 0;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(SailStyleValues.padding16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final info = [
+      const SailDetailHeading('Transaction Info'),
+      SailDetailGroup(
+        fill: SailDetailFill.canvas,
         children: [
-          SailText.primary13('Transaction Info'),
-          const SailSpacing(SailStyleValues.padding08),
-          DetailRow(label: 'TXID', value: details.txid),
-          DetailRow(label: 'Version', value: '${details.version}'),
-          DetailRow(label: 'Lock Time', value: '${details.locktime}'),
-          const SailSpacing(SailStyleValues.padding16),
-          SailText.primary13('Size'),
-          const SailSpacing(SailStyleValues.padding08),
-          DetailRow(label: 'Size', value: sized ? '${details.sizeBytes} bytes' : 'Unknown'),
-          DetailRow(label: 'Virtual Size', value: sized ? '${details.vsizeVbytes} vbytes' : 'Unknown'),
-          DetailRow(label: 'Weight', value: sized ? '${details.weightWu} WU' : 'Unknown'),
-          const SailSpacing(SailStyleValues.padding16),
-          SailText.primary13('Fee'),
-          const SailSpacing(SailStyleValues.padding08),
-          DetailRow(
+          SailDetailLine(wrap: true, label: 'TXID', value: details.txid),
+          SailDetailLine(wrap: true, label: 'Version', value: '${details.version}'),
+          SailDetailLine(wrap: true, label: 'Lock Time', value: '${details.locktime}'),
+        ],
+      ),
+      const SailDetailHeading('Size'),
+      SailDetailGroup(
+        fill: SailDetailFill.canvas,
+        children: [
+          SailDetailLine(wrap: true, label: 'Size', value: sized ? '${details.sizeBytes} bytes' : 'Unknown'),
+          SailDetailLine(wrap: true, label: 'Virtual Size', value: sized ? '${details.vsizeVbytes} vbytes' : 'Unknown'),
+          SailDetailLine(wrap: true, label: 'Weight', value: sized ? '${details.weightWu} WU' : 'Unknown'),
+        ],
+      ),
+    ];
+    final money = [
+      const SailDetailHeading('Fee'),
+      SailDetailGroup(
+        fill: SailDetailFill.canvas,
+        children: [
+          SailDetailLine(
+            wrap: true,
             label: 'Fee',
             value: decoded.hasFee ? formatter.formatSats(details.feeSats.toInt()) : 'Unknown',
           ),
-          DetailRow(label: 'Fee Rate', value: feeRateText(decoded)),
-          const SailSpacing(SailStyleValues.padding16),
-          SailText.primary13('Totals'),
-          const SailSpacing(SailStyleValues.padding08),
-          DetailRow(
+          SailDetailLine(wrap: true, label: 'Fee Rate', value: feeRateText(decoded)),
+        ],
+      ),
+      const SailDetailHeading('Totals'),
+      SailDetailGroup(
+        fill: SailDetailFill.canvas,
+        children: [
+          SailDetailLine(
+            wrap: true,
             label: 'Total Input',
             value: decoded.hasTotalInput ? formatter.formatSats(details.totalInputSats.toInt()) : 'Unknown',
           ),
-          DetailRow(label: 'Total Output', value: formatter.formatSats(details.totalOutputSats.toInt())),
+          SailDetailLine(
+            wrap: true,
+            label: 'Total Output',
+            value: formatter.formatSats(details.totalOutputSats.toInt()),
+          ),
         ],
       ),
+    ];
+    Widget column(List<Widget> children) => SailColumn(
+      spacing: SailStyleValues.padding08,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: SailStyleValues.padding12),
+      child: SailStyleValues.phoneLayout(context)
+          ? column([...info, ...money])
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: column(info)),
+                const SizedBox(width: SailStyleValues.padding12),
+                Expanded(child: column(money)),
+              ],
+            ),
     );
   }
 }

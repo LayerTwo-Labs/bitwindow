@@ -1,3 +1,5 @@
+import 'package:bitwindow/pages/explorer/block_explorer_dialog.dart';
+
 import 'dart:io';
 
 import 'package:bitwindow/pages/wallet/wallet_hd.dart';
@@ -72,7 +74,13 @@ Future<void> _pumpDerived(WidgetTester tester, {required bool phone, double widt
     await tester.binding.setSurfaceSize(Size(width, 1200));
   }
   await tester.pump();
-  await tester.tap(find.widgetWithText(SailButton, 'Random'));
+  if (phone) {
+    await tester.tap(find.widgetWithText(SailButton, 'Random'));
+  } else {
+    await tester.tap(find.byType(SailRowMenuButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Random'));
+  }
   await tester.pump();
   await tester.pump();
   await tester.tap(find.widgetWithText(SailButton, 'Derive Addresses'));
@@ -134,14 +142,15 @@ void main() {
     expect(tester.getRect(find.text('addr-0')).top, greaterThan(next.bottom));
   });
 
-  testWidgets('the desktop keeps the colon labels on one row with the value', (tester) async {
+  testWidgets('the desktop side panel shows each colon label over its value', (tester) async {
     await _pumpDerived(tester, phone: false);
 
-    expect(find.byType(SailStackedValueRow), findsNothing);
+    final panel = find.byType(SailSidePanel);
+    expect(find.descendant(of: panel, matching: find.text('XPUB:')), findsOneWidget);
     final label = tester.getRect(find.text('XPUB:'));
     final value = tester.getRect(find.text(_xpub));
-    expect(value.left, greaterThanOrEqualTo(label.right));
-    expect(value.center.dy, closeTo(label.center.dy, 2));
+    expect(value.top, greaterThanOrEqualTo(label.bottom));
+    expect(value.left, closeTo(label.left, 1));
   });
 
   testWidgets('the desktop page controls sit above the addresses', (tester) async {
@@ -153,7 +162,7 @@ void main() {
     expect(tester.getRect(find.text('addr-0')).top, greaterThan(next.bottom));
   });
 
-  for (final width in [1280.0, 1024.0]) {
+  for (final width in [1440.0, 1280.0]) {
     testWidgets('at $width px the four key columns fit the card, with and without the WIF', (tester) async {
       (GetIt.I.get<OrchestratorRPC>().wallet as _FakeWallet).longKeys = true;
       await _pumpDerived(tester, phone: false, width: width);
@@ -167,14 +176,27 @@ void main() {
         expect(tester.takeException(), isNull);
         final card = tester.getRect(find.byType(SailCard).last);
         expect(tester.getRect(find.text('Private Key (WIF)')).right, lessThanOrEqualTo(card.right));
-        expect(tester.getRect(find.text(_taproot)).right, lessThanOrEqualTo(card.right));
-        expect(tester.getRect(find.text(_publicKey)).right, lessThanOrEqualTo(card.right));
+        expect(tester.getRect(find.text(middleEllipsis(_taproot, keep: 7))).right, lessThanOrEqualTo(card.right));
+        expect(tester.getRect(find.text(middleEllipsis(_publicKey, keep: 7))).right, lessThanOrEqualTo(card.right));
         if (shown) {
           expect(tester.getRect(find.text(_wif)).right, lessThanOrEqualTo(card.right));
         }
       }
     });
   }
+
+  testWidgets('at 1024 px the table next to the 480 px seed panel shows every key without an error', (tester) async {
+    (GetIt.I.get<OrchestratorRPC>().wallet as _FakeWallet).longKeys = true;
+    await _pumpDerived(tester, phone: false, width: 1024);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SailButton, 'Show Private Keys'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getSize(find.byType(SailSidePanel)).width, 480);
+    expect(find.text(middleEllipsis(_publicKey, keep: 7)), findsOneWidget);
+    expect(find.text(_wif), findsOneWidget);
+  });
 
   testWidgets('the Watch Descriptor row shows under XPUB', (tester) async {
     await _pumpDerived(tester, phone: false);

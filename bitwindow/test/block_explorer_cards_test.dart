@@ -44,15 +44,22 @@ void main() {
     });
   }
 
-  testWidgets('a chevron shows only between two blocks', (tester) async {
-    await tester.pumpSailPage(const SizedBox(height: 380, child: BlockExplorerDialog()));
+  testWidgets('the desktop lists the blocks as table rows, and a row click opens Block Details', (tester) async {
+    await tester.pumpSailPage(const SizedBox(height: 600, child: BlockExplorerDialog()));
     await tester.pump(const Duration(milliseconds: 300));
 
-    final chevrons = find.descendant(
-      of: find.byType(ListView),
-      matching: find.byWidgetPredicate((w) => w.runtimeType.toString() == 'SvgPicture'),
-    );
-    expect(chevrons, findsNWidgets(2));
+    final headers = tester.widgetList<SailTableHeaderCell>(find.byType(SailTableHeaderCell)).map((h) => h.name);
+    expect(headers, ['Height', 'Hash', 'Prev Hash', 'Merkle Root', 'Bits']);
+    expect(find.byType(SailSidePanel), findsNothing);
+
+    await tester.tap(find.text('3'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+
+    final panel = find.byType(SailSidePanel);
+    expect(find.descendant(of: panel, matching: find.text('Block Details')), findsOneWidget);
+    expect(find.descendant(of: panel, matching: find.text('a3'.padRight(64, '0'))), findsOneWidget);
+    expect(find.descendant(of: panel, matching: find.widgetWithText(SailButton, 'View Merkle Tree')), findsOneWidget);
   });
 
   test('a long value keeps both ends', () {

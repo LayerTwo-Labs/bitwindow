@@ -22,6 +22,7 @@ class FundGroupModal extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 600),
               child: SailCard(
                 title: 'Fund ${viewModel.selectedGroup!.name}',
+                withCloseButton: true,
                 subtitle: 'Send Bitcoin to this address to fund the multisig group',
                 child: SailColumn(
                   mainAxisSize: MainAxisSize.min,
@@ -34,11 +35,6 @@ class FundGroupModal extends StatelessWidget {
                       readOnly: true,
                       suffixWidget: CopyButton(text: viewModel.currentAddress),
                     ),
-                    SailButton(
-                      label: 'Close',
-                      onPressed: () async => Navigator.of(context).pop(),
-                      variant: ButtonVariant.secondary,
-                    ),
                   ],
                 ),
               ),
@@ -50,6 +46,7 @@ class FundGroupModal extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 600, maxHeight: 500),
           child: SailCard(
             title: 'Select Multisig Group to Fund',
+            withCloseButton: true,
             subtitle: 'Choose which group you want to generate a funding address for',
             error: viewModel.modalError,
             child: SingleChildScrollView(
@@ -94,11 +91,6 @@ class FundGroupModal extends StatelessWidget {
                         ),
                       ),
                     ),
-                  SailButton(
-                    label: 'Close',
-                    onPressed: () async => Navigator.of(context).pop(),
-                    variant: ButtonVariant.ghost,
-                  ),
                 ],
               ),
             ),

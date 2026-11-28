@@ -3,6 +3,7 @@ import 'package:bitwindow/providers/coin_selection_provider.dart';
 import 'package:bitwindow/providers/consolidation_provider.dart';
 import 'package:bitwindow/providers/psbt_draft_provider.dart';
 import 'package:bitwindow/providers/transactions_provider.dart';
+import 'package:bitwindow/widgets/v2_details.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,6 +107,17 @@ class _FakeDrafts extends ChangeNotifier implements PsbtDraftProvider {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _FakeConf extends ChangeNotifier implements BitcoinConfProvider {
+  @override
+  BitcoinNetwork network = BitcoinNetwork.BITCOIN_NETWORK_ECASH;
+
+  @override
+  String ecashNetworkId = 'ecash';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 Future<void> _pump(WidgetTester tester, {required bool phone}) async {
   SailStyleValues.phoneLayoutOverride = phone;
   await tester.pumpSailPage(const ConsolidateTab());
@@ -190,7 +202,7 @@ void main() {
     await _pump(tester, phone: false);
 
     final card = tester.getRect(find.ancestor(of: find.text('Coins').first, matching: find.byType(SailCard)).first);
-    final value = tester.getRect(find.text(GetIt.I<FormatterProvider>().formatSats(4000)).last);
+    final value = tester.getRect(find.text(splitAmountUnit(GetIt.I<FormatterProvider>().formatSats(4000)).$1).last);
     expect(value.right, lessThanOrEqualTo(card.right), reason: 'the value column shows in the card');
     expect(find.text('bcrt1q${'x' * 30}0'), findsNothing);
     expect(find.text(shortenId('bcrt1q${'x' * 30}0')), findsOneWidget);
@@ -210,7 +222,7 @@ void main() {
     await _pump(tester, phone: false);
 
     final card = tester.getRect(find.ancestor(of: find.text('Coins').first, matching: find.byType(SailCard)).first);
-    final value = tester.getRect(find.text(GetIt.I<FormatterProvider>().formatSats(4000)).last);
+    final value = tester.getRect(find.text(splitAmountUnit(GetIt.I<FormatterProvider>().formatSats(4000)).$1).last);
     expect(value.right, lessThanOrEqualTo(card.right));
     expect(tester.getSize(find.text(label)).width, lessThan(260));
   });
@@ -247,5 +259,48 @@ void main() {
     await tester.pump();
     expect(tester.widget<SailButton>(button).disabled, isFalse);
     expect(find.text(reason), findsNothing);
+  });
+
+  testWidgets('the desktop plan is the side panel, and Select all, Clear, Stop and Show sit in "…" menus', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(tester, phone: false);
+
+    expect(find.widgetWithText(SailSidePanel, 'Plan'), findsOneWidget);
+    expect(find.widgetWithText(SailButton, 'Select all'), findsNothing);
+    expect(find.widgetWithText(SailButton, 'Clear'), findsNothing);
+    expect(find.widgetWithText(SailButton, 'Stop'), findsNothing);
+    expect(find.widgetWithText(SailButton, 'Show'), findsNothing);
+
+    final coinsMenu = find.descendant(
+      of: find.ancestor(of: find.text('Hide frozen (0)'), matching: find.byType(SailCard)).first,
+      matching: find.byType(SailRowMenuButton),
+    );
+    await tester.tap(coinsMenu.first);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Select all'), findsOneWidget);
+    await tester.tap(find.text('Clear'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('0 of 3 coins selected'), findsOneWidget);
+
+    final runsMenu = find.descendant(
+      of: find.ancestor(of: find.text('Consolidation runs'), matching: find.byType(SailCard)).first,
+      matching: find.byType(SailRowMenuButton),
+    );
+    await tester.tap(runsMenu.first);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Stop'), findsOneWidget);
+  });
+
+  testWidgets('the fee rate shows the unit of the active ticker', (tester) async {
+    GetIt.I.registerSingleton<BitcoinConfProvider>(_FakeConf());
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(tester, phone: false);
+
+    expect(find.text('1 szat/vB'), findsOneWidget);
+    expect(find.text('1 sat/vB'), findsNothing);
   });
 }

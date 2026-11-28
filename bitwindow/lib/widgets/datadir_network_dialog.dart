@@ -51,13 +51,7 @@ class DatadirNetworkDialog extends StatelessWidget {
     return SailDialog(
       title: answer.mixed ? 'The block files hold two networks' : 'The blocks on disk are from $_detected',
       subtitle: 'But you are on $_selected.',
-      actions: [
-        SailButton(
-          label: 'Close',
-          variant: ButtonVariant.secondary,
-          onPressed: () async => Navigator.of(context).pop(),
-        ),
-      ],
+      withCloseButton: true,
       child: SailColumn(
         spacing: SailStyleValues.padding16,
         crossAxisAlignment: CrossAxisAlignment.start,

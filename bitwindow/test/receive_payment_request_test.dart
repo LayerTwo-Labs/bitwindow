@@ -200,7 +200,10 @@ void main() {
     const request = 'bitcoin:$_first?amount=0.25&label=Invoice%2042&message=Thanks%20for%20the%20coffee';
     expect(_qrData(tester), request);
     expect(find.text('Payment request'), findsOneWidget);
-    expect(tester.widget<CopyButton>(find.byType(CopyButton).at(1)).text, request);
+    expect(
+      tester.widget<CopyButton>(find.descendant(of: _field('Payment request'), matching: find.byType(CopyButton))).text,
+      request,
+    );
   });
 
   testWidgets('the three request fields have the same height', (tester) async {

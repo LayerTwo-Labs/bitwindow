@@ -92,6 +92,7 @@ class CreateMultisigModal extends StatelessWidget {
         return SailModal(
           constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
           child: SailCard(
+            withCloseButton: true,
             title: viewModel.currentStep == 0 ? 'Create Multisig Group' : 'Import Public Keys',
             subtitle: viewModel.currentStep == 0
                 ? 'Set up your multisig parameters'
@@ -380,11 +381,6 @@ class CreateMultisigModal extends StatelessWidget {
                       SailRow(
                         spacing: SailStyleValues.padding08,
                         children: [
-                          SailButton(
-                            label: 'Cancel',
-                            onPressed: () async => Navigator.of(context).pop(false),
-                            variant: ButtonVariant.ghost,
-                          ),
                           if (viewModel.currentStep == 0)
                             SailButton(
                               label: 'Next',
@@ -943,6 +939,7 @@ class ImportMultisigModal extends StatelessWidget {
         return SailModal(
           constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
           child: SailCard(
+            withCloseButton: true,
             title: 'Import Multisig from TXID',
             subtitle: 'Import a multisig group by providing the transaction ID',
             error: viewModel.modalError,
@@ -1031,11 +1028,6 @@ class ImportMultisigModal extends StatelessWidget {
                       SailRow(
                         spacing: SailStyleValues.padding08,
                         children: [
-                          SailButton(
-                            label: 'Cancel',
-                            onPressed: () async => Navigator.of(context).pop(false),
-                            variant: ButtonVariant.ghost,
-                          ),
                           if (viewModel.hasFoundGroup)
                             SailButton(
                               label: 'Import Group',

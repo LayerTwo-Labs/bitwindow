@@ -170,61 +170,6 @@ void main() {
     }
   });
 
-  group('sidebar', () {
-    tearDown(() => GetIt.I.reset());
-
-    SidechainSidebarEntry entry(SidechainModule module, {required bool running, required String trailing}) =>
-        SidechainSidebarEntry(module: module, color: module.chain.color, running: running, trailing: trailing);
-
-    testWidgets('groups running and stopped chains, shows the total and selects the open chain', (tester) async {
-      final modules = {for (final module in hostedModules) module.chain.name: module};
-      String? opened;
-      var allSlots = false;
-
-      await tester.pumpSailPage(
-        SizedBox(
-          height: 700,
-          child: SidechainSidebar(
-            entries: [
-              entry(modules['Thunder']!, running: true, trailing: '1.01019400 BTC'),
-              entry(modules['Truthcoin']!, running: false, trailing: 'Stopped'),
-              entry(modules['BitAssets']!, running: true, trailing: '0.11000000 BTC'),
-              entry(modules['zSide']!, running: false, trailing: 'Not downloaded'),
-            ],
-            selected: modules['Thunder']!.chain.registryKey,
-            total: '1.12019400 BTC',
-            onSelect: (entry) => opened = entry.module.chain.name,
-            onAllSlots: () => allSlots = true,
-            onAddRemove: () {},
-          ),
-        ),
-      );
-
-      expect(find.text('Sidechain balance'), findsOneWidget);
-      expect(find.text('1.12019400 BTC'), findsOneWidget);
-
-      // The first "Stopped" is the group title, the second the state of Truthcoin.
-      double top(String text) => tester.getTopLeft(find.text(text).first).dy;
-      expect(top('Running'), lessThan(top('Thunder')));
-      expect(top('Thunder'), lessThan(top('BitAssets')));
-      expect(top('BitAssets'), lessThan(top('Stopped')));
-      expect(top('Stopped'), lessThan(top('Truthcoin')));
-      expect(top('Truthcoin'), lessThan(top('zSide')));
-      expect(find.text('Stopped'), findsNWidgets(2));
-      expect(find.text('Not downloaded'), findsOneWidget);
-
-      Container row(String key) => tester.widget<Container>(find.byKey(ValueKey('sidebar_$key')));
-      final colors = SailTheme.of(tester.element(find.text('Thunder'))).colors;
-      expect((row('thunder').decoration! as BoxDecoration).color, colors.backgroundSecondary);
-      expect((row('bitassets').decoration! as BoxDecoration).color, isNull);
-
-      await tester.tap(find.text('BitAssets'));
-      expect(opened, 'BitAssets');
-      await tester.tap(find.text('All slots'));
-      expect(allSlots, isTrue);
-    });
-  });
-
   group('host page', () {
     late Directory appDir;
 
@@ -360,19 +305,69 @@ void main() {
       expect(find.byType(SidechainHostPage), findsNothing);
     });
 
-    testWidgets('the chain menu icon fits its button', (tester) async {
-      final router = await pumpHost(tester);
+    Future<void> openThunder(WidgetTester tester, AppRouter router) async {
       await router.navigate(SidechainsRoute(children: [SidechainHostRoute(chain: 'thunder')]));
       await tester.pump();
       await settle(tester);
+    }
 
-      final menu = find.byWidgetPredicate((w) => w is SailButton && w.icon == SailSVGAsset.ellipsisVertical);
-      expect(menu, findsOneWidget);
-      expect(tester.getSize(menu).height, lessThanOrEqualTo(40));
+    Finder stripDeposit() => find.descendant(
+      of: find.byType(HostedChainStrip),
+      matching: find.widgetWithText(SailButton, 'Deposit'),
+    );
+
+    testWidgets('the strip has no sidebar, a chain dropdown, the state, one Deposit and a chain menu', (tester) async {
+      final router = await pumpHost(tester);
+      await openThunder(tester, router);
+
+      expect(find.byType(HostedChainStrip), findsOneWidget);
+      expect(find.text('All slots'), findsNothing, reason: 'no sidebar');
+      expect(find.text('Balance'), findsOneWidget);
+      expect(find.text('Stopped'), findsOneWidget);
+      expect(stripDeposit(), findsOneWidget);
+      expect(tester.widget<SailButton>(stripDeposit()).variant, ButtonVariant.primary);
+      expect(find.widgetWithText(SailButton, 'Start'), findsNothing, reason: 'Start is in the chain menu');
+
+      await tester.tap(find.descendant(of: find.byType(HostedChainStrip), matching: find.byType(SailRowMenuButton)));
+      await tester.pumpAndSettle();
+      for (final label in ['Start', 'Edit homepage', 'View logs', 'Debug window', 'Node settings']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      await tester.tapAt(const Offset(5, 1000));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('the Parent Chain tab shows the strip with no Deposit, the other tabs keep it', (tester) async {
+      final router = await pumpHost(tester);
+      await openThunder(tester, router);
+      expect(stripDeposit(), findsOneWidget);
+
+      await tester.tap(find.text('Parent Chain'));
+      await tester.pumpAndSettle();
+      expect(find.text('page ${ParentChainRoute.name}'), findsOneWidget);
+      expect(find.byType(HostedChainStrip), findsOneWidget);
+      expect(stripDeposit(), findsNothing);
+      expect(find.byType(SailRowMenuButton), findsOneWidget);
+
+      await tester.tap(find.text('Console'));
+      await tester.pumpAndSettle();
+      expect(stripDeposit(), findsOneWidget);
+    });
+
+    testWidgets('the chain dropdown lists the open chain, then All slots goes back to the slot list', (tester) async {
+      final router = await pumpHost(tester);
+      await openThunder(tester, router);
+
+      await tester.tap(find.byKey(const ValueKey('chain_dropdown')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('chain_entry_thunder')), findsOneWidget);
+      expect(find.textContaining('Sidechain balance'), findsOneWidget);
 
       await tester.tap(find.text('All slots'));
       await tester.pumpAndSettle();
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+      expect(find.text('slot table'), findsOneWidget);
     });
 
     testWidgets('a phone opens the chain with no sidebar, and the buttons under the title', (tester) async {
@@ -427,6 +422,8 @@ void main() {
       expect(GetIt.I.hasScope('sidechain-thunder'), isFalse);
       expect(find.text('Dutch Auction'), findsOneWidget);
 
+      await tester.tap(find.byKey(const ValueKey('chain_dropdown')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('All slots'));
       await tester.pumpAndSettle();
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));

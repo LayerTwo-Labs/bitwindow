@@ -7,6 +7,11 @@ import 'package:sail_ui/sail_ui.dart';
 
 import 'test_utils.dart';
 
+class _Alarmed extends MempoolWatchProvider {
+  @override
+  int get alarmCount => 1;
+}
+
 void main() {
   setUp(() {
     final provider = MempoolWatchProvider()
@@ -41,16 +46,41 @@ void main() {
     expect(tester.getRect(find.byType(SailTextField)).top, greaterThan(stop.bottom));
   });
 
-  testWidgets('on desktop the buttons keep their size and share a row with the search', (tester) async {
+  testWidgets('on desktop the strip holds one primary toggle and Reset tracker moves into the menu', (tester) async {
     await tester.pumpSailPage(const TransactionCensorshipPage());
     await tester.pump();
 
-    final stop = tester.widget<SailButton>(button('Stop watching'));
-    expect(stop.variant, ButtonVariant.secondary);
-    expect(stop.small, isFalse);
-    expect(
-      tester.getRect(find.byType(SailTextField)).center.dy,
-      closeTo(tester.getRect(button('Stop watching')).center.dy, 4),
+    final strip = find.byType(SailStrip);
+    final stripButtons = find.descendant(of: strip, matching: find.byType(SailButton));
+    expect(stripButtons, findsOneWidget);
+    final stop = tester.widget<SailButton>(stripButtons);
+    expect(stop.label, 'Stop watching');
+    expect(stop.variant, ButtonVariant.primary);
+    expect(button('Reset tracker'), findsNothing);
+    expect(find.byType(SailTextField), findsOneWidget);
+
+    await tester.tap(find.descendant(of: strip, matching: find.byType(SailRowMenuButton)));
+    await tester.pumpAndSettle();
+    expect(find.text('Reset tracker'), findsOneWidget);
+  });
+
+  testWidgets('an alarm is a red row over the table with a white dot and text', (tester) async {
+    await GetIt.I.reset();
+    GetIt.I.registerSingleton<MempoolWatchProvider>(
+      _Alarmed()
+        ..initialized = true
+        ..status = GetMempoolWatchStatusResponse(enabled: true, running: true),
     );
+    await tester.pumpSailPage(const TransactionCensorshipPage());
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final alarm = find.byKey(const Key('censorship-alarm'));
+    final colors = SailTheme.of(tester.element(alarm)).colors;
+    final box = tester.widget<Container>(alarm).decoration! as BoxDecoration;
+    expect(box.color, colors.destructiveButtonBackground);
+    final text = find.text('Censorship alarm: 1 pending transaction scores above 100');
+    expect(tester.widget<Text>(text).style?.color, colors.destructiveButtonText);
+    expect(find.byType(SailAlert), findsNothing);
   });
 }

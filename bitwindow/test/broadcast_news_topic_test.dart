@@ -1,7 +1,8 @@
 import 'package:bitwindow/pages/overview_page.dart';
 import 'package:bitwindow/providers/news_provider.dart';
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/widgets.dart';
+import 'package:bitwindow/widgets/headline_highlight_text_field.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sail_ui/sail_ui.dart';
@@ -310,12 +311,42 @@ void main() {
     expect(tester.getSize(content).height, lessThanOrEqualTo(570));
   });
 
-  testWidgets('Help is at the left edge and Broadcast at the right edge', (tester) async {
+  testWidgets('Broadcast spans the width of the fields', (tester) async {
     await pumpDialog(tester);
-    final help = tester.getTopLeft(find.widgetWithText(SailButton, 'Help'));
-    final broadcast = tester.getTopRight(find.widgetWithText(SailButton, 'Broadcast'));
-    final field = tester.getRect(find.byType(SailTextField).last);
-    expect(help.dx, closeTo(field.left, 1));
-    expect(broadcast.dx, closeTo(field.right, 1));
+    final broadcast = tester.getRect(find.widgetWithText(SailButton, 'Broadcast'));
+    final message = tester.getRect(find.byType(HeadlineHighlightTextField));
+    expect(broadcast.left, closeTo(message.left, 1));
+    expect(broadcast.right, closeTo(message.right, 1));
+    expect(find.widgetWithText(SailButton, 'Help'), findsNothing);
+  });
+
+  testWidgets('Help is in the "…" menu in the head of the dialog', (tester) async {
+    await loadBundledFonts();
+    final provider = GetIt.I.get<NewsProvider>();
+    await tester.runAsync(provider.fetch);
+    provider.topics = [Topic(topic: 'a1a1a1a1', name: 'QA Topic', confirmed: true)];
+    Future<void> settle() async {
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    await tester.pumpSailPage(
+      Builder(
+        builder: (context) => SailButton(label: 'Open', onPressed: () async => displayBroadcastNewsDialog(context)),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await settle();
+
+    final menu = find.descendant(of: find.byType(Dialog), matching: find.byType(SailRowMenuButton));
+    expect(menu, findsOneWidget);
+    await tester.tap(menu);
+    await settle();
+    await tester.tap(find.text('Help'));
+    await settle();
+
+    expect(find.text('News Help'), findsOneWidget);
   });
 }
