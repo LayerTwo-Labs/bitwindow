@@ -644,12 +644,8 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   String get headline => messageController.text.substring(0, headlineEndIndex(messageController.text));
 
-  /// The text after the headline, without the newline that ends the headline.
-  String get content {
-    final text = messageController.text;
-    final end = headlineEndIndex(text);
-    return text.startsWith('\n', end) ? text.substring(end + 1) : text.substring(end);
-  }
+  /// The text after the headline, without the line break that ends the headline.
+  String get content => storyBody(messageController.text);
 
   String? broadcastError;
 

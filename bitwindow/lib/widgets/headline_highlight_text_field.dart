@@ -10,18 +10,29 @@ const headlineMaxBytes = 64;
 int headlineEndIndex(String text) {
   var bytes = 0;
   var index = 0;
-  for (final rune in text.runes) {
-    if (rune == 0x0A) {
+  for (final char in text.characters) {
+    if (char.startsWith('\n') || char.startsWith('\r')) {
       return index;
     }
-    final runeBytes = utf8.encode(String.fromCharCode(rune)).length;
-    if (bytes + runeBytes > headlineMaxBytes) {
+    final charBytes = utf8.encode(char).length;
+    if (bytes + charBytes > headlineMaxBytes) {
       return index;
     }
-    bytes += runeBytes;
-    index += rune > 0xFFFF ? 2 : 1;
+    bytes += charBytes;
+    index += char.length;
   }
   return index;
+}
+
+/// The text after the headline, without the line break that ends the headline.
+String storyBody(String text) {
+  final rest = text.substring(headlineEndIndex(text));
+  for (final lineBreak in const ['\r\n', '\n', '\r']) {
+    if (rest.startsWith(lineBreak)) {
+      return rest.substring(lineBreak.length);
+    }
+  }
+  return rest;
 }
 
 /// A TextEditingController that highlights the headline portion with a green background.
