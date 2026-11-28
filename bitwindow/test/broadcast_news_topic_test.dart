@@ -191,6 +191,29 @@ void main() {
     expect(api.misc.fees, [100000]);
   });
 
+  testWidgets('a headline of only white space cannot broadcast', (tester) async {
+    await loadBundledFonts();
+    final provider = GetIt.I.get<NewsProvider>();
+    await tester.runAsync(provider.fetch);
+    provider.topics = [Topic(topic: 'a1a1a1a1', name: 'QA Topic', confirmed: true)];
+    await tester.runAsync(() => GetIt.I.get<ClientSettings>().setValue(LastUsedTopicSetting(newValue: 'a1a1a1a1')));
+
+    await tester.pumpSailPage(const SizedBox(width: 700, height: 700, child: BroadcastNewsView()));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
+
+    final message = tester.state<EditableTextState>(find.byType(EditableText).first).widget.controller;
+    final broadcast = find.widgetWithText(SailButton, 'Broadcast');
+    for (final text in ['    ', ' \t \nBody']) {
+      message.text = text;
+      await tester.pump();
+      expect(tester.widget<SailButton>(broadcast).disabled, isTrue, reason: 'Message: "$text"');
+    }
+    message.text = ' QA headline';
+    await tester.pump();
+    expect(tester.widget<SailButton>(broadcast).disabled, isFalse);
+  });
+
   testWidgets('a link that is not a web link stops the broadcast', (tester) async {
     await loadBundledFonts();
     final provider = GetIt.I.get<NewsProvider>();

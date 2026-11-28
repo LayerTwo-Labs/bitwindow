@@ -549,7 +549,7 @@ class BroadcastNewsView extends StatelessWidget {
                   SailButton(
                     label: 'Broadcast',
                     onPressed: () async => viewModel.broadcastNews(context),
-                    disabled: viewModel.headline.isEmpty || viewModel.topic == null,
+                    disabled: !viewModel.canBroadcast,
                   ),
                 ],
               ),
@@ -647,6 +647,9 @@ class BroadcastNewsViewModel extends BaseViewModel {
   /// The text after the headline, without the line break that ends the headline.
   String get content => storyBody(messageController.text);
 
+  /// True when the headline holds more than white space and a topic is selected.
+  bool get canBroadcast => headline.trim().isNotEmpty && topic != null;
+
   String? broadcastError;
 
   BroadcastNewsViewModel({String? topic}) : _topicId = topic {
@@ -693,7 +696,7 @@ class BroadcastNewsViewModel extends BaseViewModel {
 
   Future<void> broadcastNews(BuildContext context) async {
     final topicId = topic?.topic;
-    if (headline.isEmpty || topicId == null) {
+    if (!canBroadcast || topicId == null) {
       return;
     }
 
