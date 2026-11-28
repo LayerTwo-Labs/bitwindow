@@ -1548,7 +1548,7 @@ func (s *Service) UpdateWalletMetadata(walletID, name string, gradientJSON json.
 			return s.saveWalletFile()
 		}
 	}
-	return fmt.Errorf("wallet %s not found", walletID)
+	return connect.Errorf(connect.CodeNotFound, "wallet %s not found", walletID)
 }
 
 // CheckDeletable returns the error DeleteWallet gives for walletID, without a change.

@@ -324,7 +324,7 @@ func (h *WalletHandler) UpdateWalletMetadata(ctx context.Context, req *pb.Update
 		return nil, err
 	}
 	if err := h.svc.UpdateWalletMetadata(req.WalletId, req.Name, gradient); err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, err.Error()).WithCause(err)
+		return nil, rpcError(err)
 	}
 	return &pb.UpdateWalletMetadataResponse{}, nil
 }

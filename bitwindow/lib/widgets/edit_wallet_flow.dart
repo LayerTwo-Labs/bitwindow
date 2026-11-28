@@ -15,7 +15,8 @@ Future<void> editWallet(BuildContext context, WalletMetadata wallet) async {
     currentName: wallet.name,
     gradient: wallet.gradient,
     onChangePicture: () async => _pickWalletPicture(context),
-    onConfirmDelete: () async => _confirmDeleteWallet(context, wallet.name),
+    onConfirmDelete: () async => _confirmDeleteWallet(context, wallet),
+    deleteBlockedReason: deleteBlockedReason(GetIt.I.get<WalletReaderProvider>().wallets, wallet),
   );
   if (result == null) {
     return;
@@ -25,10 +26,12 @@ Future<void> editWallet(BuildContext context, WalletMetadata wallet) async {
     try {
       await GetIt.I.get<OrchestratorRPC>().wallet.deleteWallet(wallet.id);
     } catch (e) {
-      // The backend refuses to delete the starter wallet while others exist,
-      // and the dialog is already gone, so the reason goes to the user here.
       if (context.mounted) {
-        showSailToast(context, 'Could not delete ${wallet.name}: $e', variant: SailToastVariant.destructive);
+        showSailToast(
+          context,
+          'Could not delete ${wallet.name}: ${extractConnectException(e)}',
+          variant: SailToastVariant.destructive,
+        );
       }
       return;
     }
@@ -49,10 +52,17 @@ Future<void> editWallet(BuildContext context, WalletMetadata wallet) async {
 
   try {
     await GetIt.I.get<WalletReaderProvider>().updateWalletMetadata(wallet.id, result.name, gradient);
-  } catch (_) {
+  } catch (e) {
     // Nothing points at the new file, so it does not stay on the disk.
     await _deleteWalletPicture(written?.path);
-    rethrow;
+    if (context.mounted) {
+      showSailToast(
+        context,
+        'Could not save ${wallet.name}: ${extractConnectException(e)}',
+        variant: SailToastVariant.destructive,
+      );
+    }
+    return;
   }
 
   // The old file goes only once the wallet no longer points at it.
@@ -61,14 +71,48 @@ Future<void> editWallet(BuildContext context, WalletMetadata wallet) async {
   }
 }
 
-Future<bool> _confirmDeleteWallet(BuildContext context, String name) async {
+/// The reason the backend refuses to delete [wallet], or null when it allows it.
+String? deleteBlockedReason(List<WalletData> wallets, WalletMetadata wallet) {
+  final starter = wallets.any((w) => w.id == wallet.id && w.isStarter);
+  if (!starter || wallets.length < 2) {
+    return null;
+  }
+  return '${wallet.name} makes the sidechain starters. Delete the other wallets first.';
+}
+
+/// The confirm text for a delete of [name], which holds [sats] in total.
+String deleteWalletSubtitle(String name, int sats) {
+  const leaves = 'The wallet leaves this computer. Its backup is the only way back.';
+  if (sats <= 0) {
+    return leaves;
+  }
+  return '$name holds ${formatBitcoin(satoshiToBTC(sats))}. $leaves';
+}
+
+Future<bool> _confirmDeleteWallet(BuildContext context, WalletMetadata wallet) async {
+  String subtitle;
+  var canDelete = true;
+  try {
+    final balance = await GetIt.I.get<OrchestratorRPC>().wallet.getBalance(wallet.id);
+    final sats = balance.confirmedSats + balance.unconfirmedSats + balance.immatureSats;
+    subtitle = deleteWalletSubtitle(wallet.name, sats.round());
+  } catch (e) {
+    subtitle =
+        'Could not read the balance of ${wallet.name}: ${extractConnectException(e)}. '
+        'Delete is off until the balance shows.';
+    canDelete = false;
+  }
+  if (!context.mounted) {
+    return false;
+  }
   final go = await showThemedDialog<bool>(
     context: context,
     builder: (context) => SailAlertCard(
-      title: 'Delete $name?',
-      subtitle: 'The wallet leaves this computer. Its backup is the only way back.',
+      title: 'Delete ${wallet.name}?',
+      subtitle: subtitle,
       confirmText: 'Delete wallet',
       confirmButtonVariant: ButtonVariant.destructive,
+      confirmDisabled: !canDelete,
       onConfirm: () async => Navigator.of(context).pop(true),
       onCancel: () async => Navigator.of(context).pop(false),
     ),
